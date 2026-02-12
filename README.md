@@ -1,4 +1,4 @@
-# ScarletSpots: Native Masterplan
+# ScarletSpots
 
 This repo contains the native mobile masterplan for ScarletSpots. It targets iOS and Android via Expo, with a FastAPI + PostGIS backend.
 
@@ -10,4 +10,4 @@ This repo contains the native mobile masterplan for ScarletSpots. It targets iOS
 - Two themes: Campus (default) and Knight (retro)
 
 ## Files
-- [plan.md](plan.md) for the full implementation blueprint
+- [PLAN.md](PLAN.md) for the full implementation blueprint
