@@ -138,3 +138,6 @@ Thumbs.db
 # Supabase
 supabase/functions/import_map.json
 supabase/.temp
+
+# package-lock.json
+package-lock.json
