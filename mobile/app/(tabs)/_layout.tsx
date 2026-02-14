@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { Platform, StyleSheet, View, Text } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { BlurView } from 'expo-blur';
@@ -47,7 +47,7 @@ export default function TabLayout() {
         },
       }}>
 
-      {/* Search */}
+      {/* Search (Left) */}
       <Tabs.Screen
         name="search"
         options={{
@@ -71,13 +71,13 @@ export default function TabLayout() {
         }}
       />
 
-      {/* Knight (Profile) */}
+      {/* Navigate / Compass (Right) */}
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Knight',
+          title: 'Navigate',
           tabBarIcon: ({ color, focused }) => (
-            <Text style={[styles.knightIcon, { color }]}>⚔</Text>
+            <IconSymbol size={focused ? 24 : 22} name="location.north.fill" color={color} />
           ),
         }}
       />
@@ -103,8 +103,5 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 6,
     marginTop: -2,
-  },
-  knightIcon: {
-    fontSize: 22,
   },
 });
