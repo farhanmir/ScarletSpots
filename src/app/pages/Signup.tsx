@@ -10,6 +10,7 @@ export default function Signup() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
@@ -21,6 +22,10 @@ export default function Signup() {
       // Validate Rutgers email on frontend
       if (!email.endsWith('@rutgers.edu') && !email.endsWith('@scarletmail.rutgers.edu')) {
         throw new Error('Please use a valid Rutgers email address');
+      }
+
+      if (password !== confirmPassword) {
+        throw new Error('Passwords do not match');
       }
 
       // Call backend signup endpoint
@@ -124,6 +129,22 @@ export default function Signup() {
               className='bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500'
             />
             <p className='text-xs text-zinc-500'>Minimum 6 characters</p>
+          </div>
+
+          <div className='space-y-2'>
+            <Label htmlFor='confirmPassword' className='text-zinc-300'>
+              Confirm Password
+            </Label>
+            <Input
+              id='confirmPassword'
+              type='password'
+              placeholder='••••••••'
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              minLength={6}
+              className='bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500'
+            />
           </div>
 
           <Button
