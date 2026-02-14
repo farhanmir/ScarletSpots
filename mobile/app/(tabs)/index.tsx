@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { StyleSheet, View, Platform, Alert, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import MapView, { PROVIDER_GOOGLE, PROVIDER_DEFAULT, Polygon, Marker } from 'react-native-maps';
 import * as Location from 'expo-location';
@@ -30,6 +30,7 @@ interface ParkingSession {
 
 export default function MapScreen() {
   const { session, user } = useAuth();
+  const mapRef = useRef<MapView>(null);
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [lots, setLots] = useState<Lot[]>([]);
@@ -372,6 +373,7 @@ export default function MapScreen() {
   return (
     <View style={styles.container}>
       <MapView
+        ref={mapRef}
         provider={mapProvider}
         style={styles.map}
         customMapStyle={darkMapStyle}
@@ -426,6 +428,24 @@ export default function MapScreen() {
           </React.Fragment>
         ))}
       </MapView>
+
+      {/* Center on Me Button */}
+      <TouchableOpacity
+        style={styles.centerButton}
+        onPress={() => {
+          if (location) {
+            mapRef.current?.animateToRegion({
+              latitude: location.coords.latitude,
+              longitude: location.coords.longitude,
+              latitudeDelta: 0.01,
+              longitudeDelta: 0.005,
+            }, 500);
+          }
+        }}
+        activeOpacity={0.8}
+      >
+        <IconSymbol name="location.fill" size={20} color="#dc2626" />
+      </TouchableOpacity>
 
       {/* Active Session Overlay */}
       {activeSession && (
@@ -539,5 +559,23 @@ const styles = StyleSheet.create({
   },
   markerArrowFull: {
     borderTopColor: '#b91c1c',
+  },
+  centerButton: {
+    position: 'absolute',
+    bottom: Platform.OS === 'ios' ? 110 : 100,
+    right: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Platform.OS === 'ios' ? 'rgba(10, 10, 10, 0.85)' : '#0a0a0a',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8,
   },
 });
