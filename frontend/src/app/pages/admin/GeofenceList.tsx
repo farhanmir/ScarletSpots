@@ -18,10 +18,13 @@ export default function GeofenceList() {
   const fetchLots = async () => {
     try {
       setLoading(true);
+      console.log('[GeofenceList] Fetching lots...');
       const data = await apiCall('/lots');
+      console.log('[GeofenceList] Received:', data);
       setLots(data.lots || []);
-    } catch (error) {
-      toast.error('Failed to load lots');
+    } catch (error: any) {
+      console.error('[GeofenceList] Error:', error.message, error);
+      toast.error(`Failed to load lots: ${error.message}`);
     } finally {
       setLoading(false);
     }
