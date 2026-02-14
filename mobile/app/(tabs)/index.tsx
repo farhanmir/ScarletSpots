@@ -393,22 +393,36 @@ export default function MapScreen() {
             {lot.coordinates && lot.coordinates.length >= 3 && (
               <Polygon
                 coordinates={lot.coordinates.map((p) => ({ latitude: p[0], longitude: p[1] }))}
-                fillColor={lot.isCustom ? "rgba(59, 130, 246, 0.4)" : "rgba(220, 38, 38, 0.4)"}
-                strokeColor={lot.isCustom ? "#3b82f6" : "#dc2626"}
+                fillColor="rgba(220, 38, 38, 0.25)"
+                strokeColor="#dc2626"
                 strokeWidth={2}
                 tappable={true}
                 onPress={() => setSelectedLot(lot)}
               />
             )}
             
-            {/* Render Marker */}
+            {/* Custom Red Marker */}
             <Marker
               coordinate={{ latitude: lot.latitude, longitude: lot.longitude }}
               title={lot.name}
               description={`${lot.campus} - ${Math.round(lot.occupancyRate)}% Full`}
-              pinColor={lot.isCustom ? "blue" : "red"}
               onPress={() => setSelectedLot(lot)}
-            />
+            >
+              <View style={styles.markerContainer}>
+                <View style={[
+                  styles.markerBubble,
+                  lot.occupancyRate > 80 && styles.markerFull,
+                ]}>
+                  <Text style={styles.markerText}>
+                    {Math.round(lot.occupancyRate)}%
+                  </Text>
+                </View>
+                <View style={[
+                  styles.markerArrow,
+                  lot.occupancyRate > 80 && styles.markerArrowFull,
+                ]} />
+              </View>
+            </Marker>
           </React.Fragment>
         ))}
       </MapView>
@@ -487,5 +501,43 @@ const styles = StyleSheet.create({
   endSessionText: {
     color: '#dc2626',
     fontWeight: 'bold',
+  },
+  markerContainer: {
+    alignItems: 'center',
+  },
+  markerBubble: {
+    backgroundColor: '#dc2626',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    minWidth: 40,
+    alignItems: 'center',
+    shadowColor: '#dc2626',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  markerFull: {
+    backgroundColor: '#b91c1c',
+  },
+  markerText: {
+    color: 'white',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  markerArrow: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
+    borderTopWidth: 8,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: '#dc2626',
+    marginTop: -1,
+  },
+  markerArrowFull: {
+    borderTopColor: '#b91c1c',
   },
 });
