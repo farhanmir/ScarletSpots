@@ -251,4 +251,28 @@ Key endpoints:
 - Revenue supports ongoing development and data operations.
 
 ## 17. Future Considerations
-- Integration with navigation apps
+## 18. Admin Web Interface (Dev/Ops Dashboard)
+**Objective:** A web-based portal for developers and administrators to manage the parking system, visualize data, and configure geofences without needing the mobile app.
+
+**Target Audience:** Developers, Admins, Rutgers Parking Operations.
+
+**Core Features:**
+1.  **Geofence Management Editor:**
+    - Visual editor to draw, edit, and save parking lot polygons.
+    - Adjust capacity and metadata for each lot.
+    - "Test Mode": Simulate entering/exiting geofences.
+
+2.  **Live Heatmap & Analytics:**
+    - Desktop-optimized view of the campus map.
+    - Real-time visualization of active parking sessions.
+    - Historical occupancy graphs (Rush Hour analysis).
+
+3.  **User & System Management:**
+    - View/Manage user accounts (ban/unban).
+    - Monitor system health (API latency, sensor accuracy reports).
+    - Manage "Common Commuter Spots" database.
+
+**Tech Stack:**
+- **Frontend:** React + Vite (The current prototype codebase).
+- **Map:** Leaflet (perfect for desktop admin tasks).
+- **Backend:** Connects to the same Supabase/FastAPI backend as the mobile app.
