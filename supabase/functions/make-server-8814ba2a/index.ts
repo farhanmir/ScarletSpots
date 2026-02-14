@@ -1,8 +1,8 @@
-import { Hono } from 'npm:hono';
-import { cors } from 'npm:hono/cors';
-import { logger } from 'npm:hono/logger';
-import { createClient } from 'npm:@supabase/supabase-js@2';
-import * as kv from './kv_store.tsx';
+import { Hono } from "npm:hono";
+import { cors } from "npm:hono/cors";
+import { logger } from "npm:hono/logger";
+import { createClient } from "npm:@supabase/supabase-js@2";
+import * as kv from "./kv_store.ts";
 
 const app = new Hono();
 
@@ -11,12 +11,12 @@ app.use('*', logger(console.log));
 
 // Enable CORS for all routes and methods
 app.use(
-  '/*',
+  "/*",
   cors({
-    origin: '*',
-    allowHeaders: ['Content-Type', 'Authorization'],
-    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    exposeHeaders: ['Content-Length'],
+    origin: "*",
+    allowHeaders: ["Content-Type", "Authorization"],
+    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    exposeHeaders: ["Content-Length"],
     maxAge: 600,
   }),
 );
@@ -31,28 +31,25 @@ const getAdminClient = () => {
 
 // Create Supabase client for user operations
 const getClient = () => {
-  return createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_ANON_KEY') ?? '');
+  return createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+  );
 };
 
 // Health check endpoint
-app.get('/make-server-8814ba2a/health', (c) => {
-  return c.json({ status: 'ok' });
+app.get("/make-server-8814ba2a/health", (c) => {
+  return c.json({ status: "ok" });
 });
 
 // User signup - only allows @rutgers.edu or @scarletmail.rutgers.edu emails
-app.post('/make-server-8814ba2a/signup', async (c) => {
+app.post("/make-server-8814ba2a/signup", async (c) => {
   try {
     const { email, password, name } = await c.req.json();
 
     // Validate Rutgers email
     if (!email.endsWith('@rutgers.edu') && !email.endsWith('@scarletmail.rutgers.edu')) {
-      return c.json(
-        {
-          error:
-            'Only Rutgers email addresses are allowed (@rutgers.edu or @scarletmail.rutgers.edu)',
-        },
-        400,
-      );
+      return c.json({ error: 'Only Rutgers email addresses are allowed (@rutgers.edu or @scarletmail.rutgers.edu)' }, 400);
     }
 
     const supabase = getAdminClient();
@@ -63,7 +60,7 @@ app.post('/make-server-8814ba2a/signup', async (c) => {
       password,
       user_metadata: { name },
       // Automatically confirm the user's email since an email server hasn't been configured.
-      email_confirm: true,
+      email_confirm: true
     });
 
     if (error) {
@@ -76,7 +73,7 @@ app.post('/make-server-8814ba2a/signup', async (c) => {
       id: data.user.id,
       email,
       name,
-      created_at: new Date().toISOString(),
+      created_at: new Date().toISOString()
     });
 
     return c.json({ success: true, user: data.user });
@@ -87,15 +84,12 @@ app.post('/make-server-8814ba2a/signup', async (c) => {
 });
 
 // Get user profile
-app.get('/make-server-8814ba2a/user/profile', async (c) => {
+app.get("/make-server-8814ba2a/user/profile", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
     const supabase = getClient();
 
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
     if (!user || error) {
       return c.json({ error: 'Unauthorized' }, 401);
     }
@@ -109,15 +103,12 @@ app.get('/make-server-8814ba2a/user/profile', async (c) => {
 });
 
 // Create parking session
-app.post('/make-server-8814ba2a/park/session', async (c) => {
+app.post("/make-server-8814ba2a/park/session", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
     const supabase = getClient();
 
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
     if (!user || error) {
       return c.json({ error: 'Unauthorized' }, 401);
     }
@@ -135,7 +126,7 @@ app.post('/make-server-8814ba2a/park/session', async (c) => {
       confirmed: confirmed ?? false,
       startTime: new Date().toISOString(),
       endTime: null,
-      active: true,
+      active: true
     };
 
     await kv.set(sessionId, session);
@@ -143,11 +134,11 @@ app.post('/make-server-8814ba2a/park/session', async (c) => {
 
     // Update lot occupancy
     const lotKey = `lot:${lotId}:occupancy`;
-    const occupancy = (await kv.get(lotKey)) || { spots: {} };
+    const occupancy = await kv.get(lotKey) || { spots: {} };
     occupancy.spots[spotNumber] = {
       userId: user.id,
       sessionId,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     };
     await kv.set(lotKey, occupancy);
 
@@ -159,15 +150,12 @@ app.post('/make-server-8814ba2a/park/session', async (c) => {
 });
 
 // End parking session
-app.post('/make-server-8814ba2a/park/session/end', async (c) => {
+app.post("/make-server-8814ba2a/park/session/end", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
     const supabase = getClient();
 
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
     if (!user || error) {
       return c.json({ error: 'Unauthorized' }, 401);
     }
@@ -185,7 +173,7 @@ app.post('/make-server-8814ba2a/park/session/end', async (c) => {
 
       // Update lot occupancy
       const lotKey = `lot:${session.lotId}:occupancy`;
-      const occupancy = (await kv.get(lotKey)) || { spots: {} };
+      const occupancy = await kv.get(lotKey) || { spots: {} };
       delete occupancy.spots[session.spotNumber];
       await kv.set(lotKey, occupancy);
     }
@@ -200,15 +188,12 @@ app.post('/make-server-8814ba2a/park/session/end', async (c) => {
 });
 
 // Get active parking session
-app.get('/make-server-8814ba2a/park/session/active', async (c) => {
+app.get("/make-server-8814ba2a/park/session/active", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
     const supabase = getClient();
 
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
     if (!user || error) {
       return c.json({ error: 'Unauthorized' }, 401);
     }
@@ -227,12 +212,12 @@ app.get('/make-server-8814ba2a/park/session/active', async (c) => {
 });
 
 // Get lot information and current occupancy
-app.get('/make-server-8814ba2a/lot/:id', async (c) => {
+app.get("/make-server-8814ba2a/lot/:id", async (c) => {
   try {
     const lotId = c.req.param('id');
 
     const lotInfo = await kv.get(`lot:${lotId}:info`);
-    const occupancy = (await kv.get(`lot:${lotId}:occupancy`)) || { spots: {} };
+    const occupancy = await kv.get(`lot:${lotId}:occupancy`) || { spots: {} };
 
     const occupiedCount = Object.keys(occupancy.spots).length;
     const capacity = lotInfo?.capacity || 100;
@@ -242,7 +227,7 @@ app.get('/make-server-8814ba2a/lot/:id', async (c) => {
       occupiedCount,
       capacity,
       availableCount: capacity - occupiedCount,
-      occupancyRate: (occupiedCount / capacity) * 100,
+      occupancyRate: (occupiedCount / capacity) * 100
     });
   } catch (err) {
     console.log('Get lot error:', err);
@@ -251,15 +236,12 @@ app.get('/make-server-8814ba2a/lot/:id', async (c) => {
 });
 
 // Save custom geofence
-app.post('/make-server-8814ba2a/lots/custom', async (c) => {
+app.post("/make-server-8814ba2a/lots/custom", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
     const supabase = getClient();
 
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
     if (!user || error) {
       return c.json({ error: 'Unauthorized' }, 401);
     }
@@ -270,16 +252,22 @@ app.post('/make-server-8814ba2a/lots/custom', async (c) => {
       return c.json({ error: 'Invalid geofence data' }, 400);
     }
 
+    // Calculate centroid for the marker position
+    const latitude = coordinates.reduce((sum: number, p: number[]) => sum + p[0], 0) / coordinates.length;
+    const longitude = coordinates.reduce((sum: number, p: number[]) => sum + p[1], 0) / coordinates.length;
+
     const id = `custom:${Date.now()}`;
     const lotData = {
       id,
       name,
       campus,
       coordinates,
+      latitude,
+      longitude,
       createdBy: user.id,
       createdAt: new Date().toISOString(),
       capacity: 50, // Default for custom lots
-      isCustom: true,
+      isCustom: true
     };
 
     await kv.set(`lot:custom:${id}`, lotData);
@@ -293,15 +281,12 @@ app.post('/make-server-8814ba2a/lots/custom', async (c) => {
 });
 
 // Delete custom geofence
-app.delete('/make-server-8814ba2a/lots/custom/:id', async (c) => {
+app.delete("/make-server-8814ba2a/lots/custom/:id", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
     const supabase = getClient();
 
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
     if (!user || error) {
       return c.json({ error: 'Unauthorized' }, 401);
     }
@@ -318,34 +303,41 @@ app.delete('/make-server-8814ba2a/lots/custom/:id', async (c) => {
 });
 
 // Get all lots (standard + custom)
-app.get('/make-server-8814ba2a/lots', async (c) => {
+app.get("/make-server-8814ba2a/lots", async (c) => {
   try {
-    // Fetch standard lots
-    const lots = await kv.getByPrefix('lot:');
-    const standardInfos = lots.filter(
-      (item) => item.key.endsWith(':info') && !item.key.includes(':custom:'),
-    );
+    // Fetch standard lots (HIDDEN per user request)
+    // const lots = await kv.getByPrefix('lot:');
+    // const standardInfos = lots.filter(item => item.key.endsWith(':info') && !item.key.includes(':custom:'));
 
     // Fetch custom lots
     const customLots = await kv.getByPrefix('lot:custom:');
-    const customInfos = customLots.filter((item) => item.key.endsWith(':info'));
+    const customInfos = customLots.filter(item => item.key.endsWith(':info'));
 
-    const allInfos = [...standardInfos, ...customInfos];
+    const allInfos = [...customInfos];
 
     const lotsWithOccupancy = await Promise.all(
       allInfos.map(async (item) => {
         const lotId = item.value.id;
-        const occupancy = (await kv.get(`lot:${lotId}:occupancy`)) || { spots: {} };
+        const occupancy = await kv.get(`lot:${lotId}:occupancy`) || { spots: {} };
         const occupiedCount = Object.keys(occupancy.spots).length;
         const capacity = item.value.capacity || 100;
 
+        // Calculate centroid if latitude/longitude are missing (for custom lots)
+        let { latitude, longitude, coordinates } = item.value;
+        if ((!latitude || !longitude) && coordinates && coordinates.length > 0) {
+          latitude = coordinates.reduce((sum: number, p: number[]) => sum + p[0], 0) / coordinates.length;
+          longitude = coordinates.reduce((sum: number, p: number[]) => sum + p[1], 0) / coordinates.length;
+        }
+
         return {
           ...item.value,
+          latitude,
+          longitude,
           occupiedCount,
           availableCount: capacity - occupiedCount,
-          occupancyRate: (occupiedCount / capacity) * 100,
+          occupancyRate: (occupiedCount / capacity) * 100
         };
-      }),
+      })
     );
 
     return c.json({ lots: lotsWithOccupancy });
@@ -356,16 +348,16 @@ app.get('/make-server-8814ba2a/lots', async (c) => {
 });
 
 // Initialize default parking lots (for demo)
-app.post('/make-server-8814ba2a/lots/init', async (c) => {
+app.post("/make-server-8814ba2a/lots/init", async (c) => {
   try {
     const defaultLots = [
       {
         id: 'lot-1',
         name: 'Lot 1 - Livingston Campus',
         latitude: 40.5229,
-        longitude: -74.436,
+        longitude: -74.4360,
         capacity: 150,
-        campus: 'Livingston',
+        campus: 'Livingston'
       },
       {
         id: 'lot-25',
@@ -373,7 +365,7 @@ app.post('/make-server-8814ba2a/lots/init', async (c) => {
         latitude: 40.5008,
         longitude: -74.4474,
         capacity: 200,
-        campus: 'College Avenue',
+        campus: 'College Avenue'
       },
       {
         id: 'lot-64',
@@ -381,7 +373,7 @@ app.post('/make-server-8814ba2a/lots/init', async (c) => {
         latitude: 40.5212,
         longitude: -74.4587,
         capacity: 180,
-        campus: 'Busch',
+        campus: 'Busch'
       },
       {
         id: 'lot-99',
@@ -389,8 +381,8 @@ app.post('/make-server-8814ba2a/lots/init', async (c) => {
         latitude: 40.4798,
         longitude: -74.4369,
         capacity: 120,
-        campus: 'Cook/Douglass',
-      },
+        campus: 'Cook/Douglass'
+      }
     ];
 
     for (const lot of defaultLots) {
@@ -405,15 +397,12 @@ app.post('/make-server-8814ba2a/lots/init', async (c) => {
 });
 
 // Friend request
-app.post('/make-server-8814ba2a/friends/request', async (c) => {
+app.post("/make-server-8814ba2a/friends/request", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
     const supabase = getClient();
 
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
     if (!user || error) {
       return c.json({ error: 'Unauthorized' }, 401);
     }
@@ -422,7 +411,7 @@ app.post('/make-server-8814ba2a/friends/request', async (c) => {
 
     // Find friend by email
     const users = await kv.getByPrefix('user:');
-    const friendUser = users.find((u) => u.value.email === friendEmail);
+    const friendUser = users.find(u => u.value.email === friendEmail);
 
     if (!friendUser) {
       return c.json({ error: 'User not found' }, 404);
@@ -436,7 +425,7 @@ app.post('/make-server-8814ba2a/friends/request', async (c) => {
       fromUserId: user.id,
       toUserId: friendId,
       status: 'pending',
-      createdAt: new Date().toISOString(),
+      createdAt: new Date().toISOString()
     });
 
     return c.json({ success: true });
@@ -447,15 +436,12 @@ app.post('/make-server-8814ba2a/friends/request', async (c) => {
 });
 
 // Accept friend request
-app.post('/make-server-8814ba2a/friends/accept', async (c) => {
+app.post("/make-server-8814ba2a/friends/accept", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
     const supabase = getClient();
 
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
     if (!user || error) {
       return c.json({ error: 'Unauthorized' }, 401);
     }
@@ -476,7 +462,7 @@ app.post('/make-server-8814ba2a/friends/accept', async (c) => {
     await kv.set(friendshipId, {
       user1: request.fromUserId,
       user2: request.toUserId,
-      createdAt: new Date().toISOString(),
+      createdAt: new Date().toISOString()
     });
 
     return c.json({ success: true });
@@ -487,26 +473,23 @@ app.post('/make-server-8814ba2a/friends/accept', async (c) => {
 });
 
 // Get friends
-app.get('/make-server-8814ba2a/friends', async (c) => {
+app.get("/make-server-8814ba2a/friends", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
     const supabase = getClient();
 
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
     if (!user || error) {
       return c.json({ error: 'Unauthorized' }, 401);
     }
 
     const friendships = await kv.getByPrefix('friendship:');
-    const userFriendships = friendships.filter(
-      (f) => f.value.user1 === user.id || f.value.user2 === user.id,
+    const userFriendships = friendships.filter(f =>
+      f.value.user1 === user.id || f.value.user2 === user.id
     );
 
-    const friendIds = userFriendships.map((f) =>
-      f.value.user1 === user.id ? f.value.user2 : f.value.user1,
+    const friendIds = userFriendships.map(f =>
+      f.value.user1 === user.id ? f.value.user2 : f.value.user1
     );
 
     const friends = await Promise.all(
@@ -519,9 +502,9 @@ app.get('/make-server-8814ba2a/friends', async (c) => {
         }
         return {
           ...friendProfile,
-          activeSession: session,
+          activeSession: session
         };
-      }),
+      })
     );
 
     return c.json({ friends });
