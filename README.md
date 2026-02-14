@@ -2,14 +2,50 @@
 
 A smart parking application for Rutgers University students to find available parking spots, share locations with friends, and navigate back to their parked cars.
 
+## Local Development
+
+1.  **Clone the repository:**
+
+    ```bash
+    git clone https://github.com/farhanmir/ScarletSpots.git
+    cd ScarletSpots
+    ```
+
+2.  **Install dependencies:**
+
+    ```bash
+    npm install
+    ```
+
+3.  **Set up environment variables:**
+    Copy `.env.example` to `.env` and fill in your Supabase credentials.
+
+    ```bash
+    cp .env.example .env
+    ```
+
+4.  **Run the development server:**
+
+    ```bash
+    npm run dev
+    ```
+
+5.  **Lint & Format:**
+    ```bash
+    npm run lint
+    npm run format
+    ```
+
 ## Features
 
 ### 🔐 Authentication
+
 - **Rutgers-only signup**: Only accepts @rutgers.edu and @scarletmail.rutgers.edu email addresses
 - Secure authentication via Supabase Auth
 - Session management with automatic redirect
 
 ### 🗺️ Interactive Map View
+
 - Real-time parking lot availability across all Rutgers campuses:
   - Livingston Campus (Lot 1)
   - College Avenue (Lot 25)
@@ -24,6 +60,7 @@ A smart parking application for Rutgers University students to find available pa
 - Friend parking locations visible on map
 
 ### 🧭 Knight Needle Compass
+
 - Navigate back to your parked car with a Rutgers-themed compass
 - Real-time distance calculation
 - Arrow points directly to your parking spot
@@ -31,12 +68,14 @@ A smart parking application for Rutgers University students to find available pa
 - Visual and distance feedback as you get closer
 
 ### 👥 Social Features
+
 - Add friends by Rutgers email
 - See where your friends are parked in real-time
 - Privacy-first: only friends can see your location
 - Friend parking spots highlighted on the map
 
 ### 🚗 Parking Session Management
+
 - Mark your parking spot when you arrive
 - Automatic session tracking
 - End session when you leave
@@ -45,6 +84,7 @@ A smart parking application for Rutgers University students to find available pa
 ## Tech Stack
 
 ### Frontend
+
 - **React** with TypeScript
 - **React Router** for navigation
 - **Tailwind CSS** for styling
@@ -52,12 +92,14 @@ A smart parking application for Rutgers University students to find available pa
 - **Supabase Client** for auth and API calls
 
 ### Backend
+
 - **Supabase** for authentication and database
 - **Hono** web server (Edge Functions)
 - **KV Store** for data persistence
 - RESTful API architecture
 
 ### Key Libraries
+
 - `lucide-react` - Icons
 - `sonner` - Toast notifications
 - `@radix-ui` - UI components
@@ -65,85 +107,96 @@ A smart parking application for Rutgers University students to find available pa
 ## API Endpoints
 
 ### Authentication
+
 - `POST /signup` - Create new user account (Rutgers email only)
 - Uses Supabase Auth for login/logout
 
 ### Parking Sessions
+
 - `POST /park/session` - Start a new parking session
 - `POST /park/session/end` - End current parking session
 - `GET /park/session/active` - Get user's active parking session
 
 ### Parking Lots
+
 - `GET /lots` - Get all parking lots with occupancy data
 - `GET /lot/:id` - Get specific lot information
 - `POST /lots/init` - Initialize default lots (admin)
 
 ### Friends
+
 - `POST /friends/request` - Send friend request by email
 - `POST /friends/accept` - Accept pending friend request
 - `GET /friends` - Get all friends with their active sessions
 
 ### User
+
 - `GET /user/profile` - Get current user profile
 
 ## Data Models
 
 ### User Profile
+
 ```typescript
 {
-  id: string
-  email: string
-  name: string
-  created_at: string
+  id: string;
+  email: string;
+  name: string;
+  created_at: string;
 }
 ```
 
 ### Parking Session
+
 ```typescript
 {
-  id: string
-  userId: string
-  lotId: string
-  spotNumber: string
-  latitude: number
-  longitude: number
-  confirmed: boolean
-  startTime: string
-  endTime: string | null
-  active: boolean
+  id: string;
+  userId: string;
+  lotId: string;
+  spotNumber: string;
+  latitude: number;
+  longitude: number;
+  confirmed: boolean;
+  startTime: string;
+  endTime: string | null;
+  active: boolean;
 }
 ```
 
 ### Parking Lot
+
 ```typescript
 {
-  id: string
-  name: string
-  latitude: number
-  longitude: number
-  capacity: number
-  campus: string
-  occupiedCount: number
-  availableCount: number
-  occupancyRate: number
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  capacity: number;
+  campus: string;
+  occupiedCount: number;
+  availableCount: number;
+  occupancyRate: number;
 }
 ```
 
 ## Design Philosophy
 
 ### Dark Theme with Rutgers Red
+
 - Background: Zinc 950 (near black)
 - Accents: Rutgers Scarlet Red (#dc2626)
 - Text: White and Zinc variants
 - Inspired by modern, clean mobile interfaces
 
 ### Mobile-First
+
 - Responsive design optimized for mobile devices
 - Touch-friendly UI elements
 - Optimized map interactions
 - Bottom sheets for quick actions
 
 ### Privacy & Security
+
 - University-only email restriction prevents spam
 - Row-level security on backend
 - Friend relationships require explicit consent
@@ -192,6 +245,7 @@ Based on the original plan.md, future features could include:
 ## Important Notes
 
 ⚠️ **Prototype Status**: This is a prototype built for demonstration. For production:
+
 - Would need proper database schema (not just KV store)
 - Additional security reviews
 - Compliance with university policies

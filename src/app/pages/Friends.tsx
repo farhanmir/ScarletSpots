@@ -30,7 +30,9 @@ export default function Friends() {
   }, []);
 
   const checkAuth = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
     if (!session) {
       // navigate('/');
     }
@@ -80,44 +82,39 @@ export default function Friends() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-zinc-950 via-zinc-900 to-red-950">
+    <div className='min-h-screen bg-gradient-to-br from-zinc-950 via-zinc-900 to-red-950'>
       {/* Header */}
-      <div className="bg-zinc-900/50 backdrop-blur-sm border-b border-zinc-800 p-4 flex items-center gap-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate('/map')}
-          className="text-white"
-        >
-          <ArrowLeft className="w-5 h-5" />
+      <div className='bg-zinc-900/50 backdrop-blur-sm border-b border-zinc-800 p-4 flex items-center gap-4'>
+        <Button variant='ghost' size='icon' onClick={() => navigate('/map')} className='text-white'>
+          <ArrowLeft className='w-5 h-5' />
         </Button>
         <div>
-          <h1 className="text-white font-bold text-lg">Friends</h1>
-          <p className="text-zinc-400 text-sm">{friends.length} friends</p>
+          <h1 className='text-white font-bold text-lg'>Friends</h1>
+          <p className='text-zinc-400 text-sm'>{friends.length} friends</p>
         </div>
       </div>
 
-      <div className="p-4 space-y-4 max-w-2xl mx-auto">
+      <div className='p-4 space-y-4 max-w-2xl mx-auto'>
         {/* Add Friend Form */}
-        <Card className="bg-zinc-900/50 backdrop-blur-sm border-zinc-800 p-4">
-          <form onSubmit={handleAddFriend} className="space-y-3">
-            <h2 className="text-white font-semibold flex items-center gap-2">
-              <UserPlus className="w-5 h-5" />
+        <Card className='bg-zinc-900/50 backdrop-blur-sm border-zinc-800 p-4'>
+          <form onSubmit={handleAddFriend} className='space-y-3'>
+            <h2 className='text-white font-semibold flex items-center gap-2'>
+              <UserPlus className='w-5 h-5' />
               Add Friend
             </h2>
-            <div className="flex gap-2">
+            <div className='flex gap-2'>
               <Input
-                type="email"
-                placeholder="friend@rutgers.edu"
+                type='email'
+                placeholder='friend@rutgers.edu'
                 value={friendEmail}
                 onChange={(e) => setFriendEmail(e.target.value)}
                 required
-                className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500"
+                className='bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500'
               />
               <Button
-                type="submit"
+                type='submit'
                 disabled={loading}
-                className="bg-red-600 hover:bg-red-700 text-white"
+                className='bg-red-600 hover:bg-red-700 text-white'
               >
                 {loading ? 'Sending...' : 'Add'}
               </Button>
@@ -126,46 +123,41 @@ export default function Friends() {
         </Card>
 
         {/* Friends List */}
-        <div className="space-y-3">
+        <div className='space-y-3'>
           {friends.length === 0 ? (
-            <Card className="bg-zinc-900/50 backdrop-blur-sm border-zinc-800 p-8 text-center">
-              <div className="text-zinc-500 space-y-2">
-                <UserPlus className="w-12 h-12 mx-auto opacity-50" />
+            <Card className='bg-zinc-900/50 backdrop-blur-sm border-zinc-800 p-8 text-center'>
+              <div className='text-zinc-500 space-y-2'>
+                <UserPlus className='w-12 h-12 mx-auto opacity-50' />
                 <p>No friends yet</p>
-                <p className="text-sm">Add friends to see where they park</p>
+                <p className='text-sm'>Add friends to see where they park</p>
               </div>
             </Card>
           ) : (
             friends.map((friend) => (
-              <Card
-                key={friend.id}
-                className="bg-zinc-900/50 backdrop-blur-sm border-zinc-800 p-4"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <h3 className="text-white font-semibold">{friend.name}</h3>
-                    <p className="text-zinc-400 text-sm">{friend.email}</p>
+              <Card key={friend.id} className='bg-zinc-900/50 backdrop-blur-sm border-zinc-800 p-4'>
+                <div className='flex items-start justify-between'>
+                  <div className='flex-1'>
+                    <h3 className='text-white font-semibold'>{friend.name}</h3>
+                    <p className='text-zinc-400 text-sm'>{friend.email}</p>
 
                     {friend.activeSession ? (
-                      <div className="mt-2 flex items-center gap-2 text-green-500 text-sm">
-                        <MapPin className="w-4 h-4" />
+                      <div className='mt-2 flex items-center gap-2 text-green-500 text-sm'>
+                        <MapPin className='w-4 h-4' />
                         <span>Parked at Spot {friend.activeSession.spotNumber}</span>
-                        <span className="text-zinc-500">
+                        <span className='text-zinc-500'>
                           • {formatTime(friend.activeSession.startTime)}
                         </span>
                       </div>
                     ) : (
-                      <div className="mt-2 text-zinc-500 text-sm">
-                        Not currently parked
-                      </div>
+                      <div className='mt-2 text-zinc-500 text-sm'>Not currently parked</div>
                     )}
                   </div>
 
                   {friend.activeSession && (
                     <Button
-                      size="sm"
+                      size='sm'
                       onClick={() => navigate('/map')}
-                      className="bg-red-600 hover:bg-red-700 text-white"
+                      className='bg-red-600 hover:bg-red-700 text-white'
                     >
                       View on Map
                     </Button>

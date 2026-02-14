@@ -79,7 +79,11 @@ export default function MapView() {
   const [selectedLot, setSelectedLot] = useState<Lot | null>(null);
   const [spotNumber, setSpotNumber] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchedLocation, setSearchedLocation] = useState<{ lat: number; lng: number; name: string } | null>(null);
+  const [searchedLocation, setSearchedLocation] = useState<{
+    lat: number;
+    lng: number;
+    name: string;
+  } | null>(null);
   const navigate = useNavigate();
   const mapRef = useRef<any>(null);
 
@@ -88,7 +92,7 @@ export default function MapView() {
     'student center': { lat: 40.5026, lng: -74.4517, name: 'College Ave Student Center' },
     'the yard': { lat: 40.4996, lng: -74.4477, name: 'The Yard @ College Ave' },
     'alexander library': { lat: 40.5005, lng: -74.4487, name: 'Alexander Library' },
-    'werblin': { lat: 40.5233, lng: -74.4587, name: 'Werblin Recreation Center' },
+    werblin: { lat: 40.5233, lng: -74.4587, name: 'Werblin Recreation Center' },
   };
 
   useEffect(() => {
@@ -106,13 +110,15 @@ export default function MapView() {
         },
         (error) => {
           console.log('Location error:', error);
-        }
+        },
       );
     }
   }, []);
 
   const checkAuth = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
     if (!session) {
       // navigate('/');
     }
@@ -221,7 +227,7 @@ export default function MapView() {
     const query = searchQuery.toLowerCase();
 
     // Check local lots first (exact name match or includes)
-    const foundLot = lots.find(l => l.name.toLowerCase().includes(query));
+    const foundLot = lots.find((l) => l.name.toLowerCase().includes(query));
     if (foundLot) {
       setSearchedLocation({ lat: foundLot.latitude, lng: foundLot.longitude, name: foundLot.name });
       setUserLocation([foundLot.latitude, foundLot.longitude]);
@@ -246,79 +252,84 @@ export default function MapView() {
   };
 
   return (
-    <div className="h-screen w-full flex flex-col bg-zinc-950">
+    <div className='h-screen w-full flex flex-col bg-zinc-950'>
       {/* Header with Search and Menu */}
-      <div className="bg-zinc-900 border-b border-zinc-800 p-4 flex items-center gap-3 z-10 relative">
+      <div className='bg-zinc-900 border-b border-zinc-800 p-4 flex items-center gap-3 z-10 relative'>
         <Sheet>
           <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="text-white shrink-0">
-              <Menu className="w-6 h-6" />
+            <Button variant='ghost' size='icon' className='text-white shrink-0'>
+              <Menu className='w-6 h-6' />
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="bg-zinc-900 border-r border-zinc-800 text-white w-80 p-0">
-            <SheetHeader className="p-6 border-b border-zinc-800">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center">
-                  <MapPin className="w-5 h-5 text-white" />
+          <SheetContent
+            side='left'
+            className='bg-zinc-900 border-r border-zinc-800 text-white w-80 p-0'
+          >
+            <SheetHeader className='p-6 border-b border-zinc-800'>
+              <div className='flex items-center gap-3 mb-2'>
+                <div className='w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center'>
+                  <MapPin className='w-5 h-5 text-white' />
                 </div>
-                <SheetTitle className="text-white font-bold text-xl">ScarletSpots</SheetTitle>
+                <SheetTitle className='text-white font-bold text-xl'>ScarletSpots</SheetTitle>
               </div>
-              <p className="text-zinc-400 text-xs">Menu</p>
+              <p className='text-zinc-400 text-xs'>Menu</p>
             </SheetHeader>
 
-            <div className="p-4 space-y-6">
-              <div className="space-y-2">
+            <div className='p-4 space-y-6'>
+              <div className='space-y-2'>
                 <Button
                   onClick={() => navigate('/profile')}
-                  className="w-full justify-start bg-transparent hover:bg-zinc-800 text-white text-base font-normal h-12"
+                  className='w-full justify-start bg-transparent hover:bg-zinc-800 text-white text-base font-normal h-12'
                 >
-                  <User className="w-5 h-5 mr-3 text-zinc-400" />
+                  <User className='w-5 h-5 mr-3 text-zinc-400' />
                   Profile
                 </Button>
                 <Button
                   onClick={() => navigate('/friends')}
-                  className="w-full justify-start bg-transparent hover:bg-zinc-800 text-white text-base font-normal h-12"
+                  className='w-full justify-start bg-transparent hover:bg-zinc-800 text-white text-base font-normal h-12'
                 >
-                  <Users className="w-5 h-5 mr-3 text-zinc-400" />
+                  <Users className='w-5 h-5 mr-3 text-zinc-400' />
                   Friends
                 </Button>
                 <Button
                   onClick={() => navigate('/admin/geofence')}
-                  className="w-full justify-start bg-transparent hover:bg-zinc-800 text-white text-base font-normal h-12"
+                  className='w-full justify-start bg-transparent hover:bg-zinc-800 text-white text-base font-normal h-12'
                 >
-                  <Settings className="w-5 h-5 mr-3 text-zinc-400" />
+                  <Settings className='w-5 h-5 mr-3 text-zinc-400' />
                   Geofence Editor
                 </Button>
               </div>
 
-              <div className="border-t border-zinc-800 pt-6">
-                <h3 className="text-zinc-500 text-xs font-semibold uppercase tracking-wider mb-4 px-2">Legend</h3>
-                <div className="space-y-3 px-2">
-                  <div className="flex items-center gap-3">
-                    <div className="w-3 h-3 bg-red-600 rounded-full" />
-                    <span className="text-sm text-zinc-300">Can't Park (Full/Restricted)</span>
+              <div className='border-t border-zinc-800 pt-6'>
+                <h3 className='text-zinc-500 text-xs font-semibold uppercase tracking-wider mb-4 px-2'>
+                  Legend
+                </h3>
+                <div className='space-y-3 px-2'>
+                  <div className='flex items-center gap-3'>
+                    <div className='w-3 h-3 bg-red-600 rounded-full' />
+                    <span className='text-sm text-zinc-300'>Can't Park (Full/Restricted)</span>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-3 h-3 bg-yellow-600 rounded-full" />
-                    <span className="text-sm text-zinc-300">Park at Your Own Risk</span>
+                  <div className='flex items-center gap-3'>
+                    <div className='w-3 h-3 bg-yellow-600 rounded-full' />
+                    <span className='text-sm text-zinc-300'>Park at Your Own Risk</span>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-3 h-3 bg-green-600 rounded-full" />
-                    <span className="text-sm text-zinc-300">Permit Acquired (Available)</span>
+                  <div className='flex items-center gap-3'>
+                    <div className='w-3 h-3 bg-green-600 rounded-full' />
+                    <span className='text-sm text-zinc-300'>Permit Acquired (Available)</span>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-3 h-3 bg-blue-600 rounded-full" />
-                    <span className="text-sm text-zinc-300">Friends</span>
+                  <div className='flex items-center gap-3'>
+                    <div className='w-3 h-3 bg-blue-600 rounded-full' />
+                    <span className='text-sm text-zinc-300'>Friends</span>
                   </div>
                 </div>
               </div>
 
-              <div className="border-t border-zinc-800 pt-6">
+              <div className='border-t border-zinc-800 pt-6'>
                 <Button
                   onClick={handleSignOut}
-                  className="w-full justify-start bg-zinc-800 hover:bg-zinc-700 text-red-400"
+                  className='w-full justify-start bg-zinc-800 hover:bg-zinc-700 text-red-400'
                 >
-                  <LogOut className="w-4 h-4 mr-2" />
+                  <LogOut className='w-4 h-4 mr-2' />
                   Sign Out
                 </Button>
               </div>
@@ -326,38 +337,38 @@ export default function MapView() {
           </SheetContent>
         </Sheet>
 
-        <form onSubmit={handleSearch} className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+        <form onSubmit={handleSearch} className='flex-1 relative'>
+          <Search className='absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400' />
           <Input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Find building..."
-            className="pl-9 bg-zinc-800 border-zinc-700 text-white w-full placeholder:text-zinc-500"
+            placeholder='Find building...'
+            className='pl-9 bg-zinc-800 border-zinc-700 text-white w-full placeholder:text-zinc-500'
           />
         </form>
       </div>
 
       {/* Active Session Banner */}
       {activeSession && (
-        <div className="bg-red-600 p-3 flex items-center justify-between">
-          <div className="text-white text-sm">
-            <p className="font-semibold">Currently Parked</p>
-            <p className="text-red-100">Spot {activeSession.spotNumber}</p>
+        <div className='bg-red-600 p-3 flex items-center justify-between'>
+          <div className='text-white text-sm'>
+            <p className='font-semibold'>Currently Parked</p>
+            <p className='text-red-100'>Spot {activeSession.spotNumber}</p>
           </div>
-          <div className="flex gap-2">
+          <div className='flex gap-2'>
             <Button
-              size="sm"
+              size='sm'
               onClick={() => navigate('/compass')}
-              className="bg-white text-red-600 hover:bg-red-50"
+              className='bg-white text-red-600 hover:bg-red-50'
             >
-              <Navigation className="w-4 h-4 mr-1" />
+              <Navigation className='w-4 h-4 mr-1' />
               Find
             </Button>
             <Button
-              size="sm"
+              size='sm'
               onClick={handleEndSession}
-              variant="outline"
-              className="border-white text-white hover:bg-red-700"
+              variant='outline'
+              className='border-white text-white hover:bg-red-700'
             >
               End
             </Button>
@@ -366,34 +377,29 @@ export default function MapView() {
       )}
 
       {/* Map */}
-      <div className="flex-1 relative">
-        <MapContainer
-          center={userLocation}
-          zoom={15}
-          className="h-full w-full"
-          ref={mapRef}
-        >
+      <div className='flex-1 relative'>
+        <MapContainer center={userLocation} zoom={15} className='h-full w-full' ref={mapRef}>
           <MapUpdater center={userLocation} />
 
           {/* Dark theme tiles */}
           <TileLayer
-            url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+            url='https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           />
 
           {/* User location */}
           <Marker position={userLocation} icon={blueIcon}>
             <Popup>
-              <div className="text-sm">
-                <p className="font-semibold">You are here</p>
+              <div className='text-sm'>
+                <p className='font-semibold'>You are here</p>
               </div>
             </Popup>
           </Marker>
 
           {/* Parking lots */}
           {lots.map((lot) => {
-            const occupancyColor = lot.occupancyRate >= 90 ? '#dc2626' :
-              lot.occupancyRate >= 70 ? '#ca8a04' : '#16a34a';
+            const occupancyColor =
+              lot.occupancyRate >= 90 ? '#dc2626' : lot.occupancyRate >= 70 ? '#ca8a04' : '#16a34a';
 
             return (
               <div key={lot.id}>
@@ -409,37 +415,47 @@ export default function MapView() {
                 />
                 <Marker
                   position={[lot.latitude, lot.longitude]}
-                  icon={lot.occupancyRate >= 90 ? redIcon : lot.occupancyRate >= 70 ? yellowIcon : greenIcon}
+                  icon={
+                    lot.occupancyRate >= 90
+                      ? redIcon
+                      : lot.occupancyRate >= 70
+                        ? yellowIcon
+                        : greenIcon
+                  }
                   eventHandlers={{
                     click: () => setSelectedLot(lot),
                   }}
                 >
                   <Popup>
-                    <div className="min-w-[200px]">
-                      <h3 className="font-bold text-sm mb-1">{lot.name}</h3>
-                      <p className="text-xs text-zinc-600 mb-2">{lot.campus}</p>
-                      <div className="space-y-1 text-xs">
-                        <div className="flex justify-between">
+                    <div className='min-w-[200px]'>
+                      <h3 className='font-bold text-sm mb-1'>{lot.name}</h3>
+                      <p className='text-xs text-zinc-600 mb-2'>{lot.campus}</p>
+                      <div className='space-y-1 text-xs'>
+                        <div className='flex justify-between'>
                           <span>Available:</span>
-                          <span className="font-semibold">{lot.availableCount} / {lot.capacity}</span>
+                          <span className='font-semibold'>
+                            {lot.availableCount} / {lot.capacity}
+                          </span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-2 bg-zinc-200 rounded-full overflow-hidden">
+                        <div className='flex items-center gap-2'>
+                          <div className='flex-1 h-2 bg-zinc-200 rounded-full overflow-hidden'>
                             <div
                               className={`h-full ${getOccupancyColor(lot.occupancyRate)}`}
                               style={{ width: `${lot.occupancyRate}%` }}
                             />
                           </div>
-                          <span className="font-semibold">{Math.round(lot.occupancyRate)}%</span>
+                          <span className='font-semibold'>{Math.round(lot.occupancyRate)}%</span>
                         </div>
                       </div>
                       <Button
-                        variant="link"
-                        size="sm"
-                        className="p-0 h-auto text-red-400 mt-2 text-xs"
+                        variant='link'
+                        size='sm'
+                        className='p-0 h-auto text-red-400 mt-2 text-xs'
                         onClick={(e) => {
                           e.stopPropagation();
-                          navigate(`/admin/geofence?lat=${lot.latitude}&lng=${lot.longitude}&name=${encodeURIComponent(lot.name)}&campus=${encodeURIComponent(lot.campus)}`);
+                          navigate(
+                            `/admin/geofence?lat=${lot.latitude}&lng=${lot.longitude}&name=${encodeURIComponent(lot.name)}&campus=${encodeURIComponent(lot.campus)}`,
+                          );
                         }}
                       >
                         Geofence This Lot
@@ -452,17 +468,19 @@ export default function MapView() {
           })}
 
           {/* Render Polygons for User-Created Lots */}
-          {lots.filter(l => l.coordinates).map(lot => (
-            <Polygon
-              key={`poly-${lot.id}`}
-              positions={lot.coordinates!}
-              pathOptions={{
-                color: '#ca8a04', // Yellow for custom/risk
-                fillColor: '#ca8a04',
-                fillOpacity: 0.4
-              }}
-            />
-          ))}
+          {lots
+            .filter((l) => l.coordinates)
+            .map((lot) => (
+              <Polygon
+                key={`poly-${lot.id}`}
+                positions={lot.coordinates!}
+                pathOptions={{
+                  color: '#ca8a04', // Yellow for custom/risk
+                  fillColor: '#ca8a04',
+                  fillOpacity: 0.4,
+                }}
+              />
+            ))}
 
           {/* Friend parking spots */}
           {friends.map((friend) => {
@@ -474,9 +492,9 @@ export default function MapView() {
                 icon={blueIcon}
               >
                 <Popup>
-                  <div className="text-sm">
-                    <p className="font-semibold">{friend.name}</p>
-                    <p className="text-xs text-zinc-600">Spot {friend.activeSession.spotNumber}</p>
+                  <div className='text-sm'>
+                    <p className='font-semibold'>{friend.name}</p>
+                    <p className='text-xs text-zinc-600'>Spot {friend.activeSession.spotNumber}</p>
                   </div>
                 </Popup>
               </Marker>
@@ -487,66 +505,64 @@ export default function MapView() {
           {searchedLocation && (
             <Marker position={[searchedLocation.lat, searchedLocation.lng]} icon={redIcon}>
               <Popup>
-                <div className="text-sm font-bold">{searchedLocation.name}</div>
+                <div className='text-sm font-bold'>{searchedLocation.name}</div>
               </Popup>
             </Marker>
           )}
         </MapContainer>
 
         {/* Lot Info Card */}
-        {
-          selectedLot && !activeSession && (
-            <div className="absolute bottom-4 left-4 right-4 bg-zinc-900 border border-zinc-800 rounded-2xl p-4 shadow-2xl z-[500]">
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <h3 className="text-white font-bold">{selectedLot.name}</h3>
-                  <p className="text-zinc-400 text-sm">{selectedLot.campus}</p>
-                </div>
-                <Badge className={getOccupancyColor(selectedLot.occupancyRate)}>
-                  {getOccupancyLabel(selectedLot.occupancyRate)}
-                </Badge>
+        {selectedLot && !activeSession && (
+          <div className='absolute bottom-4 left-4 right-4 bg-zinc-900 border border-zinc-800 rounded-2xl p-4 shadow-2xl z-[500]'>
+            <div className='flex items-start justify-between mb-3'>
+              <div>
+                <h3 className='text-white font-bold'>{selectedLot.name}</h3>
+                <p className='text-zinc-400 text-sm'>{selectedLot.campus}</p>
               </div>
-
-              <div className="flex items-center gap-2 text-zinc-300 text-sm mb-3">
-                <MapPin className="w-4 h-4" />
-                <span>{selectedLot.availableCount} spots available</span>
-              </div>
-
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Spot number"
-                  value={spotNumber}
-                  onChange={(e) => setSpotNumber(e.target.value)}
-                  className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white placeholder:text-zinc-500"
-                />
-                <Button
-                  onClick={() => handleParkHere(selectedLot)}
-                  className="bg-red-600 hover:bg-red-700 text-white"
-                >
-                  Park Here
-                </Button>
-              </div>
+              <Badge className={getOccupancyColor(selectedLot.occupancyRate)}>
+                {getOccupancyLabel(selectedLot.occupancyRate)}
+              </Badge>
             </div>
-          )
-        }
+
+            <div className='flex items-center gap-2 text-zinc-300 text-sm mb-3'>
+              <MapPin className='w-4 h-4' />
+              <span>{selectedLot.availableCount} spots available</span>
+            </div>
+
+            <div className='flex gap-2'>
+              <input
+                type='text'
+                placeholder='Spot number'
+                value={spotNumber}
+                onChange={(e) => setSpotNumber(e.target.value)}
+                className='flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white placeholder:text-zinc-500'
+              />
+              <Button
+                onClick={() => handleParkHere(selectedLot)}
+                className='bg-red-600 hover:bg-red-700 text-white'
+              >
+                Park Here
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Floating Legend (Simplified/Matching) */}
-        <div className="absolute top-4 right-4 bg-zinc-900/90 backdrop-blur-sm border border-zinc-800 rounded-xl p-3 text-xs space-y-2 z-[400]">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-red-500">R</span>
-            <span className="text-zinc-300">Can't Park</span>
+        <div className='absolute top-4 right-4 bg-zinc-900/90 backdrop-blur-sm border border-zinc-800 rounded-xl p-3 text-xs space-y-2 z-[400]'>
+          <div className='flex items-center gap-2'>
+            <span className='font-bold text-red-500'>R</span>
+            <span className='text-zinc-300'>Can't Park</span>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-yellow-500">Y</span>
-            <span className="text-zinc-300">Risk</span>
+          <div className='flex items-center gap-2'>
+            <span className='font-bold text-yellow-500'>Y</span>
+            <span className='text-zinc-300'>Risk</span>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-green-500">G</span>
-            <span className="text-zinc-300">Permit</span>
+          <div className='flex items-center gap-2'>
+            <span className='font-bold text-green-500'>G</span>
+            <span className='text-zinc-300'>Permit</span>
           </div>
         </div>
-      </div >
-    </div >
+      </div>
+    </div>
   );
 }
