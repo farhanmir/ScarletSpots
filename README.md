@@ -8,11 +8,14 @@ See [PLAN.md](PLAN.md) for the full Native Mobile implementation blueprint.
 
 ---
 
-## 📱 Project Vision (Native Mobile)
-ScarletSpots aims to help students find available parking, share locations with friends, and navigate back to their cars using native device sensors.
+## 📱 Project Vision (Native Mobile & Admin Web)
+ScarletSpots is a dual-platform ecosystem:
+1.  **Mobile App (Native)**: For students to find parking (Consumers).
+2.  **Web Dashboard (React)**: For admins to manage geofences and data (Producers).
 
 ### Core Architecture (Target)
-- **Frontend**: React Native (Expo)
+- **Mobile**: React Native (Expo) - [Planned]
+- **Web Admin**: React + Vite - [Current Prototype]
 - **Maps**: Apple Maps (iOS) / Google Maps (Android) via `react-native-maps`
 - **Backend**: FastAPI + PostGIS
 - **Auth**: Supabase
@@ -25,8 +28,11 @@ ScarletSpots aims to help students find available parking, share locations with 
 
 ---
 
-## 💻 Current Prototype (Web Version)
-The current codebase is a **high-fidelity web prototype** generated to test the core logic and UI flows. It runs in the browser but simulates the intended mobile experience.
+## 💻 Admin Dashboard (Current Web App)
+The current codebase in this repository is the foundation for the **Admin Web Interface**. It presently serves as a prototype but will evolve into the control center for:
+- Editing Parking Lot Geofences (Draw on map).
+- Viewing Real-time Heatmaps.
+- Managing System Data.
 
 ### Prototype Features (Implemented)
 - **🔐 Analytics & Auth**: Rutgers-only signup (@rutgers.edu) via Supabase.
