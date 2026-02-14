@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { Plus, Trash2, MapPin } from 'lucide-react';
+import { Plus, Trash2, MapPin, Edit } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
 import { apiCall } from '../../lib/supabase';
@@ -67,14 +67,24 @@ export default function GeofenceList() {
                   <MapPin className={`w-6 h-6 ${lot.isCustom ? 'text-blue-400' : 'text-red-500'}`} />
                 </div>
                 {lot.isCustom && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-zinc-400 hover:text-red-500"
-                    onClick={() => handleDelete(lot.id, true)}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-zinc-400 hover:text-white"
+                      onClick={() => navigate(`/admin/geofences/${lot.id}`)}
+                    >
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-zinc-400 hover:text-red-500"
+                      onClick={() => handleDelete(lot.id, true)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 )}
               </div>
               
