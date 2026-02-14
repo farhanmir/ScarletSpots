@@ -4,7 +4,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Card } from '../components/ui/card';
 import { ArrowLeft, Save, Trash2, Undo } from 'lucide-react';
-import { useNavigate, useSearchParams } from 'react-router';
+import { useNavigate, useSearchParams, useParams } from 'react-router';
 import { apiCall, supabase } from '../lib/supabase';
 import { toast } from 'sonner';
 import { icon as leafletIcon } from 'leaflet';
@@ -32,10 +32,12 @@ function MapEvents({ onMapClick }: { onMapClick: (e: any) => void }) {
 export default function GeofenceEditor() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { id } = useParams();
 
   const [points, setPoints] = useState<[number, number][]>([]);
   const [lotName, setLotName] = useState(searchParams.get('name') || '');
   const [campus, setCampus] = useState(searchParams.get('campus') || 'College Ave');
+  const [capacity, setCapacity] = useState('50');
 
   // Initialize map center based on params or default
   const initialLat = parseFloat(searchParams.get('lat') || '40.5008');
@@ -47,7 +49,28 @@ export default function GeofenceEditor() {
         toast.error('You must be logged in to create geofences');
       }
     });
-  }, []);
+
+    if (id && id !== 'new') {
+      const fetchLot = async () => {
+        try {
+          const data = await apiCall(`/lot/${id}`);
+          if (data.total_capacity || data.capacity) {
+             setCapacity(String(data.total_capacity || data.capacity || 50));
+          }
+           if (data.lot) {
+            setLotName(data.lot.name);
+            setCampus(data.lot.campus);
+            setPoints(data.lot.coordinates || []);
+            if (data.lot.capacity) setCapacity(String(data.lot.capacity));
+          }
+        } catch (error) {
+          console.error(error);
+          toast.error('Failed to load geofence details');
+        }
+      };
+      fetchLot();
+    }
+  }, [id]);
 
   const handleMapClick = (e: any) => {
     const { lat, lng } = e.latlng;
@@ -91,14 +114,24 @@ export default function GeofenceEditor() {
     }
 
     try {
-      await apiCall('/lots/custom', {
-        method: 'POST',
-        body: JSON.stringify({
-          name: lotName,
-          campus,
-          coordinates: points,
-        }),
-      });
+      const payload = {
+        name: lotName,
+        campus,
+        coordinates: points,
+        capacity: parseInt(capacity) || 50,
+      };
+
+      if (id && id !== 'new') {
+        await apiCall(`/lots/custom/${id}`, {
+          method: 'PUT',
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await apiCall('/lots/custom', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+      }
 
       toast.success('Geofence saved successfully!');
 
@@ -231,6 +264,17 @@ export default function GeofenceEditor() {
                 <option value="Livingston">Livingston</option>
                 <option value="Cook/Douglass">Cook/Douglass</option>
               </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="capacity" className="text-zinc-300">Capacity</Label>
+              <Input
+                id="capacity"
+                type="number"
+                value={capacity}
+                onChange={(e) => setCapacity(e.target.value)}
+                className="bg-zinc-800 border-zinc-700 text-white"
+              />
             </div>
 
             <div className="pt-2 text-xs text-zinc-500">

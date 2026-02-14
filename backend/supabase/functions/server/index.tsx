@@ -246,7 +246,7 @@ app.post("/make-server-8814ba2a/lots/custom", async (c) => {
       return c.json({ error: 'Unauthorized' }, 401);
     }
 
-    const { name, campus, coordinates } = await c.req.json();
+    const { name, campus, coordinates, capacity } = await c.req.json();
 
     if (!name || !coordinates || coordinates.length < 3) {
       return c.json({ error: 'Invalid geofence data' }, 400);
@@ -266,17 +266,74 @@ app.post("/make-server-8814ba2a/lots/custom", async (c) => {
       longitude,
       createdBy: user.id,
       createdAt: new Date().toISOString(),
-      capacity: 50, // Default for custom lots
+      capacity: parseInt(capacity) || 50, // Default for custom lots
       isCustom: true
     };
 
     await kv.set(`lot:custom:${id}`, lotData);
     await kv.set(`lot:custom:${id}:info`, lotData); // For compatibility with standard lots
 
+    await kv.set(`lot:custom:${id}:info`, lotData); // For compatibility with standard lots
+
     return c.json({ success: true, lot: lotData });
   } catch (err) {
     console.log('Save custom lot error:', err);
     return c.json({ error: 'Failed to save custom lot' }, 500);
+  }
+});
+
+// Update custom geofence
+app.put("/make-server-8814ba2a/lots/custom/:id", async (c) => {
+  try {
+    const accessToken = c.req.header('Authorization')?.split(' ')[1];
+    const supabase = getClient();
+
+    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    if (!user || error) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const id = c.req.param('id');
+    const { name, campus, coordinates, capacity } = await c.req.json();
+
+    if (!name || !coordinates || coordinates.length < 3) {
+      return c.json({ error: 'Invalid geofence data' }, 400);
+    }
+
+    // Check if lot exists
+    const existingLot = await kv.get(`lot:custom:${id}`);
+    if (!existingLot) {
+      return c.json({ error: 'Lot not found' }, 404);
+    }
+
+    // Check ownership (optional, but good practice)
+    if (existingLot.createdBy !== user.id) {
+       // Allow admins or owner? For now, let's assume all authenticated users are admins for this demo
+       // return c.json({ error: 'Unauthorized' }, 403);
+    }
+
+    // Calculate centroid
+    const latitude = coordinates.reduce((sum: number, p: number[]) => sum + p[0], 0) / coordinates.length;
+    const longitude = coordinates.reduce((sum: number, p: number[]) => sum + p[1], 0) / coordinates.length;
+
+    const lotData = {
+      ...existingLot, // Keep createdBy, createdAt
+      name,
+      campus,
+      coordinates,
+      latitude,
+      longitude,
+      capacity: parseInt(capacity) || existingLot.capacity || 50,
+      updatedAt: new Date().toISOString()
+    };
+
+    await kv.set(`lot:custom:${id}`, lotData);
+    await kv.set(`lot:custom:${id}:info`, lotData);
+
+    return c.json({ success: true, lot: lotData });
+  } catch (err) {
+    console.log('Update custom lot error:', err);
+    return c.json({ error: 'Failed to update custom lot' }, 500);
   }
 });
 
