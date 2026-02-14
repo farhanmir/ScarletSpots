@@ -216,7 +216,15 @@ app.get("/make-server-8814ba2a/lot/:id", async (c) => {
   try {
     const lotId = c.req.param('id');
 
-    const lotInfo = await kv.get(`lot:${lotId}:info`);
+    // Check standard lot first, then custom lot
+    let lotInfo = await kv.get(`lot:${lotId}:info`);
+    if (!lotInfo) {
+      lotInfo = await kv.get(`lot:custom:${lotId}:info`);
+    }
+    if (!lotInfo) {
+      lotInfo = await kv.get(`lot:custom:${lotId}`);
+    }
+
     const occupancy = await kv.get(`lot:${lotId}:occupancy`) || { spots: {} };
 
     const occupiedCount = Object.keys(occupancy.spots).length;
