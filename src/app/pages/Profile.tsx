@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import { supabase, apiCall } from '../lib/supabase';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
-import { ArrowLeft, User, Mail, Calendar, LogOut } from 'lucide-react';
+import { ArrowLeft, User, Mail, Calendar, LogOut, LayoutDashboard } from 'lucide-react';
 
 interface UserProfile {
   id: string;
@@ -114,6 +114,13 @@ export default function Profile() {
 
         {/* Actions */}
         <div className='space-y-2'>
+          <Button
+            onClick={() => navigate('/admin')}
+            className='w-full bg-zinc-800 hover:bg-zinc-700 text-white justify-start'
+          >
+            <LayoutDashboard className='w-4 h-4 mr-2' />
+            Admin Console
+          </Button>
           <Button
             onClick={handleSignOut}
             className='w-full bg-zinc-800 hover:bg-zinc-700 text-white justify-start'

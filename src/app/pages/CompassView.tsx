@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { supabase, apiCall } from '../lib/supabase';
 import { Button } from '../components/ui/button';
-import { ArrowLeft, Navigation } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 
 interface ParkingSession {
   id: string;

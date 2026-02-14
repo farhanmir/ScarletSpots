@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { MapContainer, TileLayer, Polygon, Marker, useMapEvents } from 'react-leaflet';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -7,7 +7,7 @@ import { ArrowLeft, Save, Trash2, Undo } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { apiCall } from '../lib/supabase';
 import { toast } from 'sonner';
-import { icon as leafletIcon, LatLng } from 'leaflet';
+import { icon as leafletIcon } from 'leaflet';
 
 import { Label } from '../components/ui/label';
 
