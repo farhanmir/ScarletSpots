@@ -127,42 +127,15 @@ export default function MapView() {
   };
 
   const fetchLots = async () => {
-    let allLots: Lot[] = [];
-
-    // Always load local lots
-    try {
-      const localLots = JSON.parse(localStorage.getItem('mock_lots') || '[]');
-      if (localLots.length > 0) {
-        const mappedLocalLots = localLots.map((l: any) => ({
-          id: l.id,
-          name: l.name,
-          campus: l.campus,
-          latitude: l.coordinates[0][0],
-          longitude: l.coordinates[0][1],
-          capacity: 100,
-          occupiedCount: 0,
-          availableCount: 100,
-          occupancyRate: 0,
-          coordinates: l.coordinates
-        }));
-        allLots = [...allLots, ...mappedLocalLots];
-      }
-    } catch (e) {
-      console.error('Error loading local lots:', e);
-    }
-
-    // Try to fetch remote lots
     try {
       const data = await apiCall('/lots');
       if (data.lots) {
-        allLots = [...data.lots, ...allLots]; // Merge API lots with local lots
+        setLots(data.lots);
       }
     } catch (error) {
       console.error('Fetch lots error:', error);
-      toast.error('Failed to load parking lots from server');
+      toast.error('Failed to load parking lots');
     }
-
-    setLots(allLots);
   };
 
   const fetchActiveSession = async () => {

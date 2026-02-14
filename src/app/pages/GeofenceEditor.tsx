@@ -5,6 +5,7 @@ import { Input } from '../components/ui/input';
 import { Card } from '../components/ui/card';
 import { ArrowLeft, Save, Trash2, Undo } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router';
+import { apiCall } from '../lib/supabase';
 import { toast } from 'sonner';
 import { icon as leafletIcon, LatLng } from 'leaflet';
 
@@ -65,7 +66,7 @@ export default function GeofenceEditor() {
         }
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!lotName) {
             toast.error('Please enter a lot name');
             return;
@@ -75,22 +76,28 @@ export default function GeofenceEditor() {
             return;
         }
 
-        const lotData = {
-            name: lotName,
-            campus,
-            coordinates: points,
-        };
+        try {
+            await apiCall('/lots/custom', {
+                method: 'POST',
+                body: JSON.stringify({
+                    name: lotName,
+                    campus,
+                    coordinates: points,
+                }),
+            });
 
-        console.log('Saved Lot:', lotData);
-        // In a real app, this would POST to the backend
+            toast.success('Geofence saved successfully!');
+            setPoints([]);
+            setLotName('');
 
-        // Save to local storage for demo purposes so it persists across reloads if we wanted to mock "fetching"
-        const existing = JSON.parse(localStorage.getItem('mock_lots') || '[]');
-        localStorage.setItem('mock_lots', JSON.stringify([...existing, { ...lotData, id: Date.now().toString() }]));
-
-        toast.success('Geofence saved successfully!');
-        setPoints([]);
-        setLotName('');
+            // Clear local storage params if present
+            if (searchParams.get('lat')) {
+                navigate('/admin/geofence');
+            }
+        } catch (error: any) {
+            console.error('Save geofence error:', error);
+            toast.error(error.message || 'Failed to save geofence');
+        }
     };
 
     return (
