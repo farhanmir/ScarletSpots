@@ -1,8 +1,4 @@
-<<<<<<< HEAD:frontend/src/app/pages/GeofenceEditor.tsx
-import { useState } from 'react';
-=======
-import { useState, useRef, useEffect } from 'react';
->>>>>>> 71bedda4b17b26cda02f03cbb581829fa1edf2a7:src/app/pages/GeofenceEditor.tsx
+import { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Polygon, Marker, useMapEvents } from 'react-leaflet';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
