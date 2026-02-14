@@ -122,240 +122,132 @@ export default function GeofenceEditor() {
   };
 
   return (
-        <div className="h-screen w-full flex flex-col bg-zinc-950">
-            {/* Header */}
-            <div className="bg-zinc-900 border-b border-zinc-800 p-4 flex items-center justify-between z-10">
-                <div className="flex items-center gap-4">
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => navigate('/map')}
-                        className="text-white"
-                    >
-                        <ArrowLeft className="w-5 h-5" />
-                    </Button>
-                    <div>
-                        <h1 className="text-white font-bold text-lg">Geofence Editor</h1>
-                        <p className="text-zinc-400 text-xs text-left">Click map to draw boundaries</p>
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleUndo}
-                        disabled={points.length === 0}
-                        className="border-zinc-700 text-white bg-zinc-800 hover:bg-zinc-700"
-                    >
-                        <Undo className="w-4 h-4 mr-2" />
-                        Undo
-                    </Button>
-                    <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={handleClear}
-                        disabled={points.length === 0}
-                    >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Clear
-                    </Button>
-                </div>
-            </div>
-
-            <div className="flex-1 relative">
-                <MapContainer
-                    center={[initialLat, initialLng]}
-                    zoom={17}
-                    className="h-full w-full"
-                >
-                    <TileLayer
-                        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                    />
-
-                    <MapEvents onMapClick={handleMapClick} />
-
-                    {/* Polygon Preview */}
-                    {points.length > 0 && (
-                        <Polygon
-                            positions={points}
-                            pathOptions={{
-                                color: '#dc2626',
-                                fillColor: '#dc2626',
-                                fillOpacity: 0.4,
-                            }}
-                        />
-                    )}
-
-                    {/* Draggable Vertices */}
-                    {points.map((point, index) => (
-                        <Marker
-                            key={index}
-                            position={point}
-                            icon={vertexIcon}
-                            draggable={true}
-                            eventHandlers={{
-                                drag: (e) => handleDragVertex(index, e),
-                            }}
-                        />
-                    ))}
-                </MapContainer>
-
-                {/* Editor Sidebar / Floating Card */}
-                <Card className="absolute top-4 right-4 w-80 bg-zinc-900/90 backdrop-blur-sm border-zinc-800 p-4 shadow-xl z-[400]">
-                    <h2 className="text-white font-semibold mb-4">Lot Details</h2>
-
-                    <div className="space-y-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="lotName" className="text-zinc-300">Lot Name</Label>
-                            <Input
-                                id="lotName"
-                                value={lotName}
-                                onChange={(e) => setLotName(e.target.value)}
-                                placeholder="e.g. Lot 26"
-                                className="bg-zinc-800 border-zinc-700 text-white"
-                            />
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label htmlFor="campus" className="text-zinc-300">Campus</Label>
-                            <select
-                                id="campus"
-                                value={campus}
-                                onChange={(e) => setCampus(e.target.value)}
-                                className="w-full bg-zinc-800 border-zinc-700 text-white rounded-md h-10 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-                            >
-                                <option value="College Ave">College Ave</option>
-                                <option value="Busch">Busch</option>
-                                <option value="Livingston">Livingston</option>
-                                <option value="Cook/Douglass">Cook/Douglass</option>
-                            </select>
-                        </div>
-
-                        <div className="pt-2 text-xs text-zinc-500">
-                            <p>Points: {points.length}</p>
-                            <p>Click map to add points. Drag white dots to adjust.</p>
-                        </div>
-
-                        <Button
-                            onClick={handleSave}
-                            className="w-full bg-red-600 hover:bg-red-700 text-white"
-                        >
-                            <Save className="w-4 h-4 mr-2" />
-                            Save Geofence
-                        </Button>
-                    </div>
-                </Card>
-            </div>
->>>>>>> Stashed changes
+    <div className="h-screen w-full flex flex-col bg-zinc-950">
+      {/* Header */}
+      <div className="bg-zinc-900 border-b border-zinc-800 p-4 flex items-center justify-between z-10">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate('/map')}
+            className="text-white"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <div>
+            <h1 className="text-white font-bold text-lg">Geofence Editor</h1>
+            <p className="text-zinc-400 text-xs text-left">Click map to draw boundaries</p>
+          </div>
         </div>
 
-        <div className='flex items-center gap-2'>
+        <div className="flex items-center gap-2">
           <Button
-            variant='outline'
-            size='sm'
+            variant="outline"
+            size="sm"
             onClick={handleUndo}
             disabled={points.length === 0}
-            className='border-zinc-700 text-white bg-zinc-800 hover:bg-zinc-700'
+            className="border-zinc-700 text-white bg-zinc-800 hover:bg-zinc-700"
           >
-            <Undo className='w-4 h-4 mr-2' />
+            <Undo className="w-4 h-4 mr-2" />
             Undo
           </Button>
           <Button
-            variant='destructive'
-            size='sm'
+            variant="destructive"
+            size="sm"
             onClick={handleClear}
             disabled={points.length === 0}
           >
-            <Trash2 className='w-4 h-4 mr-2' />
+            <Trash2 className="w-4 h-4 mr-2" />
             Clear
           </Button>
         </div>
-      </div >
+      </div>
 
-    <div className='flex-1 relative'>
-      <MapContainer center={[initialLat, initialLng]} zoom={17} className='h-full w-full'>
-        <TileLayer
-          url='https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        />
-
-        <MapEvents onMapClick={handleMapClick} />
-
-        {/* Polygon Preview */}
-        {points.length > 0 && (
-          <Polygon
-            positions={points}
-            pathOptions={{
-              color: '#dc2626',
-              fillColor: '#dc2626',
-              fillOpacity: 0.4,
-            }}
+      <div className="flex-1 relative">
+        <MapContainer
+          center={[initialLat, initialLng]}
+          zoom={17}
+          className="h-full w-full"
+        >
+          <TileLayer
+            url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           />
-        )}
 
-        {/* Draggable Vertices */}
-        {points.map((point, index) => (
-          <Marker
-            key={index}
-            position={point}
-            icon={vertexIcon}
-            draggable={true}
-            eventHandlers={{
-              drag: (e) => handleDragVertex(index, e),
-            }}
-          />
-        ))}
-      </MapContainer>
+          <MapEvents onMapClick={handleMapClick} />
 
-      {/* Editor Sidebar / Floating Card */}
-      <Card className='absolute top-4 right-4 w-80 bg-zinc-900/90 backdrop-blur-sm border-zinc-800 p-4 shadow-xl z-[400]'>
-        <h2 className='text-white font-semibold mb-4'>Lot Details</h2>
-
-        <div className='space-y-4'>
-          <div className='space-y-2'>
-            <Label htmlFor='lotName' className='text-zinc-300'>
-              Lot Name
-            </Label>
-            <Input
-              id='lotName'
-              value={lotName}
-              onChange={(e) => setLotName(e.target.value)}
-              placeholder='e.g. Lot 26'
-              className='bg-zinc-800 border-zinc-700 text-white'
+          {/* Polygon Preview */}
+          {points.length > 0 && (
+            <Polygon
+              positions={points}
+              pathOptions={{
+                color: '#dc2626',
+                fillColor: '#dc2626',
+                fillOpacity: 0.4,
+              }}
             />
-          </div>
+          )}
 
-          <div className='space-y-2'>
-            <Label htmlFor='campus' className='text-zinc-300'>
-              Campus
-            </Label>
-            <select
-              id='campus'
-              value={campus}
-              onChange={(e) => setCampus(e.target.value)}
-              className='w-full bg-zinc-800 border-zinc-700 text-white rounded-md h-10 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-600'
+          {/* Draggable Vertices */}
+          {points.map((point, index) => (
+            <Marker
+              key={index}
+              position={point}
+              icon={vertexIcon}
+              draggable={true}
+              eventHandlers={{
+                drag: (e) => handleDragVertex(index, e),
+              }}
+            />
+          ))}
+        </MapContainer>
+
+        {/* Editor Sidebar / Floating Card */}
+        <Card className="absolute top-4 right-4 w-80 bg-zinc-900/90 backdrop-blur-sm border-zinc-800 p-4 shadow-xl z-[400]">
+          <h2 className="text-white font-semibold mb-4">Lot Details</h2>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="lotName" className="text-zinc-300">Lot Name</Label>
+              <Input
+                id="lotName"
+                value={lotName}
+                onChange={(e) => setLotName(e.target.value)}
+                placeholder="e.g. Lot 26"
+                className="bg-zinc-800 border-zinc-700 text-white"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="campus" className="text-zinc-300">Campus</Label>
+              <select
+                id="campus"
+                value={campus}
+                onChange={(e) => setCampus(e.target.value)}
+                className="w-full bg-zinc-800 border-zinc-700 text-white rounded-md h-10 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+              >
+                <option value="College Ave">College Ave</option>
+                <option value="Busch">Busch</option>
+                <option value="Livingston">Livingston</option>
+                <option value="Cook/Douglass">Cook/Douglass</option>
+              </select>
+            </div>
+
+            <div className="pt-2 text-xs text-zinc-500">
+              <p>Points: {points.length}</p>
+              <p>Click map to add points. Drag white dots to adjust.</p>
+            </div>
+
+            <Button
+              onClick={handleSave}
+              className="w-full bg-red-600 hover:bg-red-700 text-white"
             >
-              <option value='College Ave'>College Ave</option>
-              <option value='Busch'>Busch</option>
-              <option value='Livingston'>Livingston</option>
-              <option value='Cook/Douglass'>Cook/Douglass</option>
-            </select>
+              <Save className="w-4 h-4 mr-2" />
+              Save Geofence
+            </Button>
           </div>
-
-          <div className='pt-2 text-xs text-zinc-500'>
-            <p>Points: {points.length}</p>
-            <p>Click map to add points. Drag white dots to adjust.</p>
-          </div>
-
-          <Button onClick={handleSave} className='w-full bg-red-600 hover:bg-red-700 text-white'>
-            <Save className='w-4 h-4 mr-2' />
-            Save Geofence
-          </Button>
-        </div>
-      </Card>
+        </Card>
+      </div>
     </div>
-    </div >
   );
 }
