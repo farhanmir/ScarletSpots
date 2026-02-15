@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { StyleSheet, View, Platform, Alert, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { BlurView } from 'expo-blur';
 import MapView, { PROVIDER_GOOGLE, PROVIDER_DEFAULT, Polygon, Marker } from 'react-native-maps';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Location from 'expo-location';
@@ -29,6 +30,18 @@ interface ParkingSession {
   spotNumber: string;
 }
 
+type ZoomLevel = 'lot' | 'campus' | 'hidden';
+
+interface Cluster {
+  id: string;
+  type: 'campus' | 'region';
+  name: string;
+  latitude: number;
+  longitude: number;
+  occupancyRate: number;
+  count: number;
+}
+
 export default function MapScreen() {
   const router = useRouter();
   const { user } = useAuth();
@@ -40,6 +53,36 @@ export default function MapScreen() {
   const [selectedPlace, setSelectedPlace] = useState<{ lat: number; lng: number; name: string } | null>(null);
   const [activeSession, setActiveSession] = useState<ParkingSession | null>(null);
   const [loading, setLoading] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('hidden'); 
+
+  // Clusters computation
+  const clusters = React.useMemo(() => {
+    if (zoomLevel === 'lot' || zoomLevel === 'hidden') return [];
+
+    // Campus Clusters
+    const campuses: Record<string, { lat: number; lng: number; count: number; occupancySum: number }> = {};
+    
+    lots.forEach(lot => {
+      if (!campuses[lot.campus]) {
+        campuses[lot.campus] = { lat: 0, lng: 0, count: 0, occupancySum: 0 };
+      }
+      campuses[lot.campus].lat += lot.latitude;
+      campuses[lot.campus].lng += lot.longitude;
+      campuses[lot.campus].count += 1;
+      campuses[lot.campus].occupancySum += lot.occupancyRate;
+    });
+
+    return Object.entries(campuses).map(([name, data]) => ({
+      id: `campus-${name}`,
+      type: 'campus',
+      name: name,
+      latitude: data.lat / data.count,
+      longitude: data.lng / data.count,
+      occupancyRate: data.occupancySum / data.count,
+      count: data.count
+    } as Cluster));
+
+  }, [lots, zoomLevel]);
 
   const clearRouteSelectionParams = () => {
     router.setParams({
@@ -488,6 +531,15 @@ export default function MapScreen() {
         }}
         onRegionChangeComplete={(region) => {
           regionRef.current = region;
+          
+          // Determine Zoom Level
+          if (region.latitudeDelta < 0.05) {
+            setZoomLevel('lot');
+          } else if (region.latitudeDelta < 0.4) {
+            setZoomLevel('campus');
+          } else {
+            setZoomLevel('hidden');
+          }
         }}
         onPress={() => {
            // Only close if we are selecting something? behavior preference
@@ -497,11 +549,11 @@ export default function MapScreen() {
            setSelectedPlace(null);
         }}
       >
-        {lots.map((lot) => {
+        {zoomLevel === 'lot' ? lots.map((lot) => {
           const isSelected = selectedLot?.id === lot.id;
           return (
             <React.Fragment key={lot.id}>
-              {/* Polygon */}
+              {/* Polygon - Only show when really close? or always in 'lot' mode */}
               {lot.coordinates && lot.coordinates.length >= 3 && (
                 <Polygon
                   coordinates={lot.coordinates.map((p) => ({ latitude: p[0], longitude: p[1] }))}
@@ -545,7 +597,33 @@ export default function MapScreen() {
               </Marker>
             </React.Fragment>
           );
-        })}
+        }) : clusters.map((cluster) => (
+           <Marker
+            key={cluster.id}
+            coordinate={{ latitude: cluster.latitude, longitude: cluster.longitude }}
+            onPress={() => {
+              // Zoom in on cluster
+               mapRef.current?.animateToRegion({
+                latitude: cluster.latitude,
+                longitude: cluster.longitude,
+                latitudeDelta: cluster.type === 'region' ? 0.05 : 0.01, // Zoom deeper
+                longitudeDelta: cluster.type === 'region' ? 0.05 : 0.01,
+              }, 500);
+            }}
+            zIndex={20}
+          >
+             <View style={styles.campusMarker}>
+                {/* Simplified Marker: Just the badge with Name + % */}
+                <View style={[
+                  styles.clusterBadge, 
+                  cluster.occupancyRate > 80 ? { backgroundColor: '#ef4444' } : 
+                  cluster.occupancyRate > 50 ? { backgroundColor: '#f59e0b' } : { backgroundColor: '#059669' }
+                ]}>
+                   <Text style={styles.clusterText}>{cluster.name}: {Math.round(cluster.occupancyRate)}%</Text>
+                </View>
+             </View>
+          </Marker>
+        ))}
 
         {/* Selected Place Marker */}
         {selectedPlace && (
@@ -557,38 +635,46 @@ export default function MapScreen() {
         )}
       </MapView>
 
-      {/* Center on Me Button */}
-      <TouchableOpacity
-        style={styles.centerButton}
-        onPress={() => {
-          if (location) {
-            mapRef.current?.animateToRegion({
-              latitude: location.coords.latitude,
-              longitude: location.coords.longitude,
-              latitudeDelta: 0.01,
-              longitudeDelta: 0.005,
-            }, 500);
-          }
-        }}
-        activeOpacity={0.8}
-      >
-        <IconSymbol name="location.fill" size={20} color="#dc2626" />
-      </TouchableOpacity>
+      {/* Center on Me Button - Styled like LiquidGlassTabBar */}
+      <View style={styles.centerButtonContainer}>
+         {Platform.OS === 'ios' && (
+            <BlurView intensity={80} tint="systemChromeMaterialDark" style={StyleSheet.absoluteFill} />
+         )}
+         <TouchableOpacity
+           style={[styles.centerButton, Platform.OS === 'android' && styles.centerButtonAndroid]}
+           onPress={() => {
+             if (location) {
+               mapRef.current?.animateToRegion({
+                 latitude: location.coords.latitude,
+                 longitude: location.coords.longitude,
+                 latitudeDelta: 0.01,
+                 longitudeDelta: 0.005,
+               }, 500);
+             }
+           }}
+           activeOpacity={0.7}
+         >
+           <IconSymbol name="location.fill" size={24} color="#ef4444" />
+         </TouchableOpacity>
+      </View>
 
-      {/* Active Session Overlay */}
+      {/* Active Session Overlay - Repositioned to not block Tab Bar */}
       {activeSession && (
         <View style={styles.activeSessionContainer}>
-          <View>
-            <Text style={styles.activeSessionText}>Active Parking Session</Text>
-            <Text style={styles.activeSessionSubtext}>Spot #{activeSession.spotNumber}</Text>
+          <BlurView intensity={90} tint="systemThickMaterialDark" style={StyleSheet.absoluteFill} />
+          <View style={styles.activeSessionContent}>
+            <View>
+              <Text style={styles.activeSessionText}>Active Parking Session</Text>
+              <Text style={styles.activeSessionSubtext}>Spot #{activeSession.spotNumber}</Text>
+            </View>
+            <TouchableOpacity 
+              style={styles.endSessionButton} 
+              onPress={handleEndSession}
+              disabled={loading}
+            >
+              {loading ? <ActivityIndicator color="white" /> : <Text style={styles.endSessionText}>End</Text>}
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity 
-            style={styles.endSessionButton} 
-            onPress={handleEndSession}
-            disabled={loading}
-          >
-            {loading ? <ActivityIndicator color="white" /> : <Text style={styles.endSessionText}>End</Text>}
-          </TouchableOpacity>
         </View>
       )}
 
@@ -617,39 +703,46 @@ const styles = StyleSheet.create({
   },
   activeSessionContainer: {
     position: 'absolute',
-    top: 50,
+    top: 60, // Moved to TOP instead of bottom to avoid blocking tabs
     left: 20,
     right: 20,
-    backgroundColor: '#dc2626',
-    borderRadius: 12,
-    padding: 15,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(220, 38, 38, 0.3)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  activeSessionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    backgroundColor: 'rgba(24, 24, 27, 0.6)', 
   },
   activeSessionText: {
-    color: 'white',
-    fontWeight: 'bold',
+    color: '#ef4444',
+    fontWeight: '700',
     fontSize: 16,
   },
   activeSessionSubtext: {
-    color: 'rgba(255,255,255,0.8)',
+    color: '#d4d4d8',
     fontSize: 14,
+    marginTop: 2,
   },
   endSessionButton: {
-    backgroundColor: 'white',
+    backgroundColor: '#dc2626',
     paddingVertical: 8,
-    paddingHorizontal: 15,
-    borderRadius: 20,
+    paddingHorizontal: 16,
+    borderRadius: 8,
   },
   endSessionText: {
-    color: '#dc2626',
-    fontWeight: 'bold',
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 14,
   },
   markerContainer: {
     alignItems: 'center',
@@ -691,22 +784,50 @@ const styles = StyleSheet.create({
   markerArrowFull: {
     borderTopColor: '#10b981',
   },
-  centerButton: {
+  centerButtonContainer: {
     position: 'absolute',
-    bottom: 30, // Above tab bar
-    right: 20,
-    backgroundColor: '#18181b',
+    bottom: 110, // Above the tab bar
+    right: 16,
     width: 50,
     height: 50,
     borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
+    overflow: 'hidden',
+    borderWidth: 0.5,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 5,
+    elevation: 6,
+  },
+  centerButton: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(12, 12, 12, 0.3)', // Default for iOS glass
+  },
+  centerButtonAndroid: {
+    backgroundColor: '#18181b', // Solid for Android
+  },
+  campusMarker: {
+    // Transparent container, we rely on the badge now
+    alignItems: 'center',
+  },
+  clusterBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  clusterText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: 'bold',
   },
 });

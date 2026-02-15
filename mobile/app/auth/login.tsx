@@ -14,33 +14,18 @@ import {
 import { supabase, publicApiCall } from '@/lib/supabase';
 import { Stack, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 
 export default function LoginScreen() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [name, setName] = useState('');
-  const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
 
   const validateForm = (): string | null => {
     if (!email || !password) {
       return 'Please fill in all fields';
     }
-
-    if (isLogin) {
-      return null;
-    }
-
-    if (!name.trim()) {
-      return 'Please enter your name';
-    }
-
-    if (password !== confirmPassword) {
-      return 'Passwords do not match';
-    }
-
     return null;
   };
 
@@ -53,25 +38,6 @@ export default function LoginScreen() {
     if (error) throw error;
   };
 
-  const signUp = async () => {
-    if (!email.endsWith('@rutgers.edu') && !email.endsWith('@scarletmail.rutgers.edu')) {
-      throw new Error('Please use a valid Rutgers email address');
-    }
-
-    const response = await publicApiCall('/signup', {
-      method: 'POST',
-      body: JSON.stringify({
-        email,
-        password,
-        name: name || email.split('@')[0],
-      }),
-    });
-
-    if (response.success) {
-      await signIn();
-    }
-  };
-
   async function handleAuth() {
     const validationError = validateForm();
     if (validationError) {
@@ -81,12 +47,8 @@ export default function LoginScreen() {
 
     setLoading(true);
     try {
-      if (isLogin) {
-        await signIn();
-      } else {
-        await signUp();
-      }
-
+      await signIn();
+      // Ensure we redirect to root which handles permissions
       router.replace('/');
     } catch (error: any) {
       Alert.alert('Authentication Failed', error.message || 'An error occurred');
@@ -118,33 +80,26 @@ export default function LoginScreen() {
         >
           {/* Logo / Header */}
           <View style={styles.header}>
+            <TouchableOpacity 
+              style={{ position: 'absolute', left: 0, top: 0, padding: 8 }}
+              onPress={() => router.back()}
+            >
+              <IconSymbol name="arrow.left" size={24} color="#a1a1aa" />
+            </TouchableOpacity>
+
             <View style={styles.logoBox}>
-              <Text style={styles.logoIcon}>P</Text>
+              <IconSymbol name="car.fill" size={40} color="#fff" />
             </View>
             <Text style={styles.title}>
-              {isLogin ? 'ScarletSpots' : 'Join ScarletSpots'}
+              Welcome Back
             </Text>
             <Text style={styles.subtitle}>
-              {isLogin ? 'Find parking at Rutgers' : 'Rutgers students only'}
+              Sign in to continue
             </Text>
           </View>
 
           {/* Form Card */}
           <View style={styles.card}>
-            {/* Name (Signup only) */}
-            {!isLogin && (
-              <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Name</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Your name"
-                  placeholderTextColor="#71717a"
-                  value={name}
-                  onChangeText={setName}
-                />
-              </View>
-            )}
-
             {/* Email */}
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>Rutgers Email</Text>
@@ -157,11 +112,6 @@ export default function LoginScreen() {
                 value={email}
                 onChangeText={setEmail}
               />
-              {!isLogin && (
-                <Text style={styles.hint}>
-                  Must be @rutgers.edu or @scarletmail.rutgers.edu
-                </Text>
-              )}
             </View>
 
             {/* Password */}
@@ -175,35 +125,15 @@ export default function LoginScreen() {
                 value={password}
                 onChangeText={setPassword}
               />
-              {!isLogin && (
-                <Text style={styles.hint}>Minimum 6 characters</Text>
-              )}
             </View>
 
-            {/* Confirm Password (Signup only) */}
-            {!isLogin && (
-              <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Confirm Password</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="••••••••"
-                  placeholderTextColor="#71717a"
-                  secureTextEntry={true}
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                />
-              </View>
-            )}
-
-            {/* Forgot Password (Login only) */}
-            {isLogin && (
-              <TouchableOpacity
-                style={styles.forgotButton}
-                onPress={() => router.push('/auth/forgot-password')}
-              >
-                <Text style={styles.forgotText}>Forgot Password?</Text>
-              </TouchableOpacity>
-            )}
+            {/* Forgot Password */}
+            <TouchableOpacity
+              style={styles.forgotButton}
+              onPress={() => router.push('/auth/forgot-password')}
+            >
+              <Text style={styles.forgotText}>Forgot Password?</Text>
+            </TouchableOpacity>
 
             {/* Submit */}
             <TouchableOpacity
@@ -216,32 +146,18 @@ export default function LoginScreen() {
                 <ActivityIndicator color="white" />
               ) : (
                 <Text style={styles.buttonText}>
-                  {isLogin ? 'Sign In' : 'Create Account'}
+                  Sign In
                 </Text>
               )}
             </TouchableOpacity>
 
-            {/* Switch */}
-            <View style={styles.switchRow}>
-              <Text style={styles.switchText}>
-                {isLogin ? "Don't have an account? " : 'Already have an account? '}
+            {/* Demo hint */}
+            <View style={styles.demoBox}>
+              <Text style={styles.demoText}>
+                <Text style={styles.demoBold}>Tip: </Text>
+                Use your NetID or ScarletMail credentials.
               </Text>
-              <TouchableOpacity onPress={() => setIsLogin(!isLogin)}>
-                <Text style={styles.switchLink}>
-                  {isLogin ? 'Sign up' : 'Sign in'}
-                </Text>
-              </TouchableOpacity>
             </View>
-
-            {/* Demo hint (login only) */}
-            {isLogin && (
-              <View style={styles.demoBox}>
-                <Text style={styles.demoText}>
-                  <Text style={styles.demoBold}>Demo: </Text>
-                  Create an account with any @rutgers.edu email
-                </Text>
-              </View>
-            )}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

@@ -83,6 +83,29 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* History */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <IconSymbol name="clock.fill" size={18} color="#a1a1aa" />
+            <Text style={styles.sectionTitle}>History</Text>
+          </View>
+          {/* Mock History Item */}
+          <View style={styles.historyItem}>
+            <View style={styles.historyLeft}>
+              <Text style={styles.historyLot}>College Ave Deck</Text>
+              <Text style={styles.historyDate}>Yesterday, 2 hrs</Text>
+            </View>
+            {/* Free */}
+          </View>
+          <View style={styles.historyItem}>
+            <View style={styles.historyLeft}>
+              <Text style={styles.historyLot}>Yellow Lot</Text>
+              <Text style={styles.historyDate}>Feb 12, 4 hrs</Text>
+            </View>
+             {/* Free */}
+          </View>
+        </View>
+
         {/* Settings */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -119,6 +142,15 @@ export default function ProfileScreen() {
             <View style={styles.settingInfo}>
               <Text style={styles.settingLabel}>My Vehicles</Text>
               <Text style={styles.settingSubtext}>Manage license plates</Text>
+            </View>
+            <IconSymbol name="chevron.right" size={14} color="#52525b" />
+          </TouchableOpacity>
+
+          {/* Delete Account */}
+          <TouchableOpacity style={[styles.settingRow, { borderBottomWidth: 0 }]}>
+            <View style={styles.settingInfo}>
+              <Text style={[styles.settingLabel, { color: '#ef4444' }]}>Delete Account</Text>
+              <Text style={styles.settingSubtext}>Permanently remove all data</Text>
             </View>
             <IconSymbol name="chevron.right" size={14} color="#52525b" />
           </TouchableOpacity>
@@ -295,5 +327,31 @@ const styles = StyleSheet.create({
     color: '#dc2626',
     fontSize: 16,
     fontWeight: '600',
+  },
+  historyItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#27272a',
+  },
+  historyLeft: {
+    gap: 2,
+  },
+  historyLot: {
+    color: '#e4e4e7',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  historyDate: {
+    color: '#71717a',
+    fontSize: 12,
+  },
+  historyPrice: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
   },
 });

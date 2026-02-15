@@ -26,16 +26,6 @@ export default function Index() {
     );
   }
 
-  // 1. Force Login
-  if (!session) {
-    return <Redirect href="/auth/login" />;
-  }
-
-  // 2. Check Permissions
-  if (permissionStatus !== Location.PermissionStatus.GRANTED) {
-    return <Redirect href="/onboarding/permissions" />;
-  }
-
   // 3. Go to Map
   return <Redirect href="/(tabs)" />;
 }

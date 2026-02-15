@@ -25,6 +25,7 @@ const TAB_CONFIG: Record<string, { icon: string; label: string }> = {
   index:    { icon: 'map.fill',            label: 'Map' },
   search:   { icon: 'magnifyingglass',     label: 'Search' },
   navigate: { icon: 'location.north.fill', label: 'Navigate' },
+  friends:  { icon: 'person.2.fill',       label: 'Friends' },
   profile:  { icon: 'person.fill',         label: 'Profile' },
 };
 

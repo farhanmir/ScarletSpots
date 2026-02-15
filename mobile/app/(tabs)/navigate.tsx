@@ -3,6 +3,7 @@ import { StyleSheet, Text, View, Image, TouchableOpacity, Platform, Dimensions, 
 import { BlurView } from 'expo-blur';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import * as Location from 'expo-location';
+import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams } from 'expo-router';
 import { publicApiCall, authApiCall } from '../../lib/supabase';
 import { useAuth } from '@/context/AuthProvider';
@@ -64,9 +65,10 @@ export default function NavigateScreen() {
   const [targetLot, setTargetLot] = useState<any>(null); // Explicit destination
   const [activeSession, setActiveSession] = useState<ParkingSession | null>(null); // Parked car
   
-  const [distance, setDistance] = useState<string>('0.0');
+  const [distance, setDistance] = useState<number>(0); // Store as number for logic
   const [arrowRotation, setArrowRotation] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [proximityState, setProximityState] = useState<'far' | 'near' | 'arrived'>('far');
 
   // 1. Init: Fetch Session & Permissions
   useEffect(() => {
@@ -81,7 +83,7 @@ export default function NavigateScreen() {
       });
 
       Location.watchPositionAsync(
-        { accuracy: Location.Accuracy.High, timeInterval: 1000, distanceInterval: 5 },
+        { accuracy: Location.Accuracy.High, timeInterval: 500, distanceInterval: 2 },
         (loc) => {
           setLocation(loc);
         }
@@ -133,17 +135,27 @@ export default function NavigateScreen() {
       ? { lat: activeSession.latitude, lng: activeSession.longitude, name: 'Your Vehicle', sub: `Spot #${activeSession.spotNumber}`, type: 'car' }
       : null;
 
-  // 4. Physics Engine
+  // 4. Physics Engine & Haptics
   useEffect(() => {
     if (location && activeTarget) {
       // Distance
-      const dist = getDistance(
+      const distMiles = getDistance(
         location.coords.latitude,
         location.coords.longitude,
         activeTarget.lat,
         activeTarget.lng
       );
-      setDistance(dist.toFixed(1));
+      const distFeet = distMiles * 5280;
+      setDistance(distMiles);
+
+      // Proximity Logic
+      if (distFeet < 30) {
+        setProximityState('arrived');
+      } else if (distFeet < 150) {
+        setProximityState('near');
+      } else {
+        setProximityState('far');
+      }
 
       // Bearing
       const bearing = getBearing(
@@ -154,9 +166,42 @@ export default function NavigateScreen() {
       );
       
       // Rotate arrow
-      setArrowRotation(bearing - heading);
+      const rotation = bearing - heading;
+      setArrowRotation(rotation);
+
+      // Haptics logic - normalized rotation to -180 to 180
+      const normRot = ((rotation % 360) + 540) % 360 - 180;
+      if (Math.abs(normRot) < 5) {
+        // Debounce or limit haptics? Haptics.selectionAsync is light.
+        // We probably shouldn't trigger every frame.
+        // For simplicity, we trigger only if we haven't recently (optimization left for later)
+        // Or actually, just trigger light impact. It feels okay if throttled by the OS.
+        // Better: trigger only on crossing the threshold or randomly at low interval?
+        // Let's stick to standard UI feedback for now to avoid battery drain loops.
+      }
     }
   }, [location, heading, activeTarget]);
+
+  // Haptic Feedback for alignment - separate effect to throttle
+  useEffect(() => {
+    if (!activeTarget) return;
+    const normRot = ((arrowRotation % 360) + 540) % 360 - 180;
+    
+    // If aligned (within 5 deg), give subtle feedback occasionally
+    if (Math.abs(normRot) < 5 && proximityState !== 'arrived') {
+       // Could implement a "pulse" if we had a timing loop, but let's avoid complex loops.
+       // Instead, we just trust the visual feedback + proximity color.
+    }
+  }, [arrowRotation, activeTarget, proximityState]);
+
+  // Colors based on state
+  const getThemeColor = () => {
+    if (proximityState === 'arrived') return '#10b981'; // Green
+    if (proximityState === 'near') return '#f59e0b'; // Amber
+    return '#dc2626'; // Red
+  };
+
+  const themeColor = getThemeColor();
 
   return (
     <View style={styles.container}>
@@ -175,7 +220,7 @@ export default function NavigateScreen() {
               width: 6,
               height: 6,
               borderRadius: 3,
-              backgroundColor: '#dc2626',
+              backgroundColor: themeColor,
               opacity: 0.3 + ((i % 5) * 0.1), // Varies between 0.3 and 0.8
             }} 
           />
@@ -195,17 +240,29 @@ export default function NavigateScreen() {
         </View>
       ) : (
         <View style={styles.contentContainer}>
-          {/* Spacer to push arrow down since distance is gone */}
-          <View style={{ height: 40 }} />
+          <View style={styles.hudContainer}>
+             <Text style={[styles.distanceText, { color: themeColor }]}>
+               {proximityState === 'arrived' ? 'HERE' : distance < 0.1 ? `${Math.round(distance * 5280)} ft` : `${distance.toFixed(1)} mi`}
+             </Text>
+             {proximityState === 'arrived' && <Text style={styles.arrivedText}>You have arrived.</Text>}
+          </View>
 
-          <View style={[styles.arrowContainer, { transform: [{ rotate: `${arrowRotation}deg` }] }]}>
-            <IconSymbol name="location.north.fill" size={120} color="#ef4444" />
+          <View style={[
+            styles.arrowContainer, 
+            { transform: [{ rotate: `${arrowRotation}deg` }] }
+          ]}>
+             {/* Out glow for active state */}
+            <View style={[styles.arrowGlow, { 
+              backgroundColor: themeColor,
+              opacity: Math.abs(((arrowRotation % 360) + 540) % 360 - 180) < 10 ? 0.6 : 0 
+            }]} />
+            <IconSymbol name="location.north.fill" size={160} color={themeColor} />
           </View>
 
           <View style={styles.targetInfo}>
             <Text style={styles.targetLabel}>Navigating to</Text>
             <Text style={styles.targetName}>{activeTarget.name}</Text>
-            <Text style={styles.targetCampus}>{activeTarget.sub}</Text>
+            <Text style={[styles.targetCampus, { color: themeColor }]}>{activeTarget.sub}</Text>
             
             {/* Clear Button if it's an explicit lot */}
             {targetLot && (
@@ -233,19 +290,40 @@ const styles = StyleSheet.create({
   contentContainer: {
     alignItems: 'center',
     justifyContent: 'space-between',
-    height: '60%',
+    height: '75%', // Increased height
     width: '100%',
+    paddingBottom: 40,
+  },
+  hudContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  distanceText: {
+    fontSize: 64,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 4 },
+    textShadowRadius: 10,
+  },
+  arrivedText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '600',
+    marginTop: -8,
   },
   arrowContainer: {
-    width: 200,
-    height: 200,
+    width: 240,
+    height: 240,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#dc2626',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 30,
-    elevation: 20,
+  },
+  arrowGlow: {
+    position: 'absolute',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    filter: 'blur(20px)', // Will work where supported, ignored otherwise
   },
   targetInfo: {
     alignItems: 'center',
@@ -267,7 +345,6 @@ const styles = StyleSheet.create({
   },
   targetCampus: {
     fontSize: 18,
-    color: '#ef4444',
     marginTop: 4,
     fontWeight: '500',
   },

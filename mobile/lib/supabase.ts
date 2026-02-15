@@ -66,8 +66,8 @@ export async function publicApiCall(endpoint: string, options: RequestInit = {})
       'Content-Type': 'application/json',
       'apikey': supabaseAnonKey,
       Authorization: `Bearer ${supabaseAnonKey}`,
-      ...options.headers,
-    },
+      ...(options.headers || {}),
+    } as HeadersInit,
   });
 
   const data = await safeJson(response);
@@ -118,11 +118,11 @@ export async function authApiCall(endpoint: string, options: RequestInit = {}): 
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      'apikey': supabaseAnonKey,
+      'apikey': supabaseAnonKey as string,
       'Authorization': `Bearer ${supabaseAnonKey}`,
-      'x-user-token': session?.access_token,
-      ...options.headers,
-    },
+      'x-user-token': session?.access_token || '',
+      ...(options.headers || {}),
+    } as HeadersInit,
   });
 
   // 4. Handle 401 (Unauthorized) - Try one more refresh if we haven't already
@@ -138,11 +138,11 @@ export async function authApiCall(endpoint: string, options: RequestInit = {}): 
         ...options,
         headers: {
           'Content-Type': 'application/json',
-          'apikey': supabaseAnonKey,
+          'apikey': supabaseAnonKey as string,
           'Authorization': `Bearer ${supabaseAnonKey}`,
           'x-user-token': refreshData.session.access_token,
-          ...options.headers,
-        },
+          ...(options.headers || {}),
+        } as HeadersInit,
       });
     } else {
       console.log(`[authApiCall] Force refresh failed, signing out.`);

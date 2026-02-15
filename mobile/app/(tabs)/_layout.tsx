@@ -11,6 +11,7 @@ export default function TabLayout() {
       <Tabs.Screen name="search" />
       <Tabs.Screen name="index" />
       <Tabs.Screen name="navigate" />
+      <Tabs.Screen name="friends" />
       <Tabs.Screen name="profile" />
     </Tabs>
   );

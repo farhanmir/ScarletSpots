@@ -145,20 +145,17 @@ export default function SearchScreen() {
     Keyboard.dismiss();
     
     if (item.type === 'lot') {
-      router.replace({
-        pathname: '/(tabs)/index',
+      // Use push or navigate to ensure we switch tabs correctly with params
+      router.push({
+        pathname: '/(tabs)',
         params: {
           selectedLotId: item.id,
-          placeLat: undefined,
-          placeLng: undefined,
-          placeName: undefined,
         }
       });
     } else {
-      router.replace({
-        pathname: '/(tabs)/index',
+      router.push({
+        pathname: '/(tabs)',
         params: { 
-          selectedLotId: undefined,
           placeLat: item.latitude, 
           placeLng: item.longitude, 
           placeName: item.name 
