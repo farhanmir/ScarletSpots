@@ -1,278 +1,454 @@
-# ScarletSpots - Project Plan
+# ScarletSpots - Production Launch Plan (100k Users)
 
-## Project Overview
-ScarletSpots is a smart parking application designed to help users find and share parking information, particularly focused on campus environments. The app combines location tracking, social features, and crowd-sourced data to create a comprehensive parking solution with a strong real-time and predictive layer.
+## Project Mandate
+ScarletSpots is a production mobile parking platform for campus users, designed to operate reliably at large scale (target: 100,000 active users) with strong real-time behavior, strict privacy controls, and auditable operational readiness.
+
+This is **not** an MVP/prototype plan. Every phase below is scoped for ship-quality delivery.
 
 ---
 
-## 1. Native Architecture
-- Frontend: Expo (React Native) + TypeScript
-- Maps: react-native-maps
+## 0. Product Targets and Service Levels
+
+### Launch Targets
+- Registered users: 100,000+
+- Daily active users (DAU): 20,000+
+- Concurrent active sessions at peak: 5,000+
+- Geographic scope: Rutgers campuses (expandable)
+
+### Service-Level Objectives (SLOs)
+- API availability: 99.9% monthly
+- p95 API latency:
+  - Read endpoints: < 300 ms
+  - Write endpoints: < 500 ms
+- Real-time update delay (parking occupancy deltas): < 5 seconds (p95)
+- Crash-free sessions:
+  - iOS: 99.8%+
+  - Android: 99.6%+
+
+### Data and Detection Quality Targets
+- Parked-car location median error: <= 15 meters
+- “Find my car” successful return rate: >= 95%
+- Heatmap state classification precision (low/med/high/full): >= 85%
+- Forecast MAE (1 hour horizon occupancy): <= 12%
+
+---
+
+## 1. Production Architecture
+
+### Mobile Client
+- Expo (React Native) + TypeScript
+- Maps: `react-native-maps`
   - iOS: Apple Maps (MKMapView)
   - Android: Google Maps
-- Sensors: expo-location (GPS) + expo-sensors (Magnetometer)
-- Backend API: FastAPI
-- Database: PostgreSQL with PostGIS
-- Auth and realtime: Supabase (sessions, row-level security, subscriptions)
-- Notifications: Expo push notifications
+- Sensors:
+  - `expo-location` (GPS/heading/geofencing)
+  - `expo-sensors` (magnetometer + accelerometer)
+  - Device motion fallback where available
+- Notifications: Expo Push Notifications
 
-## 2. Dual-Map Strategy
-Use react-native-maps to auto-select the platform map provider.
+### Backend and Data Platform
+- API Layer: FastAPI (Python) for business logic and predictive endpoints
+- Data Layer:
+  - PostgreSQL + PostGIS (primary system of record)
+  - Redis (caching, rate-limiting counters, short-lived session accelerators)
+- Auth and Realtime:
+  - Supabase Auth (session lifecycle)
+  - Supabase Realtime subscriptions where appropriate
+- Async Workloads:
+  - Background worker(s) for ETL, feature generation, and prediction refresh
+  - Queue system (Celery/RQ/Cloud-managed equivalent)
 
-```ts
-import MapView, { PROVIDER_GOOGLE, PROVIDER_DEFAULT } from 'react-native-maps';
-import { Platform } from 'react-native';
+### Deployment Strategy
+- Environment separation: `dev`, `staging`, `prod`
+- Blue/green or rolling deploys with health checks
+- Zero-downtime schema migration strategy
+- Infrastructure as code (Terraform/Pulumi) for reproducibility
 
-const ParkingMap = () => {
-  const mapProvider = Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_DEFAULT;
+---
 
-  return (
-    <MapView
-      provider={mapProvider}
-      style={{ flex: 1 }}
-      showsUserLocation={true}
-    />
-  );
-};
-```
+## 2. Dual-Map Strategy (Required)
+Use `react-native-maps` provider auto-selection:
+- Android -> `PROVIDER_GOOGLE`
+- iOS -> `PROVIDER_DEFAULT`
 
-## 3. Intelligent Parking Detection System
-**Objective:** Automatically detect and log where users park their vehicles with minimal manual input.
+Requirements:
+- User location display enabled
+- Marker clustering at scale
+- Style parity across platforms where feasible
+- Performance target: map interactions maintain 55+ FPS on modern devices
 
-**Implementation Details:**
-- **Geofencing integration:** Mark designated parking lots as polygons and start tracking when a user enters a lot boundary.
-- **Automatic location logging:** When the device enters a lot, begin a parking session with a rolling location buffer.
-- **Smart exit detection (multi-signal):**
-  - Bluetooth disconnection from car audio/systems
-  - Significant movement patterns indicating walking
-  - GPS velocity and acceleration changes that indicate parking and then walking
-- **User confirmation flow:**
-  - When parking is detected, the app pins the approximate location.
-  - Prompts the user to confirm the exact spot, with drag-to-adjust for accuracy.
-  - Allows manual adjustment to compensate for 1-2 spot drift.
-- **GPS accuracy compensation:**
-  - Use accuracy radius to avoid over-confident pins.
-  - Fall back to spot centroid if GPS is too noisy.
+---
 
-**User Benefits:**
-- Hands-free parking location tracking
-- Never forget where you parked
-- Automatic logging reduces cognitive load
+## 3. Intelligent Parking Detection System (Production)
+
+### Objective
+Automatically detect and log where users park with minimal manual friction and measurable confidence.
+
+### Detection Pipeline (Multi-Signal)
+1. **Geofence entry** starts candidate parking state.
+2. **Rolling location buffer** captures pre/post stop trajectories.
+3. **Transition detection** confirms drive -> stop -> walk using:
+   - velocity profile,
+   - accelerometer patterns,
+   - heading/delta movement,
+   - optional Bluetooth disconnect heuristics where accessible.
+4. **Confidence scoring** combines signals into a deterministic score.
+5. **User confirmation UI** appears only when confidence threshold is met.
+
+### GPS Accuracy Compensation
+- Incorporate horizontal accuracy into final pin confidence
+- If accuracy is poor, snap to nearest plausible lot cell centroid
+- Preserve “user-adjusted final pin” as truth label for future model tuning
+
+### Operational Requirements
+- Background-safe behavior with battery budget controls
+- False positive/negative telemetry emitted for model tuning
+- Feature flags for threshold tuning without app redeploy
+
+---
 
 ## 4. Common Commuter Spots Database
-**Objective:** Pre-populate the app with frequently visited campus locations to enhance navigation and parking recommendations.
 
-**Location Categories:**
-- Student centers
-- Athletic facilities
-- Major classrooms and lecture halls
-- Administrative buildings
-- Other high-traffic areas
+### Objective
+Provide pre-mapped high-traffic destinations and fast destination-to-parking workflows.
 
-**Implementation:**
-- Database of pre-mapped locations with coordinates and metadata.
-- Integration with parking detection to suggest nearby parking for destinations.
-- Allow users to set favorites and recent destinations for quick access.
+### Data Model
+- `common_locations` with: id, name, category, building metadata, coordinates, campus
+- Categories include student centers, athletics, classrooms, admin buildings, transit nodes
 
-## 5. Knight Needle (Compass)
-**Objective:** Provide a close-range, glanceable compass for final navigation to the parked car. 
+### Product Behavior
+- Search and quick-select destinations
+- Suggest nearest viable lots from destination
+- User favorites + recents persisted per account
 
-**Core math:**
-- Bearing: angle from user to car
-- Heading: phone direction from Magnetometer
-- Arrow rotation: bearing - heading
+---
 
-**UI:**
-- Center red lance
-- Distance text
-- Haptic thud on lock-on
+## 5. Knight Needle (Compass) - Production Spec
 
-Pseudo-loop:
-```ts
-useEffect(() => {
-  Magnetometer.addListener((data) => {
-    const phoneHeading = calculateHeading(data);
-    const targetBearing = calculateBearing(userLocation, carLocation);
-    setArrowRotation(targetBearing - phoneHeading);
-  });
-}, [userLocation, carLocation]);
-```
+### Core Math
+- `bearing = bearing(user, car)`
+- `heading = heading_from_magnetometer`
+- `rotation = normalize(bearing - heading)`
+
+### UX Requirements
+- Center scarlet lance
+- Distance text + proximity states
+- Haptic lock-on when entering threshold (e.g., <= 15m)
+- Smooth, debounced rotation with sensor noise filtering
+
+### Reliability Requirements
+- Fallback if magnetometer unavailable (GPS heading + inertial smoothing)
+- Explicit permission/error states
+- Deterministic behavior under sensor jitter
+
+---
 
 ## 6. Virtual Grid (Mobile Flow)
-### Park Flow (Input)
-- Geofence triggers on the lot boundary and starts a parking session.
-- Accelerometer detects driving -> walking transition.
-- App highlights the 3 closest plausible spots.
-- Prompt: confirm a specific spot or adjust.
 
-### Find Flow (Output)
-- Far away: map + scarlet pin
-- Close range (< 500 ft): auto-switch to compass mode
+### Park Flow
+- Geofence trigger -> candidate session starts
+- Drive->walk transition detection
+- Show top 3 plausible spots (ranked by confidence)
+- User confirms/adjusts exact spot
 
-## 7. Map Intelligence: Heat Maps and Rush-Hour Prediction
-**Heat map of full areas:**
-- Visualize lot density by cell or zone using a heat map overlay.
-- Red or scarlet clusters represent near-full or full sub-areas.
-- Data sources: recent parking confirmations, active sessions, and manual crowd reports.
-- Update cadence: real-time where possible; otherwise batch updates every few minutes.
+### Find Flow
+- Far distance: map guidance + pin
+- Near distance (< 500 ft): auto-switch to compass mode
+- State machine persisted across app restarts
 
-**Rush-hour prediction:**
-- Use historic occupancy and arrival patterns to predict high-demand windows.
-- Identify daily and weekly peaks per lot and display to users as a timeline.
-- Provide a simple label: low, medium, high, full, based on percentile thresholds.
+### Required Persistence
+- Session state, candidate pin, confidence, user override reason
 
-## 8. Social Features and Friend Integration
-**Objective:** Add social connectivity to make parking a collaborative experience.
+---
 
-**Features:**
-- User accounts and authentication (email + password or OAuth via Supabase).
-- Friend system with privacy controls for sharing parking data.
-- Friend parking visibility: highlight the exact spot where a friend parked.
-- Optional: show friend markers only in the same lot to avoid map clutter.
+## 7. Map Intelligence: Heatmap + Rush-Hour Prediction
 
-**User-facing behavior:**
-- On the map, highlight spots where friends parked their cars.
-- Provide a quick filter: show all spots or only friends.
+### Heatmap
+- Cell/zone density scoring using:
+  - active sessions,
+  - recent confirmations,
+  - manual reports (weighted reliability)
+- Recompute cadence:
+  - hot zones: 1-2 min
+  - background zones: 5-10 min
+- Class labels: low / medium / high / full
 
-## 9. Accounts, Auth, and Friend Data Model
-**Accounts:**
-- Supabase auth for sign-up, login, session refresh, and password reset.
-- Row-level security rules to protect private parking sessions and friend data.
+### Prediction (1 hour horizon)
+- Time slices: now, +15m, +30m, +60m
+- Inputs:
+  - historical occupancy,
+  - current inflow/outflow,
+  - day-of-week/hour effects,
+  - event/calendar modifiers
+- Outputs:
+  - expected occupancy,
+  - confidence band,
+  - availability label
 
-**Signup restriction (Rutgers-only):**
-- Only allow sign-ups from email addresses ending with `@rutgers.edu` or `@scarletmail.rutgers.edu`.
-- Rationale: restricts the userbase to the campus community to reduce spam and abuse, protect privately shared campus location data, simplify verification and moderation, and improve the quality and trustworthiness of crowd-sourced parking data. Enforcing university-only signups lowers legal/moderation risk and ensures features (friend networks, lot access, campus-specific forecasting) remain relevant.
-- Implementation note: enforce domain whitelist at signup (Supabase/email verification and OAuth provider rules) and validate on the backend (RLS or signup hook).
+### Model Ops
+- Offline backtesting before release
+- Drift monitoring post-release
+- Automatic rollback to baseline heuristic if model health degrades
 
-**Friend relationships:**
-- Friend requests: pending, accepted, blocked.
-- Bidirectional relationships with explicit consent.
+---
 
-**Data access rules:**
-- Users can only see their own sessions, or friends who accepted sharing.
-- Location sharing can be toggled per friend.
+## 8. Social and Friend Layer (Production)
 
-## 10. Backend Blueprint (FastAPI)
+### Required Features
+- Email/password + OAuth via Supabase Auth
+- Friend request lifecycle: pending, accepted, blocked
+- Bidirectional friendship with explicit consent
+- Per-friend location sharing toggle
+- Friend parking markers on map with filter controls
+
+### Privacy Rules
+- Default: no sharing until accepted + enabled
+- Blocked users cannot request/view
+- Audit log for sharing state changes
+
+---
+
+## 9. Security, Privacy, and Compliance Baseline
+
+### Access Control
+- Row-level security for all user-owned data
+- Principle of least privilege for service accounts
+- Signed JWT validation at all private endpoints
+
+### Data Protection
+- TLS in transit
+- Encryption at rest (managed service + secrets management)
+- PII minimization and retention policy
+- Account deletion + data erasure workflow
+
+### Abuse and Reliability Controls
+- Rate limiting per IP/user/token
+- Bot and spam mitigation for signup/request endpoints
+- Input validation + schema enforcement at API boundary
+
+### Audit and Governance
+- Security event logging
+- Dependency vulnerability scanning in CI
+- Incident response runbook with on-call ownership
+
+---
+
+## 10. Backend Blueprint (Production)
+
 ```
 backend/
-├── main.py
-├── services/
-│   ├── geo/
-│   │   ├── geometry.py
-│   │   ├── virtual_grid.py
-│   │   └── geofence.py
-│   ├── users/
-│   │   ├── vehicle.py
-│   │   └── preferences.py
-│   ├── predictions/
-│   │   ├── rush_hour.py
-│   │   └── heat_map.py
-│   └── social/
+├── app/
+│   ├── main.py
+│   ├── api/
+│   │   ├── auth.py
+│   │   ├── parking.py
+│   │   ├── lots.py
+│   │   ├── compass.py
+│   │   ├── friends.py
+│   │   ├── heatmap.py
+│   │   └── forecast.py
+│   ├── services/
+│   │   ├── geo/
+│   │   │   ├── geometry.py
+│   │   │   ├── virtual_grid.py
+│   │   │   └── geofence.py
+│   │   ├── detection/
+│   │   │   ├── parking_detector.py
+│   │   │   └── confidence.py
+│   │   ├── predictions/
+│   │   │   ├── rush_hour.py
+│   │   │   ├── heat_map.py
+│   │   │   └── forecast.py
+│   │   └── social/
+│   │       └── sharing.py
+│   ├── db/
+│   │   ├── models/
+│   │   ├── migrations/
+│   │   └── repositories/
+│   └── workers/
+│       ├── occupancy_jobs.py
+│       └── feature_jobs.py
 └── data/
     └── parking_zones/
 ```
 
-Key endpoints:
-- POST /api/park/session
-- GET /api/park/compass
-- GET /api/lot/{id}/forecast
-- GET /api/lot/{id}/heatmap
-- GET /api/lot/{id}/rush-hours
+### Required Endpoints
+- `POST /api/park/session`
+- `POST /api/park/session/end`
+- `GET /api/park/session/active`
+- `GET /api/park/compass`
+- `GET /api/lots`
+- `GET /api/lot/{id}`
+- `GET /api/lot/{id}/heatmap`
+- `GET /api/lot/{id}/rush-hours`
+- `GET /api/lot/{id}/forecast`
+- `POST /api/friends/request`
+- `POST /api/friends/accept`
+- `POST /api/friends/block`
+- `GET /api/friends`
+- `PUT /api/friends/{id}/sharing`
 
-## 11. Database Schema (Preliminary)
-- Users: user_id, username, email, password_hash, created_at
-- Parking_Spots: spot_id, lot_id, coordinates, user_id, timestamp, confirmed
-- Parking_Sessions: session_id, user_id, lot__id, start_time, end_time, confidence_score
-- Lots: lot_id, name, coordinates, boundary_polygon, capacity
-- Friends: friendship_id, user_id_1, user_id_2, status, created_at
-- Common_Locations: location_id, name, type, coordinates, building_name
-- Heatmap_Cells: cell_id, lot_id, cell_polygon, occupancy_score, updated_at
-- Rush_Hour_Stats: lot_id, day_of_week, hour, avg_occupancy, peak_score
+---
 
-## 12. Forecasting Engine (1 Hour Ahead)
-- Timeline scrubber: now, +15m, +30m, +60m
-- Now: real-time occupancy
-- Future: historical average + current inflow rate * minutes
-- Output: confidence band and predicted availability label per lot
+## 11. Database Schema (Production)
 
-## 13. Visual Design (Themes)
-### Campus Mode (Default)
-- Standard maps
-- Thin needle compass
-- White background, black text, Rutgers red accents
+Core entities:
+- `users`
+- `lots` (PostGIS polygons + metadata + capacity)
+- `parking_spots` (virtual grid spots)
+- `parking_sessions` (stateful lifecycle + confidence)
+- `friendships` (pending/accepted/blocked)
+- `friend_sharing_settings`
+- `common_locations`
+- `heatmap_cells`
+- `rush_hour_stats`
+- `forecast_snapshots`
+- `event_logs` (audit/ops)
 
-### Knight Mode (Retro)
-- Dark custom map style
-- 8-bit pixel lance
-- JetBrains Mono
-- Cyberpunk / Pip-Boy vibe
+### PostGIS Requirements
+- Polygon containment checks for geofence entry
+- Nearest-neighbor lookup for suggested spots
+- Spatial indexes (`GIST`) on lot and cell geometries
 
-## 14. Development Phases
-### Phase 1: MVP Foundation
-- Init Expo app with TypeScript and map provider configuration.
-- Lot geofences, parking sessions, and manual spot confirmation.
-- Supabase auth setup with secure session handling.
-- Core database schema and basic API endpoints.
+---
 
-### Phase 2: Social and Friend Layer
-- Friend requests, acceptance, and privacy settings.
-- Friend parking highlights on the map.
-- Data rules for who can view what.
+## 12. Observability and Operations
 
-### Phase 3: Predictive and Heat Map Layer
-- Heat map overlay per lot.
-- Rush-hour prediction using historical data.
-- Forecast view for the next hour.
+### Telemetry
+- Structured logs with request correlation IDs
+- Metrics: request rate, error rate, latency, job lag, queue depth
+- Tracing for critical API paths
 
-### Phase 4: Polish and Optimization
-- Background geofencing and battery tuning.
-- Compass mode refinements and haptics.
-- UI/UX improvements based on user feedback.
+### Monitoring
+- Alerting on SLO breaches
+- Dashboarding for occupancy ingestion, forecast freshness, sensor quality
+- Crash/error monitoring for mobile and web
 
-## 15. Success Metrics
-- User adoption and retention rates
-- Number of parking spots logged daily
-- Friend network growth
-- App engagement time and frequency
-- Accuracy of occupancy and prediction labels
+### Runbooks
+- Incident response playbooks (auth outage, realtime lag, map failure, queue backlog)
+- Data recovery and backup restore drills
 
-## 16. Future Considerations (Post-Launch Only)
-### ScarletSpots Premium: Ticket Reporting and Enforcement Insights
-**Status:** Not in scope until all core features are complete and stable.
+---
 
-**Concept:**
-- Ticket reporting system: users report tickets with lot, time, date, and agency.
-- Real-time alerts: notify users currently parked in that lot.
-- Enforcement analytics: identify lots and times with higher enforcement activity.
-- Parking recommendations: suggest lower-risk lots or safer time windows.
+## 13. QA, Testing, and Release Gates
 
-**Monetization direction:**
-- Subscription positioned as cheaper than parking permits.
-- Revenue supports ongoing development and data operations.
+### Testing Requirements
+- Unit tests (core logic, scoring, geospatial helpers)
+- Integration tests (API + DB + auth)
+- End-to-end flows:
+  - signup/login,
+  - park/confirm/end,
+  - find car with compass,
+  - friend sharing and filtering,
+  - geofence CRUD admin flow
 
-## 17. Future Considerations
-## 18. Admin Web Interface (Dev/Ops Dashboard)
-**Objective:** A web-based portal for developers and administrators to manage the parking system, visualize data, and configure geofences without needing the mobile app.
+### Performance and Scale Validation
+- Load tests at expected peak + 2x headroom
+- Soak tests for long-running stability
+- Mobile battery and background behavior benchmarks
 
-**Target Audience:** Developers, Admins, Rutgers Parking Operations.
+### Release Gate (must pass)
+- 0 critical security issues
+- 0 P0/P1 open defects
+- SLO conformance in staging under load
+- Data migration rollback proven
+- On-call and monitoring fully configured
 
-**Core Features:**
-1.  **Geofence Management Editor:**
-    - Visual editor to draw, edit, and save parking lot polygons.
-    - Adjust capacity and metadata for each lot.
-    - "Test Mode": Simulate entering/exiting geofences.
+---
 
-2.  **Live Heatmap & Analytics:**
-    - Desktop-optimized view of the campus map.
-    - Real-time visualization of active parking sessions.
-    - Historical occupancy graphs (Rush Hour analysis).
+## 14. UX and Design System Requirements
 
-3.  **User & System Management:**
-    - View/Manage user accounts (ban/unban).
-    - Monitor system health (API latency, sensor accuracy reports).
-    - Manage "Common Commuter Spots" database.
+### Themes
+- Campus Mode (default)
+- Knight Mode (retro)
 
-**Tech Stack:**
-- **Frontend:** React + Vite (The current prototype codebase).
-- **Map:** Leaflet (perfect for desktop admin tasks).
-- **Backend:** Connects to the same Supabase/FastAPI backend as the mobile app.
+### Quality Bar
+- No broken navigation paths
+- Accessibility baseline (contrast, screen reader labels, touch targets)
+- Consistent interaction patterns across iOS/Android/Web
+
+---
+
+## 15. Development Phases (Production Path)
+
+### Phase 1 - Core Platform Hardening
+- Finalize FastAPI + PostGIS architecture
+- Complete auth/session lifecycle and RLS
+- Implement stable lot/session CRUD with spatial correctness
+- Establish CI/CD, migration strategy, test harness
+
+### Phase 2 - Detection and Navigation Excellence
+- Ship geofence-driven detection pipeline with confidence scoring
+- Ship robust compass mode with haptics + sensor filtering
+- Deliver virtual grid candidate flow and user correction loop
+
+### Phase 3 - Social + Privacy Completion
+- Full friendship lifecycle including block/unblock
+- Per-friend sharing controls
+- Map filters and visibility rules with auditability
+
+### Phase 4 - Prediction and Intelligence
+- Heatmap ingestion and rendering
+- Rush-hour and forecast services with confidence bands
+- Model monitoring and fallback heuristics
+
+### Phase 5 - Launch Readiness and Scale
+- Security hardening and abuse prevention
+- Load/soak tests with production-like traffic
+- App store readiness, staged rollout, live-ops readiness
+
+---
+
+## 16. Launch and Rollout Strategy
+
+### Rollout
+- Internal alpha -> closed beta -> staged public rollout
+- Percentage-based rollout with kill switches
+- Real-time health checks between rollout stages
+
+### Post-Launch
+- Weekly reliability review
+- Forecast quality review
+- Continuous tuning from telemetry and user feedback
+
+---
+
+## 17. Success Metrics (Production)
+
+### Product
+- DAU/WAU retention
+- Session completion rates for park/find flows
+- Friend feature engagement and sharing opt-in rate
+
+### Reliability
+- SLO compliance (% time in target)
+- Crash-free session rate
+- Incident count + MTTR
+
+### Intelligence Quality
+- Forecast MAE/MAPE
+- Heatmap label precision/recall
+- Parking detection false positive/negative rates
+
+---
+
+## 18. Definition of Done (Non-Negotiable)
+A feature is only “done” when all are true:
+1. Product acceptance criteria met
+2. Tests added and passing in CI
+3. Observability added (logs/metrics/alerts as appropriate)
+4. Security and privacy review complete
+5. Performance validated against target budgets
+6. Documentation updated (API + runbook + user impact)
+
+If any of the above is missing, the feature remains in progress.
+
+---
+
+## 19. Product Experience Canon (Required)
+Detailed expected user behavior, state transitions, edge cases, and strict implementation corrections are defined in `PRODUCT_EXPERIENCE_BLUEPRINT.md`.
+
+Requirements:
+- Every feature implementation PR must map to one or more scenarios in the blueprint.
+- QA test plans must explicitly reference blueprint acceptance scenarios.
+- Any deviation from blueprint behavior requires architecture and product sign-off.

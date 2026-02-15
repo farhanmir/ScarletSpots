@@ -4,6 +4,57 @@ ScarletSpots is a smart parking system for Rutgers students. This repo is a mono
 
 The product roadmap and native feature plan live in [PLAN.md](PLAN.md).
 
+## Planning docs guide
+This repo uses three core planning documents. Together they define what to build, in what order, and how the shipped app should behave for users.
+
+### [PLAN.md](PLAN.md) — Product + architecture contract
+Use this when deciding **what must exist** for production launch.
+
+What it contains:
+- Launch targets, SLOs, reliability and quality bars
+- Production architecture (mobile, backend, data, security)
+- Required feature capabilities (detection, compass, social, heatmap, forecasting)
+- Non-negotiable Definition of Done
+
+How to use it:
+1. Before implementation, verify the feature is explicitly represented in `PLAN.md`.
+2. During implementation, map design/tech choices to the plan requirements.
+3. Before merge/release, check Definition of Done criteria against your change.
+
+### [ROADMAP.md](ROADMAP.md) — Execution sequence and delivery gates
+Use this when deciding **what to do next** and release order.
+
+What it contains:
+- Phase-by-phase execution path
+- Prioritized backlog
+- Exit criteria and hard launch gates
+- Timeline and cross-cutting quality gates
+
+How to use it:
+1. Pick work from the current active phase.
+2. Link every ticket/PR to a roadmap item.
+3. Do not move phases forward until exit criteria are satisfied.
+
+### [PRODUCT_EXPERIENCE_BLUEPRINT.md](PRODUCT_EXPERIENCE_BLUEPRINT.md) — Behavioral source of truth
+Use this when deciding **exactly how the app should behave** for users.
+
+What it contains:
+- End-to-end user journeys (tap-by-tap)
+- State transitions, edge cases, error handling, recovery flows
+- Long-term usage expectations (e.g., daily user over a year)
+- Strict logic audit of current implementation and required corrections
+
+How to use it:
+1. For every UI/API flow, implement to match blueprint behavior.
+2. Build QA scenarios directly from blueprint acceptance paths.
+3. If implementation differs, document the delta and get architecture/product sign-off.
+
+### Recommended workflow
+1. Start with `PLAN.md` to confirm scope and non-functional requirements.
+2. Use `ROADMAP.md` to choose priority and sequencing.
+3. Implement and test against `PRODUCT_EXPERIENCE_BLUEPRINT.md` behavior.
+4. Ship only when all three documents are satisfied.
+
 ## Repo layout
 - Mobile app (Expo): [mobile/](mobile/)
 - Web admin (React + Vite): [frontend/](frontend/)
