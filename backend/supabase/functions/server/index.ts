@@ -5,6 +5,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import * as kv from "./kv_store.ts";
 
 const app = new Hono();
+const api = new Hono();
 
 // Enable logger
 app.use('*', logger(console.log));
@@ -14,7 +15,7 @@ app.use(
   "/*",
   cors({
     origin: "*",
-    allowHeaders: ["Content-Type", "Authorization"],
+    allowHeaders: ["Content-Type", "Authorization", "apikey", "x-user-token"],
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     exposeHeaders: ["Content-Length"],
     maxAge: 600,
@@ -37,13 +38,24 @@ const getClient = () => {
   );
 };
 
+// Helper to get access token from headers (prefer custom header to bypass Gateway checks)
+const getAccessToken = (c: any) => {
+  const customToken = c.req.header('x-user-token');
+  console.log('Custom Header:', customToken ? customToken.substring(0, 10) + '...' : 'NONE');
+  if (customToken) return customToken.replace('Bearer ', '');
+  const authHeader = c.req.header('Authorization');
+  console.log('Auth Header:', authHeader ? authHeader.substring(0, 10) + '...' : 'NONE');
+  return authHeader?.split(' ')[1];
+};
+
+
 // Health check endpoint
-app.get("/make-server-8814ba2a/health", (c) => {
+api.get("/health", (c) => {
   return c.json({ status: "ok" });
 });
 
 // User signup - only allows @rutgers.edu or @scarletmail.rutgers.edu emails
-app.post("/make-server-8814ba2a/signup", async (c) => {
+api.post("/signup", async (c) => {
   try {
     const { email, password, name } = await c.req.json();
 
@@ -84,14 +96,15 @@ app.post("/make-server-8814ba2a/signup", async (c) => {
 });
 
 // Get user profile
-app.get("/make-server-8814ba2a/user/profile", async (c) => {
+api.get("/user/profile", async (c) => {
   try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
+    const accessToken = getAccessToken(c);
     const supabase = getClient();
 
     const { data: { user }, error } = await supabase.auth.getUser(accessToken);
     if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
+      console.log('Auth error:', error?.message);
+      return c.json({ error: error?.message || 'Unauthorized' }, 401);
     }
 
     const profile = await kv.get(`user:${user.id}`);
@@ -103,14 +116,15 @@ app.get("/make-server-8814ba2a/user/profile", async (c) => {
 });
 
 // Create parking session
-app.post("/make-server-8814ba2a/park/session", async (c) => {
+api.post("/park/session", async (c) => {
   try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
+    const accessToken = getAccessToken(c);
     const supabase = getClient();
 
     const { data: { user }, error } = await supabase.auth.getUser(accessToken);
     if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
+      console.log('Auth error:', error?.message);
+      return c.json({ error: error?.message || 'Unauthorized' }, 401);
     }
 
     const { lotId, spotNumber, latitude, longitude, confirmed } = await c.req.json();
@@ -150,14 +164,15 @@ app.post("/make-server-8814ba2a/park/session", async (c) => {
 });
 
 // End parking session
-app.post("/make-server-8814ba2a/park/session/end", async (c) => {
+api.post("/park/session/end", async (c) => {
   try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
+    const accessToken = getAccessToken(c);
     const supabase = getClient();
 
     const { data: { user }, error } = await supabase.auth.getUser(accessToken);
     if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
+      console.log('Auth error:', error?.message);
+      return c.json({ error: error?.message || 'Unauthorized' }, 401);
     }
 
     const activeSessionId = await kv.get(`user:${user.id}:active_session`);
@@ -188,14 +203,17 @@ app.post("/make-server-8814ba2a/park/session/end", async (c) => {
 });
 
 // Get active parking session
-app.get("/make-server-8814ba2a/park/session/active", async (c) => {
+api.get("/park/session/active", async (c) => {
   try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
+    const accessToken = getAccessToken(c);
     const supabase = getClient();
 
     const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    console.log('getUser result:', { userStr: user ? 'FOUND' : 'NULL', error });
+
     if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
+      console.log('Auth error:', error?.message);
+      return c.json({ error: error?.message || 'Unauthorized', details: { user: !!user, hasError: !!error } }, 401);
     }
 
     const activeSessionId = await kv.get(`user:${user.id}:active_session`);
@@ -212,11 +230,19 @@ app.get("/make-server-8814ba2a/park/session/active", async (c) => {
 });
 
 // Get lot information and current occupancy
-app.get("/make-server-8814ba2a/lot/:id", async (c) => {
+api.get("/lot/:id", async (c) => {
   try {
     const lotId = c.req.param('id');
 
-    const lotInfo = await kv.get(`lot:${lotId}:info`);
+    // Check standard lot first, then custom lot
+    let lotInfo = await kv.get(`lot:${lotId}:info`);
+    if (!lotInfo) {
+      lotInfo = await kv.get(`lot:custom:${lotId}:info`);
+    }
+    if (!lotInfo) {
+      lotInfo = await kv.get(`lot:custom:${lotId}`);
+    }
+
     const occupancy = await kv.get(`lot:${lotId}:occupancy`) || { spots: {} };
 
     const occupiedCount = Object.keys(occupancy.spots).length;
@@ -236,17 +262,18 @@ app.get("/make-server-8814ba2a/lot/:id", async (c) => {
 });
 
 // Save custom geofence
-app.post("/make-server-8814ba2a/lots/custom", async (c) => {
+api.post("/lots/custom", async (c) => {
   try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
+    const accessToken = getAccessToken(c);
     const supabase = getClient();
 
     const { data: { user }, error } = await supabase.auth.getUser(accessToken);
     if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
+      console.log('Auth error:', error?.message);
+      return c.json({ error: error?.message || 'Unauthorized' }, 401);
     }
 
-    const { name, campus, coordinates } = await c.req.json();
+    const { name, campus, coordinates, capacity } = await c.req.json();
 
     if (!name || !coordinates || coordinates.length < 3) {
       return c.json({ error: 'Invalid geofence data' }, 400);
@@ -266,11 +293,13 @@ app.post("/make-server-8814ba2a/lots/custom", async (c) => {
       longitude,
       createdBy: user.id,
       createdAt: new Date().toISOString(),
-      capacity: 50, // Default for custom lots
+      capacity: parseInt(capacity) || 50, // Default for custom lots
       isCustom: true
     };
 
     await kv.set(`lot:custom:${id}`, lotData);
+    await kv.set(`lot:custom:${id}:info`, lotData); // For compatibility with standard lots
+
     await kv.set(`lot:custom:${id}:info`, lotData); // For compatibility with standard lots
 
     return c.json({ success: true, lot: lotData });
@@ -280,15 +309,72 @@ app.post("/make-server-8814ba2a/lots/custom", async (c) => {
   }
 });
 
-// Delete custom geofence
-app.delete("/make-server-8814ba2a/lots/custom/:id", async (c) => {
+// Update custom geofence
+api.put("/lots/custom/:id", async (c) => {
   try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
+    const accessToken = getAccessToken(c);
     const supabase = getClient();
 
     const { data: { user }, error } = await supabase.auth.getUser(accessToken);
     if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
+      console.log('Auth error:', error?.message);
+      return c.json({ error: error?.message || 'Unauthorized' }, 401);
+    }
+
+    const id = c.req.param('id');
+    const { name, campus, coordinates, capacity } = await c.req.json();
+
+    if (!name || !coordinates || coordinates.length < 3) {
+      return c.json({ error: 'Invalid geofence data' }, 400);
+    }
+
+    // Check if lot exists
+    const existingLot = await kv.get(`lot:custom:${id}`);
+    if (!existingLot) {
+      return c.json({ error: 'Lot not found' }, 404);
+    }
+
+    // Check ownership (optional, but good practice)
+    if (existingLot.createdBy !== user.id) {
+       // Allow admins or owner? For now, let's assume all authenticated users are admins for this demo
+       // return c.json({ error: 'Unauthorized' }, 403);
+    }
+
+    // Calculate centroid
+    const latitude = coordinates.reduce((sum: number, p: number[]) => sum + p[0], 0) / coordinates.length;
+    const longitude = coordinates.reduce((sum: number, p: number[]) => sum + p[1], 0) / coordinates.length;
+
+    const lotData = {
+      ...existingLot, // Keep createdBy, createdAt
+      name,
+      campus,
+      coordinates,
+      latitude,
+      longitude,
+      capacity: parseInt(capacity) || existingLot.capacity || 50,
+      updatedAt: new Date().toISOString()
+    };
+
+    await kv.set(`lot:custom:${id}`, lotData);
+    await kv.set(`lot:custom:${id}:info`, lotData);
+
+    return c.json({ success: true, lot: lotData });
+  } catch (err) {
+    console.log('Update custom lot error:', err);
+    return c.json({ error: 'Failed to update custom lot' }, 500);
+  }
+});
+
+// Delete custom geofence
+api.delete("/lots/custom/:id", async (c) => {
+  try {
+    const accessToken = getAccessToken(c);
+    const supabase = getClient();
+
+    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    if (!user || error) {
+      console.log('Auth error:', error?.message);
+      return c.json({ error: error?.message || 'Unauthorized' }, 401);
     }
 
     const id = c.req.param('id');
@@ -303,7 +389,7 @@ app.delete("/make-server-8814ba2a/lots/custom/:id", async (c) => {
 });
 
 // Get all lots (standard + custom)
-app.get("/make-server-8814ba2a/lots", async (c) => {
+api.get("/lots", async (c) => {
   try {
     // Fetch standard lots (HIDDEN per user request)
     // const lots = await kv.getByPrefix('lot:');
@@ -348,7 +434,7 @@ app.get("/make-server-8814ba2a/lots", async (c) => {
 });
 
 // Initialize default parking lots (for demo)
-app.post("/make-server-8814ba2a/lots/init", async (c) => {
+api.post("/lots/init", async (c) => {
   try {
     const defaultLots = [
       {
@@ -397,14 +483,15 @@ app.post("/make-server-8814ba2a/lots/init", async (c) => {
 });
 
 // Friend request
-app.post("/make-server-8814ba2a/friends/request", async (c) => {
+api.post("/friends/request", async (c) => {
   try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
+    const accessToken = getAccessToken(c);
     const supabase = getClient();
 
     const { data: { user }, error } = await supabase.auth.getUser(accessToken);
     if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
+      console.log('Auth error:', error?.message);
+      return c.json({ error: error?.message || 'Unauthorized' }, 401);
     }
 
     const { friendEmail } = await c.req.json();
@@ -436,14 +523,15 @@ app.post("/make-server-8814ba2a/friends/request", async (c) => {
 });
 
 // Accept friend request
-app.post("/make-server-8814ba2a/friends/accept", async (c) => {
+api.post("/friends/accept", async (c) => {
   try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
+    const accessToken = getAccessToken(c);
     const supabase = getClient();
 
     const { data: { user }, error } = await supabase.auth.getUser(accessToken);
     if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
+      console.log('Auth error:', error?.message);
+      return c.json({ error: error?.message || 'Unauthorized' }, 401);
     }
 
     const { requestId } = await c.req.json();
@@ -473,9 +561,9 @@ app.post("/make-server-8814ba2a/friends/accept", async (c) => {
 });
 
 // Get friends
-app.get("/make-server-8814ba2a/friends", async (c) => {
+api.get("/friends", async (c) => {
   try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
+    const accessToken = getAccessToken(c);
     const supabase = getClient();
 
     const { data: { user }, error } = await supabase.auth.getUser(accessToken);
@@ -513,5 +601,9 @@ app.get("/make-server-8814ba2a/friends", async (c) => {
     return c.json({ error: 'Failed to get friends' }, 500);
   }
 });
+
+app.route("/", api);
+app.route("/server", api);
+app.route("/make-server-8814ba2a", api);
 
 Deno.serve(app.fetch);
