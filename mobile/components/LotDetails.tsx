@@ -11,7 +11,8 @@ import {
   TouchableWithoutFeedback,
   ScrollView,
   LayoutAnimation,
-  UIManager
+  UIManager,
+  Alert
 } from 'react-native';
 import { IconSymbol } from './ui/icon-symbol';
 import { BlurView } from 'expo-blur';
@@ -150,6 +151,39 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user }: Lo
               </View>
             </View>
 
+            {/* Forecast Strip */}
+            {/* Forecast Strip - Expanded (-15m to +3h) */}
+            <View style={styles.forecastContainer}>
+               <View style={styles.forecastItem}>
+                <Text style={styles.forecastTime}>-15m</Text>
+                <View style={[styles.forecastBar, { height: 16, backgroundColor: getOccupancyColor(Math.max(0, lot.occupancyRate - 2)) }]} />
+              </View>
+              <View style={styles.forecastItem}>
+                <Text style={[styles.forecastTime, { color: '#fff', fontWeight: 'bold' }]}>Now</Text>
+                <View style={[styles.forecastBar, { height: 24, backgroundColor: getOccupancyColor(lot.occupancyRate) }]} />
+              </View>
+              <View style={styles.forecastItem}>
+                <Text style={styles.forecastTime}>+15m</Text>
+                <View style={[styles.forecastBar, { height: 28, backgroundColor: getOccupancyColor(Math.min(100, lot.occupancyRate + 5)) }]} />
+              </View>
+              <View style={styles.forecastItem}>
+                <Text style={styles.forecastTime}>+30m</Text>
+                <View style={[styles.forecastBar, { height: 32, backgroundColor: getOccupancyColor(Math.min(100, lot.occupancyRate + 12)) }]} />
+              </View>
+              <View style={styles.forecastItem}>
+                <Text style={styles.forecastTime}>+1h</Text>
+                <View style={[styles.forecastBar, { height: 20, backgroundColor: getOccupancyColor(Math.max(0, lot.occupancyRate - 5)) }]} />
+              </View>
+              <View style={styles.forecastItem}>
+                <Text style={styles.forecastTime}>+2h</Text>
+                <View style={[styles.forecastBar, { height: 16, backgroundColor: getOccupancyColor(Math.max(0, lot.occupancyRate - 15)) }]} />
+              </View>
+              <View style={styles.forecastItem}>
+                <Text style={styles.forecastTime}>+3h</Text>
+                <View style={[styles.forecastBar, { height: 12, backgroundColor: getOccupancyColor(Math.max(0, lot.occupancyRate - 25)) }]} />
+              </View>
+            </View>
+
             <View style={styles.actions}>
               <TouchableOpacity 
                 style={[
@@ -159,7 +193,20 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user }: Lo
                 ]} 
                 onPress={(e) => {
                   e.stopPropagation();
-                  onPark(lot.id);
+                  if (user && lot.occupancyRate < 100) {
+                     Alert.alert(
+                      'Confirm Parking',
+                      `Start a session at ${lot.name}?`,
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        { 
+                          text: 'Park Here', 
+                          style: 'default',
+                          onPress: () => onPark(lot.id) 
+                        }
+                      ]
+                    );
+                  }
                 }}
                 disabled={isParking || !user || lot.occupancyRate >= 100}
               >
@@ -324,6 +371,29 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#a1a1aa',
     fontWeight: '500',
+  },
+  forecastContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    height: 60,
+    marginBottom: 24,
+    paddingHorizontal: 8,
+  },
+  forecastItem: {
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  forecastBar: {
+    width: 8,
+    borderRadius: 4,
+    backgroundColor: '#3f3f46',
+  },
+  forecastTime: {
+    color: '#71717a',
+    fontSize: 11,
+    fontWeight: '600',
   },
   actions: {
     flexDirection: 'row',

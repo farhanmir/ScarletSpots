@@ -23,8 +23,8 @@ function InitialLayout() {
     const inAuthGroup = segments[0] === 'auth';
 
     if (!session && !inAuthGroup) {
-      // Redirect to login if not signed in and not trying to login
-      router.replace('/auth/login');
+      // Redirect to choice if not signed in and not trying to login
+      router.replace('/auth/choice');
     } else if (session && inAuthGroup) {
       // Redirect to app if signed in and trying to access login
       router.replace('/(tabs)');
