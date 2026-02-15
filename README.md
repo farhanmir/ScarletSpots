@@ -86,8 +86,8 @@ npm run start
 The Edge Function source is in [backend/supabase/functions/server](backend/supabase/functions/server). Deploy or serve using the Supabase CLI from that folder.
 
 ## Configuration
-- Frontend Supabase project values are stored in [frontend/utils/supabase/info.tsx](frontend/utils/supabase/info.tsx).
-- Mobile Supabase config is currently hard-coded in [mobile/lib/supabase.ts](mobile/lib/supabase.ts).
+- Frontend Supabase config is loaded from `frontend/.env` via `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
+- Mobile Supabase config is loaded from `mobile/.env` via `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`.
 - Edge Functions read `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` from the environment.
 
 ## Edge Function API (base path)

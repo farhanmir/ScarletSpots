@@ -31,7 +31,7 @@ const TAB_CONFIG: Record<string, { icon: string; label: string }> = {
 export default function LiquidGlassTabBar({
   state,
   navigation,
-}: BottomTabBarProps) {
+}: Readonly<BottomTabBarProps>) {
   const routes = state.routes;
   const tabWidth = TAB_BAR_WIDTH / routes.length;
   const activeIndex = state.index;
@@ -48,7 +48,7 @@ export default function LiquidGlassTabBar({
       activeIndex * tabWidth + (tabWidth - PILL_WIDTH) / 2,
       { damping: 20, stiffness: 160, mass: 0.6 }
     );
-  }, [activeIndex]);
+  }, [activeIndex, tabWidth, PILL_WIDTH, pillX]);
 
   const pillStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: pillX.value }],
