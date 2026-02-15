@@ -53,8 +53,8 @@ export default function NavigateScreen() {
           setLoading(false);
           return;
         }
-        const data = await authApiCall('/session/active');
-        if (data.session && data.session.latitude && data.session.longitude) {
+        const data = await authApiCall('/park/session/active');
+        if (data && data.session && data.session.latitude && data.session.longitude) {
           setCarLocation({
             lat: data.session.latitude,
             lng: data.session.longitude,
