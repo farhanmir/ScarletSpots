@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { StyleSheet, View, Platform, Alert, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import MapView, { PROVIDER_GOOGLE, PROVIDER_DEFAULT, Polygon, Marker } from 'react-native-maps';
+import { useLocalSearchParams } from 'expo-router';
 import * as Location from 'expo-location';
 import { publicApiCall, authApiCall } from '../../lib/supabase';
 import { useAuth } from '@/context/AuthProvider';
@@ -31,19 +32,57 @@ interface ParkingSession {
 export default function MapScreen() {
   const { session, user } = useAuth();
   const mapRef = useRef<MapView>(null);
+  const params = useLocalSearchParams();
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [lots, setLots] = useState<Lot[]>([]);
   const [selectedLot, setSelectedLot] = useState<Lot | null>(null);
+  const [selectedPlace, setSelectedPlace] = useState<{ lat: number; lng: number; name: string } | null>(null);
   const [activeSession, setActiveSession] = useState<ParkingSession | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Handle incoming search selections
+  const { selectedLotId, placeLat, placeLng, placeName } = params;
+
+  useEffect(() => {
+    if (selectedLotId) {
+      const lot = lots.find(l => l.id === selectedLotId);
+      if (lot && selectedLot?.id !== lot.id) {
+        setSelectedLot(lot);
+        setSelectedPlace(null);
+        mapRef.current?.animateToRegion({
+          latitude: lot.latitude,
+          longitude: lot.longitude,
+          latitudeDelta: 0.005,
+          longitudeDelta: 0.005,
+        }, 1000);
+      }
+    } else if (placeLat && placeLng) {
+      const lat = parseFloat(placeLat as string);
+      const lng = parseFloat(placeLng as string);
+      const name = placeName as string || 'Destination';
+      
+      // Check if place is already selected to prevent loop
+      if (!selectedPlace || selectedPlace.lat !== lat || selectedPlace.lng !== lng) {
+        setSelectedPlace({ lat, lng, name });
+        setSelectedLot(null);
+        
+        mapRef.current?.animateToRegion({
+          latitude: lat,
+          longitude: lng,
+          latitudeDelta: 0.005,
+          longitudeDelta: 0.005,
+        }, 1000);
+      }
+    }
+  }, [selectedLotId, placeLat, placeLng, placeName, lots, selectedLot, selectedPlace]);
 
   const darkMapStyle = [
     {
       "elementType": "geometry",
       "stylers": [
         {
-          "color": "#202124"
+          "color": "#101012" // Zinc-950 (Darker than #18181b)
         }
       ]
     },
@@ -51,7 +90,7 @@ export default function MapScreen() {
       "elementType": "labels.text.fill",
       "stylers": [
         {
-          "color": "#9aa0a6"
+          "color": "#71717a" // Zinc-500
         }
       ]
     },
@@ -59,7 +98,7 @@ export default function MapScreen() {
       "elementType": "labels.text.stroke",
       "stylers": [
         {
-          "color": "#202124"
+          "color": "#09090b" // Zinc-950
         }
       ]
     },
@@ -68,7 +107,7 @@ export default function MapScreen() {
       "elementType": "geometry.stroke",
       "stylers": [
         {
-          "color": "#4b6878"
+          "color": "#374151" // Gray-700
         }
       ]
     },
@@ -77,7 +116,7 @@ export default function MapScreen() {
       "elementType": "labels.text.fill",
       "stylers": [
         {
-          "color": "#64779e"
+          "color": "#4b5563"
         }
       ]
     },
@@ -86,7 +125,7 @@ export default function MapScreen() {
       "elementType": "geometry.stroke",
       "stylers": [
         {
-          "color": "#4b6878"
+          "color": "#374151"
         }
       ]
     },
@@ -95,7 +134,7 @@ export default function MapScreen() {
       "elementType": "geometry.stroke",
       "stylers": [
         {
-          "color": "#334e87"
+          "color": "#172554" // Blue-950
         }
       ]
     },
@@ -104,7 +143,7 @@ export default function MapScreen() {
       "elementType": "geometry",
       "stylers": [
         {
-          "color": "#202124"
+          "color": "#09090b"
         }
       ]
     },
@@ -113,7 +152,7 @@ export default function MapScreen() {
       "elementType": "geometry",
       "stylers": [
         {
-          "color": "#283d6a"
+          "color": "#0f172a" // Slate-900
         }
       ]
     },
@@ -122,7 +161,7 @@ export default function MapScreen() {
       "elementType": "labels.text.fill",
       "stylers": [
         {
-          "color": "#6f9ba5"
+          "color": "#64748b"
         }
       ]
     },
@@ -131,7 +170,7 @@ export default function MapScreen() {
       "elementType": "labels.text.stroke",
       "stylers": [
         {
-          "color": "#1d2c4d"
+          "color": "#020617"
         }
       ]
     },
@@ -140,7 +179,7 @@ export default function MapScreen() {
       "elementType": "geometry.fill",
       "stylers": [
         {
-          "color": "#202124"
+          "color": "#020617" // Slate-950 (Deepest Park)
         }
       ]
     },
@@ -149,7 +188,7 @@ export default function MapScreen() {
       "elementType": "labels.text.fill",
       "stylers": [
         {
-          "color": "#3C7680"
+          "color": "#0f766e" // Teal-700
         }
       ]
     },
@@ -158,7 +197,7 @@ export default function MapScreen() {
       "elementType": "geometry",
       "stylers": [
         {
-          "color": "#304a7d"
+          "color": "#0f172a" // Slate-900 (Very Dark Roads)
         }
       ]
     },
@@ -167,7 +206,7 @@ export default function MapScreen() {
       "elementType": "labels.text.fill",
       "stylers": [
         {
-          "color": "#98a5be"
+          "color": "#475569"
         }
       ]
     },
@@ -176,7 +215,7 @@ export default function MapScreen() {
       "elementType": "labels.text.stroke",
       "stylers": [
         {
-          "color": "#1d2c4d"
+          "color": "#020617"
         }
       ]
     },
@@ -185,7 +224,7 @@ export default function MapScreen() {
       "elementType": "geometry",
       "stylers": [
         {
-          "color": "#2c6675"
+          "color": "#0e7490" // Cyan-700 (Slightly darker Highway)
         }
       ]
     },
@@ -194,7 +233,7 @@ export default function MapScreen() {
       "elementType": "geometry.stroke",
       "stylers": [
         {
-          "color": "#255763"
+          "color": "#155e75" // Cyan-800
         }
       ]
     },
@@ -203,7 +242,7 @@ export default function MapScreen() {
       "elementType": "labels.text.fill",
       "stylers": [
         {
-          "color": "#b0d5ce"
+          "color": "#22d3ee" // Cyan-400 (Pop)
         }
       ]
     },
@@ -212,7 +251,7 @@ export default function MapScreen() {
       "elementType": "labels.text.stroke",
       "stylers": [
         {
-          "color": "#023e58"
+          "color": "#083344"
         }
       ]
     },
@@ -221,7 +260,7 @@ export default function MapScreen() {
       "elementType": "labels.text.fill",
       "stylers": [
         {
-          "color": "#98a5be"
+          "color": "#475569"
         }
       ]
     },
@@ -230,7 +269,7 @@ export default function MapScreen() {
       "elementType": "labels.text.stroke",
       "stylers": [
         {
-          "color": "#1d2c4d"
+          "color": "#020617"
         }
       ]
     },
@@ -239,7 +278,7 @@ export default function MapScreen() {
       "elementType": "geometry.fill",
       "stylers": [
         {
-          "color": "#283d6a"
+          "color": "#0f172a"
         }
       ]
     },
@@ -248,7 +287,7 @@ export default function MapScreen() {
       "elementType": "geometry",
       "stylers": [
         {
-          "color": "#3a4762"
+          "color": "#0f172a"
         }
       ]
     },
@@ -257,7 +296,7 @@ export default function MapScreen() {
       "elementType": "geometry",
       "stylers": [
         {
-          "color": "#0e1626"
+          "color": "#000000" // True Black water
         }
       ]
     },
@@ -266,7 +305,7 @@ export default function MapScreen() {
       "elementType": "labels.text.fill",
       "stylers": [
         {
-          "color": "#4e6d87"
+          "color": "#1e293b"
         }
       ]
     }
@@ -387,46 +426,66 @@ export default function MapScreen() {
           latitudeDelta: 0.0922,
           longitudeDelta: 0.0421,
         }}
-        onPress={() => setSelectedLot(null)}
+        onPress={() => {
+          setSelectedLot(null);
+          setSelectedPlace(null);
+        }}
       >
-        {lots.map((lot) => (
-          <React.Fragment key={lot.id}>
-            {/* Render Polygon if coordinates exist */}
-            {lot.coordinates && lot.coordinates.length >= 3 && (
-              <Polygon
-                coordinates={lot.coordinates.map((p) => ({ latitude: p[0], longitude: p[1] }))}
-                fillColor="rgba(220, 38, 38, 0.25)"
-                strokeColor="#dc2626"
-                strokeWidth={2}
-                tappable={true}
+        {lots.map((lot) => {
+          const isSelected = selectedLot?.id === lot.id;
+          return (
+            <React.Fragment key={lot.id}>
+              {/* Render Polygon if coordinates exist */}
+              {lot.coordinates && lot.coordinates.length >= 3 && (
+                <Polygon
+                  coordinates={lot.coordinates.map((p) => ({ latitude: p[0], longitude: p[1] }))}
+                  fillColor={isSelected ? "rgba(220, 38, 38, 0.6)" : "rgba(220, 38, 38, 0.25)"}
+                  strokeColor={isSelected ? "#ffffff" : "#dc2626"}
+                  strokeWidth={isSelected ? 3 : 2}
+                  tappable={true}
+                  zIndex={isSelected ? 10 : 1}
+                  onPress={() => setSelectedLot(lot)}
+                />
+              )}
+              
+              {/* Custom Red Marker - properties unchanged */}
+              <Marker
+                coordinate={{ latitude: lot.latitude, longitude: lot.longitude }}
+                title={lot.name}
+                description={`${lot.campus} - ${Math.round(lot.occupancyRate)}% Full`}
                 onPress={() => setSelectedLot(lot)}
-              />
-            )}
-            
-            {/* Custom Red Marker */}
-            <Marker
-              coordinate={{ latitude: lot.latitude, longitude: lot.longitude }}
-              title={lot.name}
-              description={`${lot.campus} - ${Math.round(lot.occupancyRate)}% Full`}
-              onPress={() => setSelectedLot(lot)}
-            >
-              <View style={styles.markerContainer}>
-                <View style={[
-                  styles.markerBubble,
-                  lot.occupancyRate > 80 && styles.markerFull,
-                ]}>
-                  <Text style={styles.markerText}>
-                    {Math.round(lot.occupancyRate)}%
-                  </Text>
+                zIndex={isSelected ? 11 : 2}
+              >
+                <View style={[styles.markerContainer, isSelected && { transform: [{ scale: 1.2 }] }]}>
+                  <View style={[
+                    styles.markerBubble,
+                    lot.occupancyRate > 80 && styles.markerFull,
+                    isSelected && { borderColor: '#fff', borderWidth: 2 }
+                  ]}>
+                    <Text style={styles.markerText}>
+                      {Math.round(lot.occupancyRate)}%
+                    </Text>
+                  </View>
+                  <View style={[
+                    styles.markerArrow,
+                    lot.occupancyRate > 80 && styles.markerArrowFull,
+                    isSelected && { borderTopColor: '#fff' }
+                  ]} />
                 </View>
-                <View style={[
-                  styles.markerArrow,
-                  lot.occupancyRate > 80 && styles.markerArrowFull,
-                ]} />
-              </View>
-            </Marker>
-          </React.Fragment>
-        ))}
+              </Marker>
+            </React.Fragment>
+          );
+        })}
+
+        
+        {/* Selected Place Marker (from Search) */}
+        {selectedPlace && (
+          <Marker
+            coordinate={{ latitude: selectedPlace.lat, longitude: selectedPlace.lng }}
+            title={selectedPlace.name}
+            pinColor="#3b82f6" // Blue pin for places
+          />
+        )}
       </MapView>
 
       {/* Center on Me Button */}

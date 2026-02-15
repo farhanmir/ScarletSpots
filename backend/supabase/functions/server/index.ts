@@ -22,6 +22,13 @@ app.use(
   }),
 );
 
+// Global 404 handler for debugging
+app.notFound((c) => {
+  const msg = `404 Not Found: ${c.req.method} ${c.req.url} (Path: ${new URL(c.req.url).pathname})`;
+  console.log(msg);
+  return c.text(msg, 404);
+});
+
 // Create Supabase client for admin operations
 const getAdminClient = () => {
   return createClient(
