@@ -15,7 +15,28 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 });
 
 // API Helper for calling Edge Functions
-const API_BASE = `${supabaseUrl}/functions/v1/make-server-8814ba2a`;
+const API_BASES = [
+  `${supabaseUrl}/functions/v1/server`,
+  `${supabaseUrl}/functions/v1/make-server-8814ba2a`,
+];
+
+async function fetchWithFunctionFallback(endpoint: string, init: RequestInit): Promise<Response> {
+  let lastResponse: Response | null = null;
+
+  for (const base of API_BASES) {
+    const response = await fetch(`${base}${endpoint}`, init);
+    lastResponse = response;
+
+    if (response.status !== 404) {
+      if (base !== API_BASES[0]) {
+        console.log(`[api] Using fallback function route: ${base}`);
+      }
+      return response;
+    }
+  }
+
+  return lastResponse as Response;
+}
 
 /**
  * Safely parse JSON from a response, returning null if it fails.
@@ -35,7 +56,7 @@ async function safeJson(response: Response): Promise<any> {
  * Use for endpoints like /lots, /signup that don't need auth.
  */
 export async function publicApiCall(endpoint: string, options: RequestInit = {}): Promise<any> {
-  const response = await fetch(`${API_BASE}${endpoint}`, {
+  const response = await fetchWithFunctionFallback(endpoint, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -61,33 +82,81 @@ export async function publicApiCall(endpoint: string, options: RequestInit = {})
  * Returns null silently if no session exists (instead of crashing).
  */
 export async function authApiCall(endpoint: string, options: RequestInit = {}): Promise<any> {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  // 1. Get current session
+  let { data: { session } } = await supabase.auth.getSession();
 
   if (!session?.access_token) {
     console.log(`No session for authenticated call to ${endpoint}, skipping.`);
     return null;
   }
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
+  // 2. Check if token is expired (JWT exp claim)
+  try {
+    const payload = JSON.parse(atob(session.access_token.split('.')[1]));
+    const now = Math.floor(Date.now() / 1000);
+    // Refresh if expired or about to expire in 60s
+    if (payload.exp && payload.exp < now + 60) {
+      console.log(`[authApiCall] Token expiring/expired for ${endpoint}, refreshing...`);
+      const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+      if (refreshError || !refreshData.session) {
+        console.log(`[authApiCall] Refresh failed: ${refreshError?.message}, signing out.`);
+        await supabase.auth.signOut();
+        return null;
+      }
+      session = refreshData.session;
+    }
+  } catch {
+    // Ignore JWT parse errors
+  }
+
+  // 3. Make the request
+  let response = await fetchWithFunctionFallback(endpoint, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
       'apikey': supabaseAnonKey,
-      Authorization: `Bearer ${session.access_token}`,
+      'Authorization': `Bearer ${supabaseAnonKey}`,
+      'x-user-token': session?.access_token,
       ...options.headers,
     },
   });
 
-  const data = await safeJson(response);
-
-  if (!response.ok) {
-    if (response.status === 401) {
-      console.log(`Session expired for ${endpoint}, signing out.`);
+  // 4. Handle 401 (Unauthorized) - Try one more refresh if we haven't already
+  if (response.status === 401) {
+    const errorBody = await response.clone().text();
+    console.log(`[authApiCall] Got 401 on ${endpoint} with error: ${errorBody}`);
+    console.log(`[authApiCall] Trying force refresh...`);
+    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+    
+    if (!refreshError && refreshData.session) {
+      // Retry with new token
+      response = await fetchWithFunctionFallback(endpoint, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+          'x-user-token': refreshData.session.access_token,
+          ...options.headers,
+        },
+      });
+    } else {
+      console.log(`[authApiCall] Force refresh failed, signing out.`);
       await supabase.auth.signOut();
       return null;
     }
+  }
+
+  // 5. If response is STILL 401 (retry failed), definitively sign out
+  if (response.status === 401) {
+    console.log(`[authApiCall] Retry still 401 on ${endpoint}, signing out.`);
+    await supabase.auth.signOut();
+    return null;
+  }
+
+  const data = await safeJson(response);
+
+  if (!response.ok) {
     console.error(`Auth API error on ${endpoint} (${response.status}):`, data);
     throw new Error(data.error || `API request failed (${response.status})`);
   }

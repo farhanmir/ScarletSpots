@@ -5,7 +5,7 @@ const supabaseUrl = `https://${projectId}.supabase.co`;
 
 export const supabase = createClient(supabaseUrl, publicAnonKey);
 
-export const API_BASE = `${supabaseUrl}/functions/v1/make-server-8814ba2a`;
+export const API_BASE = `${supabaseUrl}/functions/v1/server`;
 
 /**
  * Safely parse JSON from a response, returning an error object if it fails.

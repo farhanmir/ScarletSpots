@@ -19,6 +19,7 @@ export default function LoginScreen() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -31,6 +32,11 @@ export default function LoginScreen() {
 
     if (!isLogin && !name.trim()) {
       Alert.alert('Error', 'Please enter your name');
+      return;
+    }
+
+    if (!isLogin && password !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
       return;
     }
 
@@ -159,6 +165,31 @@ export default function LoginScreen() {
                 <Text style={styles.hint}>Minimum 6 characters</Text>
               )}
             </View>
+
+            {/* Confirm Password (Signup only) */}
+            {!isLogin && (
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Confirm Password</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="••••••••"
+                  placeholderTextColor="#71717a"
+                  secureTextEntry={true}
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                />
+              </View>
+            )}
+
+            {/* Forgot Password (Login only) */}
+            {isLogin && (
+              <TouchableOpacity
+                style={styles.forgotButton}
+                onPress={() => router.push('/auth/forgot-password')}
+              >
+                <Text style={styles.forgotText}>Forgot Password?</Text>
+              </TouchableOpacity>
+            )}
 
             {/* Submit */}
             <TouchableOpacity
@@ -289,6 +320,18 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#71717a', // zinc-500
     marginTop: 6,
+  },
+
+  // --- Forgot Password ---
+  forgotButton: {
+    alignSelf: 'flex-end',
+    marginBottom: 8,
+    marginTop: -8,
+  },
+  forgotText: {
+    fontSize: 13,
+    color: '#ef4444',
+    fontWeight: '500',
   },
 
   // --- Button ---
