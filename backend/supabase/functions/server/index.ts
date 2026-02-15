@@ -300,7 +300,7 @@ api.post("/lots/custom", async (c) => {
       longitude,
       createdBy: user.id,
       createdAt: new Date().toISOString(),
-      capacity: parseInt(capacity) || 50, // Default for custom lots
+      capacity: Number.parseInt(capacity, 10) || 50, // Default for custom lots
       isCustom: true
     };
 
@@ -358,7 +358,7 @@ api.put("/lots/custom/:id", async (c) => {
       coordinates,
       latitude,
       longitude,
-      capacity: parseInt(capacity) || existingLot.capacity || 50,
+      capacity: Number.parseInt(capacity, 10) || existingLot.capacity || 50,
       updatedAt: new Date().toISOString()
     };
 
@@ -398,18 +398,18 @@ api.delete("/lots/custom/:id", async (c) => {
 // Get all lots (standard + custom)
 api.get("/lots", async (c) => {
   try {
-    // Fetch standard lots (HIDDEN per user request)
-    // const lots = await kv.getByPrefix('lot:');
-    // const standardInfos = lots.filter(item => item.key.endsWith(':info') && !item.key.includes(':custom:'));
+    const lots = await kv.getByPrefix('lot:');
+    const standardInfos = lots.filter(item => item.key.endsWith(':info') && !item.key.includes('lot:custom:'));
 
     // Fetch custom lots
     const customLots = await kv.getByPrefix('lot:custom:');
     const customInfos = customLots.filter(item => item.key.endsWith(':info'));
 
-    const allInfos = [...customInfos];
+    const allInfos = [...standardInfos, ...customInfos];
+    const uniqueInfos = Array.from(new Map(allInfos.map((item) => [item.value.id, item])).values());
 
     const lotsWithOccupancy = await Promise.all(
-      allInfos.map(async (item) => {
+      uniqueInfos.map(async (item) => {
         const lotId = item.value.id;
         const occupancy = await kv.get(`lot:${lotId}:occupancy`) || { spots: {} };
         const occupiedCount = Object.keys(occupancy.spots).length;
@@ -427,8 +427,8 @@ api.get("/lots", async (c) => {
           latitude,
           longitude,
           occupiedCount,
-          availableCount: capacity - occupiedCount,
-          occupancyRate: (occupiedCount / capacity) * 100
+          availableCount: Math.max(0, capacity - occupiedCount),
+          occupancyRate: capacity > 0 ? (occupiedCount / capacity) * 100 : 0
         };
       })
     );
@@ -448,7 +448,7 @@ api.post("/lots/init", async (c) => {
         id: 'lot-1',
         name: 'Lot 1 - Livingston Campus',
         latitude: 40.5229,
-        longitude: -74.4360,
+        longitude: -74.436,
         capacity: 150,
         campus: 'Livingston'
       },

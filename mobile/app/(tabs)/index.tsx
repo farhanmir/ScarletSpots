@@ -31,16 +31,35 @@ interface ParkingSession {
 
 export default function MapScreen() {
   const router = useRouter();
-  const { session, user } = useAuth();
+  const { user } = useAuth();
   const mapRef = useRef<MapView>(null);
   const params = useLocalSearchParams();
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [lots, setLots] = useState<Lot[]>([]);
   const [selectedLot, setSelectedLot] = useState<Lot | null>(null);
   const [selectedPlace, setSelectedPlace] = useState<{ lat: number; lng: number; name: string } | null>(null);
   const [activeSession, setActiveSession] = useState<ParkingSession | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const clearRouteSelectionParams = () => {
+    router.setParams({
+      selectedLotId: undefined,
+      placeLat: undefined,
+      placeLng: undefined,
+      placeName: undefined,
+    });
+  };
+
+  const closeLotDetails = () => {
+    setSelectedLot(null);
+
+    if (savedRegionRef.current) {
+      mapRef.current?.animateToRegion(savedRegionRef.current, 500);
+      savedRegionRef.current = null;
+    }
+
+    clearRouteSelectionParams();
+  };
 
   // Handle incoming search selections
   const { selectedLotId, placeLat, placeLng, placeName } = params;
@@ -48,35 +67,45 @@ export default function MapScreen() {
   useEffect(() => {
     if (selectedLotId) {
       const lot = lots.find(l => l.id === selectedLotId);
-      if (lot && selectedLot?.id !== lot.id) {
-        setSelectedLot(lot);
+      if (lot) {
+        setSelectedLot((prev) => {
+          if (prev?.id === lot.id) {
+            return prev;
+          }
+
+          mapRef.current?.animateToRegion({
+            latitude: lot.latitude,
+            longitude: lot.longitude,
+            latitudeDelta: 0.005,
+            longitudeDelta: 0.005,
+          }, 1000);
+
+          return lot;
+        });
         setSelectedPlace(null);
-        mapRef.current?.animateToRegion({
-          latitude: lot.latitude,
-          longitude: lot.longitude,
-          latitudeDelta: 0.005,
-          longitudeDelta: 0.005,
-        }, 1000);
       }
     } else if (placeLat && placeLng) {
-      const lat = parseFloat(placeLat as string);
-      const lng = parseFloat(placeLng as string);
+      const lat = Number.parseFloat(placeLat as string);
+      const lng = Number.parseFloat(placeLng as string);
       const name = placeName as string || 'Destination';
       
-      // Check if place is already selected to prevent loop
-      if (!selectedPlace || selectedPlace.lat !== lat || selectedPlace.lng !== lng) {
-        setSelectedPlace({ lat, lng, name });
-        setSelectedLot(null);
-        
+      setSelectedPlace((prev) => {
+        if (prev?.lat === lat && prev?.lng === lng) {
+          return prev;
+        }
+
         mapRef.current?.animateToRegion({
           latitude: lat,
           longitude: lng,
           latitudeDelta: 0.005,
           longitudeDelta: 0.005,
         }, 1000);
-      }
+
+        return { lat, lng, name };
+      });
+      setSelectedLot(null);
     }
-  }, [selectedLotId, placeLat, placeLng, placeName, lots, selectedLot, selectedPlace]);
+  }, [selectedLotId, placeLat, placeLng, placeName, lots]);
 
   const darkMapStyle = [
     {
@@ -316,7 +345,7 @@ export default function MapScreen() {
     (async () => {
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        setErrorMsg('Permission to access location was denied');
+        Alert.alert('Location Permission Required', 'Permission to access location was denied.');
         return;
       }
 
@@ -463,12 +492,7 @@ export default function MapScreen() {
         onPress={() => {
            // Only close if we are selecting something? behavior preference
            if (selectedLot) {
-             setSelectedLot(null);
-             // Revert zoom if saved
-             if (savedRegionRef.current) {
-               mapRef.current?.animateToRegion(savedRegionRef.current, 500);
-               savedRegionRef.current = null;
-             }
+             closeLotDetails();
            }
            setSelectedPlace(null);
         }}
@@ -573,23 +597,7 @@ export default function MapScreen() {
         <LotDetails
           key={selectedLot.id} 
           lot={selectedLot} 
-          onClose={() => {
-            setSelectedLot(null);
-            
-            // Revert Zoom
-            if (savedRegionRef.current) {
-               mapRef.current?.animateToRegion(savedRegionRef.current, 500);
-               savedRegionRef.current = null;
-            }
-
-            // Clear params
-            router.setParams({ 
-              selectedLotId: '', 
-              placeLat: '', 
-              placeLng: '', 
-              placeName: '' 
-            });
-          }} 
+          onClose={closeLotDetails}
           onPark={handlePark}
           isParking={loading}
           user={user}

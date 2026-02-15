@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -15,7 +15,6 @@ import { useRouter } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { publicApiCall } from '../../lib/supabase';
 import * as Location from 'expo-location';
-import { useAuth } from '@/context/AuthProvider';
 
 // Types
 interface Lot {
@@ -41,7 +40,6 @@ interface PlaceResult {
 
 export default function SearchScreen() {
   const router = useRouter();
-  const { session } = useAuth();
   
   const [query, setQuery] = useState('');
   const [lots, setLots] = useState<Lot[]>([]);
@@ -147,14 +145,20 @@ export default function SearchScreen() {
     Keyboard.dismiss();
     
     if (item.type === 'lot') {
-      router.push({
-        pathname: '/(tabs)',
-        params: { selectedLotId: item.id }
+      router.replace({
+        pathname: '/(tabs)/index',
+        params: {
+          selectedLotId: item.id,
+          placeLat: undefined,
+          placeLng: undefined,
+          placeName: undefined,
+        }
       });
     } else {
-      router.push({
-        pathname: '/(tabs)',
+      router.replace({
+        pathname: '/(tabs)/index',
         params: { 
+          selectedLotId: undefined,
           placeLat: item.latitude, 
           placeLng: item.longitude, 
           placeName: item.name 

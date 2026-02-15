@@ -1,11 +1,35 @@
-import React from 'react';
-import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
+import { useState } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { supabase } from '@/lib/supabase';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
+  const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  const handleResetPassword = async () => {
+    if (!email.trim()) {
+      Alert.alert('Missing Email', 'Please enter your Rutgers email.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
+      if (error) {
+        throw error;
+      }
+      setSent(true);
+    } catch (error: any) {
+      Alert.alert('Reset Failed', error?.message || 'Could not send reset email. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -30,20 +54,46 @@ export default function ForgotPasswordScreen() {
         </View>
 
         <Text style={styles.title}>Reset Password</Text>
-        <Text style={styles.subtitle}>
-          This feature is coming soon. Please contact support if you need to reset your password.
-        </Text>
-
-        {/* Placeholder card */}
         <View style={styles.card}>
-          <Ionicons name="construct-outline" size={48} color="#71717a" />
-          <Text style={styles.cardTitle}>Under Construction</Text>
-          <Text style={styles.cardText}>
-            Password reset via email will be available in a future update.
-          </Text>
+          {sent ? (
+            <>
+              <Ionicons name="mail-open-outline" size={48} color="#22c55e" />
+              <Text style={styles.cardTitle}>Check your inbox</Text>
+              <Text style={styles.cardText}>
+                If an account exists for {email.trim()}, a reset link has been sent.
+              </Text>
+            </>
+          ) : (
+            <>
+              <Text style={styles.subtitle}>
+                Enter your account email and we’ll send password reset instructions.
+              </Text>
+              <TextInput
+                style={styles.input}
+                placeholder="netid@rutgers.edu"
+                placeholderTextColor="#71717a"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                value={email}
+                onChangeText={setEmail}
+              />
+              <TouchableOpacity
+                style={[styles.button, loading && styles.buttonDisabled]}
+                onPress={handleResetPassword}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.buttonText}>Send Reset Email</Text>
+                )}
+              </TouchableOpacity>
+            </>
+          )}
         </View>
 
-        <TouchableOpacity style={styles.button} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.secondaryButton} onPress={() => router.push('/auth/login')}>
           <Text style={styles.buttonText}>Back to Sign In</Text>
         </TouchableOpacity>
       </View>
@@ -98,17 +148,28 @@ const styles = StyleSheet.create({
     color: '#a1a1aa',
     textAlign: 'center',
     lineHeight: 22,
-    marginBottom: 32,
+    marginBottom: 16,
   },
   card: {
     width: '100%',
     backgroundColor: 'rgba(24, 24, 27, 0.5)',
     borderRadius: 20,
-    padding: 32,
+    padding: 24,
     borderWidth: 1,
     borderColor: 'rgba(39, 39, 42, 1)',
     alignItems: 'center',
     marginBottom: 24,
+  },
+  input: {
+    width: '100%',
+    height: 50,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#3f3f46',
+    backgroundColor: '#27272a',
+    color: '#fff',
+    paddingHorizontal: 14,
+    marginBottom: 14,
   },
   cardTitle: {
     fontSize: 18,
@@ -124,6 +185,17 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   button: {
+    width: '100%',
+    height: 50,
+    backgroundColor: '#dc2626',
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  buttonDisabled: {
+    opacity: 0.7,
+  },
+  secondaryButton: {
     width: '100%',
     height: 50,
     backgroundColor: '#27272a',

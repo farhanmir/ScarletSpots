@@ -1,19 +1,33 @@
 import { createClient } from '@supabase/supabase-js';
-import { projectId, publicAnonKey } from '../../../utils/supabase/info';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const publicAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-const supabaseUrl = `https://${projectId}.supabase.co`;
+if (!supabaseUrl || !publicAnonKey) {
+  throw new Error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY environment variables.');
+}
 
 export const supabase = createClient(supabaseUrl, publicAnonKey);
 
 export const API_BASE = `${supabaseUrl}/functions/v1/server`;
 
+const getErrorMessage = (payload: unknown, fallback: string) => {
+  if (payload && typeof payload === 'object' && 'error' in payload) {
+    const errorValue = (payload as { error?: unknown }).error;
+    if (typeof errorValue === 'string' && errorValue.length > 0) {
+      return errorValue;
+    }
+  }
+
+  return fallback;
+};
+
 /**
  * Safely parse JSON from a response, returning an error object if it fails.
  */
-async function safeJson(response: Response): Promise<any> {
+async function safeJson(response: Response): Promise<unknown> {
   const text = await response.text();
   try {
-    return JSON.parse(text);
+    return JSON.parse(text) as unknown;
   } catch {
     console.error('Non-JSON response:', text.substring(0, 200));
     return { error: text || `HTTP ${response.status}` };
@@ -82,7 +96,7 @@ export async function apiCall(endpoint: string, options: RequestInit = {}) {
     const retryData = await safeJson(retryResponse);
     if (!retryResponse.ok) {
       console.error(`API error on ${endpoint} (${retryResponse.status}):`, retryData);
-      throw new Error(retryData.error || `API request failed (${retryResponse.status})`);
+      throw new Error(getErrorMessage(retryData, `API request failed (${retryResponse.status})`));
     }
     return retryData;
   }
@@ -91,7 +105,7 @@ export async function apiCall(endpoint: string, options: RequestInit = {}) {
 
   if (!response.ok) {
     console.error(`API error on ${endpoint} (${response.status}):`, data);
-    throw new Error(data.error || `API request failed (${response.status})`);
+    throw new Error(getErrorMessage(data, `API request failed (${response.status})`));
   }
 
   return data;

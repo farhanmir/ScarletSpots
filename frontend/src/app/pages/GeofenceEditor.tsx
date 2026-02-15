@@ -8,21 +8,24 @@ import { useNavigate, useSearchParams, useParams } from 'react-router';
 import { apiCall, supabase } from '../lib/supabase';
 import { toast } from 'sonner';
 import { icon as leafletIcon } from 'leaflet';
+import type { LeafletMouseEvent, LeafletEvent } from 'leaflet';
 
 import { Label } from '../components/ui/label';
 
 // Custom marker icon for polygon vertices
+const vertexSvg = [
+  '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24">',
+  '<circle cx="12" cy="12" r="10" fill="white" stroke="#dc2626" stroke-width="4"/>',
+  '</svg>',
+].join('');
+
 const vertexIcon = leafletIcon({
-  iconUrl: `data:image/svg+xml;base64,${btoa(`
-    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24">
-      <circle cx="12" cy="12" r="10" fill="white" stroke="#dc2626" stroke-width="4"/>
-    </svg>
-  `)}`,
+  iconUrl: `data:image/svg+xml;base64,${btoa(vertexSvg)}`,
   iconSize: [12, 12],
   iconAnchor: [6, 6],
 });
 
-function MapEvents({ onMapClick }: { onMapClick: (e: any) => void }) {
+function MapEvents({ onMapClick }: { onMapClick: (e: LeafletMouseEvent) => void }) {
   useMapEvents({
     click: onMapClick,
   });
@@ -40,8 +43,8 @@ export default function GeofenceEditor() {
   const [capacity, setCapacity] = useState('50');
 
   // Initialize map center based on params or default
-  const initialLat = parseFloat(searchParams.get('lat') || '40.5008');
-  const initialLng = parseFloat(searchParams.get('lng') || '-74.4474');
+  const initialLat = Number.parseFloat(searchParams.get('lat') || '40.5008');
+  const initialLng = Number.parseFloat(searchParams.get('lng') || '-74.4474');
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -72,13 +75,14 @@ export default function GeofenceEditor() {
     }
   }, [id]);
 
-  const handleMapClick = (e: any) => {
+  const handleMapClick = (e: LeafletMouseEvent) => {
     const { lat, lng } = e.latlng;
     setPoints((prev) => [...prev, [lat, lng]]);
   };
 
-  const handleDragVertex = (index: number, e: any) => {
-    const { lat, lng } = e.target.getLatLng();
+  const handleDragVertex = (index: number, e: LeafletEvent) => {
+    const marker = e.target as { getLatLng: () => { lat: number; lng: number } };
+    const { lat, lng } = marker.getLatLng();
     setPoints((prev) => {
       const newPoints = [...prev];
       newPoints[index] = [lat, lng];
@@ -118,7 +122,7 @@ export default function GeofenceEditor() {
         name: lotName,
         campus,
         coordinates: points,
-        capacity: parseInt(capacity) || 50,
+        capacity: Number.parseInt(capacity, 10) || 50,
       };
 
       if (id && id !== 'new') {
@@ -134,22 +138,15 @@ export default function GeofenceEditor() {
       }
 
       toast.success('Geofence saved successfully!');
-
-      // Clear local storage params if present
-      if (searchParams.get('lat')) {
-        navigate('/admin/geofence');
-      } else {
-        // Reset form if not redirecting
-        setPoints([]);
-        setLotName('');
-      }
-    } catch (error: any) {
+      navigate('/admin/geofences');
+    } catch (error: unknown) {
       console.error('Save geofence error:', error);
-      if (error.message && error.message.includes('Unauthorized')) {
+      const message = error instanceof Error ? error.message : 'Failed to save geofence';
+      if (message.includes('Unauthorized')) {
         toast.error('Session expired. Please log in again.');
         navigate('/');
       } else {
-        toast.error(error.message || 'Failed to save geofence');
+        toast.error(message);
       }
     }
   };
@@ -224,7 +221,7 @@ export default function GeofenceEditor() {
           {/* Draggable Vertices */}
           {points.map((point, index) => (
             <Marker
-              key={index}
+              key={`${point[0]}-${point[1]}`}
               position={point}
               icon={vertexIcon}
               draggable={true}

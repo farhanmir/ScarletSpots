@@ -24,56 +24,70 @@ export default function LoginScreen() {
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
 
-  async function handleAuth() {
+  const validateForm = (): string | null => {
     if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
-      return;
+      return 'Please fill in all fields';
     }
 
-    if (!isLogin && !name.trim()) {
-      Alert.alert('Error', 'Please enter your name');
-      return;
+    if (isLogin) {
+      return null;
     }
 
-    if (!isLogin && password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+    if (!name.trim()) {
+      return 'Please enter your name';
+    }
+
+    if (password !== confirmPassword) {
+      return 'Passwords do not match';
+    }
+
+    return null;
+  };
+
+  const signIn = async () => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) throw error;
+  };
+
+  const signUp = async () => {
+    if (!email.endsWith('@rutgers.edu') && !email.endsWith('@scarletmail.rutgers.edu')) {
+      throw new Error('Please use a valid Rutgers email address');
+    }
+
+    const response = await publicApiCall('/signup', {
+      method: 'POST',
+      body: JSON.stringify({
+        email,
+        password,
+        name: name || email.split('@')[0],
+      }),
+    });
+
+    if (response.success) {
+      await signIn();
+    }
+  };
+
+  async function handleAuth() {
+    const validationError = validateForm();
+    if (validationError) {
+      Alert.alert('Error', validationError);
       return;
     }
 
     setLoading(true);
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-        if (error) throw error;
-        router.replace('/');
+        await signIn();
       } else {
-        // Validate Rutgers email on frontend
-        if (!email.endsWith('@rutgers.edu') && !email.endsWith('@scarletmail.rutgers.edu')) {
-          throw new Error('Please use a valid Rutgers email address');
-        }
-
-        // Call backend signup endpoint
-        const response = await publicApiCall('/signup', {
-          method: 'POST',
-          body: JSON.stringify({
-            email,
-            password,
-            name: name || email.split('@')[0],
-          }),
-        });
-
-        if (response.success) {
-          const { error: signInError } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-          });
-          if (signInError) throw signInError;
-          router.replace('/');
-        }
+        await signUp();
       }
+
+      router.replace('/');
     } catch (error: any) {
       Alert.alert('Authentication Failed', error.message || 'An error occurred');
     } finally {

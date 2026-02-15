@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { MapContainer, TileLayer, Marker, Popup, Circle, Polygon, useMap } from 'react-leaflet';
 import { icon as leafletIcon } from 'leaflet';
+import type { Icon, Map as LeafletMap } from 'leaflet';
 import { supabase, apiCall } from '../lib/supabase';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -45,13 +46,15 @@ interface Friend {
 
 // Custom map icons
 const createCustomIcon = (color: string) => {
+  const markerSvg = [
+    '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="42" viewBox="0 0 32 42">',
+    `<path fill="${color}" d="M16 0C7.163 0 0 7.163 0 16c0 12 16 26 16 26s16-14 16-26C32 7.163 24.837 0 16 0z"/>`,
+    '<circle cx="16" cy="16" r="6" fill="white"/>',
+    '</svg>',
+  ].join('');
+
   return leafletIcon({
-    iconUrl: `data:image/svg+xml;base64,${btoa(`
-      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="42" viewBox="0 0 32 42">
-        <path fill="${color}" d="M16 0C7.163 0 0 7.163 0 16c0 12 16 26 16 26s16-14 16-26C32 7.163 24.837 0 16 0z"/>
-        <circle cx="16" cy="16" r="6" fill="white"/>
-      </svg>
-    `)}`,
+    iconUrl: `data:image/svg+xml;base64,${btoa(markerSvg)}`,
     iconSize: [32, 42],
     iconAnchor: [16, 42],
     popupAnchor: [0, -42],
@@ -85,7 +88,10 @@ export default function MapView() {
     name: string;
   } | null>(null);
   const navigate = useNavigate();
-  const mapRef = useRef<any>(null);
+  const mapRef = useRef<LeafletMap | null>(null);
+
+  const getErrorMessage = (error: unknown, fallback: string) =>
+    error instanceof Error ? error.message : fallback;
 
   // Mock building data for demo
   const BUILDINGS: Record<string, { lat: number; lng: number; name: string }> = {
@@ -95,33 +101,23 @@ export default function MapView() {
     werblin: { lat: 40.5233, lng: -74.4587, name: 'Werblin Recreation Center' },
   };
 
-  useEffect(() => {
-    checkAuth();
-    initializeLots();
-    fetchLots();
-    fetchActiveSession();
-    fetchFriends();
-
-    // Get user's current location
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setUserLocation([position.coords.latitude, position.coords.longitude]);
-        },
-        (error) => {
-          console.log('Location error:', error);
-        },
-      );
-    }
-  }, []);
-
   const checkAuth = async () => {
     const {
       data: { session },
     } = await supabase.auth.getSession();
-    if (!session) {
-      // navigate('/');
-    }
+    if (!session) return;
+  };
+
+  const getOccupancyHexColor = (rate: number) => {
+    if (rate >= 90) return '#dc2626';
+    if (rate >= 70) return '#ca8a04';
+    return '#16a34a';
+  };
+
+  const getLotIcon = (rate: number): Icon => {
+    if (rate >= 90) return redIcon;
+    if (rate >= 70) return yellowIcon;
+    return greenIcon;
   };
 
   const initializeLots = async () => {
@@ -162,6 +158,27 @@ export default function MapView() {
     }
   };
 
+  useEffect(() => {
+    queueMicrotask(() => {
+      void checkAuth();
+      void initializeLots();
+      void fetchLots();
+      void fetchActiveSession();
+      void fetchFriends();
+    });
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation([position.coords.latitude, position.coords.longitude]);
+        },
+        (error) => {
+          console.log('Location error:', error);
+        },
+      );
+    }
+  }, []);
+
   const handleParkHere = async (lot: Lot) => {
     if (!spotNumber) {
       toast.error('Please enter a spot number');
@@ -185,9 +202,9 @@ export default function MapView() {
       setSpotNumber('');
       fetchActiveSession();
       fetchLots();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Park error:', error);
-      toast.error(error.message || 'Failed to save parking spot');
+      toast.error(getErrorMessage(error, 'Failed to save parking spot'));
     }
   };
 
@@ -197,9 +214,9 @@ export default function MapView() {
       toast.success('Parking session ended');
       setActiveSession(null);
       fetchLots();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('End session error:', error);
-      toast.error(error.message || 'Failed to end session');
+      toast.error(getErrorMessage(error, 'Failed to end session'));
     }
   };
 
@@ -220,7 +237,7 @@ export default function MapView() {
     return 'Available';
   };
 
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearch = (e: React.SyntheticEvent) => {
     e.preventDefault();
     if (!searchQuery.trim()) return;
 
@@ -292,7 +309,7 @@ export default function MapView() {
                   Friends
                 </Button>
                 <Button
-                  onClick={() => navigate('/admin/geofence')}
+                  onClick={() => navigate('/admin/geofences')}
                   className='w-full justify-start bg-transparent hover:bg-zinc-800 text-white text-base font-normal h-12'
                 >
                   <Settings className='w-5 h-5 mr-3 text-zinc-400' />
@@ -398,8 +415,7 @@ export default function MapView() {
 
           {/* Parking lots */}
           {lots.map((lot) => {
-            const occupancyColor =
-              lot.occupancyRate >= 90 ? '#dc2626' : lot.occupancyRate >= 70 ? '#ca8a04' : '#16a34a';
+            const occupancyColor = getOccupancyHexColor(lot.occupancyRate);
 
             return (
               <div key={lot.id}>
@@ -415,13 +431,7 @@ export default function MapView() {
                 />
                 <Marker
                   position={[lot.latitude, lot.longitude]}
-                  icon={
-                    lot.occupancyRate >= 90
-                      ? redIcon
-                      : lot.occupancyRate >= 70
-                        ? yellowIcon
-                        : greenIcon
-                  }
+                  icon={getLotIcon(lot.occupancyRate)}
                   eventHandlers={{
                     click: () => setSelectedLot(lot),
                   }}
@@ -454,7 +464,7 @@ export default function MapView() {
                         onClick={(e) => {
                           e.stopPropagation();
                           navigate(
-                            `/admin/geofence?lat=${lot.latitude}&lng=${lot.longitude}&name=${encodeURIComponent(lot.name)}&campus=${encodeURIComponent(lot.campus)}`,
+                            `/admin/geofences/new?lat=${lot.latitude}&lng=${lot.longitude}&name=${encodeURIComponent(lot.name)}&campus=${encodeURIComponent(lot.campus)}`,
                           );
                         }}
                       >
