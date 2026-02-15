@@ -86,35 +86,47 @@ export default function SearchScreen() {
       if (query.length > 3) {
         setSearching(true);
         try {
-          // Limit to NJ area or Rutgers vicinity if possible, 
-          // but Expo Geocoding is generic. We can append "Rutgers" or "Piscataway" context if needed,
-          // but let's try raw first.
+          // Attempt to Geocode
+          // We can't strictly bias `geocodeAsync` without native APIs, but we can filter the results.
+          // Rutgers New Brunswick approx center: 40.5008, -74.4474
+          const RUTGERS_LAT = 40.5008;
+          const RUTGERS_LNG = -74.4474;
+          
           const geocoded = await Location.geocodeAsync(query);
           
           if (geocoded && geocoded.length > 0) {
-            const placeResults: PlaceResult[] = geocoded.slice(0, 3).map((geo, index) => ({
-              id: `place-${index}`,
-              name: query, // Geocoder doesn't return a pretty name, so we use the query effectively
-              address: 'Map Location',
-              latitude: geo.latitude,
-              longitude: geo.longitude,
-              type: 'place'
-            }));
+             const placeResults: PlaceResult[] = geocoded
+              .filter(geo => {
+                // Filter results to be within ~15 miles (~0.25 degrees lat/lng) of Rutgers
+                // This prevents searching for "Starbucks" and getting one in California if you are there.
+                // It forces the search to be local to the campus app context.
+                const latDiff = Math.abs(geo.latitude - RUTGERS_LAT);
+                const lngDiff = Math.abs(geo.longitude - RUTGERS_LNG);
+                return latDiff < 0.3 && lngDiff < 0.3; 
+              })
+              .slice(0, 3)
+              .map((geo, index) => ({
+                id: `place-${index}`,
+                name: query, 
+                address: 'Near Rutgers', // Generic label since geocoder is simple
+                latitude: geo.latitude,
+                longitude: geo.longitude,
+                type: 'place'
+              }));
             
-            // Merge unique places (simple check)
             setResults(prev => {
-              // Avoid duplicates if possible, but for now just append
+              // Combine and dedupe based on ID or Name logic if needed
+              // For now, just appending the filtered places
               return [...prev, ...placeResults];
             });
           }
         } catch (e) {
-          // Ignore geocoding errors
           console.log('Geocoding error', e);
         } finally {
           setSearching(false);
         }
       }
-    }, 1000); // 1s debounce for API calls
+    }, 1000); // 1s debounce
 
     return () => clearTimeout(timer);
 
