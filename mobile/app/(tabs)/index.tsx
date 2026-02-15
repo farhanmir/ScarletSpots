@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { StyleSheet, View, Platform, Alert, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import MapView, { PROVIDER_GOOGLE, PROVIDER_DEFAULT, Polygon, Marker } from 'react-native-maps';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import { publicApiCall, authApiCall } from '../../lib/supabase';
 import { useAuth } from '@/context/AuthProvider';
@@ -30,6 +30,7 @@ interface ParkingSession {
 }
 
 export default function MapScreen() {
+  const router = useRouter();
   const { session, user } = useAuth();
   const mapRef = useRef<MapView>(null);
   const params = useLocalSearchParams();
@@ -356,8 +357,16 @@ export default function MapScreen() {
     }
   };
 
-  const handlePark = async (lot: Lot) => {
+  const handlePark = async (lotId: string) => {
     if (!user) return;
+    
+    // Find the lot object from the ID
+    const lot = lots.find(l => l.id === lotId);
+    if (!lot) {
+        Alert.alert('Error', 'Lot not found');
+        return;
+    }
+
     setLoading(true);
     try {
       const spotNumber = Math.floor(Math.random() * 1000).toString(); // Simulate spot selection
@@ -395,9 +404,11 @@ export default function MapScreen() {
       });
 
       if (data.success) {
-        Alert.alert('Session Ended', 'Your parking session has ended.');
+        // Just clear everything and showing the alert is enough
         setActiveSession(null);
+        setSelectedLot(null);
         fetchLots();
+        Alert.alert('Session Ended', 'Your parking session has ended.');
       }
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to end session');
@@ -408,6 +419,26 @@ export default function MapScreen() {
 
   // Dual-Map Strategy: Use Google Maps on Android, Default (Apple Maps) on iOS
   const mapProvider = Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_DEFAULT;
+
+  const regionRef = useRef<any>(null); // Track current region
+  const savedRegionRef = useRef<any>(null); // Save region before zooming in
+
+  const handleLotPress = (lot: Lot) => {
+    // If not already selected, save current region
+    if (!selectedLot && regionRef.current) {
+      savedRegionRef.current = regionRef.current;
+    }
+    
+    setSelectedLot(lot);
+    
+    // Zoom in with offset for the modal
+    mapRef.current?.animateToRegion({
+      latitude: lot.latitude - 0.002, 
+      longitude: lot.longitude,
+      latitudeDelta: 0.005,
+      longitudeDelta: 0.005,
+    }, 500);
+  };
 
   return (
     <View style={styles.container}>
@@ -421,21 +452,32 @@ export default function MapScreen() {
         showsMyLocationButton={true}
         showsTraffic={false}
         initialRegion={{
-          latitude: 40.5008, // Rutgers generic center
+          latitude: 40.5008, 
           longitude: -74.4474,
           latitudeDelta: 0.0922,
           longitudeDelta: 0.0421,
         }}
+        onRegionChangeComplete={(region) => {
+          regionRef.current = region;
+        }}
         onPress={() => {
-          setSelectedLot(null);
-          setSelectedPlace(null);
+           // Only close if we are selecting something? behavior preference
+           if (selectedLot) {
+             setSelectedLot(null);
+             // Revert zoom if saved
+             if (savedRegionRef.current) {
+               mapRef.current?.animateToRegion(savedRegionRef.current, 500);
+               savedRegionRef.current = null;
+             }
+           }
+           setSelectedPlace(null);
         }}
       >
         {lots.map((lot) => {
           const isSelected = selectedLot?.id === lot.id;
           return (
             <React.Fragment key={lot.id}>
-              {/* Render Polygon if coordinates exist */}
+              {/* Polygon */}
               {lot.coordinates && lot.coordinates.length >= 3 && (
                 <Polygon
                   coordinates={lot.coordinates.map((p) => ({ latitude: p[0], longitude: p[1] }))}
@@ -444,16 +486,20 @@ export default function MapScreen() {
                   strokeWidth={isSelected ? 3 : 2}
                   tappable={true}
                   zIndex={isSelected ? 10 : 1}
-                  onPress={() => setSelectedLot(lot)}
+                  onPress={(e) => {
+                     e.stopPropagation();
+                     handleLotPress(lot);
+                  }}
                 />
               )}
               
-              {/* Custom Red Marker - properties unchanged */}
+              {/* Marker */}
               <Marker
                 coordinate={{ latitude: lot.latitude, longitude: lot.longitude }}
-                title={lot.name}
-                description={`${lot.campus} - ${Math.round(lot.occupancyRate)}% Full`}
-                onPress={() => setSelectedLot(lot)}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  handleLotPress(lot);
+                }}
                 zIndex={isSelected ? 11 : 2}
               >
                 <View style={[styles.markerContainer, isSelected && { transform: [{ scale: 1.2 }] }]}>
@@ -477,13 +523,12 @@ export default function MapScreen() {
           );
         })}
 
-        
-        {/* Selected Place Marker (from Search) */}
+        {/* Selected Place Marker */}
         {selectedPlace && (
           <Marker
             coordinate={{ latitude: selectedPlace.lat, longitude: selectedPlace.lng }}
             title={selectedPlace.name}
-            pinColor="#3b82f6" // Blue pin for places
+            pinColor="#3b82f6"
           />
         )}
       </MapView>
@@ -523,11 +568,28 @@ export default function MapScreen() {
         </View>
       )}
 
-      {/* Lot Details Sheet */}
-      {selectedLot && !activeSession && (
-        <LotDetails 
+      {/* LotDetails Sheet */}
+      {selectedLot && (
+        <LotDetails
+          key={selectedLot.id} 
           lot={selectedLot} 
-          onClose={() => setSelectedLot(null)} 
+          onClose={() => {
+            setSelectedLot(null);
+            
+            // Revert Zoom
+            if (savedRegionRef.current) {
+               mapRef.current?.animateToRegion(savedRegionRef.current, 500);
+               savedRegionRef.current = null;
+            }
+
+            // Clear params
+            router.setParams({ 
+              selectedLotId: '', 
+              placeLat: '', 
+              placeLng: '', 
+              placeName: '' 
+            });
+          }} 
           onPark={handlePark}
           isParking={loading}
           user={user}
@@ -598,43 +660,45 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   markerFull: {
-    backgroundColor: '#b91c1c',
+    backgroundColor: '#10b981', // Success green for available
   },
   markerText: {
     color: 'white',
-    fontSize: 11,
-    fontWeight: '800',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   markerArrow: {
     width: 0,
     height: 0,
+    backgroundColor: 'transparent',
+    borderStyle: 'solid',
     borderLeftWidth: 6,
     borderRightWidth: 6,
     borderTopWidth: 8,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
     borderTopColor: '#dc2626',
-    marginTop: -1,
+    transform: [{ translateY: -1 }],
   },
   markerArrowFull: {
-    borderTopColor: '#b91c1c',
+    borderTopColor: '#10b981',
   },
   centerButton: {
     position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 110 : 100,
+    bottom: 30, // Above tab bar
     right: 20,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: Platform.OS === 'ios' ? 'rgba(10, 10, 10, 0.85)' : '#0a0a0a',
+    backgroundColor: '#18181b',
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 8,
+    shadowRadius: 8,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
 });
