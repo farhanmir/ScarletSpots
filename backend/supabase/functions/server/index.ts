@@ -343,8 +343,8 @@ api.put("/lots/custom/:id", async (c) => {
 
     // Check ownership (optional, but good practice)
     if (existingLot.createdBy !== user.id) {
-       // Allow admins or owner? For now, let's assume all authenticated users are admins for this demo
-       // return c.json({ error: 'Unauthorized' }, 403);
+      // Allow admins or owner? For now, let's assume all authenticated users are admins for this demo
+      // return c.json({ error: 'Unauthorized' }, 403);
     }
 
     // Calculate centroid
@@ -486,6 +486,71 @@ api.post("/lots/init", async (c) => {
   } catch (err) {
     console.log('Init lots error:', err);
     return c.json({ error: 'Failed to initialize lots' }, 500);
+  }
+});
+
+// Admin stats endpoint – aggregates KV data for the dashboard
+api.get("/admin/stats", async (c) => {
+  try {
+    // Fetch all user keys from KV once (needed for active sessions and potentially for fallback)
+    const allUserKeys = await kv.getByPrefix('user:');
+
+    // 1. Get total users from Supabase Auth directly (authoritative count)
+    let totalUsers = 0;
+    const supabaseAdmin = getAdminClient();
+    const { data: userData, error: userError } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1 });
+
+    if (!userError && userData) {
+      totalUsers = userData.total;
+    } else {
+      console.error('Error fetching user count, falling back to KV:', userError);
+      // Fallback: Count users from KV profiles
+      const userProfiles = allUserKeys.filter(item => {
+        const rest = item.key.slice('user:'.length);
+        return !rest.includes(':');
+      });
+      totalUsers = userProfiles.length;
+    }
+
+    // 2. Count active sessions using the already fetched keys
+    const activeSessionKeys = allUserKeys.filter(item => item.key.endsWith(':active_session') && item.value);
+    const activeSessions = activeSessionKeys.length;
+
+    // Count geofences (standard + custom, deduped)
+    const allLots = await kv.getByPrefix('lot:');
+    const standardInfos = allLots.filter(item => item.key.endsWith(':info') && !item.key.includes('lot:custom:'));
+    const customLots = await kv.getByPrefix('lot:custom:');
+    const customInfos = customLots.filter(item => item.key.endsWith(':info'));
+    const allInfos = [...standardInfos, ...customInfos];
+    const uniqueInfos = Array.from(new Map(allInfos.map((item) => [item.value.id, item])).values());
+    const totalGeofences = uniqueInfos.length;
+
+    // Per-lot occupancy details
+    const lots = await Promise.all(
+      uniqueInfos.map(async (item) => {
+        const lotId = item.value.id;
+        const occupancy = await kv.get(`lot:${lotId}:occupancy`) || { spots: {} };
+        const occupiedCount = Object.keys(occupancy.spots).length;
+        const capacity = item.value.capacity || 100;
+        return {
+          id: lotId,
+          name: item.value.name,
+          campus: item.value.campus || '',
+          capacity,
+          occupiedCount,
+          availableCount: Math.max(0, capacity - occupiedCount),
+          occupancyRate: capacity > 0 ? Math.round((occupiedCount / capacity) * 100) : 0,
+        };
+      })
+    );
+
+    // Total capacity across all lots
+    const totalCapacity = lots.reduce((sum, lot) => sum + lot.capacity, 0);
+
+    return c.json({ totalUsers, activeSessions, totalGeofences, totalCapacity, lots });
+  } catch (err) {
+    console.log('Admin stats error:', err);
+    return c.json({ error: 'Failed to get admin stats' }, 500);
   }
 });
 
