@@ -95,12 +95,11 @@ export default function SearchScreen() {
           if (geocoded && geocoded.length > 0) {
              const placeResults: PlaceResult[] = geocoded
               .filter(geo => {
-                // Filter results to be within ~15 miles (~0.25 degrees lat/lng) of Rutgers
-                // This prevents searching for "Starbucks" and getting one in California if you are there.
-                // It forces the search to be local to the campus app context.
+                // Filter results to be within ~5 miles (~0.08 degrees) of Rutgers New Brunswick
+                // This ensures we only show buildings/places relevant to the campus area.
                 const latDiff = Math.abs(geo.latitude - RUTGERS_LAT);
                 const lngDiff = Math.abs(geo.longitude - RUTGERS_LNG);
-                return latDiff < 0.3 && lngDiff < 0.3; 
+                return latDiff < 0.08 && lngDiff < 0.08; 
               })
               .slice(0, 3)
               .map((geo, index) => ({
@@ -211,8 +210,35 @@ export default function SearchScreen() {
                 query.length > 0 ? (
                   <View style={styles.emptyState}>
                     <Text style={styles.emptyText}>
-                      {searching ? 'Searching places...' : 'No results found'}
+                      {searching ? 'Searching places...' : 'No specific results found'}
                     </Text>
+                    {!searching && (
+                      <View style={{ marginTop: 24, width: '100%' }}>
+                        <Text style={[styles.sectionTitle, { marginBottom: 12 }]}>Try a Campus</Text>
+                        {[
+                          { name: 'Busch Campus', lat: 40.5231, lng: -74.4588 },
+                          { name: 'College Avenue', lat: 40.5008, lng: -74.4474 },
+                          { name: 'Livingston', lat: 40.5238, lng: -74.4368 },
+                          { name: 'Cook/Douglass', lat: 40.4851, lng: -74.4373 },
+                        ].map((campus) => (
+                           <TouchableOpacity 
+                            key={campus.name} 
+                            style={styles.suggestionItem}
+                            onPress={() => handleSelect({
+                              id: `campus-${campus.name}`,
+                              name: campus.name,
+                              address: 'Rutgers University',
+                              latitude: campus.lat,
+                              longitude: campus.lng,
+                              type: 'place'
+                            } as any)}
+                          >
+                            <IconSymbol name="mappin.and.ellipse" size={16} color="#71717a" />
+                            <Text style={styles.suggestionText}>{campus.name}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
                   </View>
                 ) : (
                   <View style={styles.suggestionContainer}>
