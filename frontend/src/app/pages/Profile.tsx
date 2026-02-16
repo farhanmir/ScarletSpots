@@ -9,6 +9,7 @@ interface UserProfile {
   id: string;
   email: string;
   name: string;
+  role?: string;
   created_at: string;
 }
 
@@ -32,8 +33,16 @@ export default function Profile() {
 
   const fetchProfile = async () => {
     try {
-      const data = await apiCall('/user/profile');
-      setProfile(data.profile);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setProfile({
+          id: user.id,
+          email: user.email || '',
+          name: user.user_metadata?.name || 'User',
+          role: user.user_metadata?.role,
+          created_at: user.created_at,
+        });
+      }
     } catch (error) {
       console.error('Fetch profile error:', error);
     }
@@ -114,13 +123,15 @@ export default function Profile() {
 
         {/* Actions */}
         <div className='space-y-2'>
-          <Button
-            onClick={() => navigate('/admin')}
-            className='w-full bg-zinc-800 hover:bg-zinc-700 text-white justify-start'
-          >
-            <LayoutDashboard className='w-4 h-4 mr-2' />
-            Admin Console
-          </Button>
+          {profile?.role === 'admin' && (
+            <Button
+              onClick={() => navigate('/admin')}
+              className='w-full bg-zinc-800 hover:bg-zinc-700 text-white justify-start'
+            >
+              <LayoutDashboard className='w-4 h-4 mr-2' />
+              Admin Console
+            </Button>
+          )}
           <Button
             onClick={handleSignOut}
             className='w-full bg-zinc-800 hover:bg-zinc-700 text-white justify-start'

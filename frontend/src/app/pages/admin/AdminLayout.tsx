@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router';
 import { LayoutDashboard, Map, Users, Settings, LogOut } from 'lucide-react';
 import { Button } from '../../components/ui/button';
@@ -9,6 +10,24 @@ export default function AdminLayout() {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate('/');
+  };
+
+  useEffect(() => {
+    checkUser();
+  }, []);
+
+  const checkUser = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      navigate('/map');
+      return;
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user?.user_metadata?.role !== 'admin') {
+      // If not admin, redirect to map
+      navigate('/map');
+    }
   };
 
   return (

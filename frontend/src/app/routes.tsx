@@ -10,6 +10,7 @@ import GeofenceEditor from './pages/GeofenceEditor';
 import Intro from './pages/Intro';
 import AdminLayout from './pages/admin/AdminLayout';
 import Dashboard from './pages/admin/Dashboard';
+import Users from './pages/admin/Users';
 import GeofenceList from './pages/admin/GeofenceList';
 
 export const router = createBrowserRouter([
@@ -33,7 +34,7 @@ export const router = createBrowserRouter([
           { path: 'geofences', Component: GeofenceList },
           { path: 'geofences/new', Component: GeofenceEditor },
           { path: 'geofences/:id', Component: GeofenceEditor },
-          { path: 'users', Component: () => <div className="p-8 text-white">User Management Coming Soon</div> },
+          { path: 'users', Component: Users },
           { path: 'settings', Component: () => <div className="p-8 text-white">Settings Coming Soon</div> },
         ],
       },

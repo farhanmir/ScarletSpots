@@ -440,52 +440,20 @@ api.get("/lots", async (c) => {
   }
 });
 
-// Initialize default parking lots (for demo)
-api.post("/lots/init", async (c) => {
+// Clear default/system parking lots
+api.post("/lots/clear-defaults", async (c) => {
   try {
-    const defaultLots = [
-      {
-        id: 'lot-1',
-        name: 'Lot 1 - Livingston Campus',
-        latitude: 40.5229,
-        longitude: -74.436,
-        capacity: 150,
-        campus: 'Livingston'
-      },
-      {
-        id: 'lot-25',
-        name: 'Lot 25 - College Ave',
-        latitude: 40.5008,
-        longitude: -74.4474,
-        capacity: 200,
-        campus: 'College Avenue'
-      },
-      {
-        id: 'lot-64',
-        name: 'Lot 64 - Busch Campus',
-        latitude: 40.5212,
-        longitude: -74.4587,
-        capacity: 180,
-        campus: 'Busch'
-      },
-      {
-        id: 'lot-99',
-        name: 'Lot 99 - Cook/Douglass',
-        latitude: 40.4798,
-        longitude: -74.4369,
-        capacity: 120,
-        campus: 'Cook/Douglass'
-      }
-    ];
+    const defaultLots = ['lot-1', 'lot-25', 'lot-64', 'lot-99'];
 
-    for (const lot of defaultLots) {
-      await kv.set(`lot:${lot.id}:info`, lot);
+    for (const lotId of defaultLots) {
+      await kv.del(`lot:${lotId}:info`);
+      await kv.del(`lot:${lotId}:occupancy`);
     }
 
-    return c.json({ success: true, message: 'Default lots initialized' });
+    return c.json({ success: true, message: 'System lots cleared' });
   } catch (err) {
-    console.log('Init lots error:', err);
-    return c.json({ error: 'Failed to initialize lots' }, 500);
+    console.log('Clear lots error:', err);
+    return c.json({ error: 'Failed to clear system lots' }, 500);
   }
 });
 
@@ -551,6 +519,200 @@ api.get("/admin/stats", async (c) => {
   } catch (err) {
     console.log('Admin stats error:', err);
     return c.json({ error: 'Failed to get admin stats' }, 500);
+  }
+});
+
+// Get all users (Admin only)
+api.get("/admin/users", async (c) => {
+  try {
+    const accessToken = getAccessToken(c);
+    const supabase = getClient();
+
+    // Verify admin/user
+    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    if (!user || error) {
+      console.log('Auth error:', error?.message);
+      return c.json({
+        error: `Unauthorized: ${error?.message || 'No user found'}`,
+        debug: {
+          tokenStart: accessToken ? accessToken.substring(0, 10) : 'none',
+          hasUser: !!user
+        }
+      }, 401);
+    }
+
+    // In a real app, check for admin role here.
+    // For this demo, we assume authenticated users are admins.
+
+    const supabaseAdmin = getAdminClient();
+    const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers({
+      page: 1,
+      perPage: 100 // Limit to 100 for now
+    });
+
+    if (listError) {
+      console.log('List users error:', listError);
+      return c.json({ error: listError.message }, 500);
+    }
+
+    // Merge with minimal profile data if needed (mapped from metadata)
+    const userList = users.map(u => ({
+      id: u.id,
+      email: u.email,
+      name: u.user_metadata?.name || 'N/A',
+      user_metadata: u.user_metadata,
+      created_at: u.created_at,
+      last_sign_in_at: u.last_sign_in_at,
+      email_confirmed_at: u.email_confirmed_at,
+      phone: u.phone || 'N/A'
+    }));
+
+    return c.json({ users: userList });
+  } catch (err) {
+    console.log('Get users error:', err);
+    return c.json({ error: 'Failed to get users' }, 500);
+  }
+});
+
+// Delete user (Admin only)
+api.delete("/admin/users/:id", async (c) => {
+  try {
+    const accessToken = getAccessToken(c);
+    const supabase = getClient();
+
+    // Verify admin/user
+    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    if (!user || error) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    if (user.user_metadata?.role !== 'admin') {
+      return c.json({ error: 'Forbidden: Admins only' }, 403);
+    }
+
+    if (user.user_metadata?.role !== 'admin') {
+      return c.json({ error: 'Forbidden: Admins only' }, 403);
+    }
+
+    const userId = c.req.param('id');
+    const supabaseAdmin = getAdminClient();
+
+    // Check if trying to delete self
+    if (userId === user.id) {
+      return c.json({ error: 'Cannot delete your own account' }, 400);
+    }
+
+    const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+    if (deleteError) {
+      return c.json({ error: deleteError.message }, 500);
+    }
+
+    // Also remove from KV
+    await kv.del(`user:${userId}`);
+    await kv.del(`user:${userId}:active_session`);
+
+    return c.json({ success: true });
+  } catch (err) {
+    console.log('Delete user error:', err);
+    return c.json({ error: 'Failed to delete user' }, 500);
+  }
+});
+
+// Create user (Admin only)
+api.post("/admin/users", async (c) => {
+  try {
+    const accessToken = getAccessToken(c);
+    const supabase = getClient();
+
+    // Verify admin
+    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    if (!user || error) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const { email, password, name, role } = await c.req.json();
+
+    if (!email || !password) {
+      return c.json({ error: 'Email and password are required' }, 400);
+    }
+
+    const supabaseAdmin = getAdminClient();
+    const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: {
+        name: name || '',
+        role: role || 'user'
+      }
+    });
+
+    if (createError) {
+      return c.json({ error: createError.message }, 500);
+    }
+
+    // Store in KV
+    if (newUser.user) {
+      await kv.set(`user:${newUser.user.id}`, {
+        id: newUser.user.id,
+        email,
+        name: name || '',
+        role: role || 'user',
+        created_at: new Date().toISOString()
+      });
+    }
+
+    return c.json({ success: true, user: newUser.user });
+  } catch (err) {
+    console.log('Create user error:', err);
+    return c.json({ error: 'Failed to create user' }, 500);
+  }
+});
+
+// Update user role (Admin only)
+api.put("/admin/users/:id/role", async (c) => {
+  try {
+    const accessToken = getAccessToken(c);
+    const supabase = getClient();
+
+    // Verify admin
+    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    if (!user || error) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    if (user.user_metadata?.role !== 'admin') {
+      return c.json({ error: 'Forbidden: Admins only' }, 403);
+    }
+
+    const userId = c.req.param('id');
+    const { role } = await c.req.json();
+
+    if (!role) {
+      return c.json({ error: 'Role is required' }, 400);
+    }
+
+    const supabaseAdmin = getAdminClient();
+    const { data: updatedUser, error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+      userId,
+      { user_metadata: { role } }
+    );
+
+    if (updateError) {
+      return c.json({ error: updateError.message }, 500);
+    }
+
+    // Update KV
+    const kvUser = await kv.get(`user:${userId}`);
+    if (kvUser) {
+      kvUser.role = role;
+      await kv.set(`user:${userId}`, kvUser);
+    }
+
+    return c.json({ success: true, user: updatedUser.user });
+  } catch (err) {
+    console.log('Update role error:', err);
+    return c.json({ error: 'Failed to update user role' }, 500);
   }
 });
 
