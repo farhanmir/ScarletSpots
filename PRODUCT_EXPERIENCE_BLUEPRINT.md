@@ -189,8 +189,8 @@ Modes:
 1. destination search (buildings/common locations)
    - **Restriction**: Results must be within Rutgers campus boundaries.
    - **Action**: Selecting a building pins it on the map and highlights the nearest open parking lots.
-   - **Tech**: Use **Native Device Geocoding** (Apple/Google via Expo) which is free.
-   - **Ranking**: Filter and rank results by distance to Rutgers coordinates to prioritize campus buildings over generic matches.
+   - **Tech**: Use a **Static Rutgers Building Index** (curated list) to ensure 100% reliability and zero API cost.
+   - **Ranking**: Strict string matching against the local dataset.
 2. lot search
 3. history/favorites quick launch
 

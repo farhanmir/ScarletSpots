@@ -79,53 +79,40 @@ export default function SearchScreen() {
 
     setResults(lotResults);
 
-    // 2. Geocode for Places (Debounced)
-    const timer = setTimeout(async () => {
-      if (query.length > 3) {
-        setSearching(true);
-        try {
-          // Attempt to Geocode
-          // We can't strictly bias `geocodeAsync` without native APIs, but we can filter the results.
-          // Rutgers New Brunswick approx center: 40.5008, -74.4474
-          const RUTGERS_LAT = 40.5008;
-          const RUTGERS_LNG = -74.4474;
-          
-          const geocoded = await Location.geocodeAsync(query);
-          
-          if (geocoded && geocoded.length > 0) {
-             const placeResults: PlaceResult[] = geocoded
-              .filter(geo => {
-                // Filter results to be within ~5 miles (~0.08 degrees) of Rutgers New Brunswick
-                // This ensures we only show buildings/places relevant to the campus area.
-                const latDiff = Math.abs(geo.latitude - RUTGERS_LAT);
-                const lngDiff = Math.abs(geo.longitude - RUTGERS_LNG);
-                return latDiff < 0.08 && lngDiff < 0.08; 
-              })
-              .slice(0, 3)
-              .map((geo, index) => ({
-                id: `place-${index}`,
-                name: query, 
-                address: 'Near Rutgers', // Generic label since geocoder is simple
-                latitude: geo.latitude,
-                longitude: geo.longitude,
-                type: 'place'
-              }));
-            
-            setResults(prev => {
-              // Combine and dedupe based on ID or Name logic if needed
-              // For now, just appending the filtered places
-              return [...prev, ...placeResults];
-            });
-          }
-        } catch (e) {
-          console.log('Geocoding error', e);
-        } finally {
-          setSearching(false);
-        }
-      }
-    }, 1000); // 1s debounce
+    // 2. SEARCH STATIC RUTGERS BUILDINGS (Guaranteed Results)
+    // This ensures common queries work even if native geocoding fails (e.g. on emulators)
+    const STATIC_PLACES = [
+        { name: 'Busch Student Center', lat: 40.5231, lng: -74.4588, address: '604 Bartholomew Rd' },
+        { name: 'Livingston Student Center', lat: 40.5238, lng: -74.4368, address: '84 Joyce Kilmer Ave' },
+        { name: 'College Ave Student Center', lat: 40.5026, lng: -74.4491, address: '126 College Ave' },
+        { name: 'Cook Student Center', lat: 40.4851, lng: -74.4373, address: '59 Biel Rd' },
+        { name: 'Douglass Student Center', lat: 40.4828, lng: -74.4358, address: '100 George St' },
+        { name: 'Alexander Library', lat: 40.5015, lng: -74.4485, address: '169 College Ave' },
+        { name: 'Library of Science and Medicine', lat: 40.5215, lng: -74.4604, address: '165 Bevier Rd' },
+        { name: 'Carr Library', lat: 40.5244, lng: -74.4347, address: 'Livingston Campus' },
+        { name: 'Werblin Recreation Center', lat: 40.5196, lng: -74.4552, address: '656 Bartholomew Rd' },
+        { name: 'College Ave Gym', lat: 40.5012, lng: -74.4492, address: '130 College Ave' },
+        { name: 'Jersey Mike\'s Arena', lat: 40.5262, lng: -74.4390, address: '83 Rockafeller Rd' },
+        { name: 'SHI Stadium', lat: 40.5138, lng: -74.4646, address: '1 Scarlet Knight Way' },
+        { name: 'The Yard', lat: 40.4996, lng: -74.4481, address: '40 College Ave' },
+    ];
 
-    return () => clearTimeout(timer);
+    const staticResults: PlaceResult[] = STATIC_PLACES
+        .filter(place => place.name.toLowerCase().includes(lowerQuery))
+        .map((place, index) => ({
+            id: `static-${index}`,
+            name: place.name,
+            address: place.address,
+            latitude: place.lat,
+            longitude: place.lng,
+            type: 'place'
+        }));
+
+    // Update with static results immediately
+    setResults([...lotResults, ...staticResults]);
+
+    return; 
+
 
   }, [query, lots]);
 

@@ -197,3 +197,14 @@ A deliverable is only complete when:
 - Observability is in place,
 - Performance is validated,
 - Documentation and runbooks are updated.
+
+---
+
+## Future / Post-Launch Ideas
+These features are scoped for V2 or post-launch optimization once core metrics are stable.
+
+### 1. Native Geocoding w/ strict Context
+- **Concept**: Use OS-level geocoders (Apple/Google) to allow searching for any POI (e.g. "Starbucks").
+- **Challenge**: Requires strict "Bounding Box" or "Context Injection" (e.g. appending ", Rutgers University, NJ") to avoid global results.
+- **Why Deferred**: Unreliable on simulators and requires robust error handling for remote users (e.g. searching from PA).
+- **Goal**: Re-enable to support non-building POIs once the "Static Index" coverage is outgrown.
