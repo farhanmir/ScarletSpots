@@ -3,9 +3,12 @@ import { Stack, useSegments, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import { useEffect } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'; // Import QueryClientProvider
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AuthProvider, useAuth } from '@/context/AuthProvider';
+
+const queryClient = new QueryClient(); // Create a client
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -45,10 +48,16 @@ function InitialLayout() {
   );
 }
 
+import { SettingsProvider } from '@/context/SettingsContext';
+
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <InitialLayout />
-    </AuthProvider>
+    <SettingsProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <InitialLayout />
+        </AuthProvider>
+      </QueryClientProvider>
+    </SettingsProvider>
   );
 }
