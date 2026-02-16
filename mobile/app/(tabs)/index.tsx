@@ -4,10 +4,13 @@ import { BlurView } from 'expo-blur';
 import MapView, { PROVIDER_GOOGLE, PROVIDER_DEFAULT, Polygon, Marker } from 'react-native-maps';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Location from 'expo-location';
-import { publicApiCall, authApiCall } from '../../lib/supabase';
+import { useQuery } from '@tanstack/react-query';
+import { authApiCall, publicApiCall } from '../../lib/supabase';
 import { useAuth } from '@/context/AuthProvider';
 import LotDetails from '../../components/LotDetails';
+import FriendMarkers from '../../components/Map/FriendMarkers';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useSettings } from '@/context/SettingsContext';
 
 interface Lot {
   id: string;
@@ -48,12 +51,22 @@ export default function MapScreen() {
   const mapRef = useRef<MapView>(null);
   const params = useLocalSearchParams();
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
-  const [lots, setLots] = useState<Lot[]>([]);
   const [selectedLot, setSelectedLot] = useState<Lot | null>(null);
   const [selectedPlace, setSelectedPlace] = useState<{ lat: number; lng: number; name: string } | null>(null);
   const [activeSession, setActiveSession] = useState<ParkingSession | null>(null);
   const [loading, setLoading] = useState(false);
-  const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('hidden'); 
+  const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('hidden');
+  const { showFriends } = useSettings();
+
+  // Fetch Lots with TanStack Query (via Supabase Edge Functions)
+  const { data: lots = [], refetch: refetchLots } = useQuery<Lot[]>({
+    queryKey: ['lots'],
+    queryFn: async () => {
+      const data = await publicApiCall('/lots');
+      return data.lots || [];
+    },
+    refetchInterval: 30000, // Poll every 30s
+  }); 
  
 
 
@@ -398,7 +411,7 @@ export default function MapScreen() {
       setLocation(location);
     })();
     
-    fetchLots();
+    // fetchLots(); // Handled by useQuery
   }, []);
 
   useEffect(() => {
@@ -409,14 +422,14 @@ export default function MapScreen() {
     }
   }, [user]);
 
-  const fetchLots = async () => {
-    try {
-      const data = await publicApiCall('/lots');
-      setLots(data.lots || []);
-    } catch (error) {
-      console.error('Error fetching lots:', error);
-    }
-  };
+  // const fetchLots = async () => {
+  //   try {
+  //     const data = await publicApiCall('/lots');
+  //     setLots(data.lots || []);
+  //   } catch (error) {
+  //     console.error('Error fetching lots:', error);
+  //   }
+  // };
 
   const fetchActiveSession = async () => {
     try {
@@ -459,7 +472,7 @@ export default function MapScreen() {
         Alert.alert('Success', `Parking session started at Spot #${spotNumber}`);
         setActiveSession(data.session);
         setSelectedLot(null);
-        fetchLots(); // Refresh occupancy
+        refetchLots(); // Refresh occupancy
       }
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to start parking session');
@@ -481,7 +494,7 @@ export default function MapScreen() {
         // Just clear everything and showing the alert is enough
         setActiveSession(null);
         setSelectedLot(null);
-        fetchLots();
+        refetchLots();
         Alert.alert('Session Ended', 'Your parking session has ended.');
       }
     } catch (error: any) {
@@ -626,6 +639,9 @@ export default function MapScreen() {
              </View>
           </Marker>
         ))}
+
+        {/* Friend Markers (Phase 3 Feature) */}
+        {showFriends && <FriendMarkers />}
 
         {/* Selected Place Marker */}
         {selectedPlace && (
