@@ -196,9 +196,7 @@ export default function NavigateScreen() {
 
   // Colors based on state
   const getThemeColor = () => {
-    if (proximityState === 'arrived') return '#10b981'; // Green
-    if (proximityState === 'near') return '#f59e0b'; // Amber
-    return '#dc2626'; // Red
+    return '#dc2626'; // Red always
   };
 
   const themeColor = getThemeColor();
@@ -244,7 +242,7 @@ export default function NavigateScreen() {
              <Text style={[styles.distanceText, { color: themeColor }]}>
                {proximityState === 'arrived' ? 'HERE' : distance < 0.1 ? `${Math.round(distance * 5280)} ft` : `${distance.toFixed(1)} mi`}
              </Text>
-             {proximityState === 'arrived' && <Text style={styles.arrivedText}>You have arrived.</Text>}
+             {/* Removed Arrived Text */}
           </View>
 
           <View style={[
@@ -323,7 +321,7 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    filter: 'blur(20px)', // Will work where supported, ignored otherwise
+    // filter: 'blur(20px)', // Unsupported in RN, removing to be safe
   },
   targetInfo: {
     alignItems: 'center',
