@@ -1,3 +1,9 @@
+import sys
+import os
+
+# Add parent directory to path to allow running as script
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
@@ -35,3 +41,8 @@ def health_check():
 @app.get("/")
 def root():
     return {"message": "Welcome to ScarletSpots API"}
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)

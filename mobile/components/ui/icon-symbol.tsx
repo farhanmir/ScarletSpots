@@ -28,6 +28,8 @@ const MAPPING = {
   'xmark.circle.fill': 'close',
   'clock': 'access-time',
   'mappin.and.ellipse': 'place',
+  'location.north.fill': 'arrow-upward',
+  'location.slash.fill': 'location-off',
 } as IconMapping;
 
 /**
