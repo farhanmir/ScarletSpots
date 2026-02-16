@@ -87,6 +87,7 @@ export default function MapView() {
     lng: number;
     name: string;
   } | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const navigate = useNavigate();
   const mapRef = useRef<LeafletMap | null>(null);
 
@@ -106,6 +107,12 @@ export default function MapView() {
       data: { session },
     } = await supabase.auth.getSession();
     if (!session) return;
+    
+    // Get user role
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user?.user_metadata?.role) {
+      setUserRole(user.user_metadata.role);
+    }
   };
 
   const getOccupancyHexColor = (rate: number) => {
@@ -308,13 +315,15 @@ export default function MapView() {
                   <Users className='w-5 h-5 mr-3 text-zinc-400' />
                   Friends
                 </Button>
-                <Button
-                  onClick={() => navigate('/admin/geofences')}
-                  className='w-full justify-start bg-transparent hover:bg-zinc-800 text-white text-base font-normal h-12'
-                >
-                  <Settings className='w-5 h-5 mr-3 text-zinc-400' />
-                  Geofence Editor
-                </Button>
+                {userRole === 'admin' && (
+                  <Button
+                    onClick={() => navigate('/admin/geofences')}
+                    className='w-full justify-start bg-transparent hover:bg-zinc-800 text-white text-base font-normal h-12'
+                  >
+                    <Settings className='w-5 h-5 mr-3 text-zinc-400' />
+                    Geofence Editor
+                  </Button>
+                )}
               </div>
 
               <div className='border-t border-zinc-800 pt-6'>

@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router';
-import { LayoutDashboard, Map, Users, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, Map, Users, Settings, LogOut, ArrowLeft } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { supabase } from '../../lib/supabase';
 
@@ -85,6 +85,17 @@ export default function AdminLayout() {
           >
             <Settings size={18} />
             Settings
+          </NavLink>
+          <NavLink
+            to="/map"
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2 rounded-md transition-colors ${
+                isActive ? 'bg-red-600/10 text-red-500' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
+              }`
+            }
+          >
+            <ArrowLeft size={18} />
+            Back to Map
           </NavLink>
         </nav>
 
