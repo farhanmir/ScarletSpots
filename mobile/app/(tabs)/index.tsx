@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { StyleSheet, View, Platform, Alert, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Platform, Alert, Text, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
 import { BlurView } from 'expo-blur';
 import MapView, { PROVIDER_GOOGLE, PROVIDER_DEFAULT, Polygon, Marker } from 'react-native-maps';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -54,6 +54,8 @@ export default function MapScreen() {
   const [activeSession, setActiveSession] = useState<ParkingSession | null>(null);
   const [loading, setLoading] = useState(false);
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('hidden'); 
+ 
+
 
   // Clusters computation
   const clusters = React.useMemo(() => {
@@ -635,6 +637,8 @@ export default function MapScreen() {
         )}
       </MapView>
 
+
+
       {/* Center on Me Button - Styled like LiquidGlassTabBar */}
       <View style={styles.centerButtonContainer}>
          {Platform.OS === 'ios' && (
@@ -830,4 +834,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: 'bold',
   },
+
 });
