@@ -152,9 +152,8 @@ Global behavior:
 Visible:
 - user location marker
 - lot overlays and occupancy state
-- search affordance
-- quick filters (All, Permit-safe, Busy, Full, Friends)
 - destination chip (if selected)
+- **Friend Locations**: Friends with active sessions appear as PFP pins on the map (or colored lots).
 
 Tap interactions:
 - Tap lot marker -> lot bottom sheet opens
@@ -165,8 +164,8 @@ Tap interactions:
 Shows:
 - lot name/campus
 - current occupancy
-- forecast strip now/+15/+30/+60
-- permit/risk warning text
+- forecast strip now/+15/+30/+60 (UPDATED TIMES CHECK OTHER DOCUMENTATIONS)
+- permit/risk warning text (REMOVED)
 - actions:
   - Navigate to lot
   - Park Here

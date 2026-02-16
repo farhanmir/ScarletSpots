@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -7,25 +7,98 @@ import {
   Platform,
   Linking,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import * as Location from 'expo-location';
+import * as Notifications from 'expo-notifications';
+import { Pedometer } from 'expo-sensors';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { LinearGradient } from 'expo-linear-gradient';
+
+// Steps definition
+type PermissionStep = 'location' | 'motion' | 'notifications' | 'completed';
 
 export default function PermissionsScreen() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [currentStep, setCurrentStep] = useState<PermissionStep>('location');
   const [denied, setDenied] = useState(false);
+
+  // Check initial status on mount
+  useEffect(() => {
+    checkInitialStatus();
+  }, []);
+
+  const checkInitialStatus = async () => {
+    // Check location first
+    const { status: locationStatus } = await Location.getForegroundPermissionsAsync();
+    if (locationStatus === 'granted') {
+        // Build a smart skipper? For now just let them flow through or auto-advance
+        // Ideally we check each and jump to the first missing one.
+        // But for simplicity/demo, let's just start at Location if it's missing, 
+        // or check motion if location is good.
+        
+        // Pedometer check
+        const { status: motionStatus } = await Pedometer.getPermissionsAsync();
+        if (motionStatus === 'granted') {
+             // Notification check
+             const { status: notifStatus } = await Notifications.getPermissionsAsync();
+             if (notifStatus === 'granted') {
+                 // All good, go to tabs
+                 router.replace('/(tabs)');
+                 return;
+             } else {
+                 setCurrentStep('notifications');
+             }
+        } else {
+            setCurrentStep('motion');
+        }
+    } else {
+        setCurrentStep('location');
+    }
+  };
+
+  const nextStep = () => {
+      if (currentStep === 'location') setCurrentStep('motion');
+      else if (currentStep === 'motion') setCurrentStep('notifications');
+      else if (currentStep === 'notifications') finish();
+  };
+
+  const finish = () => {
+    router.replace('/(tabs)');
+  };
 
   const requestPermission = async () => {
     setLoading(true);
+    setDenied(false);
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status === 'granted') {
-        router.replace('/(tabs)');
-      } else {
-        setDenied(true);
+      if (currentStep === 'location') {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+            nextStep();
+        } else {
+            setDenied(true);
+        }
+      } else if (currentStep === 'motion') {
+          // Motion involves Pedometer on iOS/Android often
+          const { status } = await Pedometer.requestPermissionsAsync();
+          if (status === 'granted') {
+              nextStep();
+          } else {
+              // Motion is optional-ish, we can warn and skip or force. 
+              // Blueprint says "denied -> app runs with reduced detection confidence"
+              // So we allow proceeding even if denied, maybe with an alert?
+              Alert.alert(
+                  "Motion Detection Disabled",
+                  "Auto-parking detection will be less accurate without motion sensors.",
+                  [{ text: "OK", onPress: () => nextStep() }]
+              );
+          }
+      } else if (currentStep === 'notifications') {
+          const { status } = await Notifications.requestPermissionsAsync();
+          // Always proceed after notifications, granted or not
+          finish();
       }
     } catch (error) {
       console.error(error);
@@ -43,17 +116,52 @@ export default function PermissionsScreen() {
     }
   };
 
-  // Re-check permission when coming back from settings
   const recheckPermission = async () => {
-    setLoading(true);
-    const { status } = await Location.getForegroundPermissionsAsync();
-    if (status === 'granted') {
-      router.replace('/(tabs)');
-    } else {
-      setDenied(true);
-    }
-    setLoading(false);
+      // Re-checks current step's permission
+      setLoading(true);
+      if (currentStep === 'location') {
+        const { status } = await Location.getForegroundPermissionsAsync();
+        if (status === 'granted') {
+            setDenied(false); 
+            nextStep();
+        } else {
+            setDenied(true);
+        }
+      } 
+      // Motion and Notifs usually don't need a "recheck" from denied state as critically as location
+      // But we can add logic if needed. For now, Location is the main blocker.
+      setLoading(false);
   };
+
+  const renderContent = () => {
+      switch (currentStep) {
+          case 'location':
+              return {
+                  icon: 'location.fill',
+                  color: '#dc2626',
+                  title: 'Enable Location',
+                  subtitle: 'ScarletSpots needs your location to show nearby parking lots and navigate you to your car.'
+              };
+          case 'motion':
+              return {
+                  icon: 'figure.walk',
+                  color: '#9333ea', // Purple
+                  title: 'Enable Motion',
+                  subtitle: 'We use motion sensors to automatically detect when you park your car and start walking.'
+              };
+          case 'notifications':
+              return {
+                  icon: 'bell.fill',
+                  color: '#f59e0b', // Amber
+                  title: 'Enable Notifications',
+                  subtitle: 'Get alerts when your parking session is about to expire or when you enter a lot.'
+              };
+          default:
+              return { icon: 'checkmark.circle', color: 'green', title: 'All Set', subtitle: '' };
+      }
+  };
+
+  const content = renderContent();
 
   return (
     <View style={styles.container}>
@@ -67,19 +175,25 @@ export default function PermissionsScreen() {
       />
 
       {!denied ? (
-        /* ── INITIAL REQUEST ── */
+        /* ── REQUEST UI ── */
         <View style={styles.content}>
-          <View style={styles.iconCircle}>
-            <IconSymbol name="location.fill" size={48} color="#dc2626" />
+          <View style={styles.stepIndicator}>
+              <View style={[styles.dot, currentStep === 'location' && styles.activeDot, (currentStep === 'motion' || currentStep === 'notifications') && styles.completedDot]} />
+              <View style={[styles.line, (currentStep === 'motion' || currentStep === 'notifications') && styles.completedLine]} />
+              <View style={[styles.dot, currentStep === 'motion' && styles.activeDot, currentStep === 'notifications' && styles.completedDot]} />
+              <View style={[styles.line, currentStep === 'notifications' && styles.completedLine]} />
+              <View style={[styles.dot, currentStep === 'notifications' && styles.activeDot]} />
           </View>
 
-          <Text style={styles.title}>Enable Location</Text>
-          <Text style={styles.subtitle}>
-            ScarletSpots needs your location to show nearby parking lots and navigate you to your car.
-          </Text>
+          <View style={[styles.iconCircle, { backgroundColor: `${content.color}20` }]}>
+            <IconSymbol name={content.icon as any} size={48} color={content.color} />
+          </View>
+
+          <Text style={styles.title}>{content.title}</Text>
+          <Text style={styles.subtitle}>{content.subtitle}</Text>
 
           <TouchableOpacity
-            style={styles.primaryButton}
+            style={[styles.primaryButton, { backgroundColor: content.color, shadowColor: content.color }]}
             onPress={requestPermission}
             disabled={loading}
             activeOpacity={0.85}
@@ -87,45 +201,29 @@ export default function PermissionsScreen() {
             {loading ? (
               <ActivityIndicator color="white" />
             ) : (
-              <Text style={styles.primaryButtonText}>Allow Location Access</Text>
+              <Text style={styles.primaryButtonText}>
+                  {currentStep === 'notifications' ? 'Allow & Finish' : 'Allow Access'}
+              </Text>
             )}
           </TouchableOpacity>
+          
+          {currentStep !== 'location' && (
+              <TouchableOpacity onPress={() => currentStep === 'notifications' ? finish() : nextStep()} style={styles.skipButton}>
+                  <Text style={styles.skipText}>Skip for now</Text>
+              </TouchableOpacity>
+          )}
         </View>
       ) : (
-        /* ── DENIED RECOVERY ── */
+        /* ── DENIED RECOVERY UI (Mostly for Location) ── */
         <View style={styles.content}>
           <View style={[styles.iconCircle, styles.iconCircleDenied]}>
             <IconSymbol name="location.slash.fill" size={48} color="#f87171" />
           </View>
 
-          <Text style={styles.title}>Location Denied</Text>
+          <Text style={styles.title}>Permission Denied</Text>
           <Text style={styles.subtitle}>
-            You've denied location access. ScarletSpots can't function without it. Please enable it manually in your phone's settings.
+             ScarletSpots can't function properly without this permission. Please enable it in settings.
           </Text>
-
-          {/* Platform-specific instructions */}
-          <View style={styles.instructionsCard}>
-            <Text style={styles.instructionsTitle}>
-              {Platform.OS === 'ios' ? '📱 iOS Instructions' : '📱 Android Instructions'}
-            </Text>
-
-            {Platform.OS === 'ios' ? (
-              <View style={styles.steps}>
-                <Text style={styles.step}>1. Tap "Open Settings" below</Text>
-                <Text style={styles.step}>2. Tap <Text style={styles.bold}>Location</Text></Text>
-                <Text style={styles.step}>3. Select <Text style={styles.bold}>While Using the App</Text></Text>
-                <Text style={styles.step}>4. Come back here and tap "I've Enabled It"</Text>
-              </View>
-            ) : (
-              <View style={styles.steps}>
-                <Text style={styles.step}>1. Tap "Open Settings" below</Text>
-                <Text style={styles.step}>2. Tap <Text style={styles.bold}>Permissions</Text></Text>
-                <Text style={styles.step}>3. Tap <Text style={styles.bold}>Location</Text></Text>
-                <Text style={styles.step}>4. Select <Text style={styles.bold}>Allow only while using the app</Text></Text>
-                <Text style={styles.step}>5. Come back here and tap "I've Enabled It"</Text>
-              </View>
-            )}
-          </View>
 
           <TouchableOpacity
             style={styles.primaryButton}
@@ -164,13 +262,40 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 28,
   },
-
+  // Stepper
+  stepIndicator: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 40,
+  },
+  dot: {
+      width: 12,
+      height: 12,
+      borderRadius: 6,
+      backgroundColor: '#3f3f46',
+  },
+  activeDot: {
+      backgroundColor: '#fff',
+      transform: [{ scale: 1.2 }],
+  },
+  completedDot: {
+      backgroundColor: '#22c55e',
+  },
+  line: {
+      width: 40,
+      height: 2,
+      backgroundColor: '#3f3f46',
+      marginHorizontal: 4,
+  },
+  completedLine: {
+      backgroundColor: '#22c55e',
+  },
+  
   // Icon
   iconCircle: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: 'rgba(220, 38, 38, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 28,
@@ -195,44 +320,13 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
 
-  // Instructions card
-  instructionsCard: {
-    width: '100%',
-    backgroundColor: 'rgba(24, 24, 27, 0.6)',
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(39, 39, 42, 1)',
-    marginBottom: 28,
-  },
-  instructionsTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#d4d4d8',
-    marginBottom: 14,
-  },
-  steps: {
-    gap: 8,
-  },
-  step: {
-    fontSize: 14,
-    color: '#a1a1aa',
-    lineHeight: 20,
-  },
-  bold: {
-    fontWeight: '700',
-    color: '#e4e4e7',
-  },
-
   // Buttons
   primaryButton: {
     width: '100%',
     height: 52,
-    backgroundColor: '#dc2626',
     borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#dc2626',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -258,4 +352,12 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
   },
+  skipButton: {
+      marginTop: 20,
+      padding: 10,
+  },
+  skipText: {
+      color: '#71717a',
+      fontSize: 15,
+  }
 });
