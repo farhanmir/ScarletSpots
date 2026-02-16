@@ -51,14 +51,6 @@ Use this with PLAN.md and ROADMAP.md.
 - App validates remote config and API health in background.
 - If backend unavailable: show graceful degraded mode message + retry.
 
-### Screen: Welcome / Value framing
-Buttons:
-- Get Started
-- Learn How It Works
-
-Tap behavior:
-- Get Started -> Auth Choice screen.
-- Learn How It Works -> short walkthrough, then Auth Choice.
 
 ### Screen: Auth Choice
 Buttons:
@@ -195,6 +187,10 @@ End Session flow:
 
 Modes:
 1. destination search (buildings/common locations)
+   - **Restriction**: Results must be within Rutgers campus boundaries.
+   - **Action**: Selecting a building pins it on the map and highlights the nearest open parking lots.
+   - **Tech**: Use **Native Device Geocoding** (Apple/Google via Expo) which is free.
+   - **Ranking**: Filter and rank results by distance to Rutgers coordinates to prioritize campus buildings over generic matches.
 2. lot search
 3. history/favorites quick launch
 

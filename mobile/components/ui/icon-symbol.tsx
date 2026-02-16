@@ -22,6 +22,12 @@ const MAPPING = {
   'person.fill': 'person',
   'magnifyingglass': 'search',
   'lock.fill': 'lock',
+  'car.fill': 'directions-car',
+  'arrow.right': 'arrow-forward',
+  'arrow.left': 'arrow-back',
+  'xmark.circle.fill': 'close',
+  'clock': 'access-time',
+  'mappin.and.ellipse': 'place',
 } as IconMapping;
 
 /**
