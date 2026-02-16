@@ -48,7 +48,7 @@ export default function AuthChoiceScreen() {
 
           <Text style={styles.termsText}>
             By continuing, you agree to our Terms & Privacy Policy.
-            {'\n'}Rotgers students only.
+            {'\n'}Rutgers students only.
           </Text>
         </View>
       </View>
