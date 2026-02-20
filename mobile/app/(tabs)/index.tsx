@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { StyleSheet, View, Platform, Alert, Text, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
 import { BlurView } from 'expo-blur';
-import MapView, { PROVIDER_GOOGLE, PROVIDER_DEFAULT, Polygon, Marker } from 'react-native-maps';
+import MapView, { PROVIDER_GOOGLE, PROVIDER_DEFAULT, Polygon, Marker, Heatmap } from 'react-native-maps';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import { useQuery } from '@tanstack/react-query';
@@ -11,6 +11,8 @@ import LotDetails from '../../components/LotDetails';
 import FriendMarkers from '../../components/Map/FriendMarkers';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useSettings } from '@/context/SettingsContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { PARKING_DETECTION_TASK } from '../../services/BackgroundTasks';
 
 interface Lot {
   id: string;
@@ -56,6 +58,7 @@ export default function MapScreen() {
   const [activeSession, setActiveSession] = useState<ParkingSession | null>(null);
   const [loading, setLoading] = useState(false);
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('hidden');
+  const [showHeatmap, setShowHeatmap] = useState(false);
   const { showFriends } = useSettings();
 
   // Fetch Lots with TanStack Query (via Supabase Edge Functions)
@@ -69,6 +72,15 @@ export default function MapScreen() {
   }); 
  
 
+
+  // Compute Heatmap Points based on occupancy (higher occupancy = red hot)
+  const heatmapPoints = React.useMemo(() => {
+    return lots.map(lot => ({
+      latitude: lot.latitude,
+      longitude: lot.longitude,
+      weight: lot.occupancyRate > 0 ? lot.occupancyRate / 100 : 0.1, // Scale 0-1
+    }));
+  }, [lots]);
 
   // Clusters computation
   const clusters = React.useMemo(() => {
@@ -164,6 +176,36 @@ export default function MapScreen() {
       setSelectedLot(null);
     }
   }, [selectedLotId, placeLat, placeLng, placeName, lots]);
+
+  useEffect(() => {
+    if (lots.length > 0) {
+      AsyncStorage.setItem('cached_lots', JSON.stringify(lots));
+    }
+
+    const startBackgroundTracking = async () => {
+      const { status: bgStatus } = await Location.getBackgroundPermissionsAsync();
+      if (bgStatus === 'granted') {
+        const isRegistered = await Location.hasStartedLocationUpdatesAsync(PARKING_DETECTION_TASK);
+        if (!isRegistered) {
+          await Location.startLocationUpdatesAsync(PARKING_DETECTION_TASK, {
+            accuracy: Location.Accuracy.Balanced,
+            showsBackgroundLocationIndicator: true,
+            activityType: Location.LocationActivityType.AutomotiveNavigation,
+            distanceInterval: 10, // Update every 10 meters
+            pausesUpdatesAutomatically: false,
+            foregroundService: {
+              notificationTitle: "ScarletSpots",
+              notificationBody: "Monitoring your parking status...",
+              notificationColor: "#dc2626",
+            },
+          });
+          console.log('[MapScreen] Started background location updates');
+        }
+      }
+    };
+
+    startBackgroundTracking();
+  }, [lots]);
 
   const darkMapStyle = [
     {
@@ -654,6 +696,20 @@ export default function MapScreen() {
         {/* Friend Markers (Phase 3 Feature) */}
         {showFriends && <FriendMarkers />}
 
+        {/* Heatmap Layer */}
+        {showHeatmap && heatmapPoints.length > 0 && Platform.OS !== 'web' && mapProvider === PROVIDER_GOOGLE && (
+           <Heatmap
+              points={heatmapPoints}
+              radius={Platform.OS === 'ios' ? 40 : 50}
+              opacity={0.6}
+              gradient={{
+                 colors: ['#00000000', '#10b981', '#f59e0b', '#ef4444'],
+                 startPoints: [0, 0.25, 0.6, 1],
+                 colorMapSize: 256
+              }}
+           />
+        )}
+
         {/* Selected Place Marker */}
         {selectedPlace && (
           <Marker
@@ -665,6 +721,26 @@ export default function MapScreen() {
       </MapView>
 
 
+
+      {/* Heatmap Toggle Button */}
+      <View style={[styles.centerButtonContainer, { bottom: 170 }]}>
+         {Platform.OS === 'ios' && (
+            <BlurView intensity={80} tint="systemChromeMaterialDark" style={StyleSheet.absoluteFill} />
+         )}
+         <TouchableOpacity
+           style={[styles.centerButton, Platform.OS === 'android' && styles.centerButtonAndroid]}
+           onPress={() => {
+             if (mapProvider !== PROVIDER_GOOGLE) {
+               Alert.alert('Heatmap Unavailable', 'Heatmaps require Google Maps, which is not supported in the standard Expo Go iOS client.');
+               return;
+             }
+             setShowHeatmap(!showHeatmap);
+           }}
+           activeOpacity={0.7}
+         >
+           <IconSymbol name="flame.fill" size={24} color={showHeatmap ? "#ef4444" : "#71717a"} />
+         </TouchableOpacity>
+      </View>
 
       {/* Center on Me Button - Styled like LiquidGlassTabBar */}
       <View style={styles.centerButtonContainer}>

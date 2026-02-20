@@ -12,7 +12,8 @@ import {
   ScrollView,
   LayoutAnimation,
   UIManager,
-  Alert
+  Alert,
+  ActivityIndicator
 } from 'react-native';
 import { IconSymbol } from './ui/icon-symbol';
 import { BlurView } from 'expo-blur';
@@ -55,8 +56,28 @@ interface LotDetailsProps {
   user: any; 
 }
 
+import { useQuery } from '@tanstack/react-query';
+import { publicApiCall } from '../lib/supabase';
+
+// ... other imports will remain since I'm targeting the component itself
+
+interface ForecastPoint {
+  time: string;
+  expected_occupancy: number;
+}
+
 export default function LotDetails({ lot, onClose, onPark, isParking, user }: LotDetailsProps) {
   const [expanded, setExpanded] = useState(false);
+
+  const { data: forecast = [], isLoading: isLoadingForecast } = useQuery<ForecastPoint[]>({
+    queryKey: ['forecast', lot.id],
+    queryFn: async () => {
+      const data = await publicApiCall(`/lots/${lot.id}/forecast`);
+      return data || [];
+    },
+    enabled: !!lot.id && !lot.id.startsWith('custom:'),
+    staleTime: 60000 * 15, // 15 minutes
+  });
 
   // Prevent LayoutAnimation on unmount which causes crashes
   // We only animate the expansion
@@ -82,6 +103,16 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user }: Lo
     if (url) {
       Linking.openURL(url);
     }
+  };
+  
+  // Format ISO time to "10 AM"
+  const formatTime = (isoString: string) => {
+    const date = new Date(isoString);
+    let hours = date.getHours();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12; 
+    return `${hours}${ampm}`;
   };
 
   return (
@@ -152,36 +183,25 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user }: Lo
             </View>
 
             {/* Forecast Strip */}
-            {/* Forecast Strip - Expanded (-15m to +3h) */}
             <View style={styles.forecastContainer}>
-               <View style={styles.forecastItem}>
-                <Text style={styles.forecastTime}>-15m</Text>
-                <View style={[styles.forecastBar, { height: 16, backgroundColor: getOccupancyColor(Math.max(0, lot.occupancyRate - 2)) }]} />
-              </View>
-              <View style={styles.forecastItem}>
-                <Text style={[styles.forecastTime, { color: '#fff', fontWeight: 'bold' }]}>Now</Text>
-                <View style={[styles.forecastBar, { height: 24, backgroundColor: getOccupancyColor(lot.occupancyRate) }]} />
-              </View>
-              <View style={styles.forecastItem}>
-                <Text style={styles.forecastTime}>+15m</Text>
-                <View style={[styles.forecastBar, { height: 28, backgroundColor: getOccupancyColor(Math.min(100, lot.occupancyRate + 5)) }]} />
-              </View>
-              <View style={styles.forecastItem}>
-                <Text style={styles.forecastTime}>+30m</Text>
-                <View style={[styles.forecastBar, { height: 32, backgroundColor: getOccupancyColor(Math.min(100, lot.occupancyRate + 12)) }]} />
-              </View>
-              <View style={styles.forecastItem}>
-                <Text style={styles.forecastTime}>+1h</Text>
-                <View style={[styles.forecastBar, { height: 20, backgroundColor: getOccupancyColor(Math.max(0, lot.occupancyRate - 5)) }]} />
-              </View>
-              <View style={styles.forecastItem}>
-                <Text style={styles.forecastTime}>+2h</Text>
-                <View style={[styles.forecastBar, { height: 16, backgroundColor: getOccupancyColor(Math.max(0, lot.occupancyRate - 15)) }]} />
-              </View>
-              <View style={styles.forecastItem}>
-                <Text style={styles.forecastTime}>+3h</Text>
-                <View style={[styles.forecastBar, { height: 12, backgroundColor: getOccupancyColor(Math.max(0, lot.occupancyRate - 25)) }]} />
-              </View>
+              {isLoadingForecast ? (
+                 <ActivityIndicator size="small" color="#52525b" />
+              ) : forecast.length > 0 ? (
+                 forecast.map((point: ForecastPoint, index: number) => {
+                    const isNow = index === 1; // Our backend returns t-1, t0, t+1, t+2, t+3
+                    const barHeight = Math.max(8, (point.expected_occupancy / 100) * 32); 
+                    return (
+                      <View key={index} style={styles.forecastItem}>
+                        <Text style={[styles.forecastTime, isNow && { color: '#fff', fontWeight: 'bold' }]}>
+                           {isNow ? 'Now' : formatTime(point.time)}
+                        </Text>
+                        <View style={[styles.forecastBar, { height: barHeight, backgroundColor: getOccupancyColor(point.expected_occupancy) }]} />
+                      </View>
+                    );
+                 })
+              ) : (
+                 <Text style={{color: '#71717a'}}>Forecast unavailable</Text>
+              )}
             </View>
 
             <View style={styles.actions}>

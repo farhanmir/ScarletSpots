@@ -32,13 +32,14 @@ export default function PermissionsScreen() {
 
   const checkInitialStatus = async () => {
     // Check location first
-    const { status: locationStatus } = await Location.getForegroundPermissionsAsync();
-    if (locationStatus === 'granted') {
-        // Build a smart skipper? For now just let them flow through or auto-advance
-        // Ideally we check each and jump to the first missing one.
-        // But for simplicity/demo, let's just start at Location if it's missing, 
-        // or check motion if location is good.
-        
+    const { status: fgStatus } = await Location.getForegroundPermissionsAsync();
+    if (fgStatus === 'granted') {
+        const { status: bgStatus } = await Location.getBackgroundPermissionsAsync();
+        if (bgStatus !== 'granted') {
+            setCurrentStep('location');
+            return;
+        }
+
         // Pedometer check
         const { status: motionStatus } = await Pedometer.getPermissionsAsync();
         if (motionStatus === 'granted') {
@@ -74,9 +75,14 @@ export default function PermissionsScreen() {
     setDenied(false);
     try {
       if (currentStep === 'location') {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status === 'granted') {
-            nextStep();
+        const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
+        if (fgStatus === 'granted') {
+            const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
+            if (bgStatus === 'granted') {
+                nextStep();
+            } else {
+                setDenied(true);
+            }
         } else {
             setDenied(true);
         }

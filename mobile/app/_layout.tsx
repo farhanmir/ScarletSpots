@@ -4,11 +4,30 @@ import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import { useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'; // Import QueryClientProvider
+import '../services/BackgroundTasks'; // Register background tasks globally
+
+// Global Error Boundary
+export { ErrorBoundary } from 'expo-router';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AuthProvider, useAuth } from '@/context/AuthProvider';
 
-const queryClient = new QueryClient(); // Create a client
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
+import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      gcTime: 1000 * 60 * 60 * 24, // 24 hours
+      staleTime: 1000 * 30, // 30 seconds
+    },
+  },
+});
+
+const asyncStoragePersister = createAsyncStoragePersister({
+  storage: AsyncStorage,
+});
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -49,15 +68,32 @@ function InitialLayout() {
 }
 
 import { SettingsProvider } from '@/context/SettingsContext';
+import OfflineBanner from '@/components/ui/OfflineBanner';
+import NetInfo from '@react-native-community/netinfo';
+import { syncOfflineQueue } from '@/lib/supabase';
 
 export default function RootLayout() {
+  useEffect(() => {
+    // Listen for global connection changes to trigger sync
+    const unsubscribe = NetInfo.addEventListener(state => {
+      if (state.isConnected && state.isInternetReachable) {
+        syncOfflineQueue();
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
   return (
     <SettingsProvider>
-      <QueryClientProvider client={queryClient}>
+      <PersistQueryClientProvider 
+        client={queryClient}
+        persistOptions={{ persister: asyncStoragePersister }}
+      >
         <AuthProvider>
+          <OfflineBanner />
           <InitialLayout />
         </AuthProvider>
-      </QueryClientProvider>
+      </PersistQueryClientProvider>
     </SettingsProvider>
   );
 }
