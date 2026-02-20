@@ -481,6 +481,13 @@ export default function MapScreen() {
     }
   };
 
+  // Helper for dynamic lot coloring
+  const getOccupancyColor = (rate: number) => {
+    if (rate >= 90) return { full: '#ef4444', bg: 'rgba(239, 68, 68, 0.6)' }; // Red
+    if (rate >= 70) return { full: '#f59e0b', bg: 'rgba(245, 158, 11, 0.6)' }; // Amber
+    return { full: '#10b981', bg: 'rgba(16, 185, 129, 0.6)' }; // Emerald (Green)
+  };
+
   const handleEndSession = async () => {
     if (!activeSession) return;
     setLoading(true);
@@ -494,6 +501,8 @@ export default function MapScreen() {
         // Just clear everything and showing the alert is enough
         setActiveSession(null);
         setSelectedLot(null);
+        setSelectedPlace(null); // Clear navigation selection
+        clearRouteSelectionParams(); // Clear route params
         refetchLots();
         Alert.alert('Session Ended', 'Your parking session has ended.');
       }
@@ -566,14 +575,16 @@ export default function MapScreen() {
       >
         {zoomLevel === 'lot' ? lots.map((lot) => {
           const isSelected = selectedLot?.id === lot.id;
+          const colors = getOccupancyColor(lot.occupancyRate);
+          
           return (
             <React.Fragment key={lot.id}>
               {/* Polygon - Only show when really close? or always in 'lot' mode */}
               {lot.coordinates && lot.coordinates.length >= 3 && (
                 <Polygon
                   coordinates={lot.coordinates.map((p) => ({ latitude: p[0], longitude: p[1] }))}
-                  fillColor={isSelected ? "rgba(220, 38, 38, 0.6)" : "rgba(220, 38, 38, 0.25)"}
-                  strokeColor={isSelected ? "#ffffff" : "#dc2626"}
+                  fillColor={isSelected ? "rgba(220, 38, 38, 0.6)" : colors.bg}
+                  strokeColor={isSelected ? "#ffffff" : colors.full}
                   strokeWidth={isSelected ? 3 : 2}
                   tappable={true}
                   zIndex={isSelected ? 10 : 1}
@@ -596,7 +607,7 @@ export default function MapScreen() {
                 <View style={[styles.markerContainer, isSelected && { transform: [{ scale: 1.2 }] }]}>
                   <View style={[
                     styles.markerBubble,
-                    lot.occupancyRate > 80 && styles.markerFull,
+                    { backgroundColor: colors.full },
                     isSelected && { borderColor: '#fff', borderWidth: 2 }
                   ]}>
                     <Text style={styles.markerText}>
@@ -605,7 +616,7 @@ export default function MapScreen() {
                   </View>
                   <View style={[
                     styles.markerArrow,
-                    lot.occupancyRate > 80 && styles.markerArrowFull,
+                    { borderTopColor: colors.full },
                     isSelected && { borderTopColor: '#fff' }
                   ]} />
                 </View>
