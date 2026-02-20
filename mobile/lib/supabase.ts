@@ -18,15 +18,29 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
-// API Helper for calling Edge Functions
+// API Helper for calling Edge Functions and FastAPI backend
+import { Platform } from 'react-native';
+
+const LOCAL_FASTAPI_URL = Platform.OS === 'android' ? 'http://10.0.2.2:8000/api/v1' : 'http://localhost:8000/api/v1';
+
 const API_BASES = [
   `${supabaseUrl}/functions/v1/server`,
   `${supabaseUrl}/functions/v1/make-server-8814ba2a`,
 ];
 
+// Routes that strictly live on the new Python FastAPI backend
+const FASTAPI_ROUTES = ['/friends', '/lots/custom', '/park/session'];
+
 async function fetchWithFunctionFallback(endpoint: string, init: RequestInit): Promise<Response> {
+  // 1. Intercept FastAPI exclusive routes
+  if (FASTAPI_ROUTES.some(route => endpoint.startsWith(route))) {
+    console.log(`[api] Routing to local FastAPI backend: ${endpoint}`);
+    return await fetch(`${LOCAL_FASTAPI_URL}${endpoint}`, init);
+  }
+
   let lastResponse: Response | null = null;
 
+  // 2. Fallback cycle for Edge Functions
   for (const base of API_BASES) {
     const response = await fetch(`${base}${endpoint}`, init);
     lastResponse = response;
