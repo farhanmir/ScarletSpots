@@ -11,9 +11,20 @@ security = HTTPBearer()
 _supabase: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
 
 
+from supabase import create_client, Client
+from supabase.lib.client_options import ClientOptions
+
 def get_supabase() -> Client:
     """Return the shared Supabase client."""
     return _supabase
+
+def get_auth_db(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Client:
+    """Return an authenticated Supabase client for the current request."""
+    token = credentials.credentials
+    opts = ClientOptions()
+    db = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY, options=opts)
+    db.postgrest.auth(token)
+    return db
 
 
 def get_current_user(

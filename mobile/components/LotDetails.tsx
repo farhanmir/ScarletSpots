@@ -79,11 +79,20 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user }: Lo
     staleTime: 60000 * 15, // 15 minutes
   });
 
-  // Prevent LayoutAnimation on unmount which causes crashes
-  // We only animate the expansion
   const toggleExpand = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setExpanded(!expanded);
+  };
+
+  const handleClose = () => {
+    // If we're expanded, collapsing first before unmounting prevents layout ref crashes
+    if (expanded) {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setExpanded(false);
+      setTimeout(onClose, 300); // Wait for animation to finish
+    } else {
+      onClose();
+    }
   };
 
   const getOccupancyColor = (rate: number) => {
@@ -120,9 +129,9 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user }: Lo
       animationType="fade"
       transparent={true}
       visible={true}
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
     >
-      <TouchableWithoutFeedback onPress={onClose}>
+      <TouchableWithoutFeedback onPress={handleClose}>
         <View style={styles.overlay} />
       </TouchableWithoutFeedback>
 
@@ -156,7 +165,7 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user }: Lo
               <TouchableOpacity 
                 onPress={(e) => {
                   e.stopPropagation();
-                  onClose();
+                  handleClose();
                 }} 
                 style={styles.closeButton}
                 hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}

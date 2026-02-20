@@ -10,7 +10,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from app.core.config import settings
 from app.core.limiter import limiter
-from app.routers import users, lots, friends
+from app.routers import users, lots, friends, park
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -34,6 +34,7 @@ app.add_middleware(
 app.include_router(users.router, prefix=settings.API_V1_STR)
 app.include_router(lots.router, prefix=settings.API_V1_STR)
 app.include_router(friends.router, prefix=settings.API_V1_STR)
+app.include_router(park.router, prefix=settings.API_V1_STR)
 
 
 @app.get("/health")
