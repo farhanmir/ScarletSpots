@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { publicApiCall } from '../../lib/supabase';
 import * as Location from 'expo-location';
+import { RUTGERS_BUILDINGS } from '@/data/buildings';
 
 // Types
 interface Lot {
@@ -79,37 +80,20 @@ export default function SearchScreen() {
 
     setResults(lotResults);
 
-    // 2. SEARCH STATIC RUTGERS BUILDINGS (Guaranteed Results)
-    // This ensures common queries work even if native geocoding fails (e.g. on emulators)
-    const STATIC_PLACES = [
-        { name: 'Busch Student Center', lat: 40.5231, lng: -74.4588, address: '604 Bartholomew Rd' },
-        { name: 'Livingston Student Center', lat: 40.5238, lng: -74.4368, address: '84 Joyce Kilmer Ave' },
-        { name: 'College Ave Student Center', lat: 40.5026, lng: -74.4491, address: '126 College Ave' },
-        { name: 'Cook Student Center', lat: 40.4851, lng: -74.4373, address: '59 Biel Rd' },
-        { name: 'Douglass Student Center', lat: 40.4828, lng: -74.4358, address: '100 George St' },
-        { name: 'Alexander Library', lat: 40.5015, lng: -74.4485, address: '169 College Ave' },
-        { name: 'Library of Science and Medicine', lat: 40.5215, lng: -74.4604, address: '165 Bevier Rd' },
-        { name: 'Carr Library', lat: 40.5244, lng: -74.4347, address: 'Livingston Campus' },
-        { name: 'Werblin Recreation Center', lat: 40.5196, lng: -74.4552, address: '656 Bartholomew Rd' },
-        { name: 'College Ave Gym', lat: 40.5012, lng: -74.4492, address: '130 College Ave' },
-        { name: 'Jersey Mike\'s Arena', lat: 40.5262, lng: -74.4390, address: '83 Rockafeller Rd' },
-        { name: 'SHI Stadium', lat: 40.5138, lng: -74.4646, address: '1 Scarlet Knight Way' },
-        { name: 'The Yard', lat: 40.4996, lng: -74.4481, address: '40 College Ave' },
-    ];
-
-    const staticResults: PlaceResult[] = STATIC_PLACES
-        .filter(place => place.name.toLowerCase().includes(lowerQuery))
-        .map((place, index) => ({
-            id: `static-${index}`,
-            name: place.name,
-            address: place.address,
-            latitude: place.lat,
-            longitude: place.lng,
-            type: 'place'
-        }));
+    // 2. SEARCH STATIC RUTGERS BUILDINGS (Expanded List)
+    const buildingResults: PlaceResult[] = RUTGERS_BUILDINGS
+      .filter(place => place.name.toLowerCase().includes(lowerQuery))
+      .map((place, index) => ({
+        id: `building-${index}`,
+        name: place.name,
+        address: place.address,
+        latitude: place.latitude,
+        longitude: place.longitude,
+        type: 'place'
+      }));
 
     // Update with static results immediately
-    setResults([...lotResults, ...staticResults]);
+    setResults([...lotResults, ...buildingResults]);
 
     return; 
 
