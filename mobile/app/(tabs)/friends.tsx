@@ -17,7 +17,10 @@ export default function FriendsScreen() {
     queryKey: ['friends_list'],
     queryFn: async () => {
       const res = await authApiCall('/friends/');
-      return res || { friends: [], requests: [] };
+      if (res && res._offline) {
+        return { friends: [], requests: [] };
+      }
+      return { friends: res?.friends || [], requests: res?.requests || [] };
     },
     refetchInterval: 10000, // refresh every 10s
   });
