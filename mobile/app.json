@@ -12,7 +12,14 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.mobile",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIBackgroundModes": [
+          "location",
+          "fetch"
+        ],
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "ScarletSpots needs background location to detect when you park your car.",
+        "NSLocationAlwaysUsageDescription": "ScarletSpots needs background location to detect when you park your car.",
+        "NSMotionUsageDescription": "ScarletSpots needs motion access to detect when you stop driving and start walking."
       }
     },
     "android": {
@@ -26,7 +33,10 @@
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION"
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.ACTIVITY_RECOGNITION",
+        "com.google.android.gms.permission.ACTIVITY_RECOGNITION"
       ],
       "package": "com.anonymous.mobile"
     },
@@ -52,7 +62,9 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow ScarletSpots to use your location."
+          "locationAlwaysAndWhenInUsePermission": "Allow ScarletSpots to detect when you park your car.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true
         }
       ],
       "react-native-bottom-tabs"

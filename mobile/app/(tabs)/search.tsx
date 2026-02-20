@@ -95,8 +95,43 @@ export default function SearchScreen() {
     // Update with static results immediately
     setResults([...lotResults, ...buildingResults]);
 
-    return; 
+    // 3. ASYNC NATIVE GEOCODING (OS Level)
+    // Only fire if the query is substantive and we haven't found an exact match
+    if (query.length > 3) {
+      setSearching(true);
+      
+      const searchTimeout = setTimeout(async () => {
+        try {
+          // Append context to prevent global results (e.g. searching "Target" giving a California store)
+          const contextualQuery = `${query} New Brunswick, NJ`;
+          
+          const geocodeResults = await Location.geocodeAsync(contextualQuery);
+          
+          if (geocodeResults && geocodeResults.length > 0) {
+            const firstResult = geocodeResults[0];
+            
+            const nativeResult: PlaceResult = {
+              id: `native-${Date.now()}`,
+              name: query, // Label the pin what they searched
+              address: 'Custom Location (New Brunswick Area)',
+              latitude: firstResult.latitude,
+              longitude: firstResult.longitude,
+              type: 'place'
+            };
+            
+            setResults(prev => [...prev, nativeResult]);
+          }
+        } catch (err) {
+          console.log('[Search] Geocoding error or rate limit:', err);
+        } finally {
+          setSearching(false);
+        }
+      }, 500); // 500ms debounce
 
+      return () => clearTimeout(searchTimeout);
+    } else {
+      setSearching(false);
+    }
 
   }, [query, lots]);
 

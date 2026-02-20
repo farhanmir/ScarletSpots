@@ -4,16 +4,22 @@ import os
 # Add parent directory to path to allow running as script
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from app.core.config import settings
-from app.routers import users, lots
+from app.core.limiter import limiter
+from app.routers import users, lots, friends
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS
 app.add_middleware(
@@ -27,6 +33,7 @@ app.add_middleware(
 # Routers
 app.include_router(users.router, prefix=settings.API_V1_STR)
 app.include_router(lots.router, prefix=settings.API_V1_STR)
+app.include_router(friends.router, prefix=settings.API_V1_STR)
 
 
 @app.get("/health")

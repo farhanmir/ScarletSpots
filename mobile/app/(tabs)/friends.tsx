@@ -4,18 +4,65 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { BlurView } from 'expo-blur';
 
-// Mock Data for now
-const MOCK_FRIENDS = [
-  { id: '1', name: 'Sarah J.', status: 'Parked at Lot 54', parked: true, avatar: null },
-  { id: '2', name: 'Mike T.', status: 'Last seen 2h ago', parked: false, avatar: null },
-];
-
-const MOCK_REQUESTS = [
-  { id: '3', name: 'David R.', status: 'Incoming Request', avatar: null },
-];
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { authApiCall } from '../../lib/supabase';
+import { Alert } from 'react-native';
 
 export default function FriendsScreen() {
   const [activeTab, setActiveTab] = useState<'friends' | 'requests'>('friends');
+  const queryClient = useQueryClient();
+
+  // Fetch Friends and Requests
+  const { data = { friends: [], requests: [] }, isRefetching } = useQuery({
+    queryKey: ['friends_list'],
+    queryFn: async () => {
+      const res = await authApiCall('/friends/');
+      return res || { friends: [], requests: [] };
+    },
+    refetchInterval: 10000, // refresh every 10s
+  });
+
+  const { friends, requests } = data;
+
+  const acceptMutation = useMutation({
+    mutationFn: async (requestId: string) => {
+      return await authApiCall('/friends/accept', { method: 'POST', body: JSON.stringify({ request_id: requestId }) });
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['friends_list'] }),
+  });
+
+  const declineMutation = useMutation({
+    mutationFn: async (requestId: string) => {
+      return await authApiCall('/friends/decline', { method: 'POST', body: JSON.stringify({ request_id: requestId }) });
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['friends_list'] }),
+  });
+
+  const addFriendPrompt = () => {
+    Alert.prompt(
+      "Add Friend",
+      "Enter your friend's email address:",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Add", 
+          onPress: async (email?: string) => {
+            if (!email) return;
+            try {
+              const res = await authApiCall('/friends/request', { method: 'POST', body: JSON.stringify({ friend_email: email.trim().toLowerCase() }) });
+              if (res.success) {
+                Alert.alert("Success", "Friend request sent!");
+                queryClient.invalidateQueries({ queryKey: ['friends_list'] });
+              }
+            } catch (err: any) {
+              Alert.alert("Error", err.message || "Could not send friend request.");
+            }
+          }
+        }
+      ],
+      "plain-text"
+    );
+  };
 
   const renderFriend = ({ item }: { item: any }) => (
     <TouchableOpacity style={styles.friendItem} activeOpacity={0.7}>
@@ -55,10 +102,10 @@ export default function FriendsScreen() {
       </View>
 
       <View style={styles.actionButtons}>
-        <TouchableOpacity style={[styles.actionButton, styles.acceptButton]}>
+        <TouchableOpacity style={[styles.actionButton, styles.acceptButton]} onPress={() => acceptMutation.mutate(item.id)}>
           <IconSymbol name="checkmark" size={16} color="#fff" />
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.actionButton, styles.declineButton]}>
+        <TouchableOpacity style={[styles.actionButton, styles.declineButton]} onPress={() => declineMutation.mutate(item.id)}>
           <IconSymbol name="xmark" size={16} color="#fff" />
         </TouchableOpacity>
       </View>
@@ -75,7 +122,7 @@ export default function FriendsScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Friends</Text>
-        <TouchableOpacity style={styles.addButton}>
+        <TouchableOpacity style={styles.addButton} onPress={addFriendPrompt}>
           <IconSymbol name="person.badge.plus" size={24} color="#dc2626" />
         </TouchableOpacity>
       </View>
@@ -98,9 +145,9 @@ export default function FriendsScreen() {
             <Text style={[styles.tabText, activeTab === 'requests' && styles.activeTabText]}>
               Requests
             </Text>
-            {MOCK_REQUESTS.length > 0 && (
+            {requests.length > 0 && (
               <View style={styles.badge}>
-                <Text style={styles.badgeText}>{MOCK_REQUESTS.length}</Text>
+                <Text style={styles.badgeText}>{requests.length}</Text>
               </View>
             )}
           </View>
@@ -109,10 +156,12 @@ export default function FriendsScreen() {
 
       {/* List */}
       <FlatList
-        data={activeTab === 'friends' ? MOCK_FRIENDS : MOCK_REQUESTS}
+        data={activeTab === 'friends' ? friends : requests}
         renderItem={activeTab === 'friends' ? renderFriend : renderRequest}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.listContent}
+        refreshing={isRefetching}
+        onRefresh={() => queryClient.invalidateQueries({ queryKey: ['friends_list'] })}
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <IconSymbol name="person.2.slash" size={48} color="#3f3f46" />

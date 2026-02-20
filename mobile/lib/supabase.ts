@@ -80,12 +80,73 @@ export async function publicApiCall(endpoint: string, options: RequestInit = {})
   return data;
 }
 
+import NetInfo from '@react-native-community/netinfo';
+
+const OFFLINE_QUEUE_KEY = 'offline_action_queue';
+
+export async function getOfflineQueue(): Promise<{endpoint: string, options: RequestInit}[]> {
+  try {
+    const queue = await AsyncStorage.getItem(OFFLINE_QUEUE_KEY);
+    return queue ? JSON.parse(queue) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+async function addToOfflineQueue(endpoint: string, options: RequestInit) {
+  // Only queue POST/PUT/DELETE requests (mutations)
+  if (!options.method || options.method === 'GET') return;
+  
+  try {
+    const queue = await getOfflineQueue();
+    queue.push({ endpoint, options });
+    await AsyncStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+    console.log(`[Offline] Action queued for ${endpoint}`);
+  } catch (e) {
+    console.error('[Offline] Failed to queue action:', e);
+  }
+}
+
+export async function syncOfflineQueue() {
+  const queue = await getOfflineQueue();
+  if (queue.length === 0) return;
+
+  const state = await NetInfo.fetch();
+  if (!state.isConnected) return;
+
+  console.log(`[Offline] Syncing ${queue.length} actions...`);
+  await AsyncStorage.removeItem(OFFLINE_QUEUE_KEY); // Clear immediately to prevent duplicate syncs
+
+  for (const action of queue) {
+    try {
+      // Replay the exact auth request
+      await authApiCall(action.endpoint, action.options);
+      console.log(`[Offline] Synced: ${action.endpoint}`);
+    } catch (e) {
+      console.error(`[Offline] Failed to sync ${action.endpoint}:`, e);
+      // Could push back to queue here if it's a 500/timeout, but for now we'll drop it if it fails again
+    }
+  }
+}
+
 /**
  * Authenticated API call - requires a valid user session.
  * Use for endpoints like /park/session/active that need the user's JWT.
  * Returns null silently if no session exists (instead of crashing).
  */
 export async function authApiCall(endpoint: string, options: RequestInit = {}): Promise<any> {
+  // Check network BEFORE attempting
+  const netState = await NetInfo.fetch();
+  if (!netState.isConnected) {
+    console.log(`[authApiCall] device offline, queueing ${endpoint}`);
+    await addToOfflineQueue(endpoint, options);
+    // Return a mock success response so the UI doesn't crash
+    if (endpoint.includes('/park/session') && options.method === 'POST') {
+      return { success: true, session: { id: 'offline-pending', active: true, startTime: new Date().toISOString() } };
+    }
+    return { success: true, _offline: true };
+  }
+
   // 1. Get current session
   let { data: { session } } = await supabase.auth.getSession();
 
@@ -114,16 +175,27 @@ export async function authApiCall(endpoint: string, options: RequestInit = {}): 
   }
 
   // 3. Make the request
-  let response = await fetchWithFunctionFallback(endpoint, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey': supabaseAnonKey as string,
-      'Authorization': `Bearer ${supabaseAnonKey}`,
-      'x-user-token': session?.access_token || '',
-      ...(options.headers || {}),
-    } as HeadersInit,
-  });
+  let response;
+  try {
+    response = await fetchWithFunctionFallback(endpoint, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': supabaseAnonKey as string,
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+        'x-user-token': session?.access_token || '',
+        ...(options.headers || {}),
+      } as HeadersInit,
+    });
+  } catch (error) {
+     // Fetch threw an error (likely network failure midway)
+     console.log(`[authApiCall] Network fetch failed, queueing ${endpoint}`);
+     await addToOfflineQueue(endpoint, options);
+     if (endpoint.includes('/park/session') && options.method === 'POST') {
+       return { success: true, session: { id: 'offline-pending', active: true, startTime: new Date().toISOString() } };
+     }
+     return { success: true, _offline: true };
+  }
 
   // 4. Handle 401 (Unauthorized) - Try one more refresh if we haven't already
   if (response.status === 401) {
@@ -134,16 +206,22 @@ export async function authApiCall(endpoint: string, options: RequestInit = {}): 
     
     if (!refreshError && refreshData.session) {
       // Retry with new token
-      response = await fetchWithFunctionFallback(endpoint, {
-        ...options,
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': supabaseAnonKey as string,
-          'Authorization': `Bearer ${supabaseAnonKey}`,
-          'x-user-token': refreshData.session.access_token,
-          ...(options.headers || {}),
-        } as HeadersInit,
-      });
+      try {
+        response = await fetchWithFunctionFallback(endpoint, {
+          ...options,
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': supabaseAnonKey as string,
+            'Authorization': `Bearer ${supabaseAnonKey}`,
+            'x-user-token': refreshData.session.access_token,
+            ...(options.headers || {}),
+          } as HeadersInit,
+        });
+      } catch (err) {
+         console.log(`[authApiCall] Network fetch failed on retry, queueing ${endpoint}`);
+         await addToOfflineQueue(endpoint, options);
+         return { success: true, _offline: true };
+      }
     } else {
       console.log(`[authApiCall] Force refresh failed, signing out.`);
       await supabase.auth.signOut();

@@ -111,6 +111,7 @@ Endpoints:
 - `GET /friends`
 
 ## Roadmap (from the plan)
+- Offline-first resilience (action queuing & local caching)
 - Geofence-based parking detection and spot confirmation
 - Compass navigation (Knight Needle)
 - Heat maps and rush-hour prediction

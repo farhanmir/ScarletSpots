@@ -118,7 +118,21 @@ Goal: production heatmap and forecasting services.
 
 ---
 
-## Phase 5 - Launch Readiness + Scale Validation (3-4 weeks)
+## Phase 5 - Offline-First Resilience (2-3 weeks)
+Goal: Ensure core parking workflows function smoothly without cellular/wifi service.
+
+### Tasks
+- Implement global `NetInfo` hook and offline UI banner.
+- Add local storage caching for map lot data and structural geofences.
+- Build mutation queue to delay/retry API POST actions (e.g. Park).
+
+### Exit Criteria
+- App does not crash when starting a session underground.
+- Queued actions sync automatically when connection restores.
+
+---
+
+## Phase 6 - Launch Readiness + Scale Validation (3-4 weeks)
 Goal: prove production readiness under realistic load and ops conditions.
 
 ### Tasks

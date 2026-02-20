@@ -338,7 +338,8 @@ Transitions must be deterministic and idempotent.
 - offline
 
 Rules:
-- user intent actions queue offline and replay with conflict resolution
+- Global "Offline Mode" indicator banner must display across all tabs.
+- User intent actions (like parking/modifying friends) queue offline and automatically replay with conflict resolution when connection is restored.
 - never lose user-confirmed spot updates
 
 ## Sensor State

@@ -56,7 +56,7 @@ export default function GeofenceEditor() {
     if (id && id !== 'new') {
       const fetchLot = async () => {
         try {
-          const data = await apiCall(`/lot/${id}`);
+          const data = await apiCall(`/lots/${id}`);
           if (data.total_capacity || data.capacity) {
              setCapacity(String(data.total_capacity || data.capacity || 50));
           }

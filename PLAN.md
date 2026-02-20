@@ -392,7 +392,12 @@ Core entities:
 - Rush-hour and forecast services with confidence bands
 - Model monitoring and fallback heuristics
 
-### Phase 5 - Launch Readiness and Scale
+### Phase 5 - Offline Resilience (V2)
+- Global connectivity listener and UX degrade path
+- Local caching of structural app data (lots, map definitions)
+- Action queueing for deferred intent execution (parking while offline)
+
+### Phase 6 - Launch Readiness and Scale
 - Security hardening and abuse prevention
 - Load/soak tests with production-like traffic
 - App store readiness, staged rollout, live-ops readiness
