@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
 from uuid import UUID
-from app.core.security import get_current_user, get_supabase
+from app.core.security import get_current_user, get_supabase, get_auth_db
 
 router = APIRouter(prefix="/friends", tags=["friends"])
 
@@ -13,24 +13,23 @@ class FriendAction(BaseModel):
     request_id: UUID
 
 @router.get("/")
-def get_friends(current_user=Depends(get_current_user)):
+def get_friends(current_user=Depends(get_current_user), db=Depends(get_auth_db)):
     """Get accepted friends and pending requests."""
-    db = get_supabase()
     user_id = current_user.id
     
     # Get all friendships for the user
     try:
         # Incoming requests (status = pending, friend_id = me)
-        incoming_query = db.table("friendships").select("id, status, user_id, profiles!friendships_user_id_fkey(id, email, first_name, last_name)").eq("friend_id", user_id).eq("status", "pending").execute()
+        incoming_query = db.table("friendships").select("id, status, user_id, profiles!friendships_user_id_fkey(id, email, full_name)").eq("friend_id", user_id).eq("status", "pending").execute()
         
         # Accepted friends (status = accepted, user_id = me)
-        friends_query = db.table("friendships").select("id, status, friend_id, profiles!friendships_friend_id_fkey(id, email, first_name, last_name)").eq("user_id", user_id).eq("status", "accepted").execute()
+        friends_query = db.table("friendships").select("id, status, friend_id, profiles!friendships_friend_id_fkey(id, email, full_name)").eq("user_id", user_id).eq("status", "accepted").execute()
         
         # Format the response to match the frontend mock structure
         requests = []
         for req in incoming_query.data:
-            profile = req.get("profiles", {})
-            name = f"{profile.get('first_name', '')} {profile.get('last_name', '')}".strip() or profile.get('email', 'Unknown')
+            profile = req.get("profiles", {}) or {}
+            name = profile.get('full_name', '') or profile.get('email', 'Unknown')
             requests.append({
                 "id": str(req["id"]),
                 "user_id": str(req["user_id"]),
@@ -41,8 +40,8 @@ def get_friends(current_user=Depends(get_current_user)):
             
         friends = []
         for f in friends_query.data:
-            profile = f.get("profiles", {})
-            name = f"{profile.get('first_name', '')} {profile.get('last_name', '')}".strip() or profile.get('email', 'Unknown')
+            profile = f.get("profiles", {}) or {}
+            name = profile.get('full_name', '') or profile.get('email', 'Unknown')
             friend_uid = str(f["friend_id"])
             
             # Check if this friend has an active parking session
@@ -80,9 +79,8 @@ def get_friends(current_user=Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=str(exc))
 
 @router.post("/request")
-def send_friend_request(body: FriendRequest, current_user=Depends(get_current_user)):
+def send_friend_request(body: FriendRequest, current_user=Depends(get_current_user), db=Depends(get_auth_db)):
     """Send a friend request by email."""
-    db = get_supabase()
     try:
         # Find friend by email
         friend_res = db.table("profiles").select("id").eq("email", body.friend_email).execute()
@@ -109,9 +107,8 @@ def send_friend_request(body: FriendRequest, current_user=Depends(get_current_us
 
 
 @router.post("/accept")
-def accept_friend_request(body: FriendAction, current_user=Depends(get_current_user)):
+def accept_friend_request(body: FriendAction, current_user=Depends(get_current_user), db=Depends(get_auth_db)):
     """Accept an incoming friend request."""
-    db = get_supabase()
     try:
         # Verify request exists and is to me
         req_res = db.table("friendships").select("*").eq("id", str(body.request_id)).eq("friend_id", current_user.id).execute()
@@ -141,9 +138,8 @@ def accept_friend_request(body: FriendAction, current_user=Depends(get_current_u
 
 
 @router.post("/decline")
-def decline_friend_request(body: FriendAction, current_user=Depends(get_current_user)):
+def decline_friend_request(body: FriendAction, current_user=Depends(get_current_user), db=Depends(get_auth_db)):
     """Decline (delete) a friend request."""
-    db = get_supabase()
     try:
         # delete request where id matches and user is recipient (or sender deciding to cancel)
         db.table("friendships").delete().eq("id", str(body.request_id)).execute()

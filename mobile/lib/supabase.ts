@@ -20,8 +20,15 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 
 // API Helper for calling Edge Functions and FastAPI backend
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
-const LOCAL_FASTAPI_URL = Platform.OS === 'android' ? 'http://10.0.2.2:8000/api/v1' : 'http://localhost:8000/api/v1';
+const debuggerHost = Constants.expoConfig?.hostUri;
+const localHostIp = debuggerHost?.split(':')[0] || 'localhost';
+
+// If on physical device, use the LAN IP extracted from Expo. If on Android emulator and debuggerHost fails, fallback to 10.0.2.2.
+const LOCAL_FASTAPI_URL = debuggerHost
+  ? `http://${localHostIp}:8000/api/v1`
+  : Platform.OS === 'android' ? 'http://10.0.2.2:8000/api/v1' : 'http://localhost:8000/api/v1';
 
 const API_BASES = [
   `${supabaseUrl}/functions/v1/server`,
@@ -98,7 +105,7 @@ import NetInfo from '@react-native-community/netinfo';
 
 const OFFLINE_QUEUE_KEY = 'offline_action_queue';
 
-export async function getOfflineQueue(): Promise<{endpoint: string, options: RequestInit}[]> {
+export async function getOfflineQueue(): Promise<{ endpoint: string, options: RequestInit }[]> {
   try {
     const queue = await AsyncStorage.getItem(OFFLINE_QUEUE_KEY);
     return queue ? JSON.parse(queue) : [];
@@ -110,7 +117,7 @@ export async function getOfflineQueue(): Promise<{endpoint: string, options: Req
 async function addToOfflineQueue(endpoint: string, options: RequestInit) {
   // Only queue POST/PUT/DELETE requests (mutations)
   if (!options.method || options.method === 'GET') return;
-  
+
   try {
     const queue = await getOfflineQueue();
     queue.push({ endpoint, options });
@@ -196,19 +203,19 @@ export async function authApiCall(endpoint: string, options: RequestInit = {}): 
       headers: {
         'Content-Type': 'application/json',
         'apikey': supabaseAnonKey as string,
-        'Authorization': `Bearer ${supabaseAnonKey}`,
+        'Authorization': `Bearer ${session?.access_token || supabaseAnonKey}`,
         'x-user-token': session?.access_token || '',
         ...(options.headers || {}),
       } as HeadersInit,
     });
   } catch (error) {
-     // Fetch threw an error (likely network failure midway)
-     console.log(`[authApiCall] Network fetch failed, queueing ${endpoint}`);
-     await addToOfflineQueue(endpoint, options);
-     if (endpoint.includes('/park/session') && options.method === 'POST') {
-       return { success: true, session: { id: 'offline-pending', active: true, startTime: new Date().toISOString() } };
-     }
-     return { success: true, _offline: true };
+    // Fetch threw an error (likely network failure midway)
+    console.log(`[authApiCall] Network fetch failed, queueing ${endpoint}`);
+    await addToOfflineQueue(endpoint, options);
+    if (endpoint.includes('/park/session') && options.method === 'POST') {
+      return { success: true, session: { id: 'offline-pending', active: true, startTime: new Date().toISOString() } };
+    }
+    return { success: true, _offline: true };
   }
 
   // 4. Handle 401 (Unauthorized) - Try one more refresh if we haven't already
@@ -217,7 +224,7 @@ export async function authApiCall(endpoint: string, options: RequestInit = {}): 
     console.log(`[authApiCall] Got 401 on ${endpoint} with error: ${errorBody}`);
     console.log(`[authApiCall] Trying force refresh...`);
     const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-    
+
     if (!refreshError && refreshData.session) {
       // Retry with new token
       try {
@@ -226,15 +233,15 @@ export async function authApiCall(endpoint: string, options: RequestInit = {}): 
           headers: {
             'Content-Type': 'application/json',
             'apikey': supabaseAnonKey as string,
-            'Authorization': `Bearer ${supabaseAnonKey}`,
+            'Authorization': `Bearer ${refreshData.session.access_token}`,
             'x-user-token': refreshData.session.access_token,
             ...(options.headers || {}),
           } as HeadersInit,
         });
       } catch (err) {
-         console.log(`[authApiCall] Network fetch failed on retry, queueing ${endpoint}`);
-         await addToOfflineQueue(endpoint, options);
-         return { success: true, _offline: true };
+        console.log(`[authApiCall] Network fetch failed on retry, queueing ${endpoint}`);
+        await addToOfflineQueue(endpoint, options);
+        return { success: true, _offline: true };
       }
     } else {
       console.log(`[authApiCall] Force refresh failed, signing out.`);
