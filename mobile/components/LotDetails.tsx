@@ -64,20 +64,45 @@ import { publicApiCall } from '../lib/supabase';
 interface ForecastPoint {
   time: string;
   expected_occupancy: number;
+  low?: number;
+  high?: number;
+  label?: string;
+}
+
+interface ForecastResponse {
+  slices?: Record<string, ForecastPoint>;
+  curve?: ForecastPoint[];
 }
 
 export default function LotDetails({ lot, onClose, onPark, isParking, user }: LotDetailsProps) {
   const [expanded, setExpanded] = useState(false);
 
-  const { data: forecast = [], isLoading: isLoadingForecast } = useQuery<ForecastPoint[]>({
+  const { data: forecastData, isLoading: isLoadingForecast } = useQuery<ForecastResponse>({
     queryKey: ['forecast', lot.id],
     queryFn: async () => {
       const data = await publicApiCall(`/lots/${lot.id}/forecast`);
-      return data || [];
+      return data || {};
     },
     enabled: !!lot.id && !lot.id.startsWith('custom:'),
     staleTime: 60000 * 15, // 15 minutes
   });
+
+  // Extract the curve for the chart — handle both old (array) and new ({slices, curve}) format
+  const forecast: ForecastPoint[] = React.useMemo(() => {
+    if (!forecastData) return [];
+    // New format: { slices, curve }
+    if (forecastData.curve && Array.isArray(forecastData.curve)) {
+      return forecastData.curve;
+    }
+    // Old format or raw array fallback
+    if (Array.isArray(forecastData)) {
+      return forecastData as unknown as ForecastPoint[];
+    }
+    return [];
+  }, [forecastData]);
+
+  // Quick-glance slices (15m, 30m, 60m)
+  const slices = forecastData?.slices;
 
   const toggleExpand = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -191,13 +216,31 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user }: Lo
               </View>
             </View>
 
+            {/* Quick Forecast Slices */}
+            {slices && (
+              <View style={styles.forecastSlices}>
+                {['15m', '30m', '60m'].map((key) => {
+                  const s = slices[key];
+                  if (!s) return null;
+                  return (
+                    <View key={key} style={styles.sliceItem}>
+                      <Text style={styles.sliceLabel}>{key}</Text>
+                      <Text style={[styles.sliceValue, { color: getOccupancyColor(s.expected_occupancy) }]}>
+                        {s.expected_occupancy}%
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+
             {/* Forecast Strip */}
             <View style={styles.forecastContainer}>
               {isLoadingForecast ? (
                  <ActivityIndicator size="small" color="#52525b" />
               ) : forecast.length > 0 ? (
                  forecast.map((point: ForecastPoint, index: number) => {
-                    const isNow = index === 1; // Our backend returns t-1, t0, t+1, t+2, t+3
+                    const isNow = index === 2; // Curve: -60, -30, 0(now), +30, +60, ...
                     const barHeight = Math.max(8, (point.expected_occupancy / 100) * 32); 
                     return (
                       <View key={index} style={styles.forecastItem}>
@@ -400,6 +443,28 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#a1a1aa',
     fontWeight: '500',
+  },
+  forecastSlices: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 16,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    borderRadius: 12,
+  },
+  sliceItem: {
+    alignItems: 'center',
+    gap: 2,
+  },
+  sliceLabel: {
+    color: '#71717a',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  sliceValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'] as any,
   },
   forecastContainer: {
     flexDirection: 'row',

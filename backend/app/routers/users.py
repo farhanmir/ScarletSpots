@@ -1,7 +1,40 @@
-from fastapi import APIRouter, Depends, HTTPException
-from app.core.security import get_current_user, get_supabase
+from fastapi import APIRouter, Depends, HTTPException, status
+from app.core.security import get_current_user, get_supabase, get_admin_supabase
+from app.schemas.user import UserCreate
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+
+@router.post("/signup")
+def signup(body: UserCreate):
+    """
+    Create a new user with Rutgers email validation.
+    Mirrors the logic from the legacy Edge Function.
+    """
+    email = body.email.lower()
+    if not (email.endswith('@rutgers.edu') or email.endswith('@scarletmail.rutgers.edu')):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only Rutgers email addresses are allowed (@rutgers.edu or @scarletmail.rutgers.edu)"
+        )
+
+    admin_db = get_admin_supabase()
+    
+    try:
+        # Create user in Auth
+        res = admin_db.auth.admin.create_user({
+            "email": email,
+            "password": body.password,
+            "user_metadata": {"name": body.name},
+            "email_confirm": True
+        })
+        
+        # Profile creation is usually handled by a DB trigger in Supabase, 
+        # but if not, we can insert it here.
+        
+        return {"success": True, "user": res.user}
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
 
 
 @router.get("/me")

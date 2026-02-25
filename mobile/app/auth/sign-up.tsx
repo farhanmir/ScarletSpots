@@ -43,11 +43,8 @@ export default function SignUpScreen() {
 
     setLoading(true);
     try {
-      // 1. Call Signup Edge Function (or direct Supabase Auth if preferred, but PLAN implies controlled signup)
-      // Using publicApiCall which likely proxies to supabase functions or direct db if configured
-      // For now, we mimic the logic in login.tsx: call /signup endpoint then sign in
-      
-      const response = await publicApiCall('/signup', {
+      // 1. Call Signup FastAPI endpoint
+      const response = await publicApiCall('/users/signup', {
         method: 'POST',
         body: JSON.stringify({
           email,

@@ -1,0 +1,241 @@
+import React, { useState } from 'react';
+import {
+  StyleSheet,
+  View,
+  Text,
+  TouchableOpacity,
+  ActivityIndicator,
+  Platform,
+} from 'react-native';
+import { BlurView } from 'expo-blur';
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import type { ParkingCandidate } from '../services/ParkingDetectionService';
+
+interface Props {
+  candidates: ParkingCandidate[];
+  onConfirm: (candidate: ParkingCandidate) => void;
+  onDismiss: () => void;
+  isLoading?: boolean;
+}
+
+export default function ParkingConfirmationSheet({
+  candidates,
+  onConfirm,
+  onDismiss,
+  isLoading = false,
+}: Props) {
+  const [selectedIndex, setSelectedIndex] = useState(0);
+
+  if (candidates.length === 0) return null;
+
+  const getConfidenceColor = (confidence: number) => {
+    if (confidence >= 0.8) return '#10b981'; // Green
+    if (confidence >= 0.6) return '#f59e0b'; // Amber
+    return '#ef4444'; // Red
+  };
+
+  const getConfidenceLabel = (confidence: number) => {
+    if (confidence >= 0.8) return 'High';
+    if (confidence >= 0.6) return 'Medium';
+    return 'Low';
+  };
+
+  return (
+    <View style={styles.container}>
+      {Platform.OS === 'ios' && (
+        <BlurView intensity={90} tint="systemThickMaterialDark" style={StyleSheet.absoluteFill} />
+      )}
+      <View style={styles.content}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.handle} />
+          <View style={styles.headerRow}>
+            <IconSymbol name="car.fill" size={20} color="#ef4444" />
+            <Text style={styles.title}>Parking Detected</Text>
+          </View>
+          <Text style={styles.subtitle}>
+            We think you just parked. Confirm your spot below.
+          </Text>
+        </View>
+
+        {/* Candidate List */}
+        <View style={styles.candidateList}>
+          {candidates.map((candidate, index) => {
+            const isSelected = index === selectedIndex;
+            const color = getConfidenceColor(candidate.confidence);
+
+            return (
+              <TouchableOpacity
+                key={candidate.lotId}
+                style={[
+                  styles.candidateRow,
+                  isSelected && styles.candidateRowSelected,
+                  isSelected && { borderColor: color },
+                ]}
+                onPress={() => setSelectedIndex(index)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.candidateInfo}>
+                  <Text style={styles.candidateName}>{candidate.lotName}</Text>
+                  <View style={styles.confidenceBadge}>
+                    <View style={[styles.confidenceDot, { backgroundColor: color }]} />
+                    <Text style={[styles.confidenceText, { color }]}>
+                      {getConfidenceLabel(candidate.confidence)} ({Math.round(candidate.confidence * 100)}%)
+                    </Text>
+                  </View>
+                </View>
+                {isSelected && (
+                  <IconSymbol name="checkmark.circle.fill" size={24} color={color} />
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* Actions */}
+        <View style={styles.actions}>
+          <TouchableOpacity
+            style={styles.dismissButton}
+            onPress={onDismiss}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.dismissText}>Not Now</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.confirmButton}
+            onPress={() => onConfirm(candidates[selectedIndex])}
+            disabled={isLoading}
+            activeOpacity={0.7}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={styles.confirmText}>Confirm Parking</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  content: {
+    padding: 20,
+    paddingBottom: 40,
+    backgroundColor: Platform.OS === 'android' ? '#18181b' : 'rgba(24, 24, 27, 0.7)',
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  handle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    marginBottom: 16,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  title: {
+    color: '#fafafa',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  subtitle: {
+    color: '#a1a1aa',
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  candidateList: {
+    gap: 8,
+    marginBottom: 20,
+  },
+  candidateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  candidateRowSelected: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 1.5,
+  },
+  candidateInfo: {
+    flex: 1,
+  },
+  candidateName: {
+    color: '#fafafa',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  confidenceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  confidenceDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  confidenceText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  actions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  dismissButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  dismissText: {
+    color: '#a1a1aa',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  confirmButton: {
+    flex: 2,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    backgroundColor: '#dc2626',
+  },
+  confirmText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+});

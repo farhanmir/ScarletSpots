@@ -1,18 +1,22 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { StyleSheet, View, Platform, Alert, Text, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
 import { BlurView } from 'expo-blur';
-import MapView, { PROVIDER_GOOGLE, PROVIDER_DEFAULT, Polygon, Marker, Heatmap } from 'react-native-maps';
+import MapView, { PROVIDER_GOOGLE, PROVIDER_DEFAULT, Polygon, Marker } from 'react-native-maps';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import { useQuery } from '@tanstack/react-query';
 import { authApiCall, publicApiCall } from '../../lib/supabase';
 import { useAuth } from '@/context/AuthProvider';
 import LotDetails from '../../components/LotDetails';
+import ParkingConfirmationSheet from '../../components/ParkingConfirmationSheet';
 import FriendMarkers from '../../components/Map/FriendMarkers';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useSettings } from '@/context/SettingsContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { PARKING_DETECTION_TASK } from '../../services/BackgroundTasks';
+import { PARKING_DETECTION_TASK, getPendingParkingCandidates, clearPendingParkingCandidates } from '../../services/BackgroundTasks';
+import { type ParkingCandidate } from '../../services/ParkingDetectionService';
+import { registerLotGeofences } from '../../services/GeofenceManager';
+import { fetchWithOfflineFallback, clearCachedSession } from '../../services/OfflineCache';
 
 interface Lot {
   id: string;
@@ -58,29 +62,29 @@ export default function MapScreen() {
   const [activeSession, setActiveSession] = useState<ParkingSession | null>(null);
   const [loading, setLoading] = useState(false);
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('hidden');
-  const [showHeatmap, setShowHeatmap] = useState(false);
+  const [currentRegion, setCurrentRegion] = useState<any>(null);
+  const [pendingCandidates, setPendingCandidates] = useState<ParkingCandidate[]>([]);
+  const [isConfirming, setIsConfirming] = useState(false);
   const { showFriends } = useSettings();
 
   // Fetch Lots with TanStack Query (via Supabase Edge Functions)
   const { data: lots = [], refetch: refetchLots } = useQuery<Lot[]>({
     queryKey: ['lots'],
     queryFn: async () => {
-      const data = await publicApiCall('/lots');
-      return data.lots || [];
+      const result = await fetchWithOfflineFallback(
+        async () => {
+          const data = await publicApiCall('/lots');
+          return data.lots || [];
+        },
+        'offline_cache_lots'
+      );
+      return result.data;
     },
     refetchInterval: 30000, // Poll every 30s
   }); 
  
 
 
-  // Compute Heatmap Points based on occupancy (higher occupancy = red hot)
-  const heatmapPoints = React.useMemo(() => {
-    return lots.map(lot => ({
-      latitude: lot.latitude,
-      longitude: lot.longitude,
-      weight: lot.occupancyRate > 0 ? lot.occupancyRate / 100 : 0.1, // Scale 0-1
-    }));
-  }, [lots]);
 
   // Clusters computation
   const clusters = React.useMemo(() => {
@@ -179,32 +183,9 @@ export default function MapScreen() {
 
   useEffect(() => {
     if (lots.length > 0) {
-      AsyncStorage.setItem('cached_lots', JSON.stringify(lots));
+      AsyncStorage.setItem('cached_lots', JSON.stringify(lots)).catch(() => {});
+      registerLotGeofences(lots).catch(err => console.warn('[MapScreen] Geofence registration failed:', err));
     }
-
-    const startBackgroundTracking = async () => {
-      const { status: bgStatus } = await Location.getBackgroundPermissionsAsync();
-      if (bgStatus === 'granted') {
-        const isRegistered = await Location.hasStartedLocationUpdatesAsync(PARKING_DETECTION_TASK);
-        if (!isRegistered) {
-          await Location.startLocationUpdatesAsync(PARKING_DETECTION_TASK, {
-            accuracy: Location.Accuracy.Balanced,
-            showsBackgroundLocationIndicator: true,
-            activityType: Location.LocationActivityType.AutomotiveNavigation,
-            distanceInterval: 10, // Update every 10 meters
-            pausesUpdatesAutomatically: false,
-            foregroundService: {
-              notificationTitle: "ScarletSpots",
-              notificationBody: "Monitoring your parking status...",
-              notificationColor: "#dc2626",
-            },
-          });
-          console.log('[MapScreen] Started background location updates');
-        }
-      }
-    };
-
-    startBackgroundTracking();
   }, [lots]);
 
   const darkMapStyle = [
@@ -443,26 +424,37 @@ export default function MapScreen() {
 
   useEffect(() => {
     (async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Location Permission Required', 'Permission to access location was denied.');
-        return;
-      }
+      try {
+        let { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Location Permission Required', 'Permission to access location was denied.');
+          return;
+        }
 
-      let location = await Location.getCurrentPositionAsync({});
-      setLocation(location);
+        let loc = await Location.getCurrentPositionAsync({});
+        setLocation(loc);
+      } catch (err) {
+        console.warn('[MapScreen] Location init failed:', err);
+      }
     })();
-    
-    // fetchLots(); // Handled by useQuery
   }, []);
 
   useEffect(() => {
     if (user) {
       fetchActiveSession();
+      checkPendingParking();
     } else {
       setActiveSession(null);
+      setPendingCandidates([]);
     }
   }, [user]);
+
+  const checkPendingParking = async () => {
+    const candidates = await getPendingParkingCandidates();
+    if (candidates.length > 0) {
+      setPendingCandidates(candidates);
+    }
+  };
 
   // const fetchLots = async () => {
   //   try {
@@ -475,9 +467,16 @@ export default function MapScreen() {
 
   const fetchActiveSession = async () => {
     try {
-      const data = await authApiCall('/park/session/active');
-      if (data?.session) {
-        setActiveSession(data.session);
+      const result = await fetchWithOfflineFallback(
+        async () => {
+          const data = await authApiCall('/park/session/active');
+          if (data?._offline) throw new Error('Offline fallback triggered');
+          return data;
+        },
+        'offline_cache_session'
+      );
+      if (result.data?.session) {
+        setActiveSession(result.data.session);
       } else {
         setActiveSession(null);
       }
@@ -498,6 +497,14 @@ export default function MapScreen() {
 
     setLoading(true);
     try {
+      // Validate lot ID is a proper UUID before sending to backend
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(lot.id)) {
+        Alert.alert('Cannot Park', 'Custom lots do not support parking sessions yet.');
+        setLoading(false);
+        return;
+      }
+
       const spotNumber = Math.floor(Math.random() * 1000).toString(); // Simulate spot selection
       const data = await authApiCall('/park/session', {
         method: 'POST',
@@ -542,6 +549,7 @@ export default function MapScreen() {
       if (data.success) {
         // Just clear everything and showing the alert is enough
         setActiveSession(null);
+        clearCachedSession().catch(() => {});
         setSelectedLot(null);
         setSelectedPlace(null); // Clear navigation selection
         clearRouteSelectionParams(); // Clear route params
@@ -553,6 +561,40 @@ export default function MapScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleConfirmParking = async (candidate: ParkingCandidate) => {
+    if (!user) return;
+    setIsConfirming(true);
+    try {
+      const data = await authApiCall('/park/session', {
+        method: 'POST',
+        body: JSON.stringify({
+          lotId: candidate.lotId,
+          spotNumber: "Auto-detected",
+          latitude: candidate.latitude,
+          longitude: candidate.longitude,
+          confirmed: true,
+        }),
+      });
+      
+      if (data.success) {
+        setActiveSession(data.session);
+        await clearPendingParkingCandidates();
+        setPendingCandidates([]);
+        refetchLots();
+        Alert.alert('Parked!', `We've logged your spot at ${candidate.lotName}.`);
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to confirm parking');
+    } finally {
+      setIsConfirming(false);
+    }
+  };
+
+  const handleDismissParking = async () => {
+    await clearPendingParkingCandidates();
+    setPendingCandidates([]);
   };
 
   // Dual-Map Strategy: Use Google Maps on Android, Default (Apple Maps) on iOS
@@ -597,6 +639,7 @@ export default function MapScreen() {
         }}
         onRegionChangeComplete={(region) => {
           regionRef.current = region;
+          setCurrentRegion(region);
           
           // Determine Zoom Level
           if (region.latitudeDelta < 0.05) {
@@ -694,21 +737,7 @@ export default function MapScreen() {
         ))}
 
         {/* Friend Markers (Phase 3 Feature) */}
-        {showFriends && <FriendMarkers />}
-
-        {/* Heatmap Layer */}
-        {showHeatmap && heatmapPoints.length > 0 && Platform.OS !== 'web' && mapProvider === PROVIDER_GOOGLE && (
-           <Heatmap
-              points={heatmapPoints}
-              radius={Platform.OS === 'ios' ? 40 : 50}
-              opacity={0.6}
-              gradient={{
-                 colors: ['#00000000', '#10b981', '#f59e0b', '#ef4444'],
-                 startPoints: [0, 0.25, 0.6, 1],
-                 colorMapSize: 256
-              }}
-           />
-        )}
+        {showFriends && <FriendMarkers region={currentRegion} />}
 
         {/* Selected Place Marker */}
         {selectedPlace && (
@@ -721,26 +750,6 @@ export default function MapScreen() {
       </MapView>
 
 
-
-      {/* Heatmap Toggle Button */}
-      <View style={[styles.centerButtonContainer, { bottom: 170 }]}>
-         {Platform.OS === 'ios' && (
-            <BlurView intensity={80} tint="systemChromeMaterialDark" style={StyleSheet.absoluteFill} />
-         )}
-         <TouchableOpacity
-           style={[styles.centerButton, Platform.OS === 'android' && styles.centerButtonAndroid]}
-           onPress={() => {
-             if (mapProvider !== PROVIDER_GOOGLE) {
-               Alert.alert('Heatmap Unavailable', 'Heatmaps require Google Maps, which is not supported in the standard Expo Go iOS client.');
-               return;
-             }
-             setShowHeatmap(!showHeatmap);
-           }}
-           activeOpacity={0.7}
-         >
-           <IconSymbol name="flame.fill" size={24} color={showHeatmap ? "#ef4444" : "#71717a"} />
-         </TouchableOpacity>
-      </View>
 
       {/* Center on Me Button - Styled like LiquidGlassTabBar */}
       <View style={styles.centerButtonContainer}>
@@ -794,6 +803,16 @@ export default function MapScreen() {
           onPark={handlePark}
           isParking={loading}
           user={user}
+        />
+      )}
+
+      {/* Parking Detection Confirmation */}
+      {pendingCandidates.length > 0 && !selectedLot && (
+        <ParkingConfirmationSheet
+          candidates={pendingCandidates}
+          onConfirm={handleConfirmParking}
+          onDismiss={handleDismissParking}
+          isLoading={isConfirming}
         />
       )}
     </View>

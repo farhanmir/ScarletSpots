@@ -9,6 +9,7 @@ log = get_logger(__name__)
 security = HTTPBearer()
 
 _supabase: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
+_admin_supabase: Client = None
 
 
 from supabase import create_client, Client
@@ -17,6 +18,18 @@ from supabase.lib.client_options import ClientOptions
 def get_supabase() -> Client:
     """Return the shared Supabase client."""
     return _supabase
+
+def get_admin_supabase() -> Client:
+    """Return the admin Supabase client with service role."""
+    global _admin_supabase
+    if _admin_supabase is None:
+        if not settings.SUPABASE_SERVICE_ROLE_KEY:
+            raise HTTPException(
+                status_code=500,
+                detail="SUPABASE_SERVICE_ROLE_KEY is not configured in environment variables."
+            )
+        _admin_supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
+    return _admin_supabase
 
 def get_auth_db(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Client:
     """Return an authenticated Supabase client for the current request."""
