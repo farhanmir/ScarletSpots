@@ -100,20 +100,15 @@ Goal: complete friendship and sharing safely.
 ---
 
 ## Phase 4 - Intelligence Layer (5-6 weeks)
-Goal: production heatmap and forecasting services.
+Goal: production forecasting services.
 
-### Workstream A: Heatmap
-- Cell-based occupancy pipeline with freshness guarantees.
-- Map overlay rendering on mobile/web.
-
-### Workstream B: Forecasting
+### Workstream A: Forecasting
 - 15/30/60 minute forecast endpoints.
 - Confidence bands and model fallback behavior.
 - Drift monitoring and automatic rollback to heuristics.
 
 ### Exit Criteria
 - Forecast MAE <= 12% in validation window.
-- Heatmap classification precision >= 85%.
 - Prediction freshness and latency SLO met.
 
 ---
@@ -184,10 +179,9 @@ Goal: prove production readiness under realistic load and ops conditions.
 14. Magnetometer compass + haptic lock-on.
 15. Friend block/unblock + sharing toggle APIs.
 16. Friend visibility filtering on maps.
-17. Heatmap cell generation pipeline.
-18. Forecast endpoints (15/30/60m) + confidence bands.
-19. Load/soak test suite and thresholds.
-20. Staged rollout with kill switch and rollback automation.
+17. Forecast endpoints (15/30/60m) + confidence bands.
+18. Load/soak test suite and thresholds.
+19. Staged rollout with kill switch and rollback automation.
 
 ---
 
@@ -222,3 +216,9 @@ These features are scoped for V2 or post-launch optimization once core metrics a
 - **Challenge**: Requires strict "Bounding Box" or "Context Injection" (e.g. appending ", Rutgers University, NJ") to avoid global results.
 - **Why Deferred**: Unreliable on simulators and requires robust error handling for remote users (e.g. searching from PA).
 - **Goal**: Re-enable to support non-building POIs once the "Static Index" coverage is outgrown.
+
+### 2. Cell-Based Occupancy Heatmaps
+- **Concept**: Visual density map overlay generated from blended occupancy sensors and active session data.
+- **Challenge**: Performance overhead of rendering thousands of custom overlays on Apple Maps/React Native context. Requires high density of data to be visually useful.
+- **Why Deferred**: Core predictive forecasts + confidence bands provide more immediate value for pathfinding than general heatmaps.
+- **Goal**: Re-introduce as a visual polish feature once predictive latency and map rendering performance are optimized.

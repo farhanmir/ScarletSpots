@@ -18,6 +18,30 @@ def list_lots(campus: str | None = None):
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
+@router.post("/init")
+def init_lots():
+    """Seed the database with standard Rutgers parking lots if empty."""
+    from app.core.security import get_admin_supabase
+    db = get_admin_supabase()
+    
+    # Check if we already have lots
+    count_res = db.table("parking_lots").select("id", count="exact").limit(1).execute()
+    if count_res.count and count_res.count > 0:
+        return {"message": "Lots already initialized", "count": count_res.count}
+        
+    DEFAULT_LOTS = [
+        {"name": "Lot 1 (Busch Student Center)", "campus": "Busch", "latitude": 40.5233, "longitude": -74.4587, "capacity": 250},
+        {"name": "Lot 26 (Athletic Center)", "campus": "Livingston", "latitude": 40.5255, "longitude": -74.4367, "capacity": 400},
+        {"name": "Lot 64 (College Ave)", "campus": "College Ave", "latitude": 40.5026, "longitude": -74.4517, "capacity": 150},
+        {"name": "Yellow Lot", "campus": "Livingston", "latitude": 40.5215, "longitude": -74.4320, "capacity": 1200},
+    ]
+    
+    try:
+        res = db.table("parking_lots").insert(DEFAULT_LOTS).execute()
+        return {"message": "Lots initialized", "data": res.data}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
 
 @router.get("/{lot_id}")
 def get_lot(lot_id: UUID):
@@ -55,59 +79,28 @@ def report_occupancy(request: Request, lot_id: UUID, body: dict, current_user=De
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
-import datetime
-import random
+from app.services.forecasting import ForecastingService
 
 @router.get("/{lot_id}/forecast")
 def get_lot_forecast(lot_id: UUID):
-    """Get a heuristic 3-hour predictive forecast for a parking lot."""
-    # In a real app, this would query a ML model or historical DB views.
-    # For Phase 6 V2, we generate a heuristic curve based on current time.
+    """
+    Predictive forecast for a parking lot with confidence bands.
+    Returns 15m, 30m, and 60m time slices plus a 3-hour extended curve.
+    """
+    db = get_supabase()
     
-    now = datetime.datetime.now()
-    # Normalize to top of the hour for clean graphs
-    current_hour = now.replace(minute=0, second=0, microsecond=0)
-    
-    forecast_data = []
-    
-    # We want -1h (past), 0h (current), +1h, +2h, +3h
-    hours_offset = [-1, 0, 1, 2, 3]
-    
-    # Seed the random generator slightly deterministically based on lot_id and current hour
-    # so the graph doesn't jitter wildly if called multiple times in the same hour
-    seed_str = str(lot_id) + str(current_hour.hour)
-    random.seed(seed_str)
-    
-    # Base occupancy depends on time of day (Heuristic: busy mid-day)
-    base_occupancy = 20
-    if 9 <= current_hour.hour <= 15:
-        base_occupancy = 80
-    elif 16 <= current_hour.hour <= 20:
-        base_occupancy = 50
+    # Fetch lot to get current occupancy/capacity
+    res = db.table("parking_lots").select("current_occupancy, capacity").eq("id", str(lot_id)).single().execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Lot not found")
         
-    for offset in hours_offset:
-        target_time = current_hour + datetime.timedelta(hours=offset)
-        
-        # Add some random walk / variance to the base
-        variance = random.randint(-15, 15)
-        expected_occ = max(5, min(98, base_occupancy + variance))
-        
-        # Adjust for night time completely dying down
-        if target_time.hour < 6 or target_time.hour > 22:
-            expected_occ = max(1, min(10, expected_occ - 40))
-            
-        forecast_data.append({
-            "time": target_time.isoformat(),
-            "expected_occupancy": expected_occ
-        })
-        
-        # Move the base for the next hour specifically to make a logical curve
-        if target_time.hour < 12:
-            base_occupancy += 10 # Filling up in morning
-        elif target_time.hour > 15:
-            base_occupancy -= 15 # Emptying in evening
+    lot = res.data
+    return ForecastingService.get_lot_forecast(
+        lot_id, 
+        lot.get("current_occupancy", 0) or 0, 
+        lot.get("capacity", 100) or 100
+    )
 
-    return forecast_data
 
 @router.post("/custom")
 def create_custom_geofence(body: dict, current_user=Depends(get_current_user)):

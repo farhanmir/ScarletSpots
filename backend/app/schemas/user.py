@@ -7,6 +7,11 @@ class ProfileBase(BaseModel):
     last_name: str | None = None
     avatar_url: str | None = None
 
+class UserCreate(BaseModel):
+    email: str
+    password: str
+    name: str | None = None
+
 class ProfileUpdate(ProfileBase):
     pass
 

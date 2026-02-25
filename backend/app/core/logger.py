@@ -1,15 +1,42 @@
 import logging
 import sys
+import json
+from datetime import datetime
+
+
+class StructuredFormatter(logging.Formatter):
+    """JSON-structured log formatter with correlation ID support."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        log_entry = {
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+        }
+
+        # Inject correlation_id if present
+        if hasattr(record, "correlation_id"):
+            log_entry["correlation_id"] = record.correlation_id
+
+        # Include exception info if present
+        if record.exc_info and record.exc_info[1]:
+            log_entry["exception"] = str(record.exc_info[1])
+
+        return json.dumps(log_entry)
 
 
 def get_logger(name: str) -> logging.Logger:
-    logger = logging.getLogger(name)
-    logger.setLevel(logging.INFO)
+    _logger = logging.getLogger(name)
+    _logger.setLevel(logging.INFO)
 
-    if not logger.handlers:
+    if not _logger.handlers:
         handler = logging.StreamHandler(sys.stdout)
-        fmt = logging.Formatter("%(asctime)s  %(name)s  %(levelname)s  %(message)s")
-        handler.setFormatter(fmt)
-        logger.addHandler(handler)
+        handler.setFormatter(StructuredFormatter())
+        _logger.addHandler(handler)
 
-    return logger
+    return _logger
+
+
+# Default app logger
+logger = get_logger("scarletspots")

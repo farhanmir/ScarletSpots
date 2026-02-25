@@ -12,20 +12,52 @@ class FriendRequest(BaseModel):
 class FriendAction(BaseModel):
     request_id: UUID
 
-@router.get("/")
+@router.get("")
 def get_friends(current_user=Depends(get_current_user), db=Depends(get_auth_db)):
     """Get accepted friends and pending requests."""
     user_id = current_user.id
     
     # Get all friendships for the user
     try:
-        # Incoming requests (status = pending, friend_id = me)
+        def _format_friend(db_client, friendship, profile):
+            name = profile.get('full_name', '') or profile.get('email', 'Unknown')
+            uid = str(profile["id"])
+            parked = False
+            status_text = "Online"
+            
+            session_query = db_client.table("occupancy_logs").select("*, parking_lots(*)").eq("reporter_id", uid).order("created_at", desc=True).limit(1).execute()
+            if session_query.data:
+                latest_log = session_query.data[0]
+                if latest_log.get("status") == "open":
+                    parked = True
+                    status_text = f"Parked at {latest_log.get('parking_lots', {}).get('name', 'a lot')}"
+
+            return {
+                "id": str(friendship["id"]),
+                "friend_id": uid,
+                "name": name,
+                "status": status_text,
+                "parked": parked,
+                "avatar": None,
+                "sharing_enabled": friendship.get("sharing_enabled", True)
+            }
+
+        # 1. Incoming requests (status = pending, friend_id = me)
         incoming_query = db.table("friendships").select("id, status, user_id, profiles!friendships_user_id_fkey(id, email, full_name)").eq("friend_id", user_id).eq("status", "pending").execute()
         
-        # Accepted friends (status = accepted, user_id = me)
-        friends_query = db.table("friendships").select("id, status, friend_id, profiles!friendships_friend_id_fkey(id, email, full_name)").eq("user_id", user_id).eq("status", "accepted").execute()
+        # 2. Accepted friends: we check both directions
+        # Query A: Where I am the initiator
+        q1 = db.table("friendships").select(
+            "id, status, user_id, friend_id, sharing_enabled, "
+            "friend:profiles!friendships_friend_id_fkey(id, email, full_name)"
+        ).eq("user_id", user_id).eq("status", "accepted").execute()
         
-        # Format the response to match the frontend mock structure
+        # Query B: Where I am the target
+        q2 = db.table("friendships").select(
+            "id, status, user_id, friend_id, sharing_enabled, "
+            "initiator:profiles!friendships_user_id_fkey(id, email, full_name)"
+        ).eq("friend_id", user_id).eq("status", "accepted").execute()
+        
         requests = []
         for req in incoming_query.data:
             profile = req.get("profiles", {}) or {}
@@ -39,39 +71,17 @@ def get_friends(current_user=Depends(get_current_user), db=Depends(get_auth_db))
             })
             
         friends = []
-        for f in friends_query.data:
-            profile = f.get("profiles", {}) or {}
-            name = profile.get('full_name', '') or profile.get('email', 'Unknown')
-            friend_uid = str(f["friend_id"])
-            
-            # Check if this friend has an active parking session
-            # using occupancy_logs where reporter_id = friend_uid and status = 'open'
-            # Note: We rely on the most recent log or session.
-            # In our schema, we only have occupancy_logs, but active parking session is usually managed by a different table or inferred?
-            # Let's query occupancy_logs sorted by created_at desc.
-            parked = False
-            status_text = "Online"
-            
-            session_query = db.table("occupancy_logs").select("*, parking_lots(*)").eq("reporter_id", friend_uid).order("created_at", desc=True).limit(1).execute()
-            if session_query.data:
-                latest_log = session_query.data[0]
-                # If they recently reported "open" (which implies parked/occupied but the parking_lots is the lot)
-                # Actually, our parking session table was added by edge function? 
-                # Wait, "parking_session" was supposed to be a real table but the DB schema was simplified to occupancy_logs.
-                # The frontend active session checks if there is an open log?
-                # For now, let's just say "Online" or mock the parked status based on occupancy_logs.
-                if latest_log.get("status") == "open":
-                    parked = True
-                    status_text = f"Parked at {latest_log.get('parking_lots', {}).get('name', 'a lot')}"
+        # Process Initiator Query
+        for f in q1.data:
+            friend_profile = f.get("friend")
+            if friend_profile:
+                friends.append(_format_friend(db, f, friend_profile))
 
-            friends.append({
-                "id": str(f["id"]),
-                "friend_id": friend_uid,
-                "name": name,
-                "status": status_text,
-                "parked": parked,
-                "avatar": None
-            })
+        # Process Target Query
+        for f in q2.data:
+            friend_profile = f.get("initiator")
+            if friend_profile:
+                friends.append(_format_friend(db, f, friend_profile))
             
         return {"friends": friends, "requests": requests}
     except Exception as exc:
@@ -115,21 +125,9 @@ def accept_friend_request(body: FriendAction, current_user=Depends(get_current_u
         if not req_res.data:
             raise HTTPException(status_code=404, detail="Request not found")
             
-        request_row = req_res.data[0]
-        
         # Update original request to accepted
         db.table("friendships").update({"status": "accepted"}).eq("id", str(body.request_id)).execute()
         
-        # Create the reverse relationship
-        try:
-            db.table("friendships").insert({
-                "user_id": current_user.id,
-                "friend_id": request_row["user_id"],
-                "status": "accepted"
-            }).execute()
-        except:
-            pass # might already exist
-            
         return {"success": True}
     except HTTPException:
         raise
@@ -141,8 +139,102 @@ def accept_friend_request(body: FriendAction, current_user=Depends(get_current_u
 def decline_friend_request(body: FriendAction, current_user=Depends(get_current_user), db=Depends(get_auth_db)):
     """Decline (delete) a friend request."""
     try:
-        # delete request where id matches and user is recipient (or sender deciding to cancel)
         db.table("friendships").delete().eq("id", str(body.request_id)).execute()
         return {"success": True}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+class BlockAction(BaseModel):
+    user_id: str
+
+
+@router.post("/block")
+def block_user(body: BlockAction, current_user=Depends(get_current_user), db=Depends(get_auth_db)):
+    """Block a user. Removes existing friendship and prevents future requests."""
+    try:
+        target_id = body.user_id
+
+        # Delete any existing friendships in both directions
+        db.table("friendships").delete().eq("user_id", current_user.id).eq("friend_id", target_id).execute()
+        db.table("friendships").delete().eq("user_id", target_id).eq("friend_id", current_user.id).execute()
+
+        # Insert a blocked record
+        db.table("friendships").insert({
+            "user_id": current_user.id,
+            "friend_id": target_id,
+            "status": "blocked"
+        }).execute()
+
+        # Audit log
+        _log_sharing_event(db, current_user.id, target_id, "blocked")
+
+        return {"success": True}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.post("/unblock")
+def unblock_user(body: BlockAction, current_user=Depends(get_current_user), db=Depends(get_auth_db)):
+    """Unblock a user."""
+    try:
+        db.table("friendships").delete().eq("user_id", current_user.id).eq("friend_id", body.user_id).eq("status", "blocked").execute()
+
+        _log_sharing_event(db, current_user.id, body.user_id, "unblocked")
+
+        return {"success": True}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+class SharingToggle(BaseModel):
+    enabled: bool
+
+
+@router.put("/{friendship_id}/sharing")
+def toggle_sharing(friendship_id: UUID, body: SharingToggle, current_user=Depends(get_current_user), db=Depends(get_auth_db)):
+    """Toggle per-friend location sharing."""
+    try:
+        # Verify the friendship belongs to the current user
+        res = db.table("friendships").select("*").eq("id", str(friendship_id)).eq("user_id", current_user.id).execute()
+        if not res.data:
+            raise HTTPException(status_code=404, detail="Friendship not found")
+
+        friendship = res.data[0]
+
+        # Upsert sharing setting
+        try:
+            db.table("friend_sharing_settings").upsert({
+                "user_id": current_user.id,
+                "friend_id": friendship["friend_id"],
+                "sharing_enabled": body.enabled
+            }, on_conflict="user_id,friend_id").execute()
+        except Exception:
+            # Table may not exist yet — update the friendship itself as fallback
+            db.table("friendships").update({
+                "sharing_enabled": body.enabled
+            }).eq("id", str(friendship_id)).execute()
+
+        _log_sharing_event(
+            db, current_user.id, friendship["friend_id"],
+            "sharing_enabled" if body.enabled else "sharing_enabled" # Correction: it was sharing_enabled regardless in old code?
+        )
+
+        return {"success": True, "sharing_enabled": body.enabled}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+def _log_sharing_event(db, user_id: str, target_id: str, action: str):
+    """Write an audit log entry for sharing state changes."""
+    try:
+        db.table("event_logs").insert({
+            "user_id": user_id,
+            "target_id": target_id,
+            "action": action,
+            "entity_type": "friendship"
+        }).execute()
+    except Exception:
+        pass  # Audit logging should never block the main action

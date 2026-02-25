@@ -1,8 +1,21 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from typing import Optional
+from uuid import UUID
 from datetime import datetime, timezone
 from app.core.security import get_current_user, get_supabase, get_auth_db
+
+
+def _validate_uuid(value: str, field_name: str = "lotId") -> str:
+    """Validate that a string is a valid UUID and return it. Raises HTTPException if not."""
+    try:
+        UUID(value)
+        return value
+    except (ValueError, AttributeError):
+        raise HTTPException(
+            status_code=400,
+            detail=f"'{field_name}' must be a valid UUID, got: {value}"
+        )
 
 router = APIRouter(prefix="/park/session", tags=["parking_session"])
 
@@ -54,6 +67,9 @@ def get_active_session(current_user=Depends(get_current_user), db=Depends(get_au
 def start_parking_session(body: ParkSessionCreate, current_user=Depends(get_current_user), db=Depends(get_auth_db)):
     """Start a new parking session."""
     user_id = current_user.id
+    
+    # Validate lotId is a proper UUID before hitting the database
+    _validate_uuid(body.lotId, "lotId")
     
     # Check if already active
     active = get_active_session(current_user=current_user, db=db)

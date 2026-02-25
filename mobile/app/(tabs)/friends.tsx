@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, FlatList, TouchableOpacity, Image } from 'react-native';
+import { StyleSheet, View, Text, FlatList, TouchableOpacity, Image, Switch, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { BlurView } from 'expo-blur';
@@ -41,6 +41,26 @@ export default function FriendsScreen() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['friends_list'] }),
   });
 
+  const blockMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      return await authApiCall('/friends/block', { method: 'POST', body: JSON.stringify({ user_id: userId }) });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['friends_list'] });
+      Alert.alert('Blocked', 'User has been blocked.');
+    },
+  });
+
+  const sharingMutation = useMutation({
+    mutationFn: async ({ friendshipId, enabled }: { friendshipId: string; enabled: boolean }) => {
+      return await authApiCall(`/friends/${friendshipId}/sharing`, {
+        method: 'PUT',
+        body: JSON.stringify({ enabled }),
+      });
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['friends_list'] }),
+  });
+
   const addFriendPrompt = () => {
     Alert.prompt(
       "Add Friend",
@@ -67,21 +87,59 @@ export default function FriendsScreen() {
     );
   };
 
+  const handleFriendActions = (item: any) => {
+    Alert.alert(
+      item.name,
+      'Choose an action',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: item.sharing_enabled === false ? 'Enable Sharing' : 'Disable Sharing',
+          onPress: () => sharingMutation.mutate({
+            friendshipId: item.id,
+            enabled: item.sharing_enabled === false,
+          }),
+        },
+        {
+          text: 'Block User',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert('Block User', `Are you sure you want to block ${item.name}?`, [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Block', style: 'destructive', onPress: () => blockMutation.mutate(item.friend_id) },
+            ]);
+          },
+        },
+      ]
+    );
+  };
+
   const renderFriend = ({ item }: { item: any }) => (
-    <TouchableOpacity style={styles.friendItem} activeOpacity={0.7}>
+    <TouchableOpacity
+      style={styles.friendItem}
+      activeOpacity={0.7}
+      onLongPress={() => handleFriendActions(item)}
+    >
       <View style={styles.avatarContainer}>
         <View style={styles.avatarPlaceholder}>
           <Text style={styles.avatarText}>{item.name.charAt(0)}</Text>
         </View>
         {item.parked && <View style={styles.onlineBadge} />}
       </View>
-      
+
       <View style={styles.friendInfo}>
         <Text style={styles.friendName}>{item.name}</Text>
         <Text style={[styles.friendStatus, item.parked && styles.statusParked]}>
           {item.status}
         </Text>
       </View>
+
+      {/* Sharing indicator */}
+      {item.sharing_enabled === false && (
+        <View style={styles.sharingBadge}>
+          <IconSymbol name="eye.slash.fill" size={14} color="#71717a" />
+        </View>
+      )}
 
       {item.parked && (
         <TouchableOpacity style={styles.locateButton}>
@@ -302,6 +360,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#3f3f46',
+  },
+  sharingBadge: {
+    marginRight: 8,
+    opacity: 0.7,
   },
   actionButtons: {
     flexDirection: 'row',

@@ -1,76 +1,127 @@
 import React from 'react';
 import { StyleSheet, View, Text, Image } from 'react-native';
-import { Marker } from 'react-native-maps';
+import { Marker, Region } from 'react-native-maps';
 import { useQuery } from '@tanstack/react-query';
+import { authApiCall } from '../../lib/supabase';
+import { useSettings } from '@/context/SettingsContext';
 
-interface Friend {
+interface FriendData {
   id: string;
+  friend_id: string;
   name: string;
-  avatarUrl: string;
-  latitude: number;
-  longitude: number;
-  lastActive: string;
+  status: string;
+  parked: boolean;
+  avatar: string | null;
+  sharing_enabled?: boolean;
+  latitude?: number;
+  longitude?: number;
+  lot_id?: string;
 }
 
-// Mock API call
-const fetchFriends = async (): Promise<Friend[]> => {
-  // Simulate network delay
-  await new Promise(resolve => setTimeout(resolve, 500));
-  
-  return [
-    {
-      id: '1',
-      name: 'Sarah',
-      avatarUrl: 'https://i.pravatar.cc/150?u=sarah',
-      latitude: 40.5018,
-      longitude: -74.4500, // Near the student center
-      lastActive: '2m ago',
-    },
-    {
-      id: '2',
-      name: 'Mike',
-      avatarUrl: 'https://i.pravatar.cc/150?u=mike',
-      latitude: 40.5200,
-      longitude: -74.4600, // Livingston
-      lastActive: '5m ago',
-    },
-    {
-      id: '3',
-      name: 'Jessica',
-      avatarUrl: 'https://i.pravatar.cc/150?u=jessica',
-      latitude: 40.5050,
-      longitude: -74.4450,
-      lastActive: 'Just now',
-    }
-  ];
+const fetchFriendsWithLocation = async (): Promise<FriendData[]> => {
+  try {
+    const data = await authApiCall('/friends');
+    if (!data?.friends) return [];
+
+    // Only return friends who have location data and sharing enabled
+    return data.friends.filter(
+      (f: FriendData) => f.sharing_enabled !== false && f.latitude && f.longitude
+    );
+  } catch {
+    return [];
+  }
 };
 
-export default function FriendMarkers() {
+const isMarkerInRegion = (marker: FriendData, region: Region) => {
+  const { latitude, longitude, latitudeDelta, longitudeDelta } = region;
+
+  const northeast = {
+    latitude: latitude + latitudeDelta / 2,
+    longitude: longitude + longitudeDelta / 2,
+  };
+  const southwest = {
+    latitude: latitude - latitudeDelta / 2,
+    longitude: longitude - longitudeDelta / 2,
+  };
+
+  return (
+    marker.latitude! >= southwest.latitude &&
+    marker.latitude! <= northeast.latitude &&
+    marker.longitude! >= southwest.longitude &&
+    marker.longitude! <= northeast.longitude
+  );
+};
+
+export default function FriendMarkers({ region }: { region: Region | null }) {
+  const { friendFilterMode } = useSettings();
+
   const { data: friends = [] } = useQuery({
-    queryKey: ['friends'],
-    queryFn: fetchFriends,
-    refetchInterval: 60000, // Poll every minute
+    queryKey: ['friend_markers'],
+    queryFn: fetchFriendsWithLocation,
+    refetchInterval: 15000, // Refresh every 15s (matching friends list more closely)
   });
+
+  // Apply filter mode
+  const filteredFriends = React.useMemo(() => {
+    let friendsToDisplay = friends;
+    switch (friendFilterMode) {
+      case 'same_lot':
+        // Only show friends who are parked
+        friendsToDisplay = friends.filter(f => f.parked);
+        break;
+      case 'nearby':
+        // For now, show all with location — true proximity check would
+        // need the user's own coordinates passed in as a prop
+        friendsToDisplay = friends;
+        break;
+      case 'all':
+      default:
+        friendsToDisplay = friends;
+    }
+
+    if (!region) {
+      return friendsToDisplay;
+    }
+
+    return friendsToDisplay.filter(friend => isMarkerInRegion(friend, region));
+  }, [friends, friendFilterMode, region]);
+
+  if (filteredFriends.length === 0) return null;
 
   return (
     <>
-      {friends.map((friend) => (
-        <Marker
-          key={friend.id}
-          coordinate={{ latitude: friend.latitude, longitude: friend.longitude }}
-          zIndex={15} // Above lots (10), below clusters (20)
-        >
-          <View style={styles.container}>
-            <View style={styles.avatarContainer}>
-              <Image source={{ uri: friend.avatarUrl }} style={styles.avatar} />
-              <View style={styles.statusIndicator} />
+      {filteredFriends.map((friend) => {
+        if (!friend.latitude || !friend.longitude) return null;
+
+        return (
+          <Marker
+            key={friend.id}
+            coordinate={{ latitude: friend.latitude, longitude: friend.longitude }}
+            zIndex={15}
+          >
+            <View style={styles.container}>
+              <View style={styles.avatarContainer}>
+                {friend.avatar ? (
+                  <Image source={{ uri: friend.avatar }} style={styles.avatar} />
+                ) : (
+                  <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                    <Text style={styles.avatarInitial}>
+                      {friend.name?.charAt(0)?.toUpperCase() || '?'}
+                    </Text>
+                  </View>
+                )}
+                <View style={[
+                  styles.statusIndicator,
+                  { backgroundColor: friend.parked ? '#3b82f6' : '#10b981' }
+                ]} />
+              </View>
+              <View style={styles.nameTag}>
+                <Text style={styles.nameText}>{friend.name}</Text>
+              </View>
             </View>
-            <View style={styles.nameTag}>
-               <Text style={styles.nameText}>{friend.name}</Text>
-            </View>
-          </View>
-        </Marker>
-      ))}
+          </Marker>
+        );
+      })}
     </>
   );
 }
@@ -99,6 +150,16 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 20,
   },
+  avatarPlaceholder: {
+    backgroundColor: '#71717a',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarInitial: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
   statusIndicator: {
     position: 'absolute',
     bottom: 0,
@@ -106,7 +167,6 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#10b981', // Online green
     borderWidth: 2,
     borderColor: '#fff',
   },
@@ -121,5 +181,5 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 10,
     fontWeight: 'bold',
-  }
+  },
 });

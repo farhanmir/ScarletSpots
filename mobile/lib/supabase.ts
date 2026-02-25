@@ -32,11 +32,10 @@ const LOCAL_FASTAPI_URL = debuggerHost
 
 const API_BASES = [
   `${supabaseUrl}/functions/v1/server`,
-  `${supabaseUrl}/functions/v1/make-server-8814ba2a`,
 ];
 
 // Routes that strictly live on the new Python FastAPI backend
-const FASTAPI_ROUTES = ['/friends', '/lots/custom', '/park/session'];
+const FASTAPI_ROUTES = ['/friends', '/lots/custom', '/lots/init', '/park/session', '/compass', '/users/signup', '/admin'];
 
 async function fetchWithFunctionFallback(endpoint: string, init: RequestInit): Promise<Response> {
   // 1. Intercept FastAPI exclusive routes
@@ -120,6 +119,16 @@ async function addToOfflineQueue(endpoint: string, options: RequestInit) {
 
   try {
     const queue = await getOfflineQueue();
+
+    // Deduplication: skip if an identical endpoint+method is already queued
+    const isDuplicate = queue.some(
+      (q) => q.endpoint === endpoint && q.options?.method === options.method
+    );
+    if (isDuplicate) {
+      console.log(`[Offline] Skipping duplicate queue entry for ${options.method} ${endpoint}`);
+      return;
+    }
+
     queue.push({ endpoint, options });
     await AsyncStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
     console.log(`[Offline] Action queued for ${endpoint}`);
@@ -136,17 +145,29 @@ export async function syncOfflineQueue() {
   if (!state.isConnected) return;
 
   console.log(`[Offline] Syncing ${queue.length} actions...`);
-  await AsyncStorage.removeItem(OFFLINE_QUEUE_KEY); // Clear immediately to prevent duplicate syncs
+  await AsyncStorage.removeItem(OFFLINE_QUEUE_KEY);
+
+  const failedActions: { endpoint: string; options: RequestInit; _retryCount?: number }[] = [];
 
   for (const action of queue) {
     try {
-      // Replay the exact auth request
       await authApiCall(action.endpoint, action.options);
       console.log(`[Offline] Synced: ${action.endpoint}`);
     } catch (e) {
-      console.error(`[Offline] Failed to sync ${action.endpoint}:`, e);
-      // Could push back to queue here if it's a 500/timeout, but for now we'll drop it if it fails again
+      const retryCount = (action as any)._retryCount || 0;
+      if (retryCount < 3) {
+        // Re-queue with incremented retry count
+        failedActions.push({ ...action, _retryCount: retryCount + 1 } as any);
+        console.warn(`[Offline] Retry ${retryCount + 1}/3 queued for ${action.endpoint}`);
+      } else {
+        console.error(`[Offline] Dropped after 3 retries: ${action.endpoint}`);
+      }
     }
+  }
+
+  // Re-save any failed actions for next sync
+  if (failedActions.length > 0) {
+    await AsyncStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(failedActions));
   }
 }
 

@@ -5,6 +5,7 @@ import 'react-native-reanimated';
 import { useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'; // Import QueryClientProvider
 import '../services/BackgroundTasks'; // Register background tasks globally
+import '../services/GeofenceManager'; // Register geofence tasks globally
 
 // Global Error Boundary
 export { ErrorBoundary } from 'expo-router';
@@ -71,8 +72,14 @@ import { SettingsProvider } from '@/context/SettingsContext';
 import OfflineBanner from '@/components/ui/OfflineBanner';
 import NetInfo from '@react-native-community/netinfo';
 import { syncOfflineQueue } from '@/lib/supabase';
+import { installGlobalCrashHandlers } from '@/services/CrashLogger';
 
 export default function RootLayout() {
+  // Install crash handlers once at boot
+  useEffect(() => {
+    installGlobalCrashHandlers();
+  }, []);
+
   useEffect(() => {
     // Listen for global connection changes to trigger sync
     const unsubscribe = NetInfo.addEventListener(state => {

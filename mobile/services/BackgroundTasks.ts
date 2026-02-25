@@ -1,95 +1,121 @@
 import * as TaskManager from 'expo-task-manager';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
+import { Accelerometer } from 'expo-sensors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { isPointInPolygon } from '../utils/geofence';
+import {
+  pushSpeed,
+  pushAccel,
+  detectParking,
+  type LotForDetection,
+  type ParkingCandidate,
+} from './ParkingDetectionService';
 
 export const PARKING_DETECTION_TASK = 'SCARLETSPOTS_PARKING_DETECTION';
+const CANDIDATES_STORAGE_KEY = 'parking_candidates';
 
-// Configure how notifications appear when the app is in the foreground
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+// Global listener for accelerometer in background
+let accelSubscription: any = null;
+
+const startAccelTracking = () => {
+  if (accelSubscription) return;
+  Accelerometer.setUpdateInterval(500);
+  accelSubscription = Accelerometer.addListener(data => {
+    pushAccel(data);
+  });
+};
+
+const stopAccelTracking = () => {
+  if (accelSubscription) {
+    accelSubscription.remove();
+    accelSubscription = null;
+  }
+};
 
 TaskManager.defineTask(PARKING_DETECTION_TASK, async ({ data, error }) => {
   if (error) {
     console.error('[BackgroundTask] Error:', error.message);
     return;
   }
-  if (data) {
-    const { locations } = data as { locations: Location.LocationObject[] };
-    if (!locations || locations.length === 0) return;
+  if (!data) return;
 
-    const latestLocation = locations[locations.length - 1];
-    
-    // In a real app we would check `latestLocation.coords.speed` or use expo-sensors to verify 
-    // we transitioned from driving to walking, but `expo-location` also provides hints.
-    // For this blueprint, we'll check if the speed has dropped significantly (e.g., < 2 m/s = walking speed).
-    
-    const speed = latestLocation.coords.speed;
-    
-    // We only care if we just stopped driving. We can persist the last known speed to check transitions.
-    const lastSpeedStr = await AsyncStorage.getItem('last_known_speed');
-    const lastSpeed = lastSpeedStr ? parseFloat(lastSpeedStr) : 0;
-    
-    await AsyncStorage.setItem('last_known_speed', String(speed));
+  const { locations } = data as { locations: Location.LocationObject[] };
+  if (!locations || locations.length === 0) return;
 
-    // Simple heuristic for Driving -> Walking transition
-    // (If we were > 5m/s and now < 2m/s)
-    const wasDriving = lastSpeed > 5;
-    const isWalkingOrStopped = speed !== null && speed < 2;
+  const latestLocation = locations[locations.length - 1];
+  const speed = latestLocation.coords.speed;
 
-    if (wasDriving && isWalkingOrStopped) {
-      console.log(`[BackgroundTask] Detected Driving -> Stopped transition at ${latestLocation.coords.latitude}, ${latestLocation.coords.longitude}`);
-      
-      // Load lots from TanStack Query persist cache or our own KV
-      // Since TanStack persists complex structures, it's easier to fetch from an API or dedicated async storage key 
-      // where we manually cache lots. But for now, let's assume we can fetch it via api (it will use offline queue if offline).
-      // Or safer: read it from our own local cache if we maintained one.
+  // Start accelerometer when we are in active tracking mode
+  startAccelTracking();
 
-      // For this implementation, we will fetch right now (or fallback to cache)
-      try {
-        // Ideally, we'd pull from our own custom AsyncStorage key we keep synced, e.g. 'cached_lots'
-        // But for this example we'll make a quick un-authenticated pull or check query client
-        // Let's assume we maintain a 'cached_lots' string in index.tsx
-        const cachedLotsStr = await AsyncStorage.getItem('cached_lots');
-        if (cachedLotsStr) {
-          const lots = JSON.parse(cachedLotsStr);
-          
-          for (const lot of lots) {
-            if (lot.coordinates && lot.coordinates.length > 2) {
-              const inside = isPointInPolygon(
-                [latestLocation.coords.latitude, latestLocation.coords.longitude],
-                lot.coordinates
-              );
-              
-              if (inside) {
-                console.log(`[BackgroundTask] Parked completely inside lot: ${lot.name}`);
-                
-                // Send Local Notification
-                await Notifications.scheduleNotificationAsync({
-                  content: {
-                    title: "🚗 ScarletSpots Tracking",
-                    body: `Looks like you just parked at ${lot.name}. Tap to confirm your spot.`,
-                    data: { lotId: lot.id, action: 'confirm_park' },
-                  },
-                  trigger: null, // trigger immediately
-                });
-                
-                break; // Stop checking other lots
-              }
-            }
-          }
-        }
-      } catch (e) {
-        console.log('[BackgroundTask] Error checking geofences:', e);
-      }
+  // Feed speed into the rolling buffer
+  pushSpeed(speed);
+
+  // Load cached lots
+  let lots: LotForDetection[] = [];
+  try {
+    const cachedLotsStr = await AsyncStorage.getItem('cached_lots');
+    if (cachedLotsStr) {
+      lots = JSON.parse(cachedLotsStr);
     }
+  } catch {
+    return;
   }
+
+  if (lots.length === 0) return;
+
+  // Run the multi-signal detection pipeline
+  const candidates = detectParking(
+    latestLocation.coords.latitude,
+    latestLocation.coords.longitude,
+    latestLocation.coords.accuracy,
+    lots
+  );
+
+  if (candidates.length === 0) return;
+
+  const topCandidate = candidates[0];
+
+  // Only send notification when confidence is high enough (e.g. 0.8)
+  if (topCandidate.confidence < 0.8) {
+    return;
+  }
+
+  // Once detected, we can stop accel tracking for this session
+  stopAccelTracking();
+
+  // Persist candidates
+  await AsyncStorage.setItem(CANDIDATES_STORAGE_KEY, JSON.stringify(candidates));
+
+  // Send push notification
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: '🚗 ScarletSpots',
+      body: `Looks like you parked at ${topCandidate.lotName}. Tap to confirm.`,
+      data: {
+        lotId: topCandidate.lotId,
+        action: 'confirm_park',
+      },
+    },
+    trigger: null,
+  });
 });
+
+/**
+ * Retrieve persisted parking candidates (set by background task).
+ */
+export async function getPendingParkingCandidates(): Promise<ParkingCandidate[]> {
+  try {
+    const raw = await AsyncStorage.getItem(CANDIDATES_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Clear pending candidates (after user confirms or dismisses).
+ */
+export async function clearPendingParkingCandidates(): Promise<void> {
+  await AsyncStorage.removeItem(CANDIDATES_STORAGE_KEY);
+}

@@ -28,7 +28,6 @@ This is **not** an MVP/prototype plan. Every phase below is scoped for ship-qual
 ### Data and Detection Quality Targets
 - Parked-car location median error: <= 15 meters
 - “Find my car” successful return rate: >= 95%
-- Heatmap state classification precision (low/med/high/full): >= 85%
 - Forecast MAE (1 hour horizon occupancy): <= 12%
 
 ---
@@ -161,17 +160,7 @@ Provide pre-mapped high-traffic destinations and fast destination-to-parking wor
 
 ---
 
-## 7. Map Intelligence: Heatmap + Rush-Hour Prediction
-
-### Heatmap
-- Cell/zone density scoring using:
-  - active sessions,
-  - recent confirmations,
-  - manual reports (weighted reliability)
-- Recompute cadence:
-  - hot zones: 1-2 min
-  - background zones: 5-10 min
-- Class labels: low / medium / high / full
+## 7. Map Intelligence: Rush-Hour Prediction
 
 ### Prediction (1 hour horizon)
 - Time slices: now, +15m, +30m, +60m
@@ -245,7 +234,6 @@ backend/
 │   │   ├── lots.py
 │   │   ├── compass.py
 │   │   ├── friends.py
-│   │   ├── heatmap.py
 │   │   └── forecast.py
 │   ├── services/
 │   │   ├── geo/
@@ -257,7 +245,6 @@ backend/
 │   │   │   └── confidence.py
 │   │   ├── predictions/
 │   │   │   ├── rush_hour.py
-│   │   │   ├── heat_map.py
 │   │   │   └── forecast.py
 │   │   └── social/
 │   │       └── sharing.py
@@ -279,7 +266,6 @@ backend/
 - `GET /api/park/compass`
 - `GET /api/lots`
 - `GET /api/lot/{id}`
-- `GET /api/lot/{id}/heatmap`
 - `GET /api/lot/{id}/rush-hours`
 - `GET /api/lot/{id}/forecast`
 - `POST /api/friends/request`
@@ -300,7 +286,6 @@ Core entities:
 - `friendships` (pending/accepted/blocked)
 - `friend_sharing_settings`
 - `common_locations`
-- `heatmap_cells`
 - `rush_hour_stats`
 - `forecast_snapshots`
 - `event_logs` (audit/ops)
@@ -388,7 +373,6 @@ Core entities:
 - Map filters and visibility rules with auditability
 
 ### Phase 4 - Prediction and Intelligence
-- Heatmap ingestion and rendering
 - Rush-hour and forecast services with confidence bands
 - Model monitoring and fallback heuristics
 
@@ -432,7 +416,6 @@ Core entities:
 
 ### Intelligence Quality
 - Forecast MAE/MAPE
-- Heatmap label precision/recall
 - Parking detection false positive/negative rates
 
 ---
