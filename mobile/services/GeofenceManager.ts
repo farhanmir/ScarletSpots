@@ -1,9 +1,9 @@
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { PARKING_DETECTION_TASK } from './BackgroundTasks';
 
 export const GEOFENCE_TASK_NAME = 'SCARLETSPOTS_GEOFENCE_TASK';
-const ACTIVE_TRACKING_TASK = 'SCARLETSPOTS_PARKING_DETECTION';
 
 /**
  * Registers geofences for all known lots.
@@ -58,7 +58,7 @@ TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data: { eventType, region },
     await AsyncStorage.setItem('current_geofence_lot_id', region.identifier);
     
     // Start active location tracking with higher accuracy
-    await Location.startLocationUpdatesAsync(ACTIVE_TRACKING_TASK, {
+    await Location.startLocationUpdatesAsync(PARKING_DETECTION_TASK, {
       accuracy: Location.Accuracy.High,
       distanceInterval: 5,
       timeInterval: 2000,
@@ -74,6 +74,6 @@ TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data: { eventType, region },
     await AsyncStorage.removeItem('current_geofence_lot_id');
     
     // Stop active tracking to save battery
-    await Location.stopLocationUpdatesAsync(ACTIVE_TRACKING_TASK);
+    await Location.stopLocationUpdatesAsync(PARKING_DETECTION_TASK);
   }
 });

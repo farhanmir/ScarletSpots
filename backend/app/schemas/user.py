@@ -13,7 +13,7 @@ class UserCreate(BaseModel):
     name: str | None = None
 
 class ProfileUpdate(ProfileBase):
-    pass
+    model_config = ConfigDict(extra='forbid')
 
 class Profile(ProfileBase):
     id: str  # maps to auth.users.id (uuid)
@@ -24,3 +24,8 @@ class Profile(ProfileBase):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+class SignupResponse(BaseModel):
+    success: bool
+    id: str
+    email: str | None = None

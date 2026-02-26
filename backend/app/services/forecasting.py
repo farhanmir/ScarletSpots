@@ -2,10 +2,10 @@ import datetime
 import random
 from typing import Dict, List, Any
 from uuid import UUID
+from app.services.forecast_provider import ForecastProvider
 
-class ForecastingService:
-    @staticmethod
-    def get_lot_forecast(lot_id: UUID, current_occupancy: int, capacity: int) -> Dict[str, Any]:
+class HeuristicForecastProvider(ForecastProvider):
+    def get_lot_forecast(self, lot_id: UUID, current_occupancy: int, capacity: int) -> Dict[str, Any]:
         """
         Computes a realistic heuristic forecast for a lot based on:
         - Time of day (Rush hour peaks)
@@ -57,7 +57,7 @@ class ForecastingService:
                 "expected_occupancy": round(expected, 1),
                 "low": round(max(0, expected - band_width), 1),
                 "high": round(min(100, expected + band_width), 1),
-                "label": ForecastingService._get_label(expected)
+                "label": HeuristicForecastProvider._get_label(expected)
             }
 
         # Key time slices
