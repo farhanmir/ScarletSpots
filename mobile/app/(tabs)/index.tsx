@@ -28,7 +28,7 @@ interface Lot {
   occupiedCount: number;
   coordinates?: number[][];
   occupancyRate: number;
-  isCustom?: boolean;
+  is_custom?: boolean;
 }
 
 interface ParkingSession {
@@ -73,8 +73,9 @@ export default function MapScreen() {
     queryFn: async () => {
       const result = await fetchWithOfflineFallback(
         async () => {
-          const data = await publicApiCall('/lots');
-          return data.lots || [];
+          const res = await publicApiCall('/lots');
+          // Support both paginated enveloping ({ data: [...] }) and flat array structures
+          return res.data || res.lots || res || [];
         },
         'offline_cache_lots'
       );

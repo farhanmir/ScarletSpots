@@ -10,6 +10,7 @@ import {
   type LotForDetection,
   type ParkingCandidate,
 } from './ParkingDetectionService';
+import { PARKING_CONFIDENCE_THRESHOLD } from '../constants/featureFlags';
 
 export const PARKING_DETECTION_TASK = 'SCARLETSPOTS_PARKING_DETECTION';
 const CANDIDATES_STORAGE_KEY = 'parking_candidates';
@@ -76,8 +77,8 @@ TaskManager.defineTask(PARKING_DETECTION_TASK, async ({ data, error }) => {
 
   const topCandidate = candidates[0];
 
-  // Only send notification when confidence is high enough (e.g. 0.8)
-  if (topCandidate.confidence < 0.8) {
+  // Only send notification when confidence is high enough
+  if (topCandidate.confidence < PARKING_CONFIDENCE_THRESHOLD) {
     return;
   }
 

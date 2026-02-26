@@ -1,8 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from typing import List, Optional
 from uuid import UUID
 from app.core.security import get_current_user, get_supabase, get_auth_db
+from app.core.limiter import limiter
+from app.core.logger import get_logger
+
+log = get_logger(__name__)
 
 router = APIRouter(prefix="/friends", tags=["friends"])
 
@@ -13,9 +17,11 @@ class FriendAction(BaseModel):
     request_id: UUID
 
 @router.get("")
-def get_friends(current_user=Depends(get_current_user), db=Depends(get_auth_db)):
+def get_friends(current_user=Depends(get_current_user), db=Depends(get_auth_db), limit: int = 50, offset: int = 0):
     """Get accepted friends and pending requests."""
     user_id = current_user.id
+    limit = max(1, min(limit, 200))
+    offset = max(0, offset)
     
     # Get all friendships for the user
     try:
@@ -43,20 +49,20 @@ def get_friends(current_user=Depends(get_current_user), db=Depends(get_auth_db))
             }
 
         # 1. Incoming requests (status = pending, friend_id = me)
-        incoming_query = db.table("friendships").select("id, status, user_id, profiles!friendships_user_id_fkey(id, email, full_name)").eq("friend_id", user_id).eq("status", "pending").execute()
+        incoming_query = db.table("friendships").select("id, status, user_id, profiles!friendships_user_id_fkey(id, email, full_name)", count="exact").eq("friend_id", user_id).eq("status", "pending").range(offset, offset + limit - 1).execute()
         
         # 2. Accepted friends: we check both directions
         # Query A: Where I am the initiator
         q1 = db.table("friendships").select(
             "id, status, user_id, friend_id, sharing_enabled, "
-            "friend:profiles!friendships_friend_id_fkey(id, email, full_name)"
-        ).eq("user_id", user_id).eq("status", "accepted").execute()
+            "friend:profiles!friendships_friend_id_fkey(id, email, full_name)", count="exact"
+        ).eq("user_id", user_id).eq("status", "accepted").range(offset, offset + limit - 1).execute()
         
         # Query B: Where I am the target
         q2 = db.table("friendships").select(
             "id, status, user_id, friend_id, sharing_enabled, "
-            "initiator:profiles!friendships_user_id_fkey(id, email, full_name)"
-        ).eq("friend_id", user_id).eq("status", "accepted").execute()
+            "initiator:profiles!friendships_user_id_fkey(id, email, full_name)", count="exact"
+        ).eq("friend_id", user_id).eq("status", "accepted").range(offset, offset + limit - 1).execute()
         
         requests = []
         for req in incoming_query.data:
@@ -83,13 +89,21 @@ def get_friends(current_user=Depends(get_current_user), db=Depends(get_auth_db))
             if friend_profile:
                 friends.append(_format_friend(db, f, friend_profile))
             
-        return {"friends": friends, "requests": requests}
+        return {
+            "friends": friends,
+            "requests": requests,
+            "total_friends": (q1.count or 0) + (q2.count or 0),
+            "total_requests": incoming_query.count or 0,
+            "limit": limit,
+            "offset": offset
+        }
     except Exception as exc:
-        print("Error getting friends", exc)
-        raise HTTPException(status_code=500, detail=str(exc))
+        log.error("Error getting friends: %s", exc)
+        raise HTTPException(status_code=500, detail="Failed to retrieve friends")
 
 @router.post("/request")
-def send_friend_request(body: FriendRequest, current_user=Depends(get_current_user), db=Depends(get_auth_db)):
+@limiter.limit("20/hour")
+def send_friend_request(request: Request, body: FriendRequest, current_user=Depends(get_current_user), db=Depends(get_auth_db)):
     """Send a friend request by email."""
     try:
         # Find friend by email
@@ -113,7 +127,8 @@ def send_friend_request(body: FriendRequest, current_user=Depends(get_current_us
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        log.error("Failed to send friend request: %s", exc)
+        raise HTTPException(status_code=500, detail="Failed to send friend request")
 
 
 @router.post("/accept")
@@ -132,7 +147,8 @@ def accept_friend_request(body: FriendAction, current_user=Depends(get_current_u
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        log.error("Failed to accept friend request: %s", exc)
+        raise HTTPException(status_code=500, detail="Failed to accept friend request")
 
 
 @router.post("/decline")
@@ -142,7 +158,8 @@ def decline_friend_request(body: FriendAction, current_user=Depends(get_current_
         db.table("friendships").delete().eq("id", str(body.request_id)).execute()
         return {"success": True}
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        log.error("Failed to decline friend request: %s", exc)
+        raise HTTPException(status_code=500, detail="Failed to decline friend request")
 
 
 class BlockAction(BaseModel):
@@ -171,7 +188,8 @@ def block_user(body: BlockAction, current_user=Depends(get_current_user), db=Dep
 
         return {"success": True}
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        log.error("Failed to block user: %s", exc)
+        raise HTTPException(status_code=500, detail="Failed to block user")
 
 
 @router.post("/unblock")
@@ -184,7 +202,8 @@ def unblock_user(body: BlockAction, current_user=Depends(get_current_user), db=D
 
         return {"success": True}
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        log.error("Failed to unblock user: %s", exc)
+        raise HTTPException(status_code=500, detail="Failed to unblock user")
 
 
 class SharingToggle(BaseModel):
@@ -217,14 +236,15 @@ def toggle_sharing(friendship_id: UUID, body: SharingToggle, current_user=Depend
 
         _log_sharing_event(
             db, current_user.id, friendship["friend_id"],
-            "sharing_enabled" if body.enabled else "sharing_enabled" # Correction: it was sharing_enabled regardless in old code?
+            "sharing_enabled" if body.enabled else "sharing_disabled"
         )
 
         return {"success": True, "sharing_enabled": body.enabled}
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        log.error("Failed to toggle sharing: %s", exc)
+        raise HTTPException(status_code=500, detail="Failed to toggle sharing")
 
 
 def _log_sharing_event(db, user_id: str, target_id: str, action: str):

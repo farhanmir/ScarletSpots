@@ -30,36 +30,11 @@ const LOCAL_FASTAPI_URL = debuggerHost
   ? `http://${localHostIp}:8000/api/v1`
   : Platform.OS === 'android' ? 'http://10.0.2.2:8000/api/v1' : 'http://localhost:8000/api/v1';
 
-const API_BASES = [
-  `${supabaseUrl}/functions/v1/server`,
-];
-
-// Routes that strictly live on the new Python FastAPI backend
-const FASTAPI_ROUTES = ['/friends', '/lots/custom', '/lots/init', '/park/session', '/compass', '/users/signup', '/admin'];
-
-async function fetchWithFunctionFallback(endpoint: string, init: RequestInit): Promise<Response> {
-  // 1. Intercept FastAPI exclusive routes
-  if (FASTAPI_ROUTES.some(route => endpoint.startsWith(route))) {
-    console.log(`[api] Routing to local FastAPI backend: ${endpoint}`);
-    return await fetch(`${LOCAL_FASTAPI_URL}${endpoint}`, init);
-  }
-
-  let lastResponse: Response | null = null;
-
-  // 2. Fallback cycle for Edge Functions
-  for (const base of API_BASES) {
-    const response = await fetch(`${base}${endpoint}`, init);
-    lastResponse = response;
-
-    if (response.status !== 404) {
-      if (base !== API_BASES[0]) {
-        console.log(`[api] Using fallback function route: ${base}`);
-      }
-      return response;
-    }
-  }
-
-  return lastResponse as Response;
+async function fetchBackend(endpoint: string, init: RequestInit): Promise<Response> {
+  // Exclusively target the Python FastAPI backend
+  const url = `${LOCAL_FASTAPI_URL}${endpoint}`;
+  console.log(`[api] Fetching ${url}`);
+  return await fetch(url, init);
 }
 
 /**
@@ -80,7 +55,7 @@ async function safeJson(response: Response): Promise<any> {
  * Use for endpoints like /lots, /signup that don't need auth.
  */
 export async function publicApiCall(endpoint: string, options: RequestInit = {}): Promise<any> {
-  const response = await fetchWithFunctionFallback(endpoint, {
+  const response = await fetchBackend(endpoint, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -219,7 +194,7 @@ export async function authApiCall(endpoint: string, options: RequestInit = {}): 
   // 3. Make the request
   let response;
   try {
-    response = await fetchWithFunctionFallback(endpoint, {
+    response = await fetchBackend(endpoint, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
@@ -249,7 +224,7 @@ export async function authApiCall(endpoint: string, options: RequestInit = {}): 
     if (!refreshError && refreshData.session) {
       // Retry with new token
       try {
-        response = await fetchWithFunctionFallback(endpoint, {
+        response = await fetchBackend(endpoint, {
           ...options,
           headers: {
             'Content-Type': 'application/json',

@@ -1,15 +1,20 @@
-from fastapi import APIRouter, Depends, HTTPException
-from app.core.security import get_current_user, get_admin_supabase
+from fastapi import APIRouter, Depends, HTTPException, Request
+from app.core.security import require_admin, get_admin_supabase
+from app.core.limiter import limiter
+from app.core.logger import get_logger
 from typing import List
+
+log = get_logger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 @router.get("/stats")
-def get_admin_stats(current_user=Depends(get_current_user)):
+@limiter.limit("60/minute")
+def get_admin_stats(request: Request, current_user=Depends(require_admin)):
     """
     Returns global system stats for the admin dashboard.
+    Requires admin role.
     """
-    # In a real app, check if current_user.role == 'admin'
     admin_db = get_admin_supabase()
     
     try:
@@ -18,7 +23,6 @@ def get_admin_stats(current_user=Depends(get_current_user)):
         total_users = users_res.count or 0
         
         # 2. Active Sessions
-        # We try parking_sessions if it exists, fallback to occupancy_logs
         active_sessions = 0
         try:
             sessions_res = admin_db.table("parking_sessions").select("id", count="exact").eq("active", True).execute()
@@ -44,24 +48,33 @@ def get_admin_stats(current_user=Depends(get_current_user)):
             "lots": lots
         }
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        log.error("Admin stats failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Failed to retrieve admin stats")
 
 @router.get("/users")
-def list_users(current_user=Depends(get_current_user)):
-    """List all users (Admin only)."""
+@limiter.limit("60/minute")
+def list_users(request: Request, limit: int = 50, offset: int = 0, current_user=Depends(require_admin)):
+    """List all users. Requires admin role."""
+    limit = max(1, min(limit, 200))
+    offset = max(0, offset)
+    
     admin_db = get_admin_supabase()
     try:
-        # Use admin.list_users to get actual Auth users
-        res = admin_db.auth.admin.list_users()
+        res = admin_db.table("profiles").select("*", count="exact").range(offset, offset + limit - 1).execute()
         users = []
-        for u in res.users:
+        for u in res.data:
             users.append({
-                "id": str(u.id),
-                "email": u.email,
-                "name": u.user_metadata.get("name", "N/A"),
-                "created_at": u.created_at,
-                "last_sign_in_at": u.last_sign_in_at
+                "id": str(u.get("id")),
+                "email": u.get("email"),
+                "name": u.get("full_name") or u.get("first_name", "N/A"),
+                "created_at": u.get("created_at")
             })
-        return {"users": users}
+        return {
+            "data": users,
+            "total": res.count or 0,
+            "limit": limit,
+            "offset": offset
+        }
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        log.error("Admin list users failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Failed to retrieve user list")

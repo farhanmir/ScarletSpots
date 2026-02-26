@@ -16,7 +16,7 @@ export default function FriendsScreen() {
   const { data = { friends: [], requests: [] }, isRefetching } = useQuery({
     queryKey: ['friends_list'],
     queryFn: async () => {
-      const res = await authApiCall('/friends/');
+      const res = await authApiCall('/friends');
       if (res && res._offline) {
         return { friends: [], requests: [] };
       }

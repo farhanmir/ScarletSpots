@@ -1,12 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from app.core.security import get_current_user, get_supabase, get_admin_supabase
-from app.schemas.user import UserCreate
+from app.core.limiter import limiter
+from app.schemas.user import UserCreate, ProfileUpdate, SignupResponse
+from app.core.logger import get_logger
+
+log = get_logger(__name__)
 
 router = APIRouter(prefix="/users", tags=["users"])
 
 
 @router.post("/signup")
-def signup(body: UserCreate):
+@limiter.limit("5/hour")
+def signup(request: Request, body: UserCreate):
     """
     Create a new user with Rutgers email validation.
     Mirrors the logic from the legacy Edge Function.
@@ -32,9 +37,10 @@ def signup(body: UserCreate):
         # Profile creation is usually handled by a DB trigger in Supabase, 
         # but if not, we can insert it here.
         
-        return {"success": True, "user": res.user}
+        return SignupResponse(success=True, id=str(res.user.id), email=res.user.email)
     except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
+        log.error("Signup failed: %s", exc)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Signup failed")
 
 
 @router.get("/me")
@@ -50,22 +56,25 @@ def read_user_me(current_user=Depends(get_current_user)):
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        log.error("Failed to read profile: %s", exc)
+        raise HTTPException(status_code=500, detail="Failed to retrieve profile")
 
 
 @router.patch("/me")
-def update_user_me(body: dict, current_user=Depends(get_current_user)):
-    """Update the authenticated user's profile."""
+def update_user_me(body: ProfileUpdate, current_user=Depends(get_current_user)):
+    """Update the authenticated user's profile. Only first_name, last_name, avatar_url allowed."""
     db = get_supabase()
     user_id = current_user.id
-    if not body:
+    update_data = body.model_dump(exclude_unset=True)
+    if not update_data:
         raise HTTPException(status_code=400, detail="Empty body")
     try:
-        row = db.table("profiles").update(body).eq("id", user_id).execute()
+        row = db.table("profiles").update(update_data).eq("id", user_id).execute()
         if not row.data:
             raise HTTPException(status_code=404, detail="Profile not found")
         return row.data[0]
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        log.error("Failed to update profile: %s", exc)
+        raise HTTPException(status_code=500, detail="Failed to update profile")

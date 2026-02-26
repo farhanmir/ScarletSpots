@@ -37,7 +37,7 @@ interface Lot {
   capacity: number;
   occupiedCount: number;
   occupancyRate: number;
-  isCustom?: boolean;
+  is_custom?: boolean;
 }
 
 interface User {
@@ -58,21 +58,10 @@ interface LotDetailsProps {
 
 import { useQuery } from '@tanstack/react-query';
 import { publicApiCall } from '../lib/supabase';
-
-// ... other imports will remain since I'm targeting the component itself
-
-interface ForecastPoint {
-  time: string;
-  expected_occupancy: number;
-  low?: number;
-  high?: number;
-  label?: string;
-}
-
-interface ForecastResponse {
-  slices?: Record<string, ForecastPoint>;
-  curve?: ForecastPoint[];
-}
+import { ForecastResponse, ForecastPoint } from './lots/types';
+import OccupancyBadge from './lots/OccupancyBadge';
+import ForecastSlices from './lots/ForecastSlices';
+import ForecastChart from './lots/ForecastChart';
 
 export default function LotDetails({ lot, onClose, onPark, isParking, user }: LotDetailsProps) {
   const [expanded, setExpanded] = useState(false);
@@ -120,12 +109,6 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user }: Lo
     }
   };
 
-  const getOccupancyColor = (rate: number) => {
-    if (rate >= 90) return '#ef4444'; // Red
-    if (rate >= 70) return '#f59e0b'; // Amber
-    return '#10b981'; // Emerald
-  };
-
   const openDirections = () => {
     const scheme = Platform.select({ ios: 'maps:0,0?q=', android: 'geo:0,0?q=' });
     const latLng = `${lot.latitude},${lot.longitude}`;
@@ -137,16 +120,6 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user }: Lo
     if (url) {
       Linking.openURL(url);
     }
-  };
-  
-  // Format ISO time to "10 AM"
-  const formatTime = (isoString: string) => {
-    const date = new Date(isoString);
-    let hours = date.getHours();
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    hours = hours % 12;
-    hours = hours ? hours : 12; 
-    return `${hours}${ampm}`;
   };
 
   return (
@@ -181,10 +154,7 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user }: Lo
             <View style={styles.header}>
               <View style={styles.titleContainer}>
                 <Text style={styles.title}>{lot.name}</Text>
-                <View style={styles.badgeContainer}>
-                  <View style={[styles.badgeDot, { backgroundColor: getOccupancyColor(lot.occupancyRate) }]} />
-                  <Text style={styles.badgeText}>{lot.campus} Campus</Text>
-                </View>
+                <OccupancyBadge rate={lot.occupancyRate} campus={lot.campus} />
               </View>
               
               <TouchableOpacity 
@@ -216,45 +186,8 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user }: Lo
               </View>
             </View>
 
-            {/* Quick Forecast Slices */}
-            {slices && (
-              <View style={styles.forecastSlices}>
-                {['15m', '30m', '60m'].map((key) => {
-                  const s = slices[key];
-                  if (!s) return null;
-                  return (
-                    <View key={key} style={styles.sliceItem}>
-                      <Text style={styles.sliceLabel}>{key}</Text>
-                      <Text style={[styles.sliceValue, { color: getOccupancyColor(s.expected_occupancy) }]}>
-                        {s.expected_occupancy}%
-                      </Text>
-                    </View>
-                  );
-                })}
-              </View>
-            )}
-
-            {/* Forecast Strip */}
-            <View style={styles.forecastContainer}>
-              {isLoadingForecast ? (
-                 <ActivityIndicator size="small" color="#52525b" />
-              ) : forecast.length > 0 ? (
-                 forecast.map((point: ForecastPoint, index: number) => {
-                    const isNow = index === 2; // Curve: -60, -30, 0(now), +30, +60, ...
-                    const barHeight = Math.max(8, (point.expected_occupancy / 100) * 32); 
-                    return (
-                      <View key={index} style={styles.forecastItem}>
-                        <Text style={[styles.forecastTime, isNow && { color: '#fff', fontWeight: 'bold' }]}>
-                           {isNow ? 'Now' : formatTime(point.time)}
-                        </Text>
-                        <View style={[styles.forecastBar, { height: barHeight, backgroundColor: getOccupancyColor(point.expected_occupancy) }]} />
-                      </View>
-                    );
-                 })
-              ) : (
-                 <Text style={{color: '#71717a'}}>Forecast unavailable</Text>
-              )}
-            </View>
+            <ForecastSlices slices={slices} />
+            <ForecastChart curve={forecast} isLoading={isLoadingForecast} />
 
             <View style={styles.actions}>
               <TouchableOpacity 
@@ -389,26 +322,6 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     letterSpacing: -0.5,
   },
-  badgeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  badgeDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginRight: 6,
-  },
-  badgeText: {
-    color: '#d4d4d8',
-    fontSize: 13,
-    fontWeight: '500',
-  },
   closeButton: {
     padding: 4,
   },
@@ -443,51 +356,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#a1a1aa',
     fontWeight: '500',
-  },
-  forecastSlices: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 16,
-    paddingVertical: 10,
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    borderRadius: 12,
-  },
-  sliceItem: {
-    alignItems: 'center',
-    gap: 2,
-  },
-  sliceLabel: {
-    color: '#71717a',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  sliceValue: {
-    fontSize: 16,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'] as any,
-  },
-  forecastContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    height: 60,
-    marginBottom: 24,
-    paddingHorizontal: 8,
-  },
-  forecastItem: {
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,
-  },
-  forecastBar: {
-    width: 8,
-    borderRadius: 4,
-    backgroundColor: '#3f3f46',
-  },
-  forecastTime: {
-    color: '#71717a',
-    fontSize: 11,
-    fontWeight: '600',
   },
   actions: {
     flexDirection: 'row',
