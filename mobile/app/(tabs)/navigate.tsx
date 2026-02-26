@@ -8,6 +8,7 @@ import { Magnetometer } from 'expo-sensors';
 import { useLocalSearchParams } from 'expo-router';
 import { publicApiCall, authApiCall } from '../../lib/supabase';
 import { useAuth } from '@/context/AuthProvider';
+import { useFocusEffect } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
 
@@ -76,10 +77,15 @@ export default function NavigateScreen() {
   const { user } = useAuth();
 
   // Sensor state
-  const [heading, setHeading] = useState(0);
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
-  const smoothedHeading = useRef(0);
   const [useMagnetometer, setUseMagnetometer] = useState(true);
+
+  // High-frequency refs to avoid re-renders
+  const smoothedHeading = useRef(0);
+  const bearingRef = useRef(0);
+  const lastHeadingRef = useRef(0);
+  const rotationValue = useRef(new Animated.Value(0)).current;
+  const glowOpacity = useRef(new Animated.Value(0)).current;
 
   // Navigation targets
   const [targetLot, setTargetLot] = useState<any>(null);
@@ -87,16 +93,13 @@ export default function NavigateScreen() {
 
   // Computed navigation state
   const [distance, setDistance] = useState(0);
-  const [arrowRotation, setArrowRotation] = useState(0);
   const [loading, setLoading] = useState(true);
   const [proximityState, setProximityState] = useState<ProximityState>('far');
 
   // Haptic throttle
   const lastHapticRef = useRef(0);
   const lastLockOnRef = useRef(false);
-
-  // Animated glow opacity
-  const glowOpacity = useRef(new Animated.Value(0)).current;
+  const lastFetchRef = useRef(0);
 
   // ── 1. Init: Permissions + Watchers ────────────────────────────────────────
 
@@ -114,11 +117,13 @@ export default function NavigateScreen() {
         try {
           const isAvailable = await Magnetometer.isAvailableAsync();
           if (isAvailable) {
-            Magnetometer.setUpdateInterval(100); // 10 Hz
+            Magnetometer.setUpdateInterval(60); // Faster update (16ms ~ 60Hz)
             magnetometerSub = Magnetometer.addListener(({ x, y }) => {
               const rawHeading = magnetometerToHeading(x, y);
               smoothedHeading.current = lowPassFilter(rawHeading, smoothedHeading.current);
-              setHeading(smoothedHeading.current);
+              lastHeadingRef.current = smoothedHeading.current;
+              // Direct animation value update (no re-render)
+              rotationValue.setValue(bearingRef.current - smoothedHeading.current);
             });
             setUseMagnetometer(true);
           } else {
@@ -128,16 +133,28 @@ export default function NavigateScreen() {
           // Fallback to GPS heading
           setUseMagnetometer(false);
           headingSub = await Location.watchHeadingAsync((obj) => {
-            const rawHeading = obj.trueHeading || obj.magHeading;
-            smoothedHeading.current = lowPassFilter(rawHeading, smoothedHeading.current);
-            setHeading(smoothedHeading.current);
+            const h = obj.trueHeading || obj.magHeading;
+            smoothedHeading.current = lowPassFilter(h, smoothedHeading.current);
+            lastHeadingRef.current = smoothedHeading.current;
+            rotationValue.setValue(bearingRef.current - smoothedHeading.current);
           });
         }
 
         // Position watcher
         positionSub = await Location.watchPositionAsync(
-          { accuracy: Location.Accuracy.High, timeInterval: 500, distanceInterval: 2 },
-          (loc) => setLocation(loc)
+          { accuracy: Location.Accuracy.High, timeInterval: 1000, distanceInterval: 3 },
+          (loc) => {
+            setLocation(loc);
+            if (activeTarget) {
+              const b = getBearing(
+                loc.coords.latitude, loc.coords.longitude,
+                activeTarget.lat, activeTarget.lng
+              );
+              bearingRef.current = b;
+              // Immediate rotation sync
+              rotationValue.setValue(b - lastHeadingRef.current);
+            }
+          }
         );
 
         if (user) await fetchActiveSession();
@@ -155,6 +172,17 @@ export default function NavigateScreen() {
     };
   }, [user]);
 
+  useFocusEffect(
+    React.useCallback(() => {
+      const now = Date.now();
+      // Only refresh if data is older than 60 seconds
+      if (user && now - lastFetchRef.current > 60000) {
+        fetchActiveSession();
+        lastFetchRef.current = now;
+      }
+    }, [user])
+  );
+
   // ── 2. Handle Params ──────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -168,6 +196,11 @@ export default function NavigateScreen() {
       const data = await authApiCall('/park/session/active');
       if (data?.session) {
         setActiveSession(data.session);
+        // If we don't have a target lot from params, fetch it for the active session
+        // to have fallback coordinates if the car pin is missing.
+        if (!params.selectedLotId) {
+          fetchLotDetails(data.session.lotId);
+        }
       } else {
         setActiveSession(null);
       }
@@ -188,10 +221,22 @@ export default function NavigateScreen() {
 
   // ── 3. Target Resolution ─────────────────────────────────────────────────
 
-  const activeTarget = targetLot
-    ? { lat: targetLot.latitude, lng: targetLot.longitude, name: targetLot.name, sub: `${targetLot.campus} Campus`, type: 'lot' }
-    : activeSession
-      ? { lat: activeSession.latitude, lng: activeSession.longitude, name: 'Your Vehicle', sub: `Spot #${activeSession.spotNumber}`, type: 'car' }
+  const activeTarget = (activeSession)
+    ? { 
+        lat: activeSession.latitude || targetLot?.latitude, 
+        lng: activeSession.longitude || targetLot?.longitude, 
+        name: activeSession.latitude ? 'Your Vehicle' : (targetLot?.name || 'Active Session'), 
+        sub: activeSession.latitude ? `Spot #${activeSession.spotNumber}` : (targetLot?.campus ? `${targetLot.campus} Campus` : 'Parking Area'), 
+        type: activeSession.latitude ? 'car' : 'lot' 
+      }
+    : (targetLot)
+      ? { 
+          lat: targetLot.latitude, 
+          lng: targetLot.longitude, 
+          name: targetLot.name, 
+          sub: `${targetLot.campus} Campus`, 
+          type: 'lot' 
+        }
       : null;
 
   // ── 4. Physics + Haptics ──────────────────────────────────────────────────
@@ -206,6 +251,14 @@ export default function NavigateScreen() {
     const distFeet = distMiles * 5280;
     setDistance(distMiles);
 
+    // Update bearing ref
+    const b = getBearing(
+      location.coords.latitude, location.coords.longitude,
+      activeTarget.lat, activeTarget.lng
+    );
+    bearingRef.current = b;
+    rotationValue.setValue(b - lastHeadingRef.current);
+
     // Proximity states
     let newProximity: ProximityState;
     if (distFeet < 50) {
@@ -217,25 +270,15 @@ export default function NavigateScreen() {
     }
     setProximityState(newProximity);
 
-    // Bearing / rotation
-    const bearing = getBearing(
-      location.coords.latitude, location.coords.longitude,
-      activeTarget.lat, activeTarget.lng
-    );
-    const rotation = bearing - heading;
-    setArrowRotation(rotation);
-
-    // Haptic lock-on when distance < 15m (~49ft)
+    // Haptic lock-on
     const distMeters = distMiles * 1609.34;
     const isLockedOn = distMeters <= 15;
     const now = Date.now();
 
     if (isLockedOn && !lastLockOnRef.current) {
-      // Just entered lock-on zone — strong haptic
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (Platform.OS === 'ios') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
       lastLockOnRef.current = true;
-
-      // Pulse the glow
       Animated.sequence([
         Animated.timing(glowOpacity, { toValue: 0.8, duration: 200, useNativeDriver: true }),
         Animated.timing(glowOpacity, { toValue: 0.3, duration: 400, useNativeDriver: true }),
@@ -244,13 +287,14 @@ export default function NavigateScreen() {
       lastLockOnRef.current = false;
     }
 
-    // Subtle haptic when arrow aligned (within 5°), throttled to 1/sec
-    const normRot = ((rotation % 360) + 540) % 360 - 180;
+    // Subtle haptic when arrow aligned (within 5°)
+    const currentRot = bearingRef.current - lastHeadingRef.current;
+    const normRot = ((currentRot % 360) + 540) % 360 - 180;
     if (Math.abs(normRot) < 5 && newProximity !== 'here' && now - lastHapticRef.current > 1000) {
       Haptics.selectionAsync();
       lastHapticRef.current = now;
     }
-  }, [location, heading, activeTarget]);
+  }, [location, activeTarget]);
 
   // ── 5. Proximity-based theming ────────────────────────────────────────────
 
@@ -337,15 +381,21 @@ export default function NavigateScreen() {
           </View>
 
           {/* Compass Arrow */}
-          <View style={[
-            styles.arrowContainer,
-            { transform: [{ rotate: `${arrowRotation}deg` }] }
-          ]}>
+          <View style={styles.arrowContainer}>
             <Animated.View style={[styles.arrowGlow, {
               backgroundColor: themeColor,
               opacity: glowOpacity,
             }]} />
-            <IconSymbol name="location.north.fill" size={160} color={themeColor} />
+            <Animated.View style={{
+              transform: [{
+                rotate: rotationValue.interpolate({
+                  inputRange: [-360000, 360000], // Handle many rotations
+                  outputRange: ['-360000deg', '360000deg'],
+                })
+              }]
+            }}>
+              <IconSymbol name="location.north.fill" size={160} color={themeColor} />
+            </Animated.View>
           </View>
 
           {/* Target Info */}

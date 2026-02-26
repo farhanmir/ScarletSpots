@@ -89,10 +89,21 @@ def get_friends(current_user=Depends(get_current_user), db=Depends(get_auth_db),
             if friend_profile:
                 friends.append(_format_friend(db, f, friend_profile))
             
+        # De-duplicate friends by friend_id
+        seen_friend_ids = set()
+        unique_friends = []
+        for friend in friends:
+            f_id = friend.get("friend_id")
+            if f_id not in seen_friend_ids:
+                seen_friend_ids.add(f_id)
+                unique_friends.append(friend)
+        
+        friends = unique_friends
+
         return {
             "friends": friends,
             "requests": requests,
-            "total_friends": (q1.count or 0) + (q2.count or 0),
+            "total_friends": len(friends),
             "total_requests": incoming_query.count or 0,
             "limit": limit,
             "offset": offset
@@ -116,6 +127,21 @@ def send_friend_request(request: Request, body: FriendRequest, current_user=Depe
         if friend_id == current_user.id:
             raise HTTPException(status_code=400, detail="Cannot add yourself")
             
+        # Check if friendship already exists in either direction
+        existing = db.table("friendships").select("id, status").or_(
+            f"and(user_id.eq.{current_user.id},friend_id.eq.{friend_id}),"
+            f"and(user_id.eq.{friend_id},friend_id.eq.{current_user.id})"
+        ).execute()
+        
+        if existing.data:
+            status = existing.data[0].get("status")
+            if status == "accepted":
+                return {"success": True, "message": "Already friends", "data": existing.data[0]}
+            elif status == "pending":
+                return {"success": True, "message": "Request already exists", "data": existing.data[0]}
+            elif status == "blocked":
+                raise HTTPException(status_code=403, detail="Cannot send request to this user")
+
         # Insert request
         payload = {
             "user_id": current_user.id,

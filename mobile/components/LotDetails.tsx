@@ -54,6 +54,8 @@ interface LotDetailsProps {
   onPark: (lotId: string) => void;
   isParking: boolean;
   user: any; 
+  isFavorite?: boolean;
+  onToggleFavorite?: () => void;
 }
 
 import { useQuery } from '@tanstack/react-query';
@@ -63,7 +65,7 @@ import OccupancyBadge from './lots/OccupancyBadge';
 import ForecastSlices from './lots/ForecastSlices';
 import ForecastChart from './lots/ForecastChart';
 
-export default function LotDetails({ lot, onClose, onPark, isParking, user }: LotDetailsProps) {
+export default function LotDetails({ lot, onClose, onPark, isParking, user, isFavorite, onToggleFavorite }: LotDetailsProps) {
   const [expanded, setExpanded] = useState(false);
 
   const { data: forecastData, isLoading: isLoadingForecast } = useQuery<ForecastResponse>({
@@ -154,7 +156,24 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user }: Lo
             <View style={styles.header}>
               <View style={styles.titleContainer}>
                 <Text style={styles.title}>{lot.name}</Text>
-                <OccupancyBadge rate={lot.occupancyRate} campus={lot.campus} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <OccupancyBadge rate={lot.occupancyRate} campus={lot.campus} />
+                  {user && onToggleFavorite && (
+                    <TouchableOpacity 
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        onToggleFavorite();
+                      }}
+                      style={styles.favoriteButton}
+                    >
+                      <IconSymbol 
+                        name={isFavorite ? "star.fill" : "star"} 
+                        size={18} 
+                        color={isFavorite ? "#f59e0b" : "#52525b"} 
+                      />
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
               
               <TouchableOpacity 
@@ -426,5 +445,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 12,
     fontWeight: '500',
+  },
+  favoriteButton: {
+    padding: 4,
   },
 });
