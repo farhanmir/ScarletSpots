@@ -42,6 +42,8 @@ def get_active_session(current_user=Depends(get_current_user), db=Depends(get_au
                     "id": str(session["id"]),
                     "lotId": str(session["lot_id"]),
                     "spotNumber": session.get("spot_number", ""),
+                    "latitude": session.get("latitude"),
+                    "longitude": session.get("longitude"),
                     "startTime": session.get("start_time", session.get("created_at")),
                     "active": True
                 }

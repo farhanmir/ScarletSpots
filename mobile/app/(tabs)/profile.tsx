@@ -12,12 +12,42 @@ import { useAuth } from '@/context/AuthProvider';
 import { useRouter } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useSettings } from '@/context/SettingsContext';
+import { authApiCall } from '@/lib/supabase';
+import { useFocusEffect } from '@react-navigation/native';
 
 export default function ProfileScreen() {
   const { session, user, loading, signOut } = useAuth();
   const { showFriends, setShowFriends } = useSettings();
   const router = useRouter();
-  const [heatmapEnabled, setHeatmapEnabled] = useState(false);
+  const [favorites, setFavorites] = useState<any[]>([]);
+  const [fetchingFavorites, setFetchingFavorites] = useState(false);
+  const lastFetchRef = React.useRef(0);
+
+  const fetchFavorites = async () => {
+    if (!session) return;
+    setFetchingFavorites(true);
+    try {
+      const data = await authApiCall('/favorites');
+      if (data?.favorite_lots) {
+        setFavorites(data.favorite_lots);
+      }
+    } catch (e) {
+      console.error('Failed to fetch favorites:', e);
+    } finally {
+      setFetchingFavorites(false);
+    }
+  };
+
+  useFocusEffect(
+    React.useCallback(() => {
+      const now = Date.now();
+      // Only refresh if data is older than 5 minutes (favorites change rarely)
+      if (session && now - lastFetchRef.current > 300000) {
+        fetchFavorites();
+        lastFetchRef.current = now;
+      }
+    }, [session])
+  );
 
   if (!loading && !session) {
     return (
@@ -59,53 +89,29 @@ export default function ProfileScreen() {
             <IconSymbol name="star.fill" size={18} color="#f59e0b" />
             <Text style={styles.sectionTitle}>Favorite Locations</Text>
           </View>
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>No favorites yet</Text>
-            <Text style={styles.emptySubtext}>
-              Long-press a lot on the map to save it here
-            </Text>
-          </View>
-        </View>
-
-        {/* Friends */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <IconSymbol name="person.2.fill" size={18} color="#3b82f6" />
-            <Text style={styles.sectionTitle}>Friends</Text>
-          </View>
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>No friends added</Text>
-            <Text style={styles.emptySubtext}>
-              Share your parking status with friends
-            </Text>
-          </View>
-          <TouchableOpacity style={styles.actionButton}>
-            <IconSymbol name="person.badge.plus" size={16} color="#3b82f6" />
-            <Text style={styles.actionButtonText}>Add Friends</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* History */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <IconSymbol name="clock.fill" size={18} color="#a1a1aa" />
-            <Text style={styles.sectionTitle}>History</Text>
-          </View>
-          {/* Mock History Item */}
-          <View style={styles.historyItem}>
-            <View style={styles.historyLeft}>
-              <Text style={styles.historyLot}>College Ave Deck</Text>
-              <Text style={styles.historyDate}>Yesterday, 2 hrs</Text>
+          
+          {favorites.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>No favorites yet</Text>
+              <Text style={styles.emptySubtext}>
+                Long-press a lot on the map to save it here
+              </Text>
             </View>
-            {/* Free */}
-          </View>
-          <View style={styles.historyItem}>
-            <View style={styles.historyLeft}>
-              <Text style={styles.historyLot}>Yellow Lot</Text>
-              <Text style={styles.historyDate}>Feb 12, 4 hrs</Text>
-            </View>
-             {/* Free */}
-          </View>
+          ) : (
+            favorites.map((lot) => (
+              <TouchableOpacity 
+                key={lot.id} 
+                style={styles.historyItem}
+                onPress={() => router.push({ pathname: '/', params: { selectedLotId: lot.id } })}
+              >
+                <View style={styles.historyLeft}>
+                  <Text style={styles.historyLot}>{lot.name}</Text>
+                  <Text style={styles.historyDate}>{lot.campus} Campus</Text>
+                </View>
+                <IconSymbol name="chevron.right" size={14} color="#52525b" />
+              </TouchableOpacity>
+            ))
+          )}
         </View>
 
         {/* Settings */}
@@ -130,20 +136,7 @@ export default function ProfileScreen() {
             />
           </View>
 
-          {/* Heatmap Toggle */}
-          <View style={styles.settingRow}>
-            <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>Heatmap Overlay</Text>
-              <Text style={styles.settingSubtext}>Show lot density on map</Text>
-            </View>
-            <Switch
-              value={heatmapEnabled}
-              onValueChange={setHeatmapEnabled}
-              trackColor={{ false: '#27272a', true: 'rgba(220, 38, 38, 0.5)' }}
-              thumbColor={heatmapEnabled ? '#dc2626' : '#52525b'}
-              ios_backgroundColor="#27272a"
-            />
-          </View>
+
 
           {/* Notifications */}
           <TouchableOpacity style={styles.settingRow}>
@@ -154,14 +147,7 @@ export default function ProfileScreen() {
             <IconSymbol name="chevron.right" size={14} color="#52525b" />
           </TouchableOpacity>
 
-          {/* Vehicles */}
-          <TouchableOpacity style={styles.settingRow}>
-            <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>My Vehicles</Text>
-              <Text style={styles.settingSubtext}>Manage license plates</Text>
-            </View>
-            <IconSymbol name="chevron.right" size={14} color="#52525b" />
-          </TouchableOpacity>
+
 
           {/* Delete Account */}
           <TouchableOpacity style={[styles.settingRow, { borderBottomWidth: 0 }]}>

@@ -3,7 +3,9 @@ import { StyleSheet, View, Platform, Alert, Text, TouchableOpacity, ActivityIndi
 import { BlurView } from 'expo-blur';
 import MapView, { PROVIDER_GOOGLE, PROVIDER_DEFAULT, Polygon, Marker } from 'react-native-maps';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useIsFocused } from '@react-navigation/native';
 import * as Location from 'expo-location';
+import * as Haptics from 'expo-haptics';
 import { useQuery } from '@tanstack/react-query';
 import { authApiCall, publicApiCall } from '../../lib/supabase';
 import { useAuth } from '@/context/AuthProvider';
@@ -61,11 +63,14 @@ export default function MapScreen() {
   const [selectedPlace, setSelectedPlace] = useState<{ lat: number; lng: number; name: string } | null>(null);
   const [activeSession, setActiveSession] = useState<ParkingSession | null>(null);
   const [loading, setLoading] = useState(false);
-  const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('hidden');
+  const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('campus');
   const [currentRegion, setCurrentRegion] = useState<any>(null);
   const [pendingCandidates, setPendingCandidates] = useState<ParkingCandidate[]>([]);
   const [isConfirming, setIsConfirming] = useState(false);
+  const [favorites, setFavorites] = useState<string[]>([]);
   const { showFriends } = useSettings();
+
+  const isFocused = useIsFocused();
 
   // Fetch Lots with TanStack Query (via Supabase Edge Functions)
   const { data: lots = [], refetch: refetchLots } = useQuery<Lot[]>({
@@ -81,7 +86,10 @@ export default function MapScreen() {
       );
       return result.data;
     },
-    refetchInterval: 30000, // Poll every 30s
+    // Optimization: Only poll when map is focused. Increase interval to 60s.
+    refetchInterval: isFocused ? 60000 : false,
+    staleTime: 120000, // 2 minutes stale time
+    refetchOnWindowFocus: false, // Avoid excessive refetching on mobile app state changes
   }); 
  
 
@@ -89,7 +97,20 @@ export default function MapScreen() {
 
   // Clusters computation
   const clusters = React.useMemo(() => {
-    if (zoomLevel === 'lot' || zoomLevel === 'hidden') return [];
+    if (zoomLevel === 'lot') return [];
+
+    if (zoomLevel === 'hidden') {
+      // Rutgers University central pin when zoomed way out
+      return [{
+        id: 'university-rutgers',
+        type: 'region',
+        name: 'Rutgers University',
+        latitude: 40.5008, 
+        longitude: -74.4474,
+        occupancyRate: lots.length > 0 ? lots.reduce((acc, lot) => acc + lot.occupancyRate, 0) / lots.length : 0,
+        count: lots.length
+      } as Cluster];
+    }
 
     // Campus Clusters
     const campuses: Record<string, { lat: number; lng: number; count: number; occupancySum: number }> = {};
@@ -134,6 +155,52 @@ export default function MapScreen() {
     }
 
     clearRouteSelectionParams();
+  };
+
+  const fetchFavorites = async () => {
+    if (!user) return;
+    try {
+      const data = await authApiCall('/favorites');
+      if (data?.favorite_lots) {
+        setFavorites(data.favorite_lots.map((l: any) => l.id));
+      }
+    } catch (e) {
+      console.error('Failed to fetch favorites:', e);
+    }
+  };
+
+  useEffect(() => {
+    if (user) fetchFavorites();
+  }, [user]);
+
+  const toggleFavorite = async (lot: Lot) => {
+    if (!user) return;
+    const isFavorite = favorites.includes(lot.id);
+    
+    // Optimistic UI update
+    if (isFavorite) {
+      setFavorites(prev => prev.filter(id => id !== lot.id));
+    } else {
+      setFavorites(prev => [...prev, lot.id]);
+    }
+
+    try {
+      if (isFavorite) {
+        await authApiCall(`/favorites/${lot.id}`, { method: 'DELETE' });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else {
+        await authApiCall(`/favorites/${lot.id}`, { method: 'POST' });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (e) {
+      // Rollback on error
+      if (isFavorite) {
+        setFavorites(prev => [...prev, lot.id]);
+      } else {
+        setFavorites(prev => prev.filter(id => id !== lot.id));
+      }
+      Alert.alert('Error', 'Failed to update favorites');
+    }
   };
 
   // Handle incoming search selections
@@ -645,7 +712,7 @@ export default function MapScreen() {
           // Determine Zoom Level
           if (region.latitudeDelta < 0.05) {
             setZoomLevel('lot');
-          } else if (region.latitudeDelta < 0.4) {
+          } else if (region.latitudeDelta < 0.6) {
             setZoomLevel('campus');
           } else {
             setZoomLevel('hidden');
@@ -699,6 +766,11 @@ export default function MapScreen() {
                     <Text style={styles.markerText}>
                       {Math.round(lot.occupancyRate)}%
                     </Text>
+                    {favorites.includes(lot.id) && (
+                      <View style={styles.favoriteBadge}>
+                        <IconSymbol name="star.fill" size={10} color="#f59e0b" />
+                      </View>
+                    )}
                   </View>
                   <View style={[
                     styles.markerArrow,
@@ -804,6 +876,8 @@ export default function MapScreen() {
           onPark={handlePark}
           isParking={loading}
           user={user}
+          isFavorite={favorites.includes(selectedLot.id)}
+          onToggleFavorite={() => toggleFavorite(selectedLot)}
         />
       )}
 
@@ -956,6 +1030,19 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 13,
     fontWeight: 'bold',
+  },
+  favoriteBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    backgroundColor: '#18181b',
+    borderRadius: 8,
+    width: 16,
+    height: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#f59e0b',
   },
 
 });

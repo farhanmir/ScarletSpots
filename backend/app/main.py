@@ -15,7 +15,7 @@ from slowapi.errors import RateLimitExceeded
 from app.core.config import settings
 from app.core.limiter import limiter
 from app.core.logger import logger
-from app.routers import users, lots, friends, park, compass, admin
+from app.routers import users, lots, friends, park, compass, admin, favorites
 from contextlib import asynccontextmanager
 
 # --- C11: FastAPI Lifespan for Supabase Client Pooling ---
@@ -94,6 +94,7 @@ app.include_router(friends.router, prefix=settings.API_V1_STR)
 app.include_router(park.router, prefix=settings.API_V1_STR)
 app.include_router(compass.router, prefix=settings.API_V1_STR)
 app.include_router(admin.router, prefix=settings.API_V1_STR)
+app.include_router(favorites.router, prefix=settings.API_V1_STR)
 
 
 @app.get("/health")
