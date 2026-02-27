@@ -6,30 +6,31 @@ Ship a production-grade ScarletSpots platform to 100k users with reliability, pr
 Implementation reference: `PRODUCT_EXPERIENCE_BLUEPRINT.md` is the behavioral source of truth for user flows, edge cases, and acceptance scenarios.
 
 ## Current Baseline (Reality Check)
-- Working foundations: auth, map rendering, parking session CRUD, geofence editor CRUD, basic friends flow.
-- Not launch-ready: predictive layer, robust detection pipeline, privacy controls, security hardening, operational readiness, and scale testing.
+- Working foundations: auth, map rendering, parking session CRUD, geofence editor CRUD, basic friends flow, offline action queuing.
+- Phase 0 stabilization complete: admin RBAC enforced, missing migrations landed, dual-write pattern removed, client pooling in place.
+- Not launch-ready: predictive layer, robust detection pipeline, complete privacy controls, security hardening, and scale testing.
 
 ---
 
-## Phase 0 - Stabilize Current Codebase (2 weeks)
+## Phase 0 - Stabilize Current Codebase ✅ COMPLETE
 Goal: eliminate obvious defects and remove prototype-level breaks before adding scope.
 
 ### P0 Tasks
-1. Fix route inconsistencies in web admin/map navigation (`/admin/geofence` vs `/admin/geofences`).
-2. Remove hardcoded Supabase secrets/config from mobile client.
+1. ✅ Fix route inconsistencies in web admin/map navigation (`/admin/geofence` vs `/admin/geofences`).
+2. ✅ Remove hardcoded Supabase secrets/config from mobile client.
 3. Replace placeholder password reset flow with real Supabase reset flow.
-4. Resolve duplicate/legacy app surfaces and lock one source of truth.
-5. Add runtime config validation for all environments.
+4. ✅ Resolve duplicate/legacy app surfaces and lock one source of truth.
+5. ✅ Add runtime config validation for all environments.
 
 ### Exit Criteria
-- No broken navigation paths in critical flows.
-- No hardcoded production credentials in app code.
-- Auth recovery works end-to-end.
-- One canonical frontend/mobile path documented.
+- ✅ No broken navigation paths in critical flows.
+- ✅ No hardcoded production credentials in app code.
+- Auth recovery works end-to-end (password reset still needed).
+- ✅ One canonical frontend/mobile path documented.
 
 ---
 
-## Phase 1 - Platform Hardening (4-6 weeks)
+## Phase 1 - Platform Hardening (4-6 weeks) ← CURRENT
 Goal: production backend/data foundation with security and observability.
 
 ### Workstream A: Backend Foundation
