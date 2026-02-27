@@ -96,12 +96,11 @@ def get_lot(lot_id: UUID):
             import json
             try:
                 lot["coordinates"] = json.loads(coords)
-                            except Exception:
-                                pass
-                            
-                    return {"lot": lot}
-                except HTTPException:
-            
+            except Exception:
+                pass
+        
+        return {"lot": lot}
+    except HTTPException:
         raise
     except Exception as exc:
         log.error("Failed to get lot: %s", exc)
