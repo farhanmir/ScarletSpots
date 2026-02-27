@@ -156,8 +156,7 @@ Tap interactions:
 Shows:
 - lot name/campus
 - current occupancy
-- forecast strip now/+15/+30/+60 (UPDATED TIMES CHECK OTHER DOCUMENTATIONS)
-- permit/risk warning text (REMOVED)
+- forecast strip now / +15m / +30m / +60m
 - actions:
   - Navigate to lot
   - Park Here
