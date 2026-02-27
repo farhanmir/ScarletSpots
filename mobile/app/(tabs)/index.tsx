@@ -1245,6 +1245,7 @@ export default function MapScreen() {
           onPark={handlePark}
           isParking={loading}
           user={user}
+          activeSession={activeSession}
           isFavorite={favorites.includes(selectedLot.id)}
           onToggleFavorite={() => toggleFavorite(selectedLot)}
         />

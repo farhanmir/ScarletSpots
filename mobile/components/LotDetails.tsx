@@ -47,6 +47,7 @@ interface LotDetailsProps {
   onPark: (lotId: string) => void;
   isParking: boolean;
   user: any; 
+  activeSession?: any;
   isFavorite?: boolean;
   onToggleFavorite?: () => void;
 }
@@ -58,7 +59,7 @@ import OccupancyBadge from './lots/OccupancyBadge';
 import ForecastSlices from './lots/ForecastSlices';
 import ForecastChart from './lots/ForecastChart';
 
-export default function LotDetails({ lot, onClose, onPark, isParking, user, isFavorite, onToggleFavorite }: LotDetailsProps) {
+export default function LotDetails({ lot, onClose, onPark, isParking, user, activeSession, isFavorite, onToggleFavorite }: LotDetailsProps) {
   const [expanded, setExpanded] = useState(false);
   // Track whether this component is still mounted so async callbacks never
   // call setState / onClose after unmount.
@@ -130,19 +131,16 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, isFa
   };
 
   return (
-    <>
+    <Modal visible={true} transparent={true} animationType="none" onRequestClose={handleClose}>
       <TouchableWithoutFeedback onPress={handleClose}>
         <Animated.View 
           entering={FadeIn.duration(200)}
-          exiting={FadeOut.duration(200)}
           style={[styles.overlay, StyleSheet.absoluteFill]} 
         />
       </TouchableWithoutFeedback>
 
       <Animated.View 
         entering={SlideInDown.duration(250)}
-        exiting={SlideOutDown.duration(250)}
-        layout={LinearTransition.duration(250)}
         style={[styles.container, expanded && styles.containerExpanded]}
       >
         {Platform.OS === 'ios' && (
@@ -218,36 +216,38 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, isFa
             <ForecastChart curve={forecast} isLoading={isLoadingForecast} />
 
             <View style={styles.actions}>
-              <TouchableOpacity 
-                style={[
-                  styles.actionButton, 
-                  styles.parkButton,
-                  (!user || lot.occupancyRate >= 100) && styles.disabledButton
-                ]} 
-                onPress={(e) => {
-                  e.stopPropagation();
-                  if (user && lot.occupancyRate < 100) {
-                     Alert.alert(
-                      'Confirm Parking',
-                      `Start a session at ${lot.name}?`,
-                      [
-                        { text: 'Cancel', style: 'cancel' },
-                        { 
-                          text: 'Park Here', 
-                          style: 'default',
-                          onPress: () => onPark(lot.id) 
-                        }
-                      ]
-                    );
-                  }
-                }}
-                disabled={isParking || !user || lot.occupancyRate >= 100}
-              >
-                <IconSymbol name="p.circle.fill" size={20} color="#fff" />
-                <Text style={styles.actionButtonText}>
-                  {isParking ? 'Starting...' : !user ? 'Login to Park' : 'Start Session'}
-                </Text>
-              </TouchableOpacity>
+              {!activeSession && (
+                <TouchableOpacity 
+                  style={[
+                    styles.actionButton, 
+                    styles.parkButton,
+                    (!user || lot.occupancyRate >= 100) && styles.disabledButton
+                  ]} 
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    if (user && lot.occupancyRate < 100) {
+                       Alert.alert(
+                        'Confirm Parking',
+                        `Start a session at ${lot.name}?`,
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          { 
+                            text: 'Park Here', 
+                            style: 'default',
+                            onPress: () => onPark(lot.id) 
+                          }
+                        ]
+                      );
+                    }
+                  }}
+                  disabled={isParking || !user || lot.occupancyRate >= 100}
+                >
+                  <IconSymbol name="p.circle.fill" size={20} color="#fff" />
+                  <Text style={styles.actionButtonText}>
+                    {isParking ? 'Starting...' : !user ? 'Login to Park' : 'Start Session'}
+                  </Text>
+                </TouchableOpacity>
+              )}
 
               <TouchableOpacity 
                 style={[styles.actionButton, styles.directionsButton]} 
@@ -291,7 +291,7 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, isFa
           </View>
         </TouchableOpacity>
       </Animated.View>
-    </>
+    </Modal>
   );
 }
 
