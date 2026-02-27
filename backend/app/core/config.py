@@ -22,6 +22,7 @@ class Settings:
     BACKEND_CORS_ORIGINS: list[str] = [
         "http://localhost:3000",
         "http://localhost:8081",
+        "http://localhost:5173",
     ]
 
 

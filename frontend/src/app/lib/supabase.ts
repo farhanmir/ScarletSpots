@@ -8,7 +8,7 @@ if (!supabaseUrl || !publicAnonKey) {
 
 export const supabase = createClient(supabaseUrl, publicAnonKey);
 
-export const API_BASE = `${supabaseUrl}/functions/v1/server`;
+export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
 
 const getErrorMessage = (payload: unknown, fallback: string) => {
   if (payload && typeof payload === 'object' && 'error' in payload) {
