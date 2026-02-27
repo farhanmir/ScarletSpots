@@ -6,53 +6,35 @@ import {
   TextInput,
   FlatList,
   TouchableOpacity,
-  ActivityIndicator,
   Platform,
   Keyboard,
-  TouchableWithoutFeedback
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { publicApiCall } from '../../lib/supabase';
 import * as Location from 'expo-location';
 import { RUTGERS_BUILDINGS } from '@/data/buildings';
-import { fetchWithOfflineFallback } from '../../services/OfflineCache';
-
-// Types
-interface Lot {
-  id: string;
-  name: string;
-  campus: string;
-  latitude: number;
-  longitude: number;
-  capacity: number;
-  occupiedCount: number;
-  occupancyRate: number;
-}
+import { getAllLots, type RutgersLot } from '../../data/lots';
+import { ENABLE_ALL_CAMPUSES } from '../../constants/featureFlags';
 
 interface PlaceResult {
-  id: string; // 'place-' + index
+  id: string;
   name: string;
   address?: string;
   latitude: number;
   longitude: number;
   type: 'lot' | 'place';
-  data?: Lot; // If it's a lot, store the full object
+  data?: RutgersLot;
 }
+
+const STATIC_LOTS = getAllLots(ENABLE_ALL_CAMPUSES);
 
 export default function SearchScreen() {
   const router = useRouter();
-  
-  const [query, setQuery] = useState('');
-  const [lots, setLots] = useState<Lot[]>([]);
-  const [results, setResults] = useState<PlaceResult[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searching, setSearching] = useState(false);
 
-  // Fetch lots on mount
-  useEffect(() => {
-    fetchLots();
-  }, []);
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<PlaceResult[]>([]);
+  const [searching, setSearching] = useState(false);
 
   // Filter lots when query changes
   useEffect(() => {
@@ -63,11 +45,12 @@ export default function SearchScreen() {
 
     const lowerQuery = query.toLowerCase();
     
-    // 1. Filter Lots
+    // 1. Filter Lots (from bundled JSON — instant, no network)
     const lotResults: PlaceResult[] = lots
-      .filter(lot => 
-        lot.name.toLowerCase().includes(lowerQuery) || 
-        lot.campus.toLowerCase().includes(lowerQuery)
+      .filter(lot =>
+        lot.name.toLowerCase().includes(lowerQuery) ||
+        lot.campus.toLowerCase().includes(lowerQuery) ||
+        lot.shortName.toLowerCase().includes(lowerQuery)
       )
       .map(lot => ({
         id: lot.id,
@@ -75,8 +58,8 @@ export default function SearchScreen() {
         address: `${lot.campus} Campus`,
         latitude: lot.latitude,
         longitude: lot.longitude,
-        type: 'lot',
-        data: lot
+        type: 'lot' as const,
+        data: lot,
       }));
 
     setResults(lotResults);
@@ -134,27 +117,7 @@ export default function SearchScreen() {
       setSearching(false);
     }
 
-  }, [query, lots]);
-
-  const fetchLots = async () => {
-    try {
-      const result = await fetchWithOfflineFallback(
-        async () => {
-          const res = await publicApiCall('/lots');
-          return res;
-        },
-        'offline_cache_lots'
-      );
-      
-      // The backend returns a raw array of lots, but we handle objects just in case
-      const lotsData = result.data?.lots || result.data || [];
-      setLots(Array.isArray(lotsData) ? lotsData : []);
-    } catch (error) {
-      console.error('Error fetching lots:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [query]);
 
   const handleSelect = (item: PlaceResult) => {
     Keyboard.dismiss();
@@ -213,10 +176,7 @@ export default function SearchScreen() {
 
         {/* Results List */}
         <View style={styles.resultsContainer}>
-          {loading ? (
-            <ActivityIndicator style={{ marginTop: 20 }} color="#dc2626" />
-          ) : (
-            <FlatList
+          <FlatList
               data={results}
               keyExtractor={(item) => item.id}
               showsVerticalScrollIndicator={false}
@@ -246,8 +206,8 @@ export default function SearchScreen() {
                               address: 'Rutgers University',
                               latitude: campus.lat,
                               longitude: campus.lng,
-                              type: 'place'
-                            } as any)}
+                              type: 'place' as const,
+                            })}
                           >
                             <IconSymbol name="mappin.and.ellipse" size={16} color="#71717a" />
                             <Text style={styles.suggestionText}>{campus.name}</Text>
@@ -260,18 +220,18 @@ export default function SearchScreen() {
                   <View style={styles.suggestionContainer}>
                     <Text style={styles.sectionTitle}>Suggestions</Text>
                     {lots.slice(0, 5).map(lot => (
-                      <TouchableOpacity 
-                        key={lot.id} 
+                      <TouchableOpacity
+                        key={lot.id}
                         style={styles.suggestionItem}
                         onPress={() => handleSelect({
                           id: lot.id,
                           name: lot.name,
                           latitude: lot.latitude,
                           longitude: lot.longitude,
-                          type: 'lot',
+                          type: 'lot' as const,
                           address: `${lot.campus} Campus`,
-                          data: lot
-                        } as any)}
+                          data: lot,
+                        })}
                       >
                         <IconSymbol name="clock" size={16} color="#71717a" />
                         <Text style={styles.suggestionText}>{lot.name}</Text>
@@ -314,7 +274,6 @@ export default function SearchScreen() {
                 </TouchableOpacity>
               )}
             />
-          )}
         </View>
       </View>
     </TouchableWithoutFeedback>

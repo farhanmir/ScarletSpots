@@ -27,12 +27,10 @@ export const OFFLINE_QUEUE_ENABLED =
   process.env.EXPO_PUBLIC_OFFLINE_QUEUE_ENABLED !== 'false';
 
 /**
- * How long (ms) to hold lot data in the offline cache before it's considered stale.
- * Defaults to 1 hour.
+ * When true, show ALL Rutgers campuses on the map (Newark, Camden, Piscataway).
+ * Default false — New Brunswick only.
+ *
+ * Set EXPO_PUBLIC_ENABLE_ALL_CAMPUSES="true" to expand coverage.
  */
-export const LOT_CACHE_TTL_MS = (() => {
-  const envVal = process.env.EXPO_PUBLIC_LOT_CACHE_TTL_MS;
-  const parsed = Number.parseInt(envVal ?? '3600000', 10);
-  if (Number.isNaN(parsed)) return 3_600_000;
-  return parsed;
-})();
+export const ENABLE_ALL_CAMPUSES =
+  process.env.EXPO_PUBLIC_ENABLE_ALL_CAMPUSES === 'true';

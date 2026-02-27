@@ -1,11 +1,10 @@
 from app.services.forecast_provider import ForecastProvider
 from app.services.forecasting import HeuristicForecastProvider
 import datetime
-from uuid import uuid4
 
 def test_heuristic_forecast_provider():
     provider = HeuristicForecastProvider()
-    lot_id = uuid4()
+    lot_id = "10001"  # lot_id is now a TEXT string (JSON mapId), not a UUID
     
     # Test that the forecast is generated with correct structure
     forecast = provider.get_lot_forecast(lot_id, current_occupancy=50, capacity=100)

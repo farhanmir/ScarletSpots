@@ -1,136 +1,192 @@
 # ScarletSpots
 
-ScarletSpots is a smart parking system for Rutgers students. This repo is a monorepo with a native mobile app, a web admin dashboard, and a FastAPI backend.
+> Real-time parking availability for Rutgers University — crowd-sourced, offline-first, built for students.
 
-The product roadmap and native feature plan live in [PLAN.md](PLAN.md).
+---
 
-## Planning docs guide
-This repo uses three core planning documents. Together they define what to build, in what order, and how the shipped app should behave for users.
+## What It Is
 
-### [PLAN.md](PLAN.md) — Product + architecture contract
-Use this when deciding **what must exist** for production launch.
+ScarletSpots is a mobile app (iOS + Android) that shows live parking occupancy for all Rutgers lots. Students start a parking session when they park; the count goes up. When they leave, it goes down. Everyone sees live availability without a backend that costs a fortune.
 
-What it contains:
-- Launch targets, SLOs, reliability and quality bars
-- Production architecture (mobile, backend, data, security)
-- Required feature capabilities (detection, compass, social, heatmap, forecasting)
-- Non-negotiable Definition of Done
+**Key architectural insight:** Rutgers lot data (245 lots, polygons, capacity, photos) is **bundled directly in the app**. It never expires, it never requires an API call, and it works offline. Only the live occupancy count (`how many cars are parked right now`) lives in the database.
 
-How to use it:
-1. Before implementation, verify the feature is explicitly represented in `PLAN.md`.
-2. During implementation, map design/tech choices to the plan requirements.
-3. Before merge/release, check Definition of Done criteria against your change.
+---
 
-### [ROADMAP.md](ROADMAP.md) — Execution sequence and delivery gates
-Use this when deciding **what to do next** and release order.
+## Repository Structure
 
-What it contains:
-- Phase-by-phase execution path
-- Prioritized backlog
-- Exit criteria and hard launch gates
-- Timeline and cross-cutting quality gates
-
-How to use it:
-1. Pick work from the current active phase.
-2. Link every ticket/PR to a roadmap item.
-3. Do not move phases forward until exit criteria are satisfied.
-
-### [PRODUCT_EXPERIENCE_BLUEPRINT.md](PRODUCT_EXPERIENCE_BLUEPRINT.md) — Behavioral source of truth
-Use this when deciding **exactly how the app should behave** for users.
-
-What it contains:
-- End-to-end user journeys (tap-by-tap)
-- State transitions, edge cases, error handling, recovery flows
-- Long-term usage expectations (e.g., daily user over a year)
-- Strict logic audit of current implementation and required corrections
-
-How to use it:
-1. For every UI/API flow, implement to match blueprint behavior.
-2. Build QA scenarios directly from blueprint acceptance paths.
-3. If implementation differs, document the delta and get architecture/product sign-off.
-
-### Recommended workflow
-1. Start with `PLAN.md` to confirm scope and non-functional requirements.
-2. Use `ROADMAP.md` to choose priority and sequencing.
-3. Implement and test against `PRODUCT_EXPERIENCE_BLUEPRINT.md` behavior.
-4. Ship only when all three documents are satisfied.
-
-## Repo layout
-- Mobile app (Expo): [mobile/](mobile/)
-- Web admin (React + Vite): [frontend/](frontend/)
-- FastAPI backend: [backend/](backend/)
-- Database migrations: [backend/supabase/migrations](backend/supabase/migrations)
-
-## Current status
-- Mobile app: navigation, auth, tabs, maps, offline queuing, and geofence detection in [mobile/](mobile/)
-- Web admin: Leaflet-based lot views, auth, and session flows in [frontend/](frontend/)
-- Backend: FastAPI service for auth, sessions, lots, friends, compass, admin, and favorites in [backend/](backend/)
-
-## Quick start
-
-### Web admin
-```bash
-cd frontend
-npm install
-npm run dev
+```
+ScarletSpots/
+├── mobile/          # Expo (React Native) — the real app
+├── backend/         # FastAPI (Python) — thin API layer
+└── frontend/        # Deprecated — see docs/ROADMAP.md
 ```
 
-### Mobile app
+---
+
+## Mobile App
+
+Built with **Expo** (managed + bare hybrid), **TypeScript**, `react-native-maps`, and Supabase for auth + realtime.
+
+### Running locally
+
 ```bash
 cd mobile
 npm install
+cp .env.example .env  # Fill in Supabase keys
 npx expo start
 ```
 
-### FastAPI backend
-```bash
-cd backend
-pip install -r requirements.txt
-uvicorn app.main:app --reload
+Environment variables needed (`.env`):
+```
+EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+EXPO_PUBLIC_API_URL=http://localhost:8001/api/v1
 ```
 
-## Configuration
-- Frontend Supabase config is loaded from `frontend/.env` via `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
-- Mobile Supabase config is loaded from `mobile/.env` via `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`.
-- Backend config is loaded from `backend/.env` via `SUPABASE_URL`, `SUPABASE_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`. See `backend/.env.example` for all required variables.
+### Key files
 
-## Backend API (FastAPI)
-Base URL: `http://localhost:8000/api/v1` (development)
+| File | Purpose |
+|------|---------|
+| `mobile/data/lots.ts` | Typed wrapper for bundled lot JSON — the single source of truth for lot metadata |
+| `mobile/data/rutgers_parking_data.json` | 245 Rutgers lots with coordinates, polygons, capacity, photos |
+| `mobile/app/(tabs)/index.tsx` | Map screen — occupancy overlay, session chip, lot details |
+| `mobile/app/(tabs)/navigate.tsx` | Compass screen — bearing + distance to parked lot |
+| `mobile/app/(tabs)/friends.tsx` | Friends screen — see which lot friends are parked at |
+| `mobile/services/ParkingDetectionService.ts` | Auto-detection pipeline |
+| `mobile/services/OfflineQueue.ts` | Queues park/end actions when offline |
 
-Endpoints:
-- `GET /health`
-- `POST /users/signup`
-- `GET /users/me`
-- `PATCH /users/me`
-- `POST /park/session`
-- `POST /park/session/end`
-- `GET /park/session/active`
-- `GET /compass`
-- `GET /lots`
-- `GET /lots/{id}`
-- `POST /lots/init`
-- `POST /lots/custom`
-- `PUT /lots/custom/{id}`
-- `DELETE /lots/custom/{id}`
-- `POST /friends/request`
-- `POST /friends/accept`
-- `POST /friends/block`
-- `GET /friends`
-- `PUT /friends/{id}/sharing`
-- `GET /admin/stats`
-- `GET /admin/users`
-- `GET /favorites`
-- `POST /favorites`
-- `DELETE /favorites/{id}`
+---
 
-## Roadmap (from the plan)
-- Offline-first resilience (action queuing & local caching)
-- Geofence-based parking detection and spot confirmation
-- Compass navigation (Knight Needle)
-- Heat maps and rush-hour prediction
-- Friend privacy controls and sharing
-- Admin geofence editor and analytics views
+## Backend
 
-## Notes
-- [PLAN.md](PLAN.md) is the source of truth for the long-term native build and data model.
-- [ENGINEERING_ANALYSIS.md](ENGINEERING_ANALYSIS.md) documents the architecture audit and resolved/outstanding technical debt.
+**FastAPI** (Python 3.11) with Supabase as the database. The backend is intentionally thin — it only handles things that must be server-authoritative.
+
+### Running locally
+
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env  # Fill in Supabase keys
+uvicorn app.main:app --reload --port 8001
+```
+
+### API endpoints
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/api/v1/users/signup` | Public | Create Rutgers-email account |
+| POST | `/api/v1/users/password-reset` | Public | Send password reset email |
+| GET | `/api/v1/users/me` | Required | Get own profile |
+| PATCH | `/api/v1/users/me` | Required | Update profile |
+| POST | `/api/v1/park/session` | Required | Start parking session |
+| POST | `/api/v1/park/session/end` | Required | End parking session |
+| GET | `/api/v1/park/session/active` | Required | Get active session |
+| POST | `/api/v1/park/session/feedback` | Required | Submit detection quality feedback |
+| GET | `/api/v1/lots/occupancy` | Public | Get occupancy counts for all lots |
+| GET | `/api/v1/lots/{lot_id}/forecast` | Public | Get occupancy forecast |
+| GET | `/api/v1/friends` | Required | List friends and requests |
+| POST | `/api/v1/friends/request` | Required | Send friend request |
+| POST | `/api/v1/friends/accept` | Required | Accept request |
+| POST | `/api/v1/friends/decline` | Required | Decline request |
+| POST | `/api/v1/friends/block` | Required | Block user |
+| GET | `/api/v1/favorites` | Required | List favorite lots |
+| POST | `/api/v1/favorites/{lot_id}` | Required | Add favorite |
+| DELETE | `/api/v1/favorites/{lot_id}` | Required | Remove favorite |
+
+---
+
+## Database (Supabase)
+
+5 tables. That's it.
+
+| Table | Purpose |
+|-------|---------|
+| `profiles` | User profile (name, email, avatar) |
+| `parking_sessions` | Active + historical sessions. `lot_id` is the JSON `mapId` string |
+| `lot_occupancy` | Live count per lot `(lot_id TEXT, count INT)` — updated atomically via RPC |
+| `friendships` | Friend relationships (pending / accepted / blocked) |
+| `user_favorites` | Saved lots per user |
+
+### Running migrations
+
+```bash
+# Apply all migrations in order
+supabase db push
+# Or run individual migration file against the DB
+psql $DATABASE_URL -f backend/supabase/migrations/20260310_pivot_static_lots.sql
+```
+
+---
+
+## Architecture at a Glance
+
+```
+Mobile App
+├── rutgers_parking_data.json  (bundled, 1.4 MB — zero API calls for lot data)
+│   └── lot names, polygons, capacity, photos, campus
+└── Supabase Realtime  (live occupancy push)
+    └── lot_occupancy table changes
+
+FastAPI Backend  (handles only dynamic data)
+├── Auth + profiles
+├── Parking sessions (start / end / active)
+├── Occupancy RPCs (atomic increment / decrement)
+├── Friends
+├── Favorites
+└── Forecasting (heuristic → ML once data accumulates)
+
+Supabase (PostgreSQL)
+└── 5 tables (profiles, sessions, lot_occupancy, friendships, favorites)
+```
+
+**API call budget (50k users):**
+- Load lot data: **0 calls** (bundled in app)
+- Typical park + leave: **2 write calls/day**
+- Occupancy updates: **0 polling** (Supabase Realtime push)
+- Friends check: **1 read on tab open**
+- Total: ~3–4 calls/day per user — well within Supabase free tier
+
+---
+
+## Authentication
+
+Email + password only. Restricted to `@rutgers.edu` and `@scarletmail.rutgers.edu`.
+
+---
+
+## Environment Variables
+
+### Mobile (`mobile/.env`)
+```
+EXPO_PUBLIC_SUPABASE_URL=
+EXPO_PUBLIC_SUPABASE_ANON_KEY=
+EXPO_PUBLIC_API_URL=
+EXPO_PUBLIC_ENABLE_ALL_CAMPUSES=false   # true to show all Rutgers campuses
+```
+
+### Backend (`backend/.env`)
+```
+SUPABASE_URL=
+SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_KEY=
+```
+
+---
+
+## Current Status
+
+See [ROADMAP.md](ROADMAP.md) for the phased plan.
+
+Core features are functional:
+- Map with live occupancy overlay
+- Parking session start / end
+- Auto-detection pipeline
+- Compass to parked car
+- Friends (which lot they're at, in Friends tab)
+- Offline action queue
+
+In progress:
+- ML forecast model (launches with heuristic, trains once session data accumulates)
+- CI/CD pipeline

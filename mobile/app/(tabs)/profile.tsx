@@ -5,19 +5,16 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
-  Switch,
   Platform,
 } from 'react-native';
 import { useAuth } from '@/context/AuthProvider';
 import { useRouter } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { useSettings } from '@/context/SettingsContext';
 import { authApiCall } from '@/lib/supabase';
 import { useFocusEffect } from '@react-navigation/native';
 
 export default function ProfileScreen() {
   const { session, user, loading, signOut } = useAuth();
-  const { showFriends, setShowFriends } = useSettings();
   const router = useRouter();
   const [favorites, setFavorites] = useState<any[]>([]);
   const [fetchingFavorites, setFetchingFavorites] = useState(false);
@@ -119,21 +116,6 @@ export default function ProfileScreen() {
           <View style={styles.sectionHeader}>
             <IconSymbol name="gearshape.fill" size={18} color="#a1a1aa" />
             <Text style={styles.sectionTitle}>Settings</Text>
-          </View>
-
-          {/* Friend Pins Toggle */}
-          <View style={styles.settingRow}>
-            <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>Friend Pins</Text>
-              <Text style={styles.settingSubtext}>Show friends on the map</Text>
-            </View>
-            <Switch
-              value={showFriends}
-              onValueChange={setShowFriends}
-              trackColor={{ false: '#27272a', true: 'rgba(59, 130, 246, 0.5)' }}
-              thumbColor={showFriends ? '#3b82f6' : '#52525b'}
-              ios_backgroundColor="#27272a"
-            />
           </View>
 
 

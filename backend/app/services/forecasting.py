@@ -1,11 +1,12 @@
 import datetime
 import random
-from typing import Dict, List, Any
-from uuid import UUID
+from typing import Any, Dict
+
 from app.services.forecast_provider import ForecastProvider
 
+
 class HeuristicForecastProvider(ForecastProvider):
-    def get_lot_forecast(self, lot_id: UUID, current_occupancy: int, capacity: int) -> Dict[str, Any]:
+    def get_lot_forecast(self, lot_id: str, current_occupancy: int, capacity: int) -> Dict[str, Any]:
         """
         Computes a realistic heuristic forecast for a lot based on:
         - Time of day (Rush hour peaks)

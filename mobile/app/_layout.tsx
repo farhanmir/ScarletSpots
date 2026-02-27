@@ -4,7 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { View, Text, TouchableOpacity } from 'react-native';
 import 'react-native-reanimated';
 import { useEffect } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'; // Import QueryClientProvider
+import { QueryClient } from '@tanstack/react-query';
 import '../services/BackgroundTasks'; // Register background tasks globally
 import '../services/GeofenceManager'; // Register geofence tasks globally
 
@@ -78,7 +78,6 @@ function InitialLayout() {
   );
 }
 
-import { SettingsProvider } from '@/context/SettingsContext';
 import OfflineBanner from '@/components/ui/OfflineBanner';
 import { initOfflineQueue, teardownOfflineQueue } from '../services/OfflineQueue';
 import { installGlobalCrashHandlers } from '@/services/CrashLogger';
@@ -123,16 +122,14 @@ export default function RootLayout() {
   }
 
   return (
-    <SettingsProvider>
-      <PersistQueryClientProvider 
-        client={queryClient}
-        persistOptions={{ persister: asyncStoragePersister }}
-      >
-        <AuthProvider>
-          <OfflineBanner />
-          <InitialLayout />
-        </AuthProvider>
-      </PersistQueryClientProvider>
-    </SettingsProvider>
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={{ persister: asyncStoragePersister }}
+    >
+      <AuthProvider>
+        <OfflineBanner />
+        <InitialLayout />
+      </AuthProvider>
+    </PersistQueryClientProvider>
   );
 }

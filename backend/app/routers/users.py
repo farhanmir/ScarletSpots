@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel
 from app.core.security import get_current_user, get_supabase, get_admin_supabase
 from app.core.limiter import limiter
 from app.schemas.user import UserCreate, ProfileUpdate, SignupResponse
@@ -79,10 +80,39 @@ def update_user_me(body: ProfileUpdate, current_user=Depends(get_current_user)):
         log.error("Failed to update profile: %s", exc)
         raise HTTPException(status_code=500, detail="Failed to update profile")
 
+class PasswordResetRequest(BaseModel):
+    email: str
+
+
+@router.post("/password-reset")
+@limiter.limit("3/hour")
+def request_password_reset(request: Request, body: PasswordResetRequest):
+    """
+    Send a password reset email via Supabase Auth.
+    Rate limited to 3 requests per hour to prevent abuse.
+    Always returns success to avoid email enumeration.
+    """
+    email = body.email.lower().strip()
+    if not (email.endswith('@rutgers.edu') or email.endswith('@scarletmail.rutgers.edu')):
+        # Reject non-Rutgers emails but still return 200 to avoid enumeration
+        return {"success": True, "message": "If that email exists, a reset link has been sent."}
+
+    try:
+        admin_db = get_admin_supabase()
+        admin_db.auth.admin.generate_link({
+            "type": "recovery",
+            "email": email,
+        })
+    except Exception as exc:
+        log.warning("Password reset failed for %s: %s", email, exc)
+        # Do not surface errors to caller — prevents email enumeration
+
+    return {"success": True, "message": "If that email exists, a reset link has been sent."}
+
+
 @router.post("/me/location")
 def update_location(body: ProfileUpdate, current_user=Depends(get_current_user)):
     """Update the authenticated user's coordinates."""
-    db = get_supabase()
     user_id = current_user.id
     
     # We only care about lat/lng here

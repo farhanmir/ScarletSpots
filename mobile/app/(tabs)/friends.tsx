@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, FlatList, TouchableOpacity, Image, Switch, Platform, Modal, TextInput, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Text, FlatList, TouchableOpacity, Modal, TextInput, ActivityIndicator, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { BlurView } from 'expo-blur';
-
+import { useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { authApiCall } from '../../lib/supabase';
-import { Alert } from 'react-native';
+import { getLotById } from '../../data/lots';
 
 export default function FriendsScreen() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<'friends' | 'requests'>('friends');
   const [isAddModalVisible, setIsAddModalVisible] = useState(false);
   const [friendEmail, setFriendEmail] = useState('');
@@ -20,10 +21,10 @@ export default function FriendsScreen() {
     queryKey: ['friends_list'],
     queryFn: async () => {
       const res = await authApiCall('/friends');
-      if (res && res._offline) {
+      if (res?._offline) {
         return { friends: [], requests: [] };
       }
-      return { friends: res?.friends || [], requests: res?.requests || [] };
+      return { friends: res?.friends ?? [], requests: res?.requests ?? [] };
     },
     // Removed polling so the screen doesn't continuously reload UI
   });
@@ -73,12 +74,12 @@ export default function FriendsScreen() {
     },
     onSuccess: (res) => {
       if (res?.success) {
-        Alert.alert("Success", "Friend request sent!");
+        Alert.alert('Success', 'Friend request sent!');
         queryClient.invalidateQueries({ queryKey: ['friends_list'] });
         setIsAddModalVisible(false);
         setFriendEmail('');
       } else if (res?.detail) {
-        Alert.alert("Error", res.detail);
+        Alert.alert('Error', res.detail);
       }
     },
     onError: (err: any) => {
@@ -150,8 +151,19 @@ export default function FriendsScreen() {
         </View>
       )}
 
-      {item.parked && (
-        <TouchableOpacity style={styles.locateButton}>
+      {item.parked && item.lot_id && (
+        <TouchableOpacity
+          style={styles.locateButton}
+          onPress={() => {
+            const lot = getLotById(item.lot_id);
+            if (lot) {
+              router.push({
+                pathname: '/(tabs)/',
+                params: { selectedLotId: lot.id },
+              });
+            }
+          }}
+        >
           <IconSymbol name="location.fill" size={16} color="#fff" />
         </TouchableOpacity>
       )}

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -9,29 +9,16 @@ import {
   Linking,
   Modal,
   TouchableWithoutFeedback,
-  ScrollView,
   Alert,
-  ActivityIndicator,
-  Pressable
 } from 'react-native';
-import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown, LinearTransition } from 'react-native-reanimated';
+import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import { IconSymbol } from './ui/icon-symbol';
 import { BlurView } from 'expo-blur';
+import { type RutgersLot } from '../data/lots';
 
-const { width, height } = Dimensions.get('window');
+const { height } = Dimensions.get('window');
 
-
-interface Lot {
-  id: string;
-  name: string;
-  campus: string;
-  latitude: number;
-  longitude: number;
-  capacity: number;
-  occupiedCount: number;
-  occupancyRate: number;
-  is_custom?: boolean;
-}
+type Lot = RutgersLot;
 
 interface User {
   id: string;

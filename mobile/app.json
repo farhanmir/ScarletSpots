@@ -10,7 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.mobile",
+      "bundleIdentifier": "com.scarletspots.app",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [
@@ -38,7 +38,7 @@
         "android.permission.ACTIVITY_RECOGNITION",
         "com.google.android.gms.permission.ACTIVITY_RECOGNITION"
       ],
-      "package": "com.anonymous.mobile"
+      "package": "com.scarletspots.app"
     },
     "web": {
       "output": "static",
