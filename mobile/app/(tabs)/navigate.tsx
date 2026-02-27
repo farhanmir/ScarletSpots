@@ -1,163 +1,119 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Platform, Dimensions, Animated } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, Dimensions, Animated } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import * as Location from 'expo-location';
-import * as Haptics from 'expo-haptics';
 import { Magnetometer } from 'expo-sensors';
 import { useLocalSearchParams } from 'expo-router';
-import { publicApiCall, authApiCall } from '../../lib/supabase';
+import { authApiCall } from '../../lib/supabase';
 import { useAuth } from '@/context/AuthProvider';
 import { useFocusEffect } from '@react-navigation/native';
+import { getLotById, type RutgersLot } from '../../data/lots';
 
 const { width } = Dimensions.get('window');
 
-// ── Math Helpers ───────────────────────────────────────────────────────────────
+// ── Math Helpers ────────────────────────────────────────────────────────────
 
 const deg2rad = (deg: number) => deg * (Math.PI / 180);
 
-const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
   const R = 6371;
   const dLat = deg2rad(lat2 - lat1);
   const dLon = deg2rad(lon2 - lon1);
   const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c * 0.621371; // miles
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * 0.621371; // miles
 };
 
-const getBearing = (startLat: number, startLng: number, destLat: number, destLng: number) => {
-  const sLat = deg2rad(startLat);
-  const sLng = deg2rad(startLng);
-  const dLat = deg2rad(destLat);
-  const dLng = deg2rad(destLng);
-  const y = Math.sin(dLng - sLng) * Math.cos(dLat);
-  const x = Math.cos(sLat) * Math.sin(dLat) - Math.sin(sLat) * Math.cos(dLat) * Math.cos(dLng - sLng);
+const getBearing = (sLat: number, sLng: number, dLat: number, dLng: number): number => {
+  const sl = deg2rad(sLat), sl2 = deg2rad(sLng);
+  const dl = deg2rad(dLat), dl2 = deg2rad(dLng);
+  const y = Math.sin(dl2 - sl2) * Math.cos(dl);
+  const x = Math.cos(sl) * Math.sin(dl) - Math.sin(sl) * Math.cos(dl) * Math.cos(dl2 - sl2);
   return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
 };
 
-// ── Low-Pass Filter for sensor smoothing ───────────────────────────────────────
+// Low-pass filter for sensor smoothing
+const ALPHA = 0.15;
+const lowPass = (current: number, prev: number) => prev + ALPHA * (current - prev);
 
-const ALPHA = 0.15; // Smoothing factor (lower = smoother, more lag)
+const magnetometerToHeading = (x: number, y: number): number => {
+  const angle = Math.atan2(y, x) * (180 / Math.PI);
+  return (360 - ((angle + 360) % 360)) % 360;
+};
 
-function lowPassFilter(current: number, previous: number): number {
-  return previous + ALPHA * (current - previous);
-}
-
-// ── Magnetometer heading extraction ────────────────────────────────────────────
-
-function magnetometerToHeading(x: number, y: number): number {
-  // Convert magnetometer x,y to compass heading (degrees from North)
-  let angle = Math.atan2(y, x) * (180 / Math.PI);
-  // Normalize: atan2 gives -180..180, we want 0..360
-  // On iOS the axes may differ, but expo-sensors normalizes for us
-  angle = (angle + 360) % 360;
-  // Magnetometer points to magnetic north, so heading = 360 - angle
-  return (360 - angle) % 360;
-}
-
-// ── Component ──────────────────────────────────────────────────────────────────
+// ── Component ───────────────────────────────────────────────────────────────
 
 interface ParkingSession {
   id: string;
   lotId: string;
-  latitude: number;
-  longitude: number;
+  latitude?: number;
+  longitude?: number;
   spotNumber: string;
   startTime: string;
-  lot?: { name: string; campus: string };
 }
-
-type ProximityState = 'far' | 'near' | 'here';
 
 export default function NavigateScreen() {
   const params = useLocalSearchParams();
   const { user } = useAuth();
 
-  // Sensor state
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [useMagnetometer, setUseMagnetometer] = useState(true);
+  const [activeSession, setActiveSession] = useState<ParkingSession | null>(null);
+  const [targetLot, setTargetLot] = useState<RutgersLot | null>(null);
+  const [distance, setDistance] = useState(0);
+  const [loading, setLoading] = useState(true);
 
-  // High-frequency refs to avoid re-renders
   const smoothedHeading = useRef(0);
   const bearingRef = useRef(0);
   const lastHeadingRef = useRef(0);
   const rotationValue = useRef(new Animated.Value(0)).current;
-  const glowOpacity = useRef(new Animated.Value(0)).current;
-
-  // Navigation targets
-  const [targetLot, setTargetLot] = useState<any>(null);
-  const [activeSession, setActiveSession] = useState<ParkingSession | null>(null);
-
-  // Computed navigation state
-  const [distance, setDistance] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [proximityState, setProximityState] = useState<ProximityState>('far');
-
-  // Haptic throttle
-  const lastHapticRef = useRef(0);
-  const lastLockOnRef = useRef(false);
   const lastFetchRef = useRef(0);
 
-  // ── 1. Init: Permissions + Watchers ────────────────────────────────────────
+  // ── 1. Permissions + Sensors ────────────────────────────────────────────
 
   useEffect(() => {
     let headingSub: Location.LocationSubscription | undefined;
     let positionSub: Location.LocationSubscription | undefined;
-    let magnetometerSub: any;
+    let magnetometerSub: ReturnType<typeof Magnetometer.addListener> | undefined;
 
     (async () => {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') return;
+        if (status !== 'granted') { setLoading(false); return; }
 
-        // Try magnetometer first (more accurate heading)
+        // Try magnetometer first for accurate heading
         try {
-          const isAvailable = await Magnetometer.isAvailableAsync();
-          if (isAvailable) {
-            Magnetometer.setUpdateInterval(60); // Faster update (16ms ~ 60Hz)
+          const available = await Magnetometer.isAvailableAsync();
+          if (available) {
+            Magnetometer.setUpdateInterval(60);
             magnetometerSub = Magnetometer.addListener(({ x, y }) => {
-              const rawHeading = magnetometerToHeading(x, y);
-              smoothedHeading.current = lowPassFilter(rawHeading, smoothedHeading.current);
+              const raw = magnetometerToHeading(x, y);
+              smoothedHeading.current = lowPass(raw, smoothedHeading.current);
               lastHeadingRef.current = smoothedHeading.current;
-              // Direct animation value update (no re-render)
               rotationValue.setValue(bearingRef.current - smoothedHeading.current);
             });
             setUseMagnetometer(true);
           } else {
-            throw new Error('Magnetometer not available');
+            throw new Error('unavailable');
           }
         } catch {
-          // Fallback to GPS heading
           setUseMagnetometer(false);
           headingSub = await Location.watchHeadingAsync((obj) => {
             const h = obj.trueHeading || obj.magHeading;
-            smoothedHeading.current = lowPassFilter(h, smoothedHeading.current);
+            smoothedHeading.current = lowPass(h, smoothedHeading.current);
             lastHeadingRef.current = smoothedHeading.current;
             rotationValue.setValue(bearingRef.current - smoothedHeading.current);
           });
         }
 
-        // Position watcher
         positionSub = await Location.watchPositionAsync(
           { accuracy: Location.Accuracy.High, timeInterval: 1000, distanceInterval: 3 },
-          (loc) => {
-            setLocation(loc);
-            if (activeTarget) {
-              const b = getBearing(
-                loc.coords.latitude, loc.coords.longitude,
-                activeTarget.lat, activeTarget.lng
-              );
-              bearingRef.current = b;
-              // Immediate rotation sync
-              rotationValue.setValue(b - lastHeadingRef.current);
-            }
-          }
+          (loc) => { setLocation(loc); }
         );
 
-        if (user) await fetchActiveSession();
+        if (user) await loadActiveSession();
         setLoading(false);
       } catch (err) {
         console.warn('[Navigate] Init failed:', err);
@@ -170,169 +126,112 @@ export default function NavigateScreen() {
       positionSub?.remove();
       magnetometerSub?.remove();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  // ── 2. Refresh on focus ────────────────────────────────────────────────
 
   useFocusEffect(
     React.useCallback(() => {
       const now = Date.now();
-      // Only refresh if data is older than 60 seconds
       if (user && now - lastFetchRef.current > 60000) {
-        fetchActiveSession();
+        loadActiveSession();
         lastFetchRef.current = now;
       }
     }, [user])
   );
 
-  // ── 2. Handle Params ──────────────────────────────────────────────────────
+  // ── 3. Handle incoming params (e.g. from search tab) ──────────────────
 
   useEffect(() => {
     if (params.selectedLotId) {
-      fetchLotDetails(params.selectedLotId as string);
+      const lot = getLotById(params.selectedLotId as string);
+      if (lot) setTargetLot(lot);
     }
   }, [params.selectedLotId]);
 
-  const fetchActiveSession = async () => {
+  // ── 4. Fetch active session ───────────────────────────────────────────
+
+  const loadActiveSession = async () => {
     try {
       const data = await authApiCall('/park/session/active');
       if (data?.session) {
         setActiveSession(data.session);
-        // If we don't have a target lot from params, fetch it for the active session
-        // to have fallback coordinates if the car pin is missing.
+        // Look up the lot from the bundled JSON — no extra API call needed
         if (!params.selectedLotId) {
-          fetchLotDetails(data.session.lotId);
+          const lot = getLotById(data.session.lotId);
+          if (lot) setTargetLot(lot);
         }
       } else {
         setActiveSession(null);
       }
     } catch (e) {
-      console.log('Error fetching session:', e);
+      console.warn('[Navigate] Failed to load session:', e);
     }
   };
 
-  const fetchLotDetails = async (id: string) => {
-    try {
-      const data = await publicApiCall('/lots');
-      const lot = data.lots?.find((l: any) => l.id === id);
-      if (lot) setTargetLot(lot);
-    } catch (e) {
-      console.log('Error fetching lot for nav:', e);
+  // ── 5. Target Resolution ──────────────────────────────────────────────
+
+  const activeTarget = (() => {
+    if (activeSession) {
+      const hasExactCoords = activeSession.latitude != null && activeSession.longitude != null;
+      return {
+        lat: activeSession.latitude ?? targetLot?.latitude,
+        lng: activeSession.longitude ?? targetLot?.longitude,
+        name: hasExactCoords ? 'Your Vehicle' : (targetLot?.shortName ?? 'Active Session'),
+        sub: hasExactCoords
+          ? `Spot #${activeSession.spotNumber}`
+          : (targetLot ? `${targetLot.campus} Campus` : 'Parking Area'),
+      };
     }
-  };
+    if (targetLot) {
+      return {
+        lat: targetLot.latitude,
+        lng: targetLot.longitude,
+        name: targetLot.shortName,
+        sub: `${targetLot.campus} Campus`,
+      };
+    }
+    return null;
+  })();
 
-  // ── 3. Target Resolution ─────────────────────────────────────────────────
-
-  const activeTarget = (activeSession)
-    ? { 
-        lat: activeSession.latitude || targetLot?.latitude, 
-        lng: activeSession.longitude || targetLot?.longitude, 
-        name: activeSession.latitude ? 'Your Vehicle' : (targetLot?.name || 'Active Session'), 
-        sub: activeSession.latitude ? `Spot #${activeSession.spotNumber}` : (targetLot?.campus ? `${targetLot.campus} Campus` : 'Parking Area'), 
-        type: activeSession.latitude ? 'car' : 'lot' 
-      }
-    : (targetLot)
-      ? { 
-          lat: targetLot.latitude, 
-          lng: targetLot.longitude, 
-          name: targetLot.name, 
-          sub: `${targetLot.campus} Campus`, 
-          type: 'lot' 
-        }
-      : null;
-
-  // ── 4. Physics + Haptics ──────────────────────────────────────────────────
+  // ── 6. Update bearing + distance when location changes ────────────────
 
   useEffect(() => {
-    if (!location || !activeTarget) return;
+    if (!location || activeTarget?.lat == null || activeTarget?.lng == null) return;
 
     const distMiles = getDistance(
       location.coords.latitude, location.coords.longitude,
       activeTarget.lat, activeTarget.lng
     );
-    const distFeet = distMiles * 5280;
     setDistance(distMiles);
 
-    // Update bearing ref
     const b = getBearing(
       location.coords.latitude, location.coords.longitude,
       activeTarget.lat, activeTarget.lng
     );
     bearingRef.current = b;
     rotationValue.setValue(b - lastHeadingRef.current);
-
-    // Proximity states
-    let newProximity: ProximityState;
-    if (distFeet < 50) {
-      newProximity = 'here';
-    } else if (distFeet < 500) {
-      newProximity = 'near';
-    } else {
-      newProximity = 'far';
-    }
-    setProximityState(newProximity);
-
-    // Haptic lock-on
-    const distMeters = distMiles * 1609.34;
-    const isLockedOn = distMeters <= 15;
-    const now = Date.now();
-
-    if (isLockedOn && !lastLockOnRef.current) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      if (Platform.OS === 'ios') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-      lastLockOnRef.current = true;
-      Animated.sequence([
-        Animated.timing(glowOpacity, { toValue: 0.8, duration: 200, useNativeDriver: true }),
-        Animated.timing(glowOpacity, { toValue: 0.3, duration: 400, useNativeDriver: true }),
-      ]).start();
-    } else if (!isLockedOn) {
-      lastLockOnRef.current = false;
-    }
-
-    // Subtle haptic when arrow aligned (within 5°)
-    const currentRot = bearingRef.current - lastHeadingRef.current;
-    const normRot = ((currentRot % 360) + 540) % 360 - 180;
-    if (Math.abs(normRot) < 5 && newProximity !== 'here' && now - lastHapticRef.current > 1000) {
-      Haptics.selectionAsync();
-      lastHapticRef.current = now;
-    }
   }, [location, activeTarget]);
 
-  // ── 5. Proximity-based theming ────────────────────────────────────────────
-
-  const getProximityColor = () => {
-    switch (proximityState) {
-      case 'here': return '#10b981';  // Emerald — arrived
-      case 'near': return '#f59e0b';  // Amber — getting close
-      default: return '#dc2626';       // Red — far
-    }
-  };
-
-  const getProximityLabel = () => {
-    switch (proximityState) {
-      case 'here': return 'YOU\'RE HERE';
-      case 'near': return 'GETTING CLOSE';
-      default: return 'NAVIGATING';
-    }
-  };
-
-  const themeColor = getProximityColor();
+  // ── 7. Format helpers ─────────────────────────────────────────────────
 
   const formatDistance = () => {
-    if (proximityState === 'here') return 'HERE';
     if (distance < 0.1) return `${Math.round(distance * 5280)} ft`;
     return `${distance.toFixed(1)} mi`;
   };
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────
 
   return (
     <View style={styles.container}>
       <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000' }]} />
 
-      {/* Polka-dot background */}
+      {/* Subtle dot grid background */}
       <View style={StyleSheet.absoluteFill}>
-        {Array.from({ length: 30 }).map((_, i) => (
+        {Array.from({ length: 30 }, (_, i) => (
           <View
-            key={i}
+            key={`dot-${i}`}
             style={{
               position: 'absolute',
               left: `${(i * 23) % 100}%`,
@@ -340,77 +239,63 @@ export default function NavigateScreen() {
               width: 6,
               height: 6,
               borderRadius: 3,
-              backgroundColor: themeColor,
-              opacity: 0.3 + ((i % 5) * 0.1),
+              backgroundColor: '#dc2626',
+              opacity: 0.15 + ((i % 5) * 0.05),
             }}
           />
         ))}
       </View>
       <BlurView intensity={30} style={StyleSheet.absoluteFill} tint="dark" />
 
-      {/* Sensor badge */}
+      {/* Sensor indicator */}
       <View style={styles.sensorBadge}>
         <IconSymbol
           name={useMagnetometer ? 'antenna.radiowaves.left.and.right' : 'location.fill'}
           size={12}
-          color="#71717a"
+          color="#52525b"
         />
         <Text style={styles.sensorText}>
           {useMagnetometer ? 'Magnetometer' : 'GPS Heading'}
         </Text>
       </View>
 
-      {!activeTarget ? (
+      {!activeTarget || !activeTarget.lat || !activeTarget.lng ? (
         <View style={styles.emptyState}>
-          <IconSymbol name="location.slash.fill" size={60} color="#71717a" />
-          <Text style={styles.emptyText}>No destination selected.</Text>
+          <IconSymbol name="location.slash.fill" size={60} color="#3f3f46" />
+          <Text style={styles.emptyText}>No destination set.</Text>
           <Text style={styles.emptySubtext}>
-            Select a lot from the map or search to start navigating.
+            Park a car or select a lot from the map to start navigating.
           </Text>
         </View>
       ) : (
         <View style={styles.contentContainer}>
-          {/* Distance HUD */}
+          {/* Distance */}
           <View style={styles.hudContainer}>
-            <Text style={[styles.proximityLabel, { color: themeColor }]}>
-              {getProximityLabel()}
-            </Text>
-            <Text style={[styles.distanceText, { color: themeColor }]}>
-              {formatDistance()}
-            </Text>
+            <Text style={styles.distanceText}>{loading ? '—' : formatDistance()}</Text>
           </View>
 
-          {/* Compass Arrow */}
+          {/* Compass arrow */}
           <View style={styles.arrowContainer}>
-            <Animated.View style={[styles.arrowGlow, {
-              backgroundColor: themeColor,
-              opacity: glowOpacity,
-            }]} />
             <Animated.View style={{
               transform: [{
                 rotate: rotationValue.interpolate({
-                  inputRange: [-360000, 360000], // Handle many rotations
+                  inputRange: [-360000, 360000],
                   outputRange: ['-360000deg', '360000deg'],
-                })
-              }]
+                }),
+              }],
             }}>
-              <IconSymbol name="location.north.fill" size={160} color={themeColor} />
+              <IconSymbol name="location.north.fill" size={160} color="#dc2626" />
             </Animated.View>
           </View>
 
-          {/* Target Info */}
+          {/* Target info */}
           <View style={styles.targetInfo}>
             <Text style={styles.targetLabel}>Navigating to</Text>
             <Text style={styles.targetName}>{activeTarget.name}</Text>
-            <Text style={[styles.targetCampus, { color: themeColor }]}>
-              {activeTarget.sub}
-            </Text>
+            <Text style={styles.targetCampus}>{activeTarget.sub}</Text>
 
-            {targetLot && (
-              <TouchableOpacity
-                style={styles.clearButton}
-                onPress={() => setTargetLot(null)}
-              >
+            {targetLot && !activeSession && (
+              <TouchableOpacity style={styles.clearButton} onPress={() => setTargetLot(null)}>
                 <Text style={styles.clearButtonText}>Clear Destination</Text>
               </TouchableOpacity>
             )}
@@ -438,13 +323,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
   },
-  sensorText: {
-    color: '#71717a',
-    fontSize: 11,
-    fontWeight: '500',
-  },
+  sensorText: { color: '#52525b', fontSize: 11, fontWeight: '500' },
   contentContainer: {
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -452,19 +333,11 @@ const styles = StyleSheet.create({
     width: '100%',
     paddingBottom: 40,
   },
-  hudContainer: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  proximityLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-    letterSpacing: 3,
-    marginBottom: 4,
-  },
+  hudContainer: { alignItems: 'center', marginBottom: 20 },
   distanceText: {
-    fontSize: 64,
+    fontSize: 72,
     fontWeight: '800',
+    color: '#dc2626',
     fontVariant: ['tabular-nums'],
     textShadowColor: 'rgba(0,0,0,0.5)',
     textShadowOffset: { width: 0, height: 4 },
@@ -476,60 +349,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  arrowGlow: {
-    position: 'absolute',
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-  },
-  targetInfo: {
-    alignItems: 'center',
-    width: '100%',
-    paddingHorizontal: 20,
-  },
+  targetInfo: { alignItems: 'center', width: '100%', paddingHorizontal: 20 },
   targetLabel: {
-    fontSize: 14,
-    color: '#a1a1aa',
+    fontSize: 13,
+    color: '#71717a',
     textTransform: 'uppercase',
     letterSpacing: 2,
     marginBottom: 8,
   },
-  targetName: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
-    textAlign: 'center',
-  },
-  targetCampus: {
-    fontSize: 18,
-    marginTop: 4,
-    fontWeight: '500',
-  },
-  emptyState: {
-    alignItems: 'center',
-    gap: 16,
-    padding: 20,
-  },
-  emptyText: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: '600',
-  },
-  emptySubtext: {
-    color: '#71717a',
-    fontSize: 14,
-    textAlign: 'center',
-  },
+  targetName: { fontSize: 28, fontWeight: 'bold', color: '#fff', textAlign: 'center' },
+  targetCampus: { fontSize: 16, color: '#a1a1aa', marginTop: 4, fontWeight: '500' },
+  emptyState: { alignItems: 'center', gap: 16, padding: 20 },
+  emptyText: { color: '#fff', fontSize: 20, fontWeight: '600' },
+  emptySubtext: { color: '#52525b', fontSize: 14, textAlign: 'center' },
   clearButton: {
     marginTop: 24,
     paddingVertical: 12,
     paddingHorizontal: 24,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 30,
   },
-  clearButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 14,
-  },
+  clearButtonText: { color: '#fff', fontWeight: '600', fontSize: 14 },
 });

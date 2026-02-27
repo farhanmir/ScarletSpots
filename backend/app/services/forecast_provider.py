@@ -1,9 +1,14 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Any
-from uuid import UUID
+from typing import Any, Dict
+
 
 class ForecastProvider(ABC):
     @abstractmethod
-    def get_lot_forecast(self, lot_id: UUID, current_occupancy: int, capacity: int) -> Dict[str, Any]:
-        """Generate a predictive forecast for a parking lot."""
+    def get_lot_forecast(
+        self,
+        lot_id: str,
+        current_occupancy: int,
+        capacity: int,
+    ) -> Dict[str, Any]:
+        """Generate a predictive occupancy forecast for a parking lot."""
         pass

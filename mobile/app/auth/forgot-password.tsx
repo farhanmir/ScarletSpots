@@ -1,31 +1,71 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 
+const RESEND_COOLDOWN_S = 60;
+
 export default function ForgotPasswordScreen() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const handleResetPassword = async () => {
-    if (!email.trim()) {
+  useEffect(() => {
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, []);
+
+  const startCooldown = () => {
+    setCooldown(RESEND_COOLDOWN_S);
+    timerRef.current = setInterval(() => {
+      setCooldown(prev => {
+        if (prev <= 1) {
+          if (timerRef.current) clearInterval(timerRef.current);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const handleSend = async () => {
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed) {
       Alert.alert('Missing Email', 'Please enter your Rutgers email.');
+      return;
+    }
+    if (!trimmed.endsWith('@rutgers.edu') && !trimmed.endsWith('@scarletmail.rutgers.edu')) {
+      Alert.alert('Invalid Email', 'Please enter a valid Rutgers email address (@rutgers.edu or @scarletmail.rutgers.edu).');
       return;
     }
 
     setLoading(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
-      if (error) {
-        throw error;
-      }
+      const { error } = await supabase.auth.resetPasswordForEmail(trimmed);
+      if (error) throw error;
       setSent(true);
+      startCooldown();
     } catch (error: any) {
       Alert.alert('Reset Failed', error?.message || 'Could not send reset email. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (cooldown > 0) return;
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase());
+      if (error) throw error;
+      startCooldown();
+      Alert.alert('Sent', 'Another reset email has been sent.');
+    } catch (error: any) {
+      Alert.alert('Failed', error?.message || 'Could not resend. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -43,30 +83,45 @@ export default function ForgotPasswordScreen() {
       />
 
       <View style={styles.content}>
-        {/* Back button */}
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color="#a1a1aa" />
         </TouchableOpacity>
 
-        {/* Icon */}
         <View style={styles.iconBox}>
           <Ionicons name="lock-open-outline" size={40} color="white" />
         </View>
 
         <Text style={styles.title}>Reset Password</Text>
+
         <View style={styles.card}>
           {sent ? (
             <>
               <Ionicons name="mail-open-outline" size={48} color="#22c55e" />
               <Text style={styles.cardTitle}>Check your inbox</Text>
               <Text style={styles.cardText}>
-                If an account exists for {email.trim()}, a reset link has been sent.
+                A reset link was sent to{'\n'}<Text style={{ color: '#d4d4d8', fontWeight: '600' }}>{email.trim()}</Text>
               </Text>
+              <Text style={[styles.cardText, { marginTop: 8 }]}>
+                Check your spam folder if you don't see it.
+              </Text>
+
+              <TouchableOpacity
+                style={[styles.button, { marginTop: 20, backgroundColor: cooldown > 0 ? '#27272a' : '#dc2626' }]}
+                onPress={handleResend}
+                disabled={cooldown > 0 || loading}
+              >
+                {loading
+                  ? <ActivityIndicator color="#fff" />
+                  : <Text style={styles.buttonText}>
+                      {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend Email'}
+                    </Text>
+                }
+              </TouchableOpacity>
             </>
           ) : (
             <>
               <Text style={styles.subtitle}>
-                Enter your account email and we’ll send password reset instructions.
+                Enter your Rutgers email and we'll send password reset instructions.
               </Text>
               <TextInput
                 style={styles.input}
@@ -77,24 +132,25 @@ export default function ForgotPasswordScreen() {
                 autoCorrect={false}
                 value={email}
                 onChangeText={setEmail}
+                onSubmitEditing={handleSend}
+                returnKeyType="send"
               />
               <TouchableOpacity
                 style={[styles.button, loading && styles.buttonDisabled]}
-                onPress={handleResetPassword}
+                onPress={handleSend}
                 disabled={loading}
               >
-                {loading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.buttonText}>Send Reset Email</Text>
-                )}
+                {loading
+                  ? <ActivityIndicator color="#fff" />
+                  : <Text style={styles.buttonText}>Send Reset Email</Text>
+                }
               </TouchableOpacity>
             </>
           )}
         </View>
 
         <TouchableOpacity style={styles.secondaryButton} onPress={() => router.push('/auth/login')}>
-          <Text style={styles.buttonText}>Back to Sign In</Text>
+          <Text style={styles.secondaryButtonText}>Back to Sign In</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -102,10 +158,7 @@ export default function ForgotPasswordScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#09090b',
-  },
+  container: { flex: 1, backgroundColor: '#09090b' },
   content: {
     flex: 1,
     justifyContent: 'center',
@@ -137,12 +190,7 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 10,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: 'white',
-    marginBottom: 10,
-  },
+  title: { fontSize: 28, fontWeight: '700', color: 'white', marginBottom: 10 },
   subtitle: {
     fontSize: 15,
     color: '#a1a1aa',
@@ -160,6 +208,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 24,
   },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#d4d4d8',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  cardText: { fontSize: 14, color: '#71717a', textAlign: 'center', lineHeight: 20 },
   input: {
     width: '100%',
     height: 50,
@@ -170,19 +226,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     paddingHorizontal: 14,
     marginBottom: 14,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#d4d4d8',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  cardText: {
-    fontSize: 14,
-    color: '#71717a',
-    textAlign: 'center',
-    lineHeight: 20,
+    fontSize: 15,
   },
   button: {
     width: '100%',
@@ -192,9 +236,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
+  buttonDisabled: { opacity: 0.7 },
+  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   secondaryButton: {
     width: '100%',
     height: 50,
@@ -205,9 +248,5 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#3f3f46',
   },
-  buttonText: {
-    color: '#d4d4d8',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  secondaryButtonText: { color: '#d4d4d8', fontSize: 16, fontWeight: '600' },
 });

@@ -1,91 +1,66 @@
 /**
- * OfflineCache — Local caching for lot data and geofence polygons.
+ * OfflineCache — Caching for active parking session state.
  *
- * Provides fallback data when the network is unreachable, with automatic
- * cache refresh when online and data is stale (>1 hour).
+ * Lot data is now bundled in the app (no caching needed for lots).
+ * Only the active session is cached so the app can restore it after
+ * backgrounding or a crash without a network round-trip.
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
-import { LOT_CACHE_TTL_MS } from '../constants/featureFlags';
 
-const CACHE_KEYS = {
-  lots: 'offline_cache_lots',
-  session: 'offline_cache_session',
-  timestamp: 'offline_cache_timestamp',
-};
+const SESSION_KEY = 'offline_cache_session';
 
-/** Cache entries older than this are considered stale (from feature flag, default 1 h). */
-const STALE_THRESHOLD_MS = LOT_CACHE_TTL_MS;
+/** Session cache entries older than 5 minutes are considered stale. */
+const STALE_THRESHOLD_MS = 1000 * 60 * 5;
 
 interface CacheEntry<T> {
   data: T;
   cachedAt: string;
 }
 
-// ── Generic Cache Helpers ──────────────────────────────────────────────────────
-
 async function setCache<T>(key: string, data: T): Promise<void> {
   try {
-    const entry: CacheEntry<T> = {
-      data,
-      cachedAt: new Date().toISOString(),
-    };
+    const entry: CacheEntry<T> = { data, cachedAt: new Date().toISOString() };
     await AsyncStorage.setItem(key, JSON.stringify(entry));
   } catch {
-    // Swallow — caching should never crash the app
+    // Swallow — caching must never crash the app
   }
 }
 
-async function getCache<T>(key: string): Promise<{ data: T; isStale: boolean; cachedAt: string } | null> {
+async function getCache<T>(key: string): Promise<{ data: T; isStale: boolean } | null> {
   try {
     const raw = await AsyncStorage.getItem(key);
     if (!raw) return null;
-
     const entry: CacheEntry<T> = JSON.parse(raw);
     const age = Date.now() - new Date(entry.cachedAt).getTime();
-    return {
-      data: entry.data,
-      isStale: age > STALE_THRESHOLD_MS,
-      cachedAt: entry.cachedAt,
-    };
+    return { data: entry.data, isStale: age > STALE_THRESHOLD_MS };
   } catch {
     return null;
   }
 }
 
-// ── Lot Cache ──────────────────────────────────────────────────────────────────
+// ── Session Cache ──────────────────────────────────────────────────────────
 
-export async function cacheLots(lots: any[]): Promise<void> {
-  await setCache(CACHE_KEYS.lots, lots);
-}
-
-export async function getCachedLots(): Promise<{ lots: any[]; isStale: boolean } | null> {
-  const result = await getCache<any[]>(CACHE_KEYS.lots);
-  if (!result) return null;
-  return { lots: result.data, isStale: result.isStale };
-}
-
-// ── Session Cache ──────────────────────────────────────────────────────────────
-
-export async function cacheSession(session: any): Promise<void> {
-  await setCache(CACHE_KEYS.session, session);
+export async function cacheSession(session: unknown): Promise<void> {
+  await setCache(SESSION_KEY, session);
 }
 
 export async function getCachedSession(): Promise<unknown> {
-  const result = await getCache<any>(CACHE_KEYS.session);
+  const result = await getCache<unknown>(SESSION_KEY);
   return result?.data ?? null;
 }
 
 export async function clearCachedSession(): Promise<void> {
-  await AsyncStorage.removeItem(CACHE_KEYS.session);
+  await AsyncStorage.removeItem(SESSION_KEY);
 }
 
-// ── Network-Aware Fetch with Fallback ──────────────────────────────────────────
+// ── Network-Aware Fetch with Fallback ──────────────────────────────────────
 
 /**
- * Attempt to fetch data from the network. If offline, return cached data.
- * If online, fetch fresh data and update the cache.
+ * Wraps an async fetch with a cached fallback.
+ * Used for session state so the app can show the last-known session
+ * even when the backend is unreachable.
  */
 export async function fetchWithOfflineFallback<T>(
   fetchFn: () => Promise<T>,
@@ -95,12 +70,14 @@ export async function fetchWithOfflineFallback<T>(
   const netState = await NetInfo.fetch();
   const cached = await getCache<T>(cacheKey);
 
-  // If we have a fresh cache and are online, skip the network call to save bandwidth
   if (netState.isConnected && cached && staleThresholdMs) {
-    const age = Date.now() - new Date(cached.cachedAt).getTime();
-    if (age < staleThresholdMs) {
-      console.log(`[Cache] Using fresh cache for ${cacheKey} (age: ${Math.round(age/1000)}s)`);
-      return { data: cached.data, fromCache: true, isStale: false };
+    const raw = await AsyncStorage.getItem(cacheKey);
+    if (raw) {
+      const entry: CacheEntry<T> = JSON.parse(raw);
+      const age = Date.now() - new Date(entry.cachedAt).getTime();
+      if (age < staleThresholdMs) {
+        return { data: cached.data, fromCache: true, isStale: false };
+      }
     }
   }
 
@@ -110,15 +87,13 @@ export async function fetchWithOfflineFallback<T>(
       await setCache(cacheKey, data);
       return { data, fromCache: false, isStale: false };
     } catch {
-      // Network error despite being "connected" — fall through to cache
+      // Network error — fall through to cache
     }
   }
 
-  // Offline or fetch failed — return the cache we already read at the top
   if (cached) {
     return { data: cached.data, fromCache: true, isStale: cached.isStale };
   }
 
-  // No cache available — throw
   throw new Error('No data available (offline and no cache)');
 }

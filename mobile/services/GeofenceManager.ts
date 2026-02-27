@@ -5,12 +5,19 @@ import { PARKING_DETECTION_TASK, stopSensorTracking } from './BackgroundTasks';
 
 export const GEOFENCE_TASK_NAME = 'SCARLETSPOTS_GEOFENCE_TASK';
 
+interface LotGeoPoint {
+  id: string;
+  latitude: number;
+  longitude: number;
+}
+
 /**
- * Registers geofences for all known lots.
- * When a user enters a geofence, we start more intensive location/sensor tracking.
+ * Registers geofences for parking lots from the bundled JSON data.
+ * Lot coordinates come from the static data — no API call needed.
+ * When a user enters a geofence, intensive location/sensor tracking starts.
  */
 let isRegistering = false;
-export async function registerLotGeofences(lots: any[]) {
+export async function registerLotGeofences(lots: LotGeoPoint[]) {
   if (lots.length === 0) return;
   if (isRegistering) return;
   isRegistering = true;

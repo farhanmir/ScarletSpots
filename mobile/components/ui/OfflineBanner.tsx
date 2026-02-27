@@ -4,12 +4,19 @@ import { useNetInfo } from '@react-native-community/netinfo';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+/**
+ * A slim offline indicator banner shown at the top of the screen.
+ *
+ * Since lot data is bundled in the app, offline mode is graceful:
+ * the map still loads with full lot polygons and last-known occupancy.
+ * Only park/end session actions are queued for sync.
+ */
 export default function OfflineBanner() {
   const netInfo = useNetInfo();
   const insets = useSafeAreaInsets();
 
-  // Show banner if we explicitly know we are disconnected
-  // (ignore the initial null/loading state to avoid flashing)
+  // Only show when we explicitly know the device is disconnected.
+  // null = still loading, true = connected — don't show in either case.
   if (netInfo.isConnected === null || netInfo.isConnected === true) {
     return null;
   }
@@ -17,8 +24,8 @@ export default function OfflineBanner() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.banner}>
-        <Ionicons name="cloud-offline" size={16} color="#fff" />
-        <Text style={styles.text}>No internet connection. Using offline mode.</Text>
+        <Ionicons name="wifi-outline" size={13} color="rgba(255,255,255,0.8)" />
+        <Text style={styles.text}>Offline — parking actions will sync when reconnected</Text>
       </View>
     </View>
   );
@@ -26,21 +33,23 @@ export default function OfflineBanner() {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#dc2626', // Red-600
+    backgroundColor: '#27272a',
     width: '100%',
-    zIndex: 999, // Ensure it sits on top of navigation headers
+    zIndex: 999,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#3f3f46',
   },
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
+    paddingVertical: 6,
     paddingHorizontal: 16,
-    gap: 8,
+    gap: 6,
   },
   text: {
-    color: '#ffffff',
-    fontSize: 14,
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 12,
     fontWeight: '500',
   },
 });

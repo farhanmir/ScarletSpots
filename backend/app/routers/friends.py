@@ -29,14 +29,24 @@ def get_friends(current_user=Depends(get_current_user), db=Depends(get_auth_db),
             name = profile.get('full_name', '') or profile.get('email', 'Unknown')
             uid = str(profile["id"])
             parked = False
-            status_text = "Online"
-            
-            session_query = db_client.table("occupancy_logs").select("*, parking_lots(*)").eq("reporter_id", uid).order("created_at", desc=True).limit(1).execute()
-            if session_query.data:
-                latest_log = session_query.data[0]
-                if latest_log.get("status") == "open":
+            lot_id = None
+            status_text = "Not parked"
+
+            # Check for an active parking session — lot_id is the JSON mapId string
+            sharing = friendship.get("sharing_enabled", True)
+            if sharing:
+                session_query = (
+                    db_client.table("parking_sessions")
+                    .select("id, lot_id")
+                    .eq("user_id", uid)
+                    .eq("active", True)
+                    .limit(1)
+                    .execute()
+                )
+                if session_query.data:
                     parked = True
-                    status_text = f"Parked at {latest_log.get('parking_lots', {}).get('name', 'a lot')}"
+                    lot_id = session_query.data[0].get("lot_id")
+                    status_text = f"Parked at Lot {lot_id}" if lot_id else "Currently parked"
 
             return {
                 "id": str(friendship["id"]),
@@ -44,10 +54,9 @@ def get_friends(current_user=Depends(get_current_user), db=Depends(get_auth_db),
                 "name": name,
                 "status": status_text,
                 "parked": parked,
+                "lot_id": lot_id,
                 "avatar": None,
-                "latitude": profile.get("latitude"),
-                "longitude": profile.get("longitude"),
-                "sharing_enabled": friendship.get("sharing_enabled", True)
+                "sharing_enabled": sharing,
             }
 
         # 1. Incoming requests (status = pending, friend_id = me)

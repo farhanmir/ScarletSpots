@@ -1,225 +1,90 @@
-# ScarletSpots - Execution Roadmap (Production, 100k Users)
-
-## Mission
-Ship a production-grade ScarletSpots platform to 100k users with reliability, privacy, and predictive quality that meets launch SLOs and operational readiness standards.
-
-Implementation reference: `PRODUCT_EXPERIENCE_BLUEPRINT.md` is the behavioral source of truth for user flows, edge cases, and acceptance scenarios.
-
-## Current Baseline (Reality Check)
-- Working foundations: auth, map rendering, parking session CRUD, geofence editor CRUD, basic friends flow, offline action queuing.
-- Phase 0 stabilization complete: admin RBAC enforced, missing migrations landed, dual-write pattern removed, client pooling in place.
-- Not launch-ready: predictive layer, robust detection pipeline, complete privacy controls, security hardening, and scale testing.
+# ScarletSpots — Roadmap
 
 ---
 
-## Phase 0 - Stabilize Current Codebase ✅ COMPLETE
-Goal: eliminate obvious defects and remove prototype-level breaks before adding scope.
+## Phase 1 — Architecture Pivot ✅
 
-### P0 Tasks
-1. ✅ Fix route inconsistencies in web admin/map navigation (`/admin/geofence` vs `/admin/geofences`).
-2. ✅ Remove hardcoded Supabase secrets/config from mobile client.
-3. Replace placeholder password reset flow with real Supabase reset flow.
-4. ✅ Resolve duplicate/legacy app surfaces and lock one source of truth.
-5. ✅ Add runtime config validation for all environments.
+**Goal:** Replace database-first lot architecture with bundled static JSON.
 
-### Exit Criteria
-- ✅ No broken navigation paths in critical flows.
-- ✅ No hardcoded production credentials in app code.
-- Auth recovery works end-to-end (password reset still needed).
-- ✅ One canonical frontend/mobile path documented.
+- [x] Copy `rutgers_parking_data.json` into `mobile/data/`
+- [x] Create `mobile/data/lots.ts` — typed wrapper, NB campus filter, `ENABLE_ALL_CAMPUSES` feature flag
+- [x] Remove all `GET /lots` and `GET /lots/{id}` API calls from mobile
+- [x] Simplify `backend/app/routers/lots.py` — remove admin CRUD, keep forecast + occupancy
+- [x] New migration: drop `parking_lots`, `occupancy_logs`, PostGIS. Create `lot_occupancy (TEXT, INT)`
+- [x] Update `GeofenceManager.ts` to use static lot coordinates (no API)
+- [x] Simplify `KnightCompass` / navigate tab to look up lot from JSON by `lot_id`
+- [x] Wire Realtime subscription on `lot_occupancy` table (was on `parking_lots`)
 
----
-
-## Phase 1 - Platform Hardening (4-6 weeks) ← CURRENT
-Goal: production backend/data foundation with security and observability.
-
-### Workstream A: Backend Foundation
-- Stand up FastAPI service as primary API layer.
-- Implement repository/service boundaries.
-- Define API contracts and versioning policy.
-
-### Workstream B: Data Platform
-- Implement PostgreSQL + PostGIS schema and migrations.
-- Add spatial indexes and query benchmarks.
-- Introduce Redis for caching and rate-limiting counters.
-
-### Workstream C: Security & Access
-- Implement strict RLS for user-owned records.
-- Enforce JWT validation and least-privilege service tokens.
-- Add rate limiting and abuse prevention controls.
-
-### Workstream D: Observability
-- Structured logging with correlation IDs.
-- Metrics + dashboards for latency/error/queue depth.
-- Alerts for SLO breach conditions.
-
-### Exit Criteria
-- SLO instrumentation active in staging.
-- Security baseline complete (RLS + authz + rate limits).
-- Migration rollback tested successfully.
+**Exit criteria:** Map loads with 193+ NB lots, no `/lots` API call on startup.
 
 ---
 
-## Phase 2 - Detection + Navigation System (5-7 weeks)
-Goal: deliver trustworthy auto-detection and reliable find-car guidance.
+## Phase 2 — Core Fixes ✅
 
-### Workstream A: Detection Engine
-- Geofence entry/exit state machine.
-- Drive->stop->walk transition model (speed + accelerometer + heading).
-- Confidence scoring and threshold tuning via feature flags.
+**Goal:** Fix all known incomplete or broken flows before any new features.
 
-### Workstream B: Confirmation UX
-- Candidate pin with confidence radius.
-- “Top 3 plausible spots” selection flow.
-- User correction capture for supervised tuning.
+- [x] Password reset: `POST /users/password-reset` + mobile forgot-password screen with resend cooldown
+- [x] Active session banner: replaced with subtle floating chip above tab bar
+- [x] Compass simplification: bearing + distance only, no proximity state machine
+- [x] Friends "Locate" button: wired to navigate to Map tab at friend's lot
+- [x] Crash audit: removed periodic location broadcast loop (was firing every 10s when focused). Fixed Realtime subscription cleanup on unmount.
+- [x] Offline UX: map always loads (data is local). OfflineBanner redesigned to be subtle. Offline message updated to reflect new architecture.
 
-### Workstream C: Compass Quality
-- Magnetometer-based heading + filtered smoothing.
-- Haptic lock-on behavior.
-- Fallback path for missing/unstable sensors.
-
-### Exit Criteria
-- Median parked-pin error <= 15m in field tests.
-- Find-car flow success >= 95% in beta cohort.
-- Battery impact within budget under background operation.
+**Exit criteria:** No known crashes. All navigation flows complete. App usable fully offline (map + cached session).
 
 ---
 
-## Phase 3 - Social + Privacy Completion (3-4 weeks)
-Goal: complete friendship and sharing safely.
+## Phase 3 — Forecasting ✅
 
-### Tasks
-- Full friendship lifecycle (pending/accept/block/unblock).
-- Per-friend sharing toggle and enforcement.
-- Friend marker filter modes (all/friends/same-lot).
-- Sharing state audit logs.
+**Goal:** Replace the heuristic forecast with a real trained model.
 
-### Exit Criteria
-- Data visibility rules verified by integration tests.
-- No unauthorized cross-user location exposure in security tests.
+- [x] `MLForecastProvider` — loads per-lot models from `forecast_models/*.joblib`, falls back to heuristic
+- [x] `train_forecast_model.py` — training script that queries `parking_sessions` and builds gradient boosting models
+- [x] `POST /park/session/feedback` — users can correct detection quality, feeds future model tuning
+- [x] `session_feedback` migration
 
----
+**Deployment:** Launch with heuristic. After 2–4 weeks of session data, run `python -m app.services.train_forecast_model`. Models appear automatically.
 
-## Phase 4 - Intelligence Layer (5-6 weeks)
-Goal: production forecasting services.
-
-### Workstream A: Forecasting
-- 15/30/60 minute forecast endpoints.
-- Confidence bands and model fallback behavior.
-- Drift monitoring and automatic rollback to heuristics.
-
-### Exit Criteria
-- Forecast MAE <= 12% in validation window.
-- Prediction freshness and latency SLO met.
+**Exit criteria:** `GET /lots/{lot_id}/forecast` returns sensible predictions with confidence bands.
 
 ---
 
-## Phase 5 - Offline-First Resilience (2-3 weeks)
-Goal: Ensure core parking workflows function smoothly without cellular/wifi service.
+## Phase 4 — UI/UX Upgrade
 
-### Tasks
-- Implement global `NetInfo` hook and offline UI banner.
-- Add local storage caching for map lot data and structural geofences.
-- Build mutation queue to delay/retry API POST actions (e.g. Park).
+**Goal:** Take the visual design to the next level. Only after core is stable.
 
-### Exit Criteria
-- App does not crash when starting a session underground.
-- Queued actions sync automatically when connection restores.
+This phase is intentionally left vague — design decisions happen when core is solid.
 
----
+- [ ] Map redesign: richer lot cards, better occupancy color encoding
+- [ ] Parking confirmation sheet: polish candidate flow
+- [ ] Compass redesign: make the needle beautiful (the "Knight Needle" vision)
+- [ ] Friends tab: richer friend cards with lot info, campus indicator
+- [ ] Profile: full settings, data export, account deletion flow
 
-## Phase 6 - Launch Readiness + Scale Validation (3-4 weeks)
-Goal: prove production readiness under realistic load and ops conditions.
-
-### Tasks
-- Load tests at expected peak and 2x headroom.
-- Soak tests for reliability and queue stability.
-- Incident drills (auth outage, realtime lag, DB failover scenarios).
-- App store release prep + staged rollout controls.
-
-### Exit Criteria (Hard Gate)
-- 0 open P0/P1 defects.
-- 0 critical security findings.
-- SLOs met in staging load tests.
-- On-call, runbooks, dashboards, and rollback plan approved.
+**Exit criteria:** App looks beautiful. UX is delightful. Ship.
 
 ---
 
-## Cross-Cutting Quality Gates (Every Phase)
-1. Unit + integration tests required for new logic.
-2. Observability added with each new endpoint/service.
-3. Security/privacy review completed before merge.
-4. Documentation updated (API docs + runbook + migration notes).
-5. Performance impact measured and accepted.
-6. User flow behavior must match the Product Experience Blueprint for all touched journeys.
+## Phase 5 — Launch Readiness ✅ (partial)
+
+- [x] Bundle ID fixed: `com.scarletspots.app` (was `com.anonymous.mobile`)
+- [x] EAS build config: development, preview, production profiles
+- [x] GitHub Actions CI: backend pytest, mobile TypeScript check, migration syntax
+- [ ] Load test: simulate 50k users at 3 calls/day peak (k6 or locust)
+- [ ] App Store: configure `apple.com` App Review notes, screenshots
+- [ ] Privacy Policy: publish at `scarletspots.app/privacy`
+- [ ] Staged rollout: internal alpha → Rutgers student beta → public App Store
 
 ---
 
-## Team Operating Model
-- Weekly architecture review (backend/data/mobile/web).
-- Weekly risk review with top 5 blockers and mitigations.
-- Daily CI health and defect triage discipline.
-- Feature flags mandatory for risky/high-impact behavior.
+## Backlog (v2+)
 
----
+These are real ideas, just not for v1:
 
-## Prioritized Backlog (Top 20)
-1. Fix web admin route mismatches.
-2. Remove hardcoded client credentials.
-3. Implement password reset flow.
-4. Establish canonical app folders and deprecate duplicates.
-5. Build FastAPI skeleton with health/auth middleware.
-6. PostGIS schema + migrations v1.
-7. RLS policies for sessions/friends/sharing.
-8. Redis rate limiting + request quotas.
-9. Correlated logging + metrics dashboards.
-10. Geofence state machine service.
-11. Drive/walk transition detector.
-12. Confidence scoring service + feature flags.
-13. Candidate spot ranking and confirmation UI.
-14. Magnetometer compass + haptic lock-on.
-15. Friend block/unblock + sharing toggle APIs.
-16. Friend visibility filtering on maps.
-17. Forecast endpoints (15/30/60m) + confidence bands.
-18. Load/soak test suite and thresholds.
-19. Staged rollout with kill switch and rollback automation.
-
----
-
-## Timeline (Aggressive, Single Major Release Train)
-- Phase 0: Weeks 1-2
-- Phase 1: Weeks 3-8
-- Phase 2: Weeks 9-15
-- Phase 3: Weeks 16-19
-- Phase 4: Weeks 20-25
-- Phase 5: Weeks 26-29
-
-Total: ~7 months to production-ready launch with hard gates.
-
----
-
-## Definition of Done (Non-Negotiable)
-A deliverable is only complete when:
-- Acceptance criteria pass,
-- Tests pass in CI,
-- Security and privacy checks pass,
-- Observability is in place,
-- Performance is validated,
-- Documentation and runbooks are updated.
-
----
-
-## Future / Post-Launch Ideas
-These features are scoped for V2 or post-launch optimization once core metrics are stable.
-
-### 1. Native Geocoding w/ strict Context
-- **Concept**: Use OS-level geocoders (Apple/Google) to allow searching for any POI (e.g. "Starbucks").
-- **Challenge**: Requires strict "Bounding Box" or "Context Injection" (e.g. appending ", Rutgers University, NJ") to avoid global results.
-- **Why Deferred**: Unreliable on simulators and requires robust error handling for remote users (e.g. searching from PA).
-- **Goal**: Re-enable to support non-building POIs once the "Static Index" coverage is outgrown.
-
-### 2. Cell-Based Occupancy Heatmaps
-- **Concept**: Visual density map overlay generated from blended occupancy sensors and active session data.
-- **Challenge**: Performance overhead of rendering thousands of custom overlays on Apple Maps/React Native context. Requires high density of data to be visually useful.
-- **Why Deferred**: Core predictive forecasts + confidence bands provide more immediate value for pathfinding than general heatmaps.
-- **Goal**: Re-introduce as a visual polish feature once predictive latency and map rendering performance are optimized.
+- **Admin portal** (web): Occupancy dashboard, session monitoring, lot management
+- **Google OAuth**: Add as a sign-in option alongside email/password
+- **Push notifications**: "Your lot is almost full" / "Your friend just parked nearby"
+- **Account deletion**: Full GDPR-compliant flow (export + delete data)
+- **All campuses by default**: Enable Newark, Camden, Piscataway in the main build
+- **Permit validation**: Cross-reference Rutgers Parking Services data for permit type
+- **Event integration**: Boost forecasts during football games, graduation, etc.
