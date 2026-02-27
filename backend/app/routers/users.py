@@ -78,3 +78,39 @@ def update_user_me(body: ProfileUpdate, current_user=Depends(get_current_user)):
     except Exception as exc:
         log.error("Failed to update profile: %s", exc)
         raise HTTPException(status_code=500, detail="Failed to update profile")
+
+@router.post("/me/location")
+def update_location(body: ProfileUpdate, current_user=Depends(get_current_user)):
+    """Update the authenticated user's coordinates."""
+    db = get_supabase()
+    user_id = current_user.id
+    
+    # We only care about lat/lng here
+    update_data = {}
+    if body.latitude is not None:
+        update_data["latitude"] = body.latitude
+    if body.longitude is not None:
+        update_data["longitude"] = body.longitude
+        
+    if not update_data:
+        raise HTTPException(status_code=400, detail="Latitude or longitude required")
+        
+    try:
+        # We use admin_db (service role) to bypass RLS for coordinates,
+        # ensuring the mobile app's rapid background updates don't fail
+        # on strict session/policy checks.
+        admin_db = get_admin_supabase()
+        admin_db.table("profiles").update(update_data).eq("id", user_id).execute()
+        return {"success": True}
+    except Exception as exc:
+        # Check for missing column error specifically (PostgREST usually returns 400 for undefined column)
+        err_msg = str(exc)
+        if "column" in err_msg.lower() and ("latitude" in err_msg.lower() or "longitude" in err_msg.lower()):
+            log.warning("Location update failed: columns missing in database. Run migration 20260306_add_profile_location.sql.")
+            raise HTTPException(
+                status_code=501, 
+                detail="Location tracking not yet enabled on server. Please contact administrator to run schema migrations."
+            )
+        
+        log.error("Failed to update location via admin_db: %s", exc)
+        raise HTTPException(status_code=500, detail="Failed to update location")
