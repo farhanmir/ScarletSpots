@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { StyleSheet, View, Text, Image } from 'react-native';
 import { Marker, Region } from 'react-native-maps';
 import { useQuery } from '@tanstack/react-query';
-import { authApiCall } from '../../lib/supabase';
+import { authApiCall, supabase } from '../../lib/supabase';
 import { useSettings } from '@/context/SettingsContext';
 
 interface FriendData {
@@ -55,11 +55,79 @@ const isMarkerInRegion = (marker: FriendData, region: Region) => {
 export default function FriendMarkers({ region }: { region: Region | null }) {
   const { friendFilterMode } = useSettings();
 
-  const { data: friends = [] } = useQuery({
+  const { data: friendsData = [] } = useQuery({
     queryKey: ['friend_markers'],
     queryFn: fetchFriendsWithLocation,
-    refetchInterval: 15000, // Refresh every 15s (matching friends list more closely)
+    refetchInterval: 15000, // Refresh every 15s
   });
+
+  // Realtime overrides
+  const [realtimeLocations, setRealtimeLocations] = useState<Record<string, { lat: number, lng: number }>>({});
+  const channelsRef = useRef<Record<string, any>>({});
+  const isMounted = useRef(true);
+
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+      // Cleanup all channels on unmount
+      Object.keys(channelsRef.current).forEach(id => {
+        supabase.removeChannel(channelsRef.current[id]);
+      });
+      channelsRef.current = {};
+    };
+  }, []);
+
+  useEffect(() => {
+    if (friendsData.length === 0) {
+      // Clear all if no friends
+      Object.keys(channelsRef.current).forEach(id => {
+        supabase.removeChannel(channelsRef.current[id]);
+      });
+      channelsRef.current = {};
+      return;
+    }
+
+    const currentFriendIds = new Set(friendsData.map(f => f.friend_id));
+    const activeFriendIds = new Set(Object.keys(channelsRef.current));
+
+    // 1. Remove channels for friends no longer in the list
+    activeFriendIds.forEach(id => {
+      if (!currentFriendIds.has(id)) {
+        supabase.removeChannel(channelsRef.current[id]);
+        delete channelsRef.current[id];
+      }
+    });
+
+    // 2. Add channels for new friends
+    friendsData.forEach(friend => {
+      if (friend.friend_id && !channelsRef.current[friend.friend_id]) {
+        console.log(`[FriendMarkers] Subscribing to user-location:${friend.friend_id}`);
+        const channel = supabase.channel(`user-location:${friend.friend_id}`)
+          .on('broadcast', { event: 'location_update' }, ({ payload }) => {
+            if (isMounted.current) {
+              setRealtimeLocations(prev => ({
+                ...prev,
+                [payload.userId]: { lat: payload.latitude, lng: payload.longitude }
+              }));
+            }
+          })
+          .subscribe();
+        
+        channelsRef.current[friend.friend_id] = channel;
+      }
+    });
+  }, [friendsData]);
+
+  const friends = useMemo(() => {
+    return friendsData.map(f => {
+      const rt = realtimeLocations[f.friend_id];
+      if (rt) {
+        return { ...f, latitude: rt.lat, longitude: rt.lng };
+      }
+      return f;
+    });
+  }, [friendsData, realtimeLocations]);
 
   // Apply filter mode
   const filteredFriends = React.useMemo(() => {
@@ -83,8 +151,8 @@ export default function FriendMarkers({ region }: { region: Region | null }) {
       return friendsToDisplay;
     }
 
-    return friendsToDisplay.filter(friend => isMarkerInRegion(friend, region));
-  }, [friends, friendFilterMode, region]);
+    return friendsToDisplay;
+  }, [friends, friendFilterMode]);
 
   if (filteredFriends.length === 0) return null;
 

@@ -1,39 +1,62 @@
 import * as TaskManager from 'expo-task-manager';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
-import { Accelerometer } from 'expo-sensors';
+import { Accelerometer, Pedometer } from 'expo-sensors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   pushSpeed,
   pushAccel,
+  pushHeading,
+  pushSteps,
   detectParking,
   type LotForDetection,
   type ParkingCandidate,
+  computePedometerScore,
 } from './ParkingDetectionService';
 import { PARKING_CONFIDENCE_THRESHOLD } from '../constants/featureFlags';
 
 export const PARKING_DETECTION_TASK = 'SCARLETSPOTS_PARKING_DETECTION';
 const CANDIDATES_STORAGE_KEY = 'parking_candidates';
 
-// Global listener for accelerometer in background
-let accelSubscription: any = null;
+// ── Sensor Tracking Listeners ──────────────────────────────────────────────────
 
-const startAccelTracking = () => {
-  if (accelSubscription) return;
-  Accelerometer.setUpdateInterval(500);
-  accelSubscription = Accelerometer.addListener(data => {
-    pushAccel(data);
-  });
+let accelSubscription: any = null;
+let pedometerSubscription: any = null;
+
+const startSensorTracking = async () => {
+  // Accelerometer
+  if (!accelSubscription) {
+    Accelerometer.setUpdateInterval(500);
+    accelSubscription = Accelerometer.addListener(data => {
+      pushAccel(data);
+    });
+  }
+
+  // Pedometer
+  if (!pedometerSubscription) {
+    const isAvailable = await Pedometer.isAvailableAsync();
+    if (isAvailable) {
+      pedometerSubscription = Pedometer.watchStepCount(result => {
+        pushSteps(result.steps);
+      });
+    }
+  }
 };
 
-const stopAccelTracking = () => {
+export const stopSensorTracking = () => {
   if (accelSubscription) {
     accelSubscription.remove();
     accelSubscription = null;
   }
+  if (pedometerSubscription) {
+    pedometerSubscription.remove();
+    pedometerSubscription = null;
+  }
 };
 
-TaskManager.defineTask(PARKING_DETECTION_TASK, async ({ data, error }) => {
+// ── Background Task Definition ─────────────────────────────────────────────────
+
+TaskManager.defineTask(PARKING_DETECTION_TASK, async ({ data, error }: any) => {
   if (error) {
     console.error('[BackgroundTask] Error:', error.message);
     return;
@@ -43,16 +66,18 @@ TaskManager.defineTask(PARKING_DETECTION_TASK, async ({ data, error }) => {
   const { locations } = data as { locations: Location.LocationObject[] };
   if (!locations || locations.length === 0) return;
 
-  const latestLocation = locations[locations.length - 1];
+  const latestLocation = locations.at(-1)!;
   const speed = latestLocation.coords.speed;
+  const heading = latestLocation.coords.heading; // degrees 0–360, or -1 if unavailable
 
-  // Start accelerometer when we are in active tracking mode
-  startAccelTracking();
+  // Start sensors when we are in active tracking mode
+  await startSensorTracking();
 
-  // Feed speed into the rolling buffer
+  // Feed signals into the rolling buffers
   pushSpeed(speed);
+  pushHeading(heading);
 
-  // Load cached lots
+  // Load cached lots for comparison
   let lots: LotForDetection[] = [];
   try {
     const cachedLotsStr = await AsyncStorage.getItem('cached_lots');
@@ -77,18 +102,18 @@ TaskManager.defineTask(PARKING_DETECTION_TASK, async ({ data, error }) => {
 
   const topCandidate = candidates[0];
 
-  // Only send notification when confidence is high enough
+  // Only proceed when confidence is high enough
   if (topCandidate.confidence < PARKING_CONFIDENCE_THRESHOLD) {
     return;
   }
 
-  // Once detected, we can stop accel tracking for this session
-  stopAccelTracking();
+  // Once detected, we can stop expensive sensor tracking for this session
+  stopSensorTracking();
 
-  // Persist candidates
+  // Persist candidates so the UI can prompt the user on app foreground
   await AsyncStorage.setItem(CANDIDATES_STORAGE_KEY, JSON.stringify(candidates));
 
-  // Send push notification
+  // Send immediate local notification
   await Notifications.scheduleNotificationAsync({
     content: {
       title: '🚗 ScarletSpots',
@@ -97,10 +122,14 @@ TaskManager.defineTask(PARKING_DETECTION_TASK, async ({ data, error }) => {
         lotId: topCandidate.lotId,
         action: 'confirm_park',
       },
+      sound: true,
+      priority: Notifications.AndroidNotificationPriority.HIGH,
     },
     trigger: null,
   });
 });
+
+// ── Public API ─────────────────────────────────────────────────────────────────
 
 /**
  * Retrieve persisted parking candidates (set by background task).

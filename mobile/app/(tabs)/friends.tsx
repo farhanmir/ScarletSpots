@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, FlatList, TouchableOpacity, Image, Switch, Platform } from 'react-native';
+import { StyleSheet, View, Text, FlatList, TouchableOpacity, Image, Switch, Platform, Modal, TextInput, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { BlurView } from 'expo-blur';
@@ -10,6 +10,9 @@ import { Alert } from 'react-native';
 
 export default function FriendsScreen() {
   const [activeTab, setActiveTab] = useState<'friends' | 'requests'>('friends');
+  const [isAddModalVisible, setIsAddModalVisible] = useState(false);
+  const [friendEmail, setFriendEmail] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const queryClient = useQueryClient();
 
   // Fetch Friends and Requests
@@ -61,30 +64,36 @@ export default function FriendsScreen() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['friends_list'] }),
   });
 
-  const addFriendPrompt = () => {
-    Alert.prompt(
-      "Add Friend",
-      "Enter your friend's email address:",
-      [
-        { text: "Cancel", style: "cancel" },
-        { 
-          text: "Add", 
-          onPress: async (email?: string) => {
-            if (!email) return;
-            try {
-              const res = await authApiCall('/friends/request', { method: 'POST', body: JSON.stringify({ friend_email: email.trim().toLowerCase() }) });
-              if (res.success) {
-                Alert.alert("Success", "Friend request sent!");
-                queryClient.invalidateQueries({ queryKey: ['friends_list'] });
-              }
-            } catch (err: any) {
-              Alert.alert("Error", err.message || "Could not send friend request.");
-            }
-          }
-        }
-      ],
-      "plain-text"
-    );
+  const addFriendMutation = useMutation({
+    mutationFn: async (email: string) => {
+      return await authApiCall('/friends/request', { 
+        method: 'POST', 
+        body: JSON.stringify({ friend_email: email.trim().toLowerCase() }) 
+      });
+    },
+    onSuccess: (res) => {
+      if (res?.success) {
+        Alert.alert("Success", "Friend request sent!");
+        queryClient.invalidateQueries({ queryKey: ['friends_list'] });
+        setIsAddModalVisible(false);
+        setFriendEmail('');
+      } else if (res?.detail) {
+        Alert.alert("Error", res.detail);
+      }
+    },
+    onError: (err: any) => {
+      Alert.alert("Error", err.message || "Could not send friend request.");
+    },
+    onSettled: () => setIsSubmitting(false),
+  });
+
+  const handleAddFriend = () => {
+    if (!friendEmail || !friendEmail.includes('@')) {
+      Alert.alert("Error", "Please enter a valid email address.");
+      return;
+    }
+    setIsSubmitting(true);
+    addFriendMutation.mutate(friendEmail);
   };
 
   const handleFriendActions = (item: any) => {
@@ -183,7 +192,7 @@ export default function FriendsScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Friends</Text>
-        <TouchableOpacity style={styles.addButton} onPress={addFriendPrompt}>
+        <TouchableOpacity style={styles.addButton} onPress={() => setIsAddModalVisible(true)}>
           <IconSymbol name="person.badge.plus" size={24} color="#dc2626" />
         </TouchableOpacity>
       </View>
@@ -232,6 +241,56 @@ export default function FriendsScreen() {
           </View>
         }
       />
+      {/* Add Friend Modal */}
+      <Modal
+        visible={isAddModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setIsAddModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Add Friend</Text>
+            <Text style={styles.modalSubtitle}>Enter your friend's email address to send a request.</Text>
+            
+            <TextInput
+              style={styles.input}
+              placeholder="friend@example.com"
+              placeholderTextColor="#71717a"
+              autoCapitalize="none"
+              keyboardType="email-address"
+              value={friendEmail}
+              onChangeText={setFriendEmail}
+              autoFocus={true}
+            />
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => {
+                  setIsAddModalVisible(false);
+                  setFriendEmail('');
+                }}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.modalButton, styles.confirmButton]}
+                onPress={handleAddFriend}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.confirmButtonText}>Send Request</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -391,5 +450,72 @@ const styles = StyleSheet.create({
     color: '#71717a',
     marginTop: 16,
     fontSize: 16,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#18181b',
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: 24,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: '#27272a',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalTitle: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  modalSubtitle: {
+    color: '#a1a1aa',
+    fontSize: 14,
+    marginBottom: 24,
+  },
+  input: {
+    backgroundColor: '#09090b',
+    borderWidth: 1,
+    borderColor: '#27272a',
+    borderRadius: 12,
+    padding: 16,
+    color: '#fff',
+    fontSize: 16,
+    marginBottom: 24,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    height: 48,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#27272a',
+  },
+  confirmButton: {
+    backgroundColor: '#dc2626',
+  },
+  cancelButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  confirmButtonText: {
+    color: '#fff',
+    fontWeight: '600',
   },
 });

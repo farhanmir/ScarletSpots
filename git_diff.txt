@@ -1,0 +1,1935 @@
+diff --git a/mobile/app/(tabs)/friends.tsx b/mobile/app/(tabs)/friends.tsx
+index eee16287..af5a54cc 100644
+--- a/mobile/app/(tabs)/friends.tsx
++++ b/mobile/app/(tabs)/friends.tsx
+@@ -1,5 +1,5 @@
+ import React, { useState } from 'react';
+-import { StyleSheet, View, Text, FlatList, TouchableOpacity, Image, Switch, Platform } from 'react-native';
++import { StyleSheet, View, Text, FlatList, TouchableOpacity, Image, Switch, Platform, Modal, TextInput, ActivityIndicator } from 'react-native';
+ import { LinearGradient } from 'expo-linear-gradient';
+ import { IconSymbol } from '@/components/ui/icon-symbol';
+ import { BlurView } from 'expo-blur';
+@@ -10,6 +10,9 @@ import { Alert } from 'react-native';
+ 
+ export default function FriendsScreen() {
+   const [activeTab, setActiveTab] = useState<'friends' | 'requests'>('friends');
++  const [isAddModalVisible, setIsAddModalVisible] = useState(false);
++  const [friendEmail, setFriendEmail] = useState('');
++  const [isSubmitting, setIsSubmitting] = useState(false);
+   const queryClient = useQueryClient();
+ 
+   // Fetch Friends and Requests
+@@ -61,30 +64,36 @@ export default function FriendsScreen() {
+     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['friends_list'] }),
+   });
+ 
+-  const addFriendPrompt = () => {
+-    Alert.prompt(
+-      "Add Friend",
+-      "Enter your friend's email address:",
+-      [
+-        { text: "Cancel", style: "cancel" },
+-        { 
+-          text: "Add", 
+-          onPress: async (email?: string) => {
+-            if (!email) return;
+-            try {
+-              const res = await authApiCall('/friends/request', { method: 'POST', body: JSON.stringify({ friend_email: email.trim().toLowerCase() }) });
+-              if (res.success) {
+-                Alert.alert("Success", "Friend request sent!");
+-                queryClient.invalidateQueries({ queryKey: ['friends_list'] });
+-              }
+-            } catch (err: any) {
+-              Alert.alert("Error", err.message || "Could not send friend request.");
+-            }
+-          }
+-        }
+-      ],
+-      "plain-text"
+-    );
++  const addFriendMutation = useMutation({
++    mutationFn: async (email: string) => {
++      return await authApiCall('/friends/request', { 
++        method: 'POST', 
++        body: JSON.stringify({ friend_email: email.trim().toLowerCase() }) 
++      });
++    },
++    onSuccess: (res) => {
++      if (res?.success) {
++        Alert.alert("Success", "Friend request sent!");
++        queryClient.invalidateQueries({ queryKey: ['friends_list'] });
++        setIsAddModalVisible(false);
++        setFriendEmail('');
++      } else if (res?.detail) {
++        Alert.alert("Error", res.detail);
++      }
++    },
++    onError: (err: any) => {
++      Alert.alert("Error", err.message || "Could not send friend request.");
++    },
++    onSettled: () => setIsSubmitting(false),
++  });
++
++  const handleAddFriend = () => {
++    if (!friendEmail || !friendEmail.includes('@')) {
++      Alert.alert("Error", "Please enter a valid email address.");
++      return;
++    }
++    setIsSubmitting(true);
++    addFriendMutation.mutate(friendEmail);
+   };
+ 
+   const handleFriendActions = (item: any) => {
+@@ -183,7 +192,7 @@ export default function FriendsScreen() {
+       {/* Header */}
+       <View style={styles.header}>
+         <Text style={styles.headerTitle}>Friends</Text>
+-        <TouchableOpacity style={styles.addButton} onPress={addFriendPrompt}>
++        <TouchableOpacity style={styles.addButton} onPress={() => setIsAddModalVisible(true)}>
+           <IconSymbol name="person.badge.plus" size={24} color="#dc2626" />
+         </TouchableOpacity>
+       </View>
+@@ -232,6 +241,56 @@ export default function FriendsScreen() {
+           </View>
+         }
+       />
++      {/* Add Friend Modal */}
++      <Modal
++        visible={isAddModalVisible}
++        transparent={true}
++        animationType="fade"
++        onRequestClose={() => setIsAddModalVisible(false)}
++      >
++        <View style={styles.modalOverlay}>
++          <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
++          <View style={styles.modalContent}>
++            <Text style={styles.modalTitle}>Add Friend</Text>
++            <Text style={styles.modalSubtitle}>Enter your friend's email address to send a request.</Text>
++            
++            <TextInput
++              style={styles.input}
++              placeholder="friend@example.com"
++              placeholderTextColor="#71717a"
++              autoCapitalize="none"
++              keyboardType="email-address"
++              value={friendEmail}
++              onChangeText={setFriendEmail}
++              autoFocus={true}
++            />
++
++            <View style={styles.modalButtons}>
++              <TouchableOpacity
++                style={[styles.modalButton, styles.cancelButton]}
++                onPress={() => {
++                  setIsAddModalVisible(false);
++                  setFriendEmail('');
++                }}
++              >
++                <Text style={styles.cancelButtonText}>Cancel</Text>
++              </TouchableOpacity>
++              
++              <TouchableOpacity
++                style={[styles.modalButton, styles.confirmButton]}
++                onPress={handleAddFriend}
++                disabled={isSubmitting}
++              >
++                {isSubmitting ? (
++                  <ActivityIndicator color="#fff" size="small" />
++                ) : (
++                  <Text style={styles.confirmButtonText}>Send Request</Text>
++                )}
++              </TouchableOpacity>
++            </View>
++          </View>
++        </View>
++      </Modal>
+     </View>
+   );
+ }
+@@ -392,4 +451,71 @@ const styles = StyleSheet.create({
+     marginTop: 16,
+     fontSize: 16,
+   },
++  modalOverlay: {
++    flex: 1,
++    backgroundColor: 'rgba(0,0,0,0.6)',
++    justifyContent: 'center',
++    alignItems: 'center',
++    padding: 20,
++  },
++  modalContent: {
++    backgroundColor: '#18181b',
++    width: '100%',
++    maxWidth: 400,
++    borderRadius: 24,
++    padding: 24,
++    borderWidth: 1,
++    borderColor: '#27272a',
++    shadowColor: '#000',
++    shadowOffset: { width: 0, height: 10 },
++    shadowOpacity: 0.5,
++    shadowRadius: 20,
++    elevation: 10,
++  },
++  modalTitle: {
++    color: '#fff',
++    fontSize: 24,
++    fontWeight: 'bold',
++    marginBottom: 8,
++  },
++  modalSubtitle: {
++    color: '#a1a1aa',
++    fontSize: 14,
++    marginBottom: 24,
++  },
++  input: {
++    backgroundColor: '#09090b',
++    borderWidth: 1,
++    borderColor: '#27272a',
++    borderRadius: 12,
++    padding: 16,
++    color: '#fff',
++    fontSize: 16,
++    marginBottom: 24,
++  },
++  modalButtons: {
++    flexDirection: 'row',
++    gap: 12,
++  },
++  modalButton: {
++    flex: 1,
++    height: 48,
++    borderRadius: 12,
++    justifyContent: 'center',
++    alignItems: 'center',
++  },
++  cancelButton: {
++    backgroundColor: '#27272a',
++  },
++  confirmButton: {
++    backgroundColor: '#dc2626',
++  },
++  cancelButtonText: {
++    color: '#fff',
++    fontWeight: '600',
++  },
++  confirmButtonText: {
++    color: '#fff',
++    fontWeight: '600',
++  },
+ });
+diff --git a/mobile/app/(tabs)/navigate.tsx b/mobile/app/(tabs)/navigate.tsx
+index 664cfcd9..717d167f 100644
+--- a/mobile/app/(tabs)/navigate.tsx
++++ b/mobile/app/(tabs)/navigate.tsx
+@@ -49,13 +49,9 @@ function lowPassFilter(current: number, previous: number): number {
+ // ── Magnetometer heading extraction ────────────────────────────────────────────
+ 
+ function magnetometerToHeading(x: number, y: number): number {
+-  // Convert magnetometer x,y to compass heading (degrees from North)
+-  let angle = Math.atan2(y, x) * (180 / Math.PI);
+-  // Normalize: atan2 gives -180..180, we want 0..360
+-  // On iOS the axes may differ, but expo-sensors normalizes for us
+-  angle = (angle + 360) % 360;
+-  // Magnetometer points to magnetic north, so heading = 360 - angle
+-  return (360 - angle) % 360;
++  // Use atan2(x, y) for North-up heading (y is forward, x is right)
++  let angle = Math.atan2(x, y) * (180 / Math.PI);
++  return (angle + 360) % 360;
+ }
+ 
+ // ── Component ──────────────────────────────────────────────────────────────────
+@@ -85,6 +81,11 @@ export default function NavigateScreen() {
+   const bearingRef = useRef(0);
+   const lastHeadingRef = useRef(0);
+   const rotationValue = useRef(new Animated.Value(0)).current;
++  // Track the current target rotation in a plain ref so we can compute smooth
++  // shortest-path deltas without reading the private _value property (which can
++  // be undefined before the first animation, turning toValue into NaN and
++  // crashing the native animation driver).
++  const currentRotationRef = useRef(0);
+   const glowOpacity = useRef(new Animated.Value(0)).current;
+ 
+   // Navigation targets
+@@ -113,36 +114,67 @@ export default function NavigateScreen() {
+         const { status } = await Location.requestForegroundPermissionsAsync();
+         if (status !== 'granted') return;
+ 
+-        // Try magnetometer first (more accurate heading)
++        // 1. Try High-level GPS/Compass heading (more robust for orientation)
+         try {
+-          const isAvailable = await Magnetometer.isAvailableAsync();
+-          if (isAvailable) {
+-            Magnetometer.setUpdateInterval(60); // Faster update (16ms ~ 60Hz)
+-            magnetometerSub = Magnetometer.addListener(({ x, y }) => {
+-              const rawHeading = magnetometerToHeading(x, y);
+-              smoothedHeading.current = lowPassFilter(rawHeading, smoothedHeading.current);
+-              lastHeadingRef.current = smoothedHeading.current;
+-              // Direct animation value update (no re-render)
+-              rotationValue.setValue(bearingRef.current - smoothedHeading.current);
+-            });
+-            setUseMagnetometer(true);
+-          } else {
+-            throw new Error('Magnetometer not available');
+-          }
+-        } catch {
+-          // Fallback to GPS heading
+-          setUseMagnetometer(false);
+           headingSub = await Location.watchHeadingAsync((obj) => {
+-            const h = obj.trueHeading || obj.magHeading;
++            const h = obj.trueHeading >= 0 ? obj.trueHeading : obj.magHeading;
++            if (h === -1) return; // Invalid reading
++
+             smoothedHeading.current = lowPassFilter(h, smoothedHeading.current);
+             lastHeadingRef.current = smoothedHeading.current;
+-            rotationValue.setValue(bearingRef.current - smoothedHeading.current);
++
++            if (activeTarget) {
++              const targetRotation = (bearingRef.current - smoothedHeading.current);
++              const currentVal = currentRotationRef.current;
++              const delta = ((targetRotation - currentVal + 180) % 360 + 360) % 360 - 180;
++              const nextVal = currentVal + delta;
++              currentRotationRef.current = nextVal;
++
++              Animated.spring(rotationValue, {
++                toValue: nextVal,
++                useNativeDriver: true,
++                tension: 60,
++                friction: 10,
++              }).start();
++            }
+           });
++          setUseMagnetometer(false);
++        } catch {
++          // Fallback to raw magnetometer
++          try {
++            const isAvailable = await Magnetometer.isAvailableAsync();
++            if (isAvailable) {
++              Magnetometer.setUpdateInterval(40);
++              magnetometerSub = Magnetometer.addListener(({ x, y }) => {
++                const rawHeading = magnetometerToHeading(x, y);
++                smoothedHeading.current = lowPassFilter(rawHeading, smoothedHeading.current);
++                lastHeadingRef.current = smoothedHeading.current;
++
++                if (activeTarget) {
++                  const targetRotation = (bearingRef.current - smoothedHeading.current);
++                  const currentVal = currentRotationRef.current;
++                  const delta = ((targetRotation - currentVal + 180) % 360 + 360) % 360 - 180;
++                  const nextVal = currentVal + delta;
++                  currentRotationRef.current = nextVal;
++
++                  Animated.spring(rotationValue, {
++                    toValue: nextVal,
++                    useNativeDriver: true,
++                    tension: 60,
++                    friction: 10,
++                  }).start();
++                }
++              });
++              setUseMagnetometer(true);
++            }
++          } catch (err) {
++            console.warn('[Navigate] No heading source available');
++          }
+         }
+ 
+         // Position watcher
+         positionSub = await Location.watchPositionAsync(
+-          { accuracy: Location.Accuracy.High, timeInterval: 1000, distanceInterval: 3 },
++          { accuracy: Location.Accuracy.High, timeInterval: 500, distanceInterval: 1 },
+           (loc) => {
+             setLocation(loc);
+             if (activeTarget) {
+@@ -151,8 +183,19 @@ export default function NavigateScreen() {
+                 activeTarget.lat, activeTarget.lng
+               );
+               bearingRef.current = b;
+-              // Immediate rotation sync
+-              rotationValue.setValue(b - lastHeadingRef.current);
++              
++              const targetRotation = (b - lastHeadingRef.current);
++              const currentVal = currentRotationRef.current;
++              const delta = ((targetRotation - currentVal + 180) % 360 + 360) % 360 - 180;
++              const nextVal = currentVal + delta;
++              currentRotationRef.current = nextVal;
++
++              Animated.spring(rotationValue, {
++                toValue: nextVal,
++                useNativeDriver: true,
++                tension: 40,
++                friction: 7,
++              }).start();
+             }
+           }
+         );
+@@ -212,7 +255,9 @@ export default function NavigateScreen() {
+   const fetchLotDetails = async (id: string) => {
+     try {
+       const data = await publicApiCall('/lots');
+-      const lot = data.lots?.find((l: any) => l.id === id);
++      // Backend returns a raw array of lots
++      const lotsArr = data?.lots || data || [];
++      const lot = lotsArr.find((l: any) => l.id === id);
+       if (lot) setTargetLot(lot);
+     } catch (e) {
+       console.log('Error fetching lot for nav:', e);
+@@ -226,7 +271,7 @@ export default function NavigateScreen() {
+         lat: activeSession.latitude || targetLot?.latitude, 
+         lng: activeSession.longitude || targetLot?.longitude, 
+         name: activeSession.latitude ? 'Your Vehicle' : (targetLot?.name || 'Active Session'), 
+-        sub: activeSession.latitude ? `Spot #${activeSession.spotNumber}` : (targetLot?.campus ? `${targetLot.campus} Campus` : 'Parking Area'), 
++        sub: targetLot?.name || (activeSession.latitude ? 'Parking Session' : (targetLot?.campus ? `${targetLot.campus} Campus` : 'Parking Area')), 
+         type: activeSession.latitude ? 'car' : 'lot' 
+       }
+     : (targetLot)
+@@ -257,7 +302,9 @@ export default function NavigateScreen() {
+       activeTarget.lat, activeTarget.lng
+     );
+     bearingRef.current = b;
+-    rotationValue.setValue(b - lastHeadingRef.current);
++    const directVal = b - lastHeadingRef.current;
++    currentRotationRef.current = directVal;
++    rotationValue.setValue(directVal);
+ 
+     // Proximity states
+     let newProximity: ProximityState;
+diff --git a/mobile/app/(tabs)/search.tsx b/mobile/app/(tabs)/search.tsx
+index 71452075..98d1729a 100644
+--- a/mobile/app/(tabs)/search.tsx
++++ b/mobile/app/(tabs)/search.tsx
+@@ -16,6 +16,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
+ import { publicApiCall } from '../../lib/supabase';
+ import * as Location from 'expo-location';
+ import { RUTGERS_BUILDINGS } from '@/data/buildings';
++import { fetchWithOfflineFallback } from '../../services/OfflineCache';
+ 
+ // Types
+ interface Lot {
+@@ -137,8 +138,17 @@ export default function SearchScreen() {
+ 
+   const fetchLots = async () => {
+     try {
+-      const data = await publicApiCall('/lots');
+-      setLots(data.lots || []);
++      const result = await fetchWithOfflineFallback(
++        async () => {
++          const res = await publicApiCall('/lots');
++          return res;
++        },
++        'offline_cache_lots'
++      );
++      
++      // The backend returns a raw array of lots, but we handle objects just in case
++      const lotsData = result.data?.lots || result.data || [];
++      setLots(Array.isArray(lotsData) ? lotsData : []);
+     } catch (error) {
+       console.error('Error fetching lots:', error);
+     } finally {
+@@ -259,7 +269,7 @@ export default function SearchScreen() {
+                           latitude: lot.latitude,
+                           longitude: lot.longitude,
+                           type: 'lot',
+-                          campus: lot.campus,
++                          address: `${lot.campus} Campus`,
+                           data: lot
+                         } as any)}
+                       >
+diff --git a/mobile/app/_layout.tsx b/mobile/app/_layout.tsx
+index 01be56c8..5ee9d999 100644
+--- a/mobile/app/_layout.tsx
++++ b/mobile/app/_layout.tsx
+@@ -1,6 +1,7 @@
+ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+ import { Stack, useSegments, useRouter } from 'expo-router';
+ import { StatusBar } from 'expo-status-bar';
++import { View, Text, TouchableOpacity } from 'react-native';
+ import 'react-native-reanimated';
+ import { useEffect } from 'react';
+ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'; // Import QueryClientProvider
+@@ -12,6 +13,8 @@ export { ErrorBoundary } from 'expo-router';
+ 
+ import { useColorScheme } from '@/hooks/use-color-scheme';
+ import { AuthProvider, useAuth } from '@/context/AuthProvider';
++import { isSupabaseConfigValid } from '@/lib/supabase-client';
++import { IconSymbol } from '@/components/ui/icon-symbol';
+ 
+ import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
+ import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
+@@ -20,8 +23,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
+ const queryClient = new QueryClient({
+   defaultOptions: {
+     queries: {
+-      gcTime: 1000 * 60 * 60 * 24, // 24 hours
+-      staleTime: 1000 * 30, // 30 seconds
++      // ── Aggressive caching to prevent 951-request blizzards ──────────────────
++      // Hot-reloading, re-mounts, and app-foreground events all re-use
++      // cached data rather than hitting the network.
++      gcTime: 1000 * 60 * 60 * 24, // Keep data in memory / AsyncStorage for 24 h
++      staleTime: 1000 * 60 * 5,    // Data is "fresh" for 5 min — no refetch needed
++      refetchOnMount: false,        // Never auto-refetch just because a component mounts
++      refetchOnWindowFocus: false,  // Never refetch when the RN app comes to foreground
++      refetchOnReconnect: true,     // DO refetch when coming back online (offline-first)
++      retry: 1,                     // One retry on failure, then give up
+     },
+   },
+ });
+@@ -70,10 +80,29 @@ function InitialLayout() {
+ 
+ import { SettingsProvider } from '@/context/SettingsContext';
+ import OfflineBanner from '@/components/ui/OfflineBanner';
+-import NetInfo from '@react-native-community/netinfo';
+-import { syncOfflineQueue } from '@/lib/supabase';
++import { initOfflineQueue, teardownOfflineQueue } from '../services/OfflineQueue';
+ import { installGlobalCrashHandlers } from '@/services/CrashLogger';
+ 
++function ConfigErrorScreen() {
++  return (
++    <View style={{ flex: 1, backgroundColor: '#09090b', justifyContent: 'center', alignItems: 'center', padding: 40 }}>
++      <IconSymbol name="exclamationmark.triangle.fill" size={64} color="#dc2626" />
++      <Text style={{ color: '#fff', fontSize: 24, fontWeight: 'bold', marginTop: 24, textAlign: 'center' }}>
++        Configuration Missing
++      </Text>
++      <Text style={{ color: '#a1a1aa', fontSize: 16, marginTop: 12, textAlign: 'center', lineHeight: 24 }}>
++        The app is missing required Supabase environment variables. Please check your .env file and restart the Expo server.
++      </Text>
++      <TouchableOpacity 
++        style={{ marginTop: 40, backgroundColor: '#27272a', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 }}
++        onPress={() => { /* Could add a reload functionality here if desired */ }}
++      >
++        <Text style={{ color: '#fff', fontWeight: 'bold' }}>See Documentation</Text>
++      </TouchableOpacity>
++    </View>
++  );
++}
++
+ export default function RootLayout() {
+   // Install crash handlers once at boot
+   useEffect(() => {
+@@ -81,15 +110,18 @@ export default function RootLayout() {
+   }, []);
+ 
+   useEffect(() => {
+-    // Listen for global connection changes to trigger sync
+-    const unsubscribe = NetInfo.addEventListener(state => {
+-      if (state.isConnected && state.isInternetReachable) {
+-        syncOfflineQueue();
+-      }
+-    });
+-    return () => unsubscribe();
++    // initOfflineQueue registers its own NetInfo listener and flushes the
++    // queue whenever the device comes back online. Calling it here (once, at
++    // root mount) is the single authoritative reconnect handler — no duplicate
++    // NetInfo.addEventListener wrappers needed.
++    initOfflineQueue();
++    return () => teardownOfflineQueue();
+   }, []);
+ 
++  if (!isSupabaseConfigValid) {
++    return <ConfigErrorScreen />;
++  }
++
+   return (
+     <SettingsProvider>
+       <PersistQueryClientProvider 
+diff --git a/mobile/components/LotDetails.tsx b/mobile/components/LotDetails.tsx
+index d5d63b74..ec017f04 100644
+--- a/mobile/components/LotDetails.tsx
++++ b/mobile/components/LotDetails.tsx
+@@ -1,4 +1,4 @@
+-import React, { useState } from 'react';
++import React, { useState, useRef, useEffect, useCallback } from 'react';
+ import {
+   StyleSheet,
+   View,
+@@ -10,23 +10,16 @@ import {
+   Modal,
+   TouchableWithoutFeedback,
+   ScrollView,
+-  LayoutAnimation,
+-  UIManager,
+   Alert,
+-  ActivityIndicator
++  ActivityIndicator,
++  Pressable
+ } from 'react-native';
++import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown } from 'react-native-reanimated';
+ import { IconSymbol } from './ui/icon-symbol';
+ import { BlurView } from 'expo-blur';
+ 
+ const { width, height } = Dimensions.get('window');
+ 
+-// Enable LayoutAnimation for Android
+-if (
+-  Platform.OS === 'android' &&
+-  UIManager.setLayoutAnimationEnabledExperimental
+-) {
+-  UIManager.setLayoutAnimationEnabledExperimental(true);
+-}
+ 
+ interface Lot {
+   id: string;
+@@ -67,6 +60,13 @@ import ForecastChart from './lots/ForecastChart';
+ 
+ export default function LotDetails({ lot, onClose, onPark, isParking, user, isFavorite, onToggleFavorite }: LotDetailsProps) {
+   const [expanded, setExpanded] = useState(false);
++  // Track whether this component is still mounted so async callbacks never
++  // call setState / onClose after unmount.
++  const mountedRef = useRef(true);
++  useEffect(() => {
++    mountedRef.current = true;
++    return () => { mountedRef.current = false; };
++  }, []);
+ 
+   const { data: forecastData, isLoading: isLoadingForecast } = useQuery<ForecastResponse>({
+     queryKey: ['forecast', lot.id],
+@@ -76,8 +76,16 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, isFa
+     },
+     enabled: !!lot.id && !lot.id.startsWith('custom:'),
+     staleTime: 60000 * 15, // 15 minutes
++    retry: 1,              // Only retry once — a 404 won't fix itself
+   });
+ 
++  // If the forecast query errored, show a graceful fallback instead of
++  // destructively removing the lot from the cache. Removing the lot caused
++  // a crash loop: the lot reappeared on the next poll, the cached error fired
++  // the effect immediately on remount, and the lot was removed again.
++  // The lot data (occupancy, name, polygon) is independent of the forecast
++  // endpoint — a forecast 404 does NOT mean the lot itself was deleted.
++
+   // Extract the curve for the chart — handle both old (array) and new ({slices, curve}) format
+   const forecast: ForecastPoint[] = React.useMemo(() => {
+     if (!forecastData) return [];
+@@ -95,21 +103,18 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, isFa
+   // Quick-glance slices (15m, 30m, 60m)
+   const slices = forecastData?.slices;
+ 
+-  const toggleExpand = () => {
+-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+-    setExpanded(!expanded);
+-  };
++  // Simple toggle — no LayoutAnimation. LayoutAnimation inside a Modal causes
++  // native layout-ref crashes on Android, especially on rapid taps or when the
++  // Modal unmounts mid-animation.
++  const toggleExpand = useCallback(() => {
++    setExpanded(prev => !prev);
++  }, []);
+ 
+-  const handleClose = () => {
+-    // If we're expanded, collapsing first before unmounting prevents layout ref crashes
+-    if (expanded) {
+-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+-      setExpanded(false);
+-      setTimeout(onClose, 300); // Wait for animation to finish
+-    } else {
++  const handleClose = useCallback(() => {
++    if (mountedRef.current) {
+       onClose();
+     }
+-  };
++  }, [onClose]);
+ 
+   const openDirections = () => {
+     const scheme = Platform.select({ ios: 'maps:0,0?q=', android: 'geo:0,0?q=' });
+@@ -125,17 +130,20 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, isFa
+   };
+ 
+   return (
+-    <Modal
+-      animationType="fade"
+-      transparent={true}
+-      visible={true}
+-      onRequestClose={handleClose}
+-    >
++    <>
+       <TouchableWithoutFeedback onPress={handleClose}>
+-        <View style={styles.overlay} />
++        <Animated.View 
++          entering={FadeIn.duration(200)}
++          exiting={FadeOut.duration(200)}
++          style={[styles.overlay, StyleSheet.absoluteFill]} 
++        />
+       </TouchableWithoutFeedback>
+ 
+-      <View style={[styles.container, expanded && styles.containerExpanded]}>
++      <Animated.View 
++        entering={SlideInDown.springify().damping(20).stiffness(150)}
++        exiting={SlideOutDown.duration(250)}
++        style={[styles.container, expanded && styles.containerExpanded]}
++      >
+         {Platform.OS === 'ios' && (
+           <BlurView intensity={90} tint="systemThickMaterialDark" style={StyleSheet.absoluteFill} />
+         )}
+@@ -281,8 +289,8 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, isFa
+             )}
+           </View>
+         </TouchableOpacity>
+-      </View>
+-    </Modal>
++      </Animated.View>
++    </>
+   );
+ }
+ 
+diff --git a/mobile/components/Map/FriendMarkers.tsx b/mobile/components/Map/FriendMarkers.tsx
+index 538e16a2..8426f9cc 100644
+--- a/mobile/components/Map/FriendMarkers.tsx
++++ b/mobile/components/Map/FriendMarkers.tsx
+@@ -1,8 +1,8 @@
+-import React from 'react';
++import React, { useEffect, useState, useMemo, useRef } from 'react';
+ import { StyleSheet, View, Text, Image } from 'react-native';
+ import { Marker, Region } from 'react-native-maps';
+ import { useQuery } from '@tanstack/react-query';
+-import { authApiCall } from '../../lib/supabase';
++import { authApiCall, supabase } from '../../lib/supabase';
+ import { useSettings } from '@/context/SettingsContext';
+ 
+ interface FriendData {
+@@ -55,12 +55,80 @@ const isMarkerInRegion = (marker: FriendData, region: Region) => {
+ export default function FriendMarkers({ region }: { region: Region | null }) {
+   const { friendFilterMode } = useSettings();
+ 
+-  const { data: friends = [] } = useQuery({
++  const { data: friendsData = [] } = useQuery({
+     queryKey: ['friend_markers'],
+     queryFn: fetchFriendsWithLocation,
+-    refetchInterval: 15000, // Refresh every 15s (matching friends list more closely)
++    refetchInterval: 15000, // Refresh every 15s
+   });
+ 
++  // Realtime overrides
++  const [realtimeLocations, setRealtimeLocations] = useState<Record<string, { lat: number, lng: number }>>({});
++  const channelsRef = useRef<Record<string, any>>({});
++  const isMounted = useRef(true);
++
++  useEffect(() => {
++    isMounted.current = true;
++    return () => {
++      isMounted.current = false;
++      // Cleanup all channels on unmount
++      Object.keys(channelsRef.current).forEach(id => {
++        supabase.removeChannel(channelsRef.current[id]);
++      });
++      channelsRef.current = {};
++    };
++  }, []);
++
++  useEffect(() => {
++    if (friendsData.length === 0) {
++      // Clear all if no friends
++      Object.keys(channelsRef.current).forEach(id => {
++        supabase.removeChannel(channelsRef.current[id]);
++      });
++      channelsRef.current = {};
++      return;
++    }
++
++    const currentFriendIds = new Set(friendsData.map(f => f.friend_id));
++    const activeFriendIds = new Set(Object.keys(channelsRef.current));
++
++    // 1. Remove channels for friends no longer in the list
++    activeFriendIds.forEach(id => {
++      if (!currentFriendIds.has(id)) {
++        supabase.removeChannel(channelsRef.current[id]);
++        delete channelsRef.current[id];
++      }
++    });
++
++    // 2. Add channels for new friends
++    friendsData.forEach(friend => {
++      if (friend.friend_id && !channelsRef.current[friend.friend_id]) {
++        console.log(`[FriendMarkers] Subscribing to user-location:${friend.friend_id}`);
++        const channel = supabase.channel(`user-location:${friend.friend_id}`)
++          .on('broadcast', { event: 'location_update' }, ({ payload }) => {
++            if (isMounted.current) {
++              setRealtimeLocations(prev => ({
++                ...prev,
++                [payload.userId]: { lat: payload.latitude, lng: payload.longitude }
++              }));
++            }
++          })
++          .subscribe();
++        
++        channelsRef.current[friend.friend_id] = channel;
++      }
++    });
++  }, [friendsData]);
++
++  const friends = useMemo(() => {
++    return friendsData.map(f => {
++      const rt = realtimeLocations[f.friend_id];
++      if (rt) {
++        return { ...f, latitude: rt.lat, longitude: rt.lng };
++      }
++      return f;
++    });
++  }, [friendsData, realtimeLocations]);
++
+   // Apply filter mode
+   const filteredFriends = React.useMemo(() => {
+     let friendsToDisplay = friends;
+@@ -83,8 +151,8 @@ export default function FriendMarkers({ region }: { region: Region | null }) {
+       return friendsToDisplay;
+     }
+ 
+-    return friendsToDisplay.filter(friend => isMarkerInRegion(friend, region));
+-  }, [friends, friendFilterMode, region]);
++    return friendsToDisplay;
++  }, [friends, friendFilterMode]);
+ 
+   if (filteredFriends.length === 0) return null;
+ 
+diff --git a/mobile/components/ParkingConfirmationSheet.tsx b/mobile/components/ParkingConfirmationSheet.tsx
+index 09169fdd..7c8663d9 100644
+--- a/mobile/components/ParkingConfirmationSheet.tsx
++++ b/mobile/components/ParkingConfirmationSheet.tsx
+@@ -1,16 +1,43 @@
+-import React, { useState } from 'react';
++/**
++ * ParkingConfirmationSheet — Reanimated bottom sheet for auto-detected parking.
++ *
++ * All animations run on the UI thread via react-native-reanimated worklets:
++ *  • Spring slide-up from below the screen on mount
++ *  • Pan gesture for swipe-to-dismiss (dismiss threshold: 80 px drag)
++ *  • Button press scale feedback (0.95 spring on begin, 1.0 spring on release)
++ *
++ * Platform notes:
++ *  • iOS: BlurView frosted glass + haptic feedback
++ *  • Android: Solid dark surface, Material elevation
++ */
++
++import React, { useState, useEffect } from 'react';
+ import {
+   StyleSheet,
+   View,
+   Text,
+-  TouchableOpacity,
+   ActivityIndicator,
+   Platform,
++  Dimensions,
+ } from 'react-native';
+ import { BlurView } from 'expo-blur';
++import Animated, {
++  useSharedValue,
++  useAnimatedStyle,
++  withSpring,
++  withTiming,
++  runOnJS,
++} from 'react-native-reanimated';
++import { Gesture, GestureDetector } from 'react-native-gesture-handler';
++import * as Haptics from 'expo-haptics';
+ import { IconSymbol } from '@/components/ui/icon-symbol';
+ import type { ParkingCandidate } from '../services/ParkingDetectionService';
+ 
++const SCREEN_H = Dimensions.get('window').height;
++const DISMISS_THRESHOLD = 80;
++
++// ── Types ──────────────────────────────────────────────────────────────────────
++
+ interface Props {
+   candidates: ParkingCandidate[];
+   onConfirm: (candidate: ParkingCandidate) => void;
+@@ -18,6 +45,63 @@ interface Props {
+   isLoading?: boolean;
+ }
+ 
++// ── Helper: Animated pressable button ─────────────────────────────────────────
++
++interface PressButtonProps {
++  onPress: () => void;
++  style: object;
++  disabled?: boolean;
++  children: React.ReactNode;
++}
++
++function PressButton({ onPress, style, disabled = false, children }: PressButtonProps) {
++  const scale = useSharedValue(1);
++
++  const tap = Gesture.Tap()
++    .enabled(!disabled)
++    .onBegin(() => {
++      scale.value = withSpring(0.95, { damping: 20, stiffness: 400 });
++    })
++    .onEnd(() => {
++      // onEnd only fires when the tap succeeds — NOT when the gesture is
++      // cancelled (e.g. by the parent pan-to-dismiss). Using onFinalize here
++      // would call onPress even on cancelled taps, triggering onConfirm while
++      // pendingCandidates is already cleared → crash.
++      runOnJS(onPress)();
++    })
++    .onFinalize(() => {
++      // Always reset scale, regardless of success or cancellation
++      scale.value = withSpring(1, { damping: 20, stiffness: 400 });
++    });
++
++  const animStyle = useAnimatedStyle(() => ({
++    transform: [{ scale: scale.value }],
++    opacity: disabled ? 0.6 : 1,
++  }));
++
++  return (
++    <GestureDetector gesture={tap}>
++      <Animated.View style={[style, animStyle]}>{children}</Animated.View>
++    </GestureDetector>
++  );
++}
++
++// ── Confidence helpers ─────────────────────────────────────────────────────────
++
++function getConfidenceColor(c: number): string {
++  if (c >= 0.8) return '#10b981';
++  if (c >= 0.6) return '#f59e0b';
++  return '#ef4444';
++}
++
++function getConfidenceLabel(c: number): string {
++  if (c >= 0.8) return 'High';
++  if (c >= 0.6) return 'Medium';
++  return 'Low';
++}
++
++// ── Component ──────────────────────────────────────────────────────────────────
++
+ export default function ParkingConfirmationSheet({
+   candidates,
+   onConfirm,
+@@ -26,99 +110,133 @@ export default function ParkingConfirmationSheet({
+ }: Props) {
+   const [selectedIndex, setSelectedIndex] = useState(0);
+ 
+-  if (candidates.length === 0) return null;
++  // Slide-up entrance: starts off-screen, springs into view
++  const translateY = useSharedValue(SCREEN_H);
++  const backdropOpacity = useSharedValue(0);
++
++  useEffect(() => {
++    if (candidates.length > 0) {
++      translateY.value = withSpring(0, { damping: 22, stiffness: 220, mass: 1 });
++      backdropOpacity.value = withTiming(1, { duration: 300 });
++      if (Platform.OS === 'ios') {
++        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
++      }
++    }
++  }, [candidates.length, translateY, backdropOpacity]);
++
++  // Pan gesture for swipe-to-dismiss
++  const panStartY = useSharedValue(0);
++
++  const pan = Gesture.Pan()
++    .onStart(() => {
++      panStartY.value = translateY.value;
++    })
++    .onUpdate(e => {
++      // Runs on UI thread — directly track finger position without bridge lag
++      const next = panStartY.value + e.translationY;
++      translateY.value = Math.max(next, 0);
++    })
++    .onEnd(e => {
++      if (e.translationY > DISMISS_THRESHOLD) {
++        translateY.value = withTiming(SCREEN_H, { duration: 240 });
++        backdropOpacity.value = withTiming(0, { duration: 200 });
++        runOnJS(onDismiss)(); // Crosses to JS thread once — triggers state update
++      } else {
++        translateY.value = withSpring(0, { damping: 18, stiffness: 200 });
++      }
++    });
++
++  // ── Animated styles (UI thread) ────────────────────────────────────────────
++
++  const sheetStyle = useAnimatedStyle(() => ({
++    transform: [{ translateY: translateY.value }],
++  }));
+ 
+-  const getConfidenceColor = (confidence: number) => {
+-    if (confidence >= 0.8) return '#10b981'; // Green
+-    if (confidence >= 0.6) return '#f59e0b'; // Amber
+-    return '#ef4444'; // Red
+-  };
++  if (candidates.length === 0) return null;
+ 
+-  const getConfidenceLabel = (confidence: number) => {
+-    if (confidence >= 0.8) return 'High';
+-    if (confidence >= 0.6) return 'Medium';
+-    return 'Low';
+-  };
++  // ── Render ─────────────────────────────────────────────────────────────────
+ 
+   return (
+-    <View style={styles.container}>
+-      {Platform.OS === 'ios' && (
+-        <BlurView intensity={90} tint="systemThickMaterialDark" style={StyleSheet.absoluteFill} />
+-      )}
+-      <View style={styles.content}>
+-        {/* Header */}
+-        <View style={styles.header}>
+-          <View style={styles.handle} />
+-          <View style={styles.headerRow}>
+-            <IconSymbol name="car.fill" size={20} color="#ef4444" />
+-            <Text style={styles.title}>Parking Detected</Text>
++    <GestureDetector gesture={pan}>
++      <Animated.View style={[styles.container, sheetStyle]}>
++        {Platform.OS === 'ios' && (
++          <BlurView intensity={90} tint="systemThickMaterialDark" style={StyleSheet.absoluteFill} />
++        )}
++        <View style={styles.content}>
++          {/* Drag handle */}
++          <View style={styles.header}>
++            <View style={styles.handle} />
++            <View style={styles.headerRow}>
++              <IconSymbol name="car.fill" size={20} color="#ef4444" />
++              <Text style={styles.title}>Parking Detected</Text>
++            </View>
++            <Text style={styles.subtitle}>
++              We think you just parked. Confirm your spot below.
++            </Text>
+           </View>
+-          <Text style={styles.subtitle}>
+-            We think you just parked. Confirm your spot below.
+-          </Text>
+-        </View>
+ 
+-        {/* Candidate List */}
+-        <View style={styles.candidateList}>
+-          {candidates.map((candidate, index) => {
+-            const isSelected = index === selectedIndex;
+-            const color = getConfidenceColor(candidate.confidence);
+-
+-            return (
+-              <TouchableOpacity
+-                key={candidate.lotId}
+-                style={[
+-                  styles.candidateRow,
+-                  isSelected && styles.candidateRowSelected,
+-                  isSelected && { borderColor: color },
+-                ]}
+-                onPress={() => setSelectedIndex(index)}
+-                activeOpacity={0.7}
+-              >
+-                <View style={styles.candidateInfo}>
+-                  <Text style={styles.candidateName}>{candidate.lotName}</Text>
+-                  <View style={styles.confidenceBadge}>
+-                    <View style={[styles.confidenceDot, { backgroundColor: color }]} />
+-                    <Text style={[styles.confidenceText, { color }]}>
+-                      {getConfidenceLabel(candidate.confidence)} ({Math.round(candidate.confidence * 100)}%)
+-                    </Text>
++          {/* Candidate list */}
++          <View style={styles.candidateList}>
++            {candidates.map((candidate, index) => {
++              const isSelected = index === selectedIndex;
++              const color = getConfidenceColor(candidate.confidence);
++
++              return (
++                <PressButton
++                  key={candidate.lotId}
++                  style={[
++                    styles.candidateRow,
++                    isSelected && styles.candidateRowSelected,
++                    isSelected && { borderColor: color },
++                  ]}
++                  onPress={() => {
++                    setSelectedIndex(index);
++                    if (Platform.OS === 'ios') Haptics.selectionAsync();
++                  }}
++                >
++                  <View style={styles.candidateInfo}>
++                    <Text style={styles.candidateName}>{candidate.lotName}</Text>
++                    <View style={styles.confidenceBadge}>
++                      <View style={[styles.confidenceDot, { backgroundColor: color }]} />
++                      <Text style={[styles.confidenceText, { color }]}>
++                        {getConfidenceLabel(candidate.confidence)} ({Math.round(candidate.confidence * 100)}%)
++                      </Text>
++                    </View>
+                   </View>
+-                </View>
+-                {isSelected && (
+-                  <IconSymbol name="checkmark.circle.fill" size={24} color={color} />
+-                )}
+-              </TouchableOpacity>
+-            );
+-          })}
+-        </View>
++                  {isSelected && (
++                    <IconSymbol name="checkmark.circle.fill" size={24} color={color} />
++                  )}
++                </PressButton>
++              );
++            })}
++          </View>
++
++          {/* Action buttons */}
++          <View style={styles.actions}>
++            <PressButton style={styles.dismissButton} onPress={onDismiss}>
++              <Text style={styles.dismissText}>Not Now</Text>
++            </PressButton>
+ 
+-        {/* Actions */}
+-        <View style={styles.actions}>
+-          <TouchableOpacity
+-            style={styles.dismissButton}
+-            onPress={onDismiss}
+-            activeOpacity={0.7}
+-          >
+-            <Text style={styles.dismissText}>Not Now</Text>
+-          </TouchableOpacity>
+-          <TouchableOpacity
+-            style={styles.confirmButton}
+-            onPress={() => onConfirm(candidates[selectedIndex])}
+-            disabled={isLoading}
+-            activeOpacity={0.7}
+-          >
+-            {isLoading ? (
+-              <ActivityIndicator color="#fff" size="small" />
+-            ) : (
+-              <Text style={styles.confirmText}>Confirm Parking</Text>
+-            )}
+-          </TouchableOpacity>
++            <PressButton
++              style={styles.confirmButton}
++              onPress={() => onConfirm(candidates[selectedIndex])}
++              disabled={isLoading}
++            >
++              {isLoading ? (
++                <ActivityIndicator color="#fff" size="small" />
++              ) : (
++                <Text style={styles.confirmText}>Confirm Parking</Text>
++              )}
++            </PressButton>
++          </View>
+         </View>
+-      </View>
+-    </View>
++      </Animated.View>
++    </GestureDetector>
+   );
+ }
+ 
++// ── Styles ─────────────────────────────────────────────────────────────────────
++
+ const styles = StyleSheet.create({
+   container: {
+     position: 'absolute',
+diff --git a/mobile/constants/featureFlags.ts b/mobile/constants/featureFlags.ts
+index 29c3eca1..024eeb0f 100644
+--- a/mobile/constants/featureFlags.ts
++++ b/mobile/constants/featureFlags.ts
+@@ -1,6 +1,38 @@
++/** Minimum confidence (0–1) before we surface a parking candidate to the user. */
+ export const PARKING_CONFIDENCE_THRESHOLD = (() => {
+   const envVal = process.env.EXPO_PUBLIC_PARKING_CONFIDENCE_THRESHOLD;
+-  const parsed = parseFloat(envVal || '0.8');
+-  if (isNaN(parsed)) return 0.8;
+-  return Math.min(Math.max(parsed, 0.5), 1.0);
++  const parsed = Number.parseFloat(envVal ?? '0.8');
++  if (Number.isNaN(parsed)) return 0.8;
++  return Math.min(Math.max(parsed, 0.5), 1);
++})();
++
++/**
++ * Whether the heading-change signal is included in the detection pipeline.
++ * Disable on devices where compass is unreliable (set env var to "false").
++ */
++export const HEADING_SIGNAL_ENABLED =
++  process.env.EXPO_PUBLIC_HEADING_SIGNAL_ENABLED !== 'false';
++
++/**
++ * Maximum number of parking candidates shown in the confirmation sheet
++ * and as CandidatePins on the map.
++ */
++export const MAX_PARKING_CANDIDATES = 3;
++
++/**
++ * Whether the offline action queue is active.
++ * Can be disabled for debugging (set env var to "false").
++ */
++export const OFFLINE_QUEUE_ENABLED =
++  process.env.EXPO_PUBLIC_OFFLINE_QUEUE_ENABLED !== 'false';
++
++/**
++ * How long (ms) to hold lot data in the offline cache before it's considered stale.
++ * Defaults to 1 hour.
++ */
++export const LOT_CACHE_TTL_MS = (() => {
++  const envVal = process.env.EXPO_PUBLIC_LOT_CACHE_TTL_MS;
++  const parsed = Number.parseInt(envVal ?? '3600000', 10);
++  if (Number.isNaN(parsed)) return 3_600_000;
++  return parsed;
+ })();
+diff --git a/mobile/lib/supabase.ts b/mobile/lib/supabase.ts
+index 7216c5b5..25e0ebae 100644
+--- a/mobile/lib/supabase.ts
++++ b/mobile/lib/supabase.ts
+@@ -1,54 +1,8 @@
+-import 'react-native-url-polyfill/auto';
+-import { createClient } from '@supabase/supabase-js';
+-import AsyncStorage from '@react-native-async-storage/async-storage';
++import { supabase, supabaseAnonKey } from './supabase-client';
++export { supabase, supabaseAnonKey };
+ 
+-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+-
+-if (!supabaseUrl || !supabaseAnonKey) {
+-  throw new Error('Missing EXPO_PUBLIC_SUPABASE_URL or EXPO_PUBLIC_SUPABASE_ANON_KEY environment variables.');
+-}
+-
+-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+-  auth: {
+-    storage: AsyncStorage,
+-    autoRefreshToken: true,
+-    persistSession: true,
+-    detectSessionInUrl: false,
+-  },
+-});
+-
+-// API Helper for calling Edge Functions and FastAPI backend
+-import { Platform } from 'react-native';
+-import Constants from 'expo-constants';
+-
+-const debuggerHost = Constants.expoConfig?.hostUri;
+-const localHostIp = debuggerHost?.split(':')[0] || 'localhost';
+-
+-// If on physical device, use the LAN IP extracted from Expo. If on Android emulator and debuggerHost fails, fallback to 10.0.2.2.
+-const LOCAL_FASTAPI_URL = debuggerHost
+-  ? `http://${localHostIp}:8000/api/v1`
+-  : Platform.OS === 'android' ? 'http://10.0.2.2:8000/api/v1' : 'http://localhost:8000/api/v1';
+-
+-async function fetchBackend(endpoint: string, init: RequestInit): Promise<Response> {
+-  // Exclusively target the Python FastAPI backend
+-  const url = `${LOCAL_FASTAPI_URL}${endpoint}`;
+-  console.log(`[api] Fetching ${url}`);
+-  return await fetch(url, init);
+-}
+-
+-/**
+- * Safely parse JSON from a response, returning null if it fails.
+- */
+-async function safeJson(response: Response): Promise<any> {
+-  const text = await response.text();
+-  try {
+-    return JSON.parse(text);
+-  } catch {
+-    console.error('Non-JSON response:', text.substring(0, 200));
+-    return { error: text || `HTTP ${response.status}` };
+-  }
+-}
++// API Helpers derived from base
++import { fetchBackend, safeJson } from './api-base';
+ 
+ /**
+  * Public API call - uses the anon key, no user session required.
+@@ -76,75 +30,7 @@ export async function publicApiCall(endpoint: string, options: RequestInit = {})
+ }
+ 
+ import NetInfo from '@react-native-community/netinfo';
+-
+-const OFFLINE_QUEUE_KEY = 'offline_action_queue';
+-
+-export async function getOfflineQueue(): Promise<{ endpoint: string, options: RequestInit }[]> {
+-  try {
+-    const queue = await AsyncStorage.getItem(OFFLINE_QUEUE_KEY);
+-    return queue ? JSON.parse(queue) : [];
+-  } catch (e) {
+-    return [];
+-  }
+-}
+-
+-async function addToOfflineQueue(endpoint: string, options: RequestInit) {
+-  // Only queue POST/PUT/DELETE requests (mutations)
+-  if (!options.method || options.method === 'GET') return;
+-
+-  try {
+-    const queue = await getOfflineQueue();
+-
+-    // Deduplication: skip if an identical endpoint+method is already queued
+-    const isDuplicate = queue.some(
+-      (q) => q.endpoint === endpoint && q.options?.method === options.method
+-    );
+-    if (isDuplicate) {
+-      console.log(`[Offline] Skipping duplicate queue entry for ${options.method} ${endpoint}`);
+-      return;
+-    }
+-
+-    queue.push({ endpoint, options });
+-    await AsyncStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+-    console.log(`[Offline] Action queued for ${endpoint}`);
+-  } catch (e) {
+-    console.error('[Offline] Failed to queue action:', e);
+-  }
+-}
+-
+-export async function syncOfflineQueue() {
+-  const queue = await getOfflineQueue();
+-  if (queue.length === 0) return;
+-
+-  const state = await NetInfo.fetch();
+-  if (!state.isConnected) return;
+-
+-  console.log(`[Offline] Syncing ${queue.length} actions...`);
+-  await AsyncStorage.removeItem(OFFLINE_QUEUE_KEY);
+-
+-  const failedActions: { endpoint: string; options: RequestInit; _retryCount?: number }[] = [];
+-
+-  for (const action of queue) {
+-    try {
+-      await authApiCall(action.endpoint, action.options);
+-      console.log(`[Offline] Synced: ${action.endpoint}`);
+-    } catch (e) {
+-      const retryCount = (action as any)._retryCount || 0;
+-      if (retryCount < 3) {
+-        // Re-queue with incremented retry count
+-        failedActions.push({ ...action, _retryCount: retryCount + 1 } as any);
+-        console.warn(`[Offline] Retry ${retryCount + 1}/3 queued for ${action.endpoint}`);
+-      } else {
+-        console.error(`[Offline] Dropped after 3 retries: ${action.endpoint}`);
+-      }
+-    }
+-  }
+-
+-  // Re-save any failed actions for next sync
+-  if (failedActions.length > 0) {
+-    await AsyncStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(failedActions));
+-  }
+-}
++import { queueParkAction } from '../services/OfflineQueue';
+ 
+ /**
+  * Authenticated API call - requires a valid user session.
+@@ -156,11 +42,17 @@ export async function authApiCall(endpoint: string, options: RequestInit = {}):
+   const netState = await NetInfo.fetch();
+   if (!netState.isConnected) {
+     console.log(`[authApiCall] device offline, queueing ${endpoint}`);
+-    await addToOfflineQueue(endpoint, options);
+-    // Return a mock success response so the UI doesn't crash
++    
++    // Use the unified OfflineQueue
++    const payload = options.body ? JSON.parse(options.body as string) : {};
+     if (endpoint.includes('/park/session') && options.method === 'POST') {
++      await queueParkAction(endpoint.includes('end') ? 'END_PARK' : 'PARK', payload);
+       return { success: true, session: { id: 'offline-pending', active: true, startTime: new Date().toISOString() } };
++    } else if (options.method && options.method !== 'GET') {
++      // @ts-ignore - endpoint is added to QueuedParkAction in service
++      await queueParkAction('GENERIC_MUTATION', payload, endpoint, options.method);
+     }
++    
+     return { success: true, _offline: true };
+   }
+ 
+@@ -172,25 +64,6 @@ export async function authApiCall(endpoint: string, options: RequestInit = {}):
+     return null;
+   }
+ 
+-  // 2. Check if token is expired (JWT exp claim)
+-  try {
+-    const payload = JSON.parse(atob(session.access_token.split('.')[1]));
+-    const now = Math.floor(Date.now() / 1000);
+-    // Refresh if expired or about to expire in 60s
+-    if (payload.exp && payload.exp < now + 60) {
+-      console.log(`[authApiCall] Token expiring/expired for ${endpoint}, refreshing...`);
+-      const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+-      if (refreshError || !refreshData.session) {
+-        console.log(`[authApiCall] Refresh failed: ${refreshError?.message}, signing out.`);
+-        await supabase.auth.signOut();
+-        return null;
+-      }
+-      session = refreshData.session;
+-    }
+-  } catch {
+-    // Ignore JWT parse errors
+-  }
+-
+   // 3. Make the request
+   let response;
+   try {
+@@ -205,56 +78,64 @@ export async function authApiCall(endpoint: string, options: RequestInit = {}):
+       } as HeadersInit,
+     });
+   } catch (error) {
+-    // Fetch threw an error (likely network failure midway)
++    // Fetch threw an error (likely network failure midway).
++    // For park mutations, queue the semantic action type and return the same
++    // consistent session payload that the explicit offline path returns — so
++    // handlePark always receives a usable session object regardless of which
++    // offline path was taken.
+     console.log(`[authApiCall] Network fetch failed, queueing ${endpoint}`);
+-    await addToOfflineQueue(endpoint, options);
++    const payload = options.body ? JSON.parse(options.body as string) : {};
+     if (endpoint.includes('/park/session') && options.method === 'POST') {
+-      return { success: true, session: { id: 'offline-pending', active: true, startTime: new Date().toISOString() } };
++      const isEnd = endpoint.includes('end');
++      await queueParkAction(isEnd ? 'END_PARK' : 'PARK', payload);
++      if (!isEnd) {
++        return {
++          success: true,
++          _offline: true,
++          session: {
++            id: `offline-${Date.now()}`,
++            lotId: payload.lotId as string,
++            spotNumber: payload.spotNumber as string,
++            startTime: new Date().toISOString(),
++            active: true,
++          },
++        };
++      }
++    } else if (options.method && options.method !== 'GET') {
++      // @ts-ignore
++      await queueParkAction('GENERIC_MUTATION', payload, endpoint, options.method);
+     }
+     return { success: true, _offline: true };
+   }
+ 
+-  // 4. Handle 401 (Unauthorized) - Try one more refresh if we haven't already
++  // 4. Handle 401 ...
+   if (response.status === 401) {
+-    const errorBody = await response.clone().text();
+-    console.log(`[authApiCall] Got 401 on ${endpoint} with error: ${errorBody}`);
+-    console.log(`[authApiCall] Trying force refresh...`);
+     const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+-
+     if (!refreshError && refreshData.session) {
+-      // Retry with new token
+       try {
+         response = await fetchBackend(endpoint, {
+           ...options,
+           headers: {
+-            'Content-Type': 'application/json',
+-            'apikey': supabaseAnonKey as string,
++            ...options.headers,
+             'Authorization': `Bearer ${refreshData.session.access_token}`,
+             'x-user-token': refreshData.session.access_token,
+-            ...(options.headers || {}),
+-          } as HeadersInit,
++          } as any,
+         });
+       } catch (err) {
+-        console.log(`[authApiCall] Network fetch failed on retry, queueing ${endpoint}`);
+-        await addToOfflineQueue(endpoint, options);
+         return { success: true, _offline: true };
+       }
+     } else {
+-      console.log(`[authApiCall] Force refresh failed, signing out.`);
+       await supabase.auth.signOut();
+       return null;
+     }
+   }
+ 
+-  // 5. If response is STILL 401 (retry failed), definitively sign out
+   if (response.status === 401) {
+-    console.log(`[authApiCall] Retry still 401 on ${endpoint}, signing out.`);
+     await supabase.auth.signOut();
+     return null;
+   }
+ 
+   const data = await safeJson(response);
+-
+   if (!response.ok) {
+     console.error(`Auth API error on ${endpoint} (${response.status}):`, data);
+     throw new Error(data.error || `API request failed (${response.status})`);
+diff --git a/mobile/services/BackgroundTasks.ts b/mobile/services/BackgroundTasks.ts
+index 81ad18ce..9eb6151c 100644
+--- a/mobile/services/BackgroundTasks.ts
++++ b/mobile/services/BackgroundTasks.ts
+@@ -1,39 +1,62 @@
+ import * as TaskManager from 'expo-task-manager';
+ import * as Location from 'expo-location';
+ import * as Notifications from 'expo-notifications';
+-import { Accelerometer } from 'expo-sensors';
++import { Accelerometer, Pedometer } from 'expo-sensors';
+ import AsyncStorage from '@react-native-async-storage/async-storage';
+ import {
+   pushSpeed,
+   pushAccel,
++  pushHeading,
++  pushSteps,
+   detectParking,
+   type LotForDetection,
+   type ParkingCandidate,
++  computePedometerScore,
+ } from './ParkingDetectionService';
+ import { PARKING_CONFIDENCE_THRESHOLD } from '../constants/featureFlags';
+ 
+ export const PARKING_DETECTION_TASK = 'SCARLETSPOTS_PARKING_DETECTION';
+ const CANDIDATES_STORAGE_KEY = 'parking_candidates';
+ 
+-// Global listener for accelerometer in background
++// ── Sensor Tracking Listeners ──────────────────────────────────────────────────
++
+ let accelSubscription: any = null;
++let pedometerSubscription: any = null;
++
++const startSensorTracking = async () => {
++  // Accelerometer
++  if (!accelSubscription) {
++    Accelerometer.setUpdateInterval(500);
++    accelSubscription = Accelerometer.addListener(data => {
++      pushAccel(data);
++    });
++  }
+ 
+-const startAccelTracking = () => {
+-  if (accelSubscription) return;
+-  Accelerometer.setUpdateInterval(500);
+-  accelSubscription = Accelerometer.addListener(data => {
+-    pushAccel(data);
+-  });
++  // Pedometer
++  if (!pedometerSubscription) {
++    const isAvailable = await Pedometer.isAvailableAsync();
++    if (isAvailable) {
++      pedometerSubscription = Pedometer.watchStepCount(result => {
++        pushSteps(result.steps);
++      });
++    }
++  }
+ };
+ 
+-const stopAccelTracking = () => {
++export const stopSensorTracking = () => {
+   if (accelSubscription) {
+     accelSubscription.remove();
+     accelSubscription = null;
+   }
++  if (pedometerSubscription) {
++    pedometerSubscription.remove();
++    pedometerSubscription = null;
++  }
+ };
+ 
+-TaskManager.defineTask(PARKING_DETECTION_TASK, async ({ data, error }) => {
++// ── Background Task Definition ─────────────────────────────────────────────────
++
++TaskManager.defineTask(PARKING_DETECTION_TASK, async ({ data, error }: any) => {
+   if (error) {
+     console.error('[BackgroundTask] Error:', error.message);
+     return;
+@@ -43,16 +66,18 @@ TaskManager.defineTask(PARKING_DETECTION_TASK, async ({ data, error }) => {
+   const { locations } = data as { locations: Location.LocationObject[] };
+   if (!locations || locations.length === 0) return;
+ 
+-  const latestLocation = locations[locations.length - 1];
++  const latestLocation = locations.at(-1)!;
+   const speed = latestLocation.coords.speed;
++  const heading = latestLocation.coords.heading; // degrees 0–360, or -1 if unavailable
+ 
+-  // Start accelerometer when we are in active tracking mode
+-  startAccelTracking();
++  // Start sensors when we are in active tracking mode
++  await startSensorTracking();
+ 
+-  // Feed speed into the rolling buffer
++  // Feed signals into the rolling buffers
+   pushSpeed(speed);
++  pushHeading(heading);
+ 
+-  // Load cached lots
++  // Load cached lots for comparison
+   let lots: LotForDetection[] = [];
+   try {
+     const cachedLotsStr = await AsyncStorage.getItem('cached_lots');
+@@ -77,18 +102,18 @@ TaskManager.defineTask(PARKING_DETECTION_TASK, async ({ data, error }) => {
+ 
+   const topCandidate = candidates[0];
+ 
+-  // Only send notification when confidence is high enough
++  // Only proceed when confidence is high enough
+   if (topCandidate.confidence < PARKING_CONFIDENCE_THRESHOLD) {
+     return;
+   }
+ 
+-  // Once detected, we can stop accel tracking for this session
+-  stopAccelTracking();
++  // Once detected, we can stop expensive sensor tracking for this session
++  stopSensorTracking();
+ 
+-  // Persist candidates
++  // Persist candidates so the UI can prompt the user on app foreground
+   await AsyncStorage.setItem(CANDIDATES_STORAGE_KEY, JSON.stringify(candidates));
+ 
+-  // Send push notification
++  // Send immediate local notification
+   await Notifications.scheduleNotificationAsync({
+     content: {
+       title: '🚗 ScarletSpots',
+@@ -97,11 +122,15 @@ TaskManager.defineTask(PARKING_DETECTION_TASK, async ({ data, error }) => {
+         lotId: topCandidate.lotId,
+         action: 'confirm_park',
+       },
++      sound: true,
++      priority: Notifications.AndroidNotificationPriority.HIGH,
+     },
+     trigger: null,
+   });
+ });
+ 
++// ── Public API ─────────────────────────────────────────────────────────────────
++
+ /**
+  * Retrieve persisted parking candidates (set by background task).
+  */
+diff --git a/mobile/services/GeofenceManager.ts b/mobile/services/GeofenceManager.ts
+index 96fa8a97..aeba9ad3 100644
+--- a/mobile/services/GeofenceManager.ts
++++ b/mobile/services/GeofenceManager.ts
+@@ -1,7 +1,7 @@
+ import * as Location from 'expo-location';
+ import * as TaskManager from 'expo-task-manager';
+ import AsyncStorage from '@react-native-async-storage/async-storage';
+-import { PARKING_DETECTION_TASK } from './BackgroundTasks';
++import { PARKING_DETECTION_TASK, stopSensorTracking } from './BackgroundTasks';
+ 
+ export const GEOFENCE_TASK_NAME = 'SCARLETSPOTS_GEOFENCE_TASK';
+ 
+@@ -9,8 +9,11 @@ export const GEOFENCE_TASK_NAME = 'SCARLETSPOTS_GEOFENCE_TASK';
+  * Registers geofences for all known lots.
+  * When a user enters a geofence, we start more intensive location/sensor tracking.
+  */
++let isRegistering = false;
+ export async function registerLotGeofences(lots: any[]) {
+   if (lots.length === 0) return;
++  if (isRegistering) return;
++  isRegistering = true;
+ 
+   // Check permissions first
+   try {
+@@ -24,14 +27,17 @@ export async function registerLotGeofences(lots: any[]) {
+     return;
+   }
+ 
+-  const regions = lots.map(lot => ({
+-    identifier: lot.id,
+-    latitude: lot.latitude,
+-    longitude: lot.longitude,
+-    radius: 500, // 500 meters radius to trigger "near lot" state
+-    notifyOnEntry: true,
+-    notifyOnExit: true,
+-  }));
++  const regions = lots
++    .filter(lot => lot.latitude && lot.longitude)
++    .slice(0, 20) // iOS has a strict hard limit of 20 monitored regions per app
++    .map(lot => ({
++      identifier: String(lot.id),
++      latitude: Number(lot.latitude),
++      longitude: Number(lot.longitude),
++      radius: 500, // 500 meters radius to trigger "near lot" state
++      notifyOnEntry: true,
++      notifyOnExit: true,
++    }));
+ 
+   try {
+     const isRegistered = await Location.hasStartedGeofencingAsync(GEOFENCE_TASK_NAME);
+@@ -43,6 +49,8 @@ export async function registerLotGeofences(lots: any[]) {
+     console.log(`[GeofenceManager] Registered ${regions.length} regions.`);
+   } catch (err) {
+     console.error('[GeofenceManager] Registration failed:', err);
++  } finally {
++    isRegistering = false;
+   }
+ }
+ 
+@@ -73,7 +81,8 @@ TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data: { eventType, region },
+     console.log(`[GeofenceManager] Exited region: ${region.identifier}. Stopping active tracking.`);
+     await AsyncStorage.removeItem('current_geofence_lot_id');
+     
+-    // Stop active tracking to save battery
++    // Stop active tracking and sensors to save battery/memory
++    stopSensorTracking();
+     await Location.stopLocationUpdatesAsync(PARKING_DETECTION_TASK);
+   }
+ });
+diff --git a/mobile/services/OfflineCache.ts b/mobile/services/OfflineCache.ts
+index 79f22496..804e1e83 100644
+--- a/mobile/services/OfflineCache.ts
++++ b/mobile/services/OfflineCache.ts
+@@ -7,6 +7,7 @@
+ 
+ import AsyncStorage from '@react-native-async-storage/async-storage';
+ import NetInfo from '@react-native-community/netinfo';
++import { LOT_CACHE_TTL_MS } from '../constants/featureFlags';
+ 
+ const CACHE_KEYS = {
+   lots: 'offline_cache_lots',
+@@ -14,7 +15,8 @@ const CACHE_KEYS = {
+   timestamp: 'offline_cache_timestamp',
+ };
+ 
+-const STALE_THRESHOLD_MS = 60 * 60 * 1000; // 1 hour
++/** Cache entries older than this are considered stale (from feature flag, default 1 h). */
++const STALE_THRESHOLD_MS = LOT_CACHE_TTL_MS;
+ 
+ interface CacheEntry<T> {
+   data: T;
+@@ -35,7 +37,7 @@ async function setCache<T>(key: string, data: T): Promise<void> {
+   }
+ }
+ 
+-async function getCache<T>(key: string): Promise<{ data: T; isStale: boolean } | null> {
++async function getCache<T>(key: string): Promise<{ data: T; isStale: boolean; cachedAt: string } | null> {
+   try {
+     const raw = await AsyncStorage.getItem(key);
+     if (!raw) return null;
+@@ -45,6 +47,7 @@ async function getCache<T>(key: string): Promise<{ data: T; isStale: boolean } |
+     return {
+       data: entry.data,
+       isStale: age > STALE_THRESHOLD_MS,
++      cachedAt: entry.cachedAt,
+     };
+   } catch {
+     return null;
+@@ -69,7 +72,7 @@ export async function cacheSession(session: any): Promise<void> {
+   await setCache(CACHE_KEYS.session, session);
+ }
+ 
+-export async function getCachedSession(): Promise<any | null> {
++export async function getCachedSession(): Promise<unknown> {
+   const result = await getCache<any>(CACHE_KEYS.session);
+   return result?.data ?? null;
+ }
+@@ -87,8 +90,19 @@ export async function clearCachedSession(): Promise<void> {
+ export async function fetchWithOfflineFallback<T>(
+   fetchFn: () => Promise<T>,
+   cacheKey: string,
++  staleThresholdMs?: number,
+ ): Promise<{ data: T; fromCache: boolean; isStale: boolean }> {
+   const netState = await NetInfo.fetch();
++  const cached = await getCache<T>(cacheKey);
++
++  // If we have a fresh cache and are online, skip the network call to save bandwidth
++  if (netState.isConnected && cached && staleThresholdMs) {
++    const age = Date.now() - new Date(cached.cachedAt).getTime();
++    if (age < staleThresholdMs) {
++      console.log(`[Cache] Using fresh cache for ${cacheKey} (age: ${Math.round(age/1000)}s)`);
++      return { data: cached.data, fromCache: true, isStale: false };
++    }
++  }
+ 
+   if (netState.isConnected) {
+     try {
+@@ -100,8 +114,7 @@ export async function fetchWithOfflineFallback<T>(
+     }
+   }
+ 
+-  // Offline or fetch failed — try cache
+-  const cached = await getCache<T>(cacheKey);
++  // Offline or fetch failed — return the cache we already read at the top
+   if (cached) {
+     return { data: cached.data, fromCache: true, isStale: cached.isStale };
+   }
+diff --git a/mobile/services/ParkingDetectionService.ts b/mobile/services/ParkingDetectionService.ts
+index 9e342615..a7c2bf0b 100644
+--- a/mobile/services/ParkingDetectionService.ts
++++ b/mobile/services/ParkingDetectionService.ts
+@@ -5,8 +5,9 @@
+  *   1. Speed buffer: rolling window of last readings
+  *   2. Transition detection: speed drops from driving (>5 m/s) to stopped (<1 m/s)
+  *   3. Accelerometer stillness: variance of accelerometer readings drops below threshold
+- *   4. Geofence check: is the stopped location inside a known lot polygon?
+- *   5. Confidence score: weighted combination of all signals (0.0–1.0)
++ *   4. Heading change: sharp direction change (>45 °) signals a turn into a lot
++ *   5. Geofence check: is the stopped location inside a known lot polygon?
++ *   6. Confidence score: weighted combination of all signals (0.0–1.0)
+  */
+ 
+ import { isPointInPolygon } from '../utils/geofence';
+@@ -26,10 +27,19 @@ export interface ParkingCandidate {
+ export interface SignalBreakdown {
+   speedTransition: number;  // 0–1  Did speed drop from driving to stopped?
+   stillness: number;        // 0–1  Is accelerometer showing stillness?
++  headingChange: number;    // 0–1  Did we make a sharp turn (into a lot entrance)?
+   insideLot: number;        // 0–1  Is the point inside a known lot polygon?
++  pedometerSignal: number;  // 0–1  Did we detect walking steps?
+   gpsAccuracy: number;      // 0–1  How good is the GPS fix?
+ }
+ 
++/** Confidence → approximate GPS radius in meters for the candidate pin overlay. */
++export function confidenceToRadius(confidence: number, horizontalAccuracy: number | null): number {
++  const base = horizontalAccuracy && horizontalAccuracy > 0 ? horizontalAccuracy : 30;
++  // High confidence → tighter radius; low confidence → wider uncertainty circle
++  return Math.round(base + (1 - confidence) * 80);
++}
++
+ export interface LotForDetection {
+   id: string;
+   name: string;
+@@ -52,13 +62,45 @@ const STILLNESS_VARIANCE_THRESHOLD = 0.2; // g² — accelerometer variance thre
+ const GPS_ACCURACY_GOOD = 10;            // meters
+ const GPS_ACCURACY_ACCEPTABLE = 30;      // meters
+ 
++// Heading change threshold — turns >45° within a short window signal lot entry
++const HEADING_CHANGE_THRESHOLD_DEG = 45;
++
+ // Weight each signal when computing final confidence
+ const WEIGHTS = {
+-  speedTransition: 0.35,
+-  stillness: 0.20,
+-  insideLot: 0.30,
+-  gpsAccuracy: 0.15,
+-};
++  speedTransition: 0.25,
++  stillness: 0.15,
++  headingChange: 0.1,
++  insideLot: 0.2,
++  pedometerSignal: 0.25,
++  gpsAccuracy: 0.05,
++} as const;
++
++// ── Pedometer Buffer ───────────────────────────────────────────────────────────
++
++const PEDOMETER_BUFFER_SIZE = 5;
++let stepCountBuffer: number[] = [];
++
++export function pushSteps(steps: number): void {
++  stepCountBuffer.push(steps);
++  if (stepCountBuffer.length > PEDOMETER_BUFFER_SIZE) {
++    stepCountBuffer.shift();
++  }
++}
++
++export function clearPedometerBuffer(): void {
++  stepCountBuffer = [];
++}
++
++/**
++ * Pedometer score: did we detect steps (walking) after the car stopped?
++ */
++export function computePedometerScore(): number {
++  if (stepCountBuffer.length < 2) return 0.5; // Neutral
++  
++  // If steps increased recently, it's a strong signal they are walking (parked)
++  const isWalking = stepCountBuffer.some(s => s > 0);
++  return isWalking ? 1.0 : 0.0;
++}
+ 
+ // ── Speed Buffer ───────────────────────────────────────────────────────────────
+ 
+@@ -97,6 +139,27 @@ export function clearAccelBuffer(): void {
+   accelBuffer = [];
+ }
+ 
++// ── Heading Buffer ─────────────────────────────────────────────────────────────
++
++const HEADING_BUFFER_SIZE = 8;
++let headingBuffer: number[] = [];
++
++/**
++ * Push a compass heading (0–360°) into the rolling buffer.
++ * Pass null/undefined when heading is unavailable (e.g. indoors).
++ */
++export function pushHeading(heading: number | null): void {
++  if (heading === null || heading === undefined || heading < 0) return;
++  headingBuffer.push(heading);
++  if (headingBuffer.length > HEADING_BUFFER_SIZE) {
++    headingBuffer.shift();
++  }
++}
++
++export function clearHeadingBuffer(): void {
++  headingBuffer = [];
++}
++
+ // ── Signal Computations ────────────────────────────────────────────────────────
+ 
+ /**
+@@ -111,7 +174,7 @@ export function computeSpeedTransitionScore(): number {
+   const lastTwo = speedBuffer.slice(-2);
+   const nowStopped = lastTwo.every(s => s < STOPPED_SPEED_THRESHOLD);
+ 
+-  if (recentDriving && nowStopped) return 1.0;
++  if (recentDriving && nowStopped) return 1;
+   if (nowStopped && !recentDriving) return 0.3; // Stopped but wasn't clearly driving before
+   return 0;
+ }
+@@ -123,22 +186,47 @@ export function computeStillnessScore(): number {
+   if (accelBuffer.length < 5) return 0.5; // Unknown, neutral
+ 
+   // Compute variance of magnitude
+-  const magnitudes = accelBuffer.map(r => Math.sqrt(r.x ** 2 + r.y ** 2 + r.z ** 2));
++  const magnitudes = accelBuffer.map(r => Math.hypot(r.x, r.y, r.z));
+   const mean = magnitudes.reduce((a, b) => a + b, 0) / magnitudes.length;
+   const variance = magnitudes.reduce((sum, m) => sum + (m - mean) ** 2, 0) / magnitudes.length;
+ 
+-  if (variance < STILLNESS_VARIANCE_THRESHOLD * 0.5) return 1.0;  // Very still
++  if (variance < STILLNESS_VARIANCE_THRESHOLD * 0.5) return 1;  // Very still
+   if (variance < STILLNESS_VARIANCE_THRESHOLD) return 0.7;         // Mostly still
+   if (variance < STILLNESS_VARIANCE_THRESHOLD * 2) return 0.3;     // Somewhat active
+   return 0; // Active / moving
+ }
+ 
++/**
++ * Heading-change score: a sharp direction change (>45 °) during the recent
++ * deceleration window strongly suggests turning into a parking lot.
++ *
++ * Algorithm:
++ *   - Compute the maximum angular difference between consecutive heading readings.
++ *   - A large cumulative turn during a speed-drop window scores high.
++ */
++export function computeHeadingChangeScore(): number {
++  if (headingBuffer.length < 3) return 0.3; // Not enough data → neutral
++
++  let maxDelta = 0;
++  for (let i = 1; i < headingBuffer.length; i++) {
++    // Handle wrap-around (e.g. 355° → 5°)
++    let delta = Math.abs(headingBuffer[i] - headingBuffer[i - 1]);
++    if (delta > 180) delta = 360 - delta;
++    if (delta > maxDelta) maxDelta = delta;
++  }
++
++  if (maxDelta >= HEADING_CHANGE_THRESHOLD_DEG * 1.5) return 1; // Very sharp turn
++  if (maxDelta >= HEADING_CHANGE_THRESHOLD_DEG) return 0.75;       // Clear turn
++  if (maxDelta >= HEADING_CHANGE_THRESHOLD_DEG * 0.5) return 0.5;  // Mild curve
++  return 0.2; // Straight road — unlikely to be entering a lot
++}
++
+ /**
+  * GPS accuracy score.
+  */
+ export function computeGpsAccuracyScore(horizontalAccuracy: number | null): number {
+   if (!horizontalAccuracy || horizontalAccuracy <= 0) return 0.5;
+-  if (horizontalAccuracy <= GPS_ACCURACY_GOOD) return 1.0;
++  if (horizontalAccuracy <= GPS_ACCURACY_GOOD) return 1;
+   if (horizontalAccuracy <= GPS_ACCURACY_ACCEPTABLE) return 0.7;
+   if (horizontalAccuracy <= 50) return 0.4;
+   return 0.1; // Very poor
+@@ -198,6 +286,7 @@ export function detectParking(
+   const speedScore = computeSpeedTransitionScore();
+   const stillnessScore = computeStillnessScore();
+   const gpsScore = computeGpsAccuracyScore(horizontalAccuracy);
++  const headingScore = computeHeadingChangeScore();
+ 
+   // If speed transition score is 0, no transition detected — skip
+   if (speedScore === 0) return [];
+@@ -210,13 +299,17 @@ export function detectParking(
+     const signals: SignalBreakdown = {
+       speedTransition: speedScore,
+       stillness: stillnessScore,
+-      insideLot: 1.0,
++      headingChange: headingScore,
++      insideLot: 1,
++      pedometerSignal: computePedometerScore(),
+       gpsAccuracy: gpsScore,
+     };
+     const confidence =
+       signals.speedTransition * WEIGHTS.speedTransition +
+       signals.stillness * WEIGHTS.stillness +
++      signals.headingChange * WEIGHTS.headingChange +
+       signals.insideLot * WEIGHTS.insideLot +
++      signals.pedometerSignal * WEIGHTS.pedometerSignal +
+       signals.gpsAccuracy * WEIGHTS.gpsAccuracy;
+ 
+     candidates.push({
+@@ -241,13 +334,17 @@ export function detectParking(
+     const signals: SignalBreakdown = {
+       speedTransition: speedScore,
+       stillness: stillnessScore,
++      headingChange: headingScore,
+       insideLot: proximityScore * 0.5, // Nearby but not inside
++      pedometerSignal: computePedometerScore(),
+       gpsAccuracy: gpsScore,
+     };
+     const confidence =
+       signals.speedTransition * WEIGHTS.speedTransition +
+       signals.stillness * WEIGHTS.stillness +
++      signals.headingChange * WEIGHTS.headingChange +
+       signals.insideLot * WEIGHTS.insideLot +
++      signals.pedometerSignal * WEIGHTS.pedometerSignal +
+       signals.gpsAccuracy * WEIGHTS.gpsAccuracy;
+ 
+     candidates.push({

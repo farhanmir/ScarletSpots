@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -10,23 +10,16 @@ import {
   Modal,
   TouchableWithoutFeedback,
   ScrollView,
-  LayoutAnimation,
-  UIManager,
   Alert,
-  ActivityIndicator
+  ActivityIndicator,
+  Pressable
 } from 'react-native';
+import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown, LinearTransition } from 'react-native-reanimated';
 import { IconSymbol } from './ui/icon-symbol';
 import { BlurView } from 'expo-blur';
 
 const { width, height } = Dimensions.get('window');
 
-// Enable LayoutAnimation for Android
-if (
-  Platform.OS === 'android' &&
-  UIManager.setLayoutAnimationEnabledExperimental
-) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 interface Lot {
   id: string;
@@ -67,6 +60,13 @@ import ForecastChart from './lots/ForecastChart';
 
 export default function LotDetails({ lot, onClose, onPark, isParking, user, isFavorite, onToggleFavorite }: LotDetailsProps) {
   const [expanded, setExpanded] = useState(false);
+  // Track whether this component is still mounted so async callbacks never
+  // call setState / onClose after unmount.
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const { data: forecastData, isLoading: isLoadingForecast } = useQuery<ForecastResponse>({
     queryKey: ['forecast', lot.id],
@@ -76,7 +76,15 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, isFa
     },
     enabled: !!lot.id && !lot.id.startsWith('custom:'),
     staleTime: 60000 * 15, // 15 minutes
+    retry: 1,              // Only retry once — a 404 won't fix itself
   });
+
+  // If the forecast query errored, show a graceful fallback instead of
+  // destructively removing the lot from the cache. Removing the lot caused
+  // a crash loop: the lot reappeared on the next poll, the cached error fired
+  // the effect immediately on remount, and the lot was removed again.
+  // The lot data (occupancy, name, polygon) is independent of the forecast
+  // endpoint — a forecast 404 does NOT mean the lot itself was deleted.
 
   // Extract the curve for the chart — handle both old (array) and new ({slices, curve}) format
   const forecast: ForecastPoint[] = React.useMemo(() => {
@@ -95,21 +103,18 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, isFa
   // Quick-glance slices (15m, 30m, 60m)
   const slices = forecastData?.slices;
 
-  const toggleExpand = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setExpanded(!expanded);
-  };
+  // Simple toggle — no LayoutAnimation. LayoutAnimation inside a Modal causes
+  // native layout-ref crashes on Android, especially on rapid taps or when the
+  // Modal unmounts mid-animation.
+  const toggleExpand = useCallback(() => {
+    setExpanded(prev => !prev);
+  }, []);
 
-  const handleClose = () => {
-    // If we're expanded, collapsing first before unmounting prevents layout ref crashes
-    if (expanded) {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      setExpanded(false);
-      setTimeout(onClose, 300); // Wait for animation to finish
-    } else {
+  const handleClose = useCallback(() => {
+    if (mountedRef.current) {
       onClose();
     }
-  };
+  }, [onClose]);
 
   const openDirections = () => {
     const scheme = Platform.select({ ios: 'maps:0,0?q=', android: 'geo:0,0?q=' });
@@ -125,17 +130,21 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, isFa
   };
 
   return (
-    <Modal
-      animationType="fade"
-      transparent={true}
-      visible={true}
-      onRequestClose={handleClose}
-    >
+    <>
       <TouchableWithoutFeedback onPress={handleClose}>
-        <View style={styles.overlay} />
+        <Animated.View 
+          entering={FadeIn.duration(200)}
+          exiting={FadeOut.duration(200)}
+          style={[styles.overlay, StyleSheet.absoluteFill]} 
+        />
       </TouchableWithoutFeedback>
 
-      <View style={[styles.container, expanded && styles.containerExpanded]}>
+      <Animated.View 
+        entering={SlideInDown.duration(250)}
+        exiting={SlideOutDown.duration(250)}
+        layout={LinearTransition.duration(250)}
+        style={[styles.container, expanded && styles.containerExpanded]}
+      >
         {Platform.OS === 'ios' && (
           <BlurView intensity={90} tint="systemThickMaterialDark" style={StyleSheet.absoluteFill} />
         )}
@@ -281,8 +290,8 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, isFa
             )}
           </View>
         </TouchableOpacity>
-      </View>
-    </Modal>
+      </Animated.View>
+    </>
   );
 }
 
