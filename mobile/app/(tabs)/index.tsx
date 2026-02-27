@@ -1,24 +1,32 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { StyleSheet, View, Platform, Alert, Text, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { StyleSheet, View, Platform, Alert, Text, TouchableOpacity, ActivityIndicator, AppState } from 'react-native';
 import { BlurView } from 'expo-blur';
 import MapView, { PROVIDER_GOOGLE, PROVIDER_DEFAULT, Polygon, Marker } from 'react-native-maps';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
-import { useQuery } from '@tanstack/react-query';
-import { authApiCall, publicApiCall } from '../../lib/supabase';
+import NetInfo from '@react-native-community/netinfo';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { authApiCall, publicApiCall, supabase } from '../../lib/supabase';
 import { useAuth } from '@/context/AuthProvider';
 import LotDetails from '../../components/LotDetails';
 import ParkingConfirmationSheet from '../../components/ParkingConfirmationSheet';
+import CandidatePin from '../../components/Map/CandidatePin';
 import FriendMarkers from '../../components/Map/FriendMarkers';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useSettings } from '@/context/SettingsContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { PARKING_DETECTION_TASK, getPendingParkingCandidates, clearPendingParkingCandidates } from '../../services/BackgroundTasks';
+import { getPendingParkingCandidates, clearPendingParkingCandidates } from '../../services/BackgroundTasks';
 import { type ParkingCandidate } from '../../services/ParkingDetectionService';
 import { registerLotGeofences } from '../../services/GeofenceManager';
 import { fetchWithOfflineFallback, clearCachedSession } from '../../services/OfflineCache';
+import {
+  initOfflineQueue,
+  queueParkAction,
+  addQueueListener,
+  getPendingCount,
+} from '../../services/OfflineQueue';
 
 interface Lot {
   id: string;
@@ -53,47 +61,136 @@ interface Cluster {
   count: number;
 }
 
+// Helper for dynamic lot coloring
+const getOccupancyColor = (rate: number) => {
+  if (rate >= 90) return { full: '#ef4444', bg: 'rgba(239, 68, 68, 0.6)' }; // Red
+  if (rate >= 70) return { full: '#f59e0b', bg: 'rgba(245, 158, 11, 0.6)' }; // Amber
+  return { full: '#10b981', bg: 'rgba(16, 185, 129, 0.6)' }; // Emerald (Green)
+};
+
+const getClusterColor = (rate: number) => {
+  if (rate > 80) return '#ef4444';
+  if (rate > 50) return '#f59e0b';
+  return '#059669';
+};
+
+
+
 export default function MapScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const mapRef = useRef<MapView>(null);
   const params = useLocalSearchParams();
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
-  const [selectedLot, setSelectedLot] = useState<Lot | null>(null);
+  const [selectedLotId, setSelectedLotId] = useState<string | null>(null);
   const [selectedPlace, setSelectedPlace] = useState<{ lat: number; lng: number; name: string } | null>(null);
-  const [activeSession, setActiveSession] = useState<ParkingSession | null>(null);
   const [loading, setLoading] = useState(false);
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('campus');
   const [currentRegion, setCurrentRegion] = useState<any>(null);
   const [pendingCandidates, setPendingCandidates] = useState<ParkingCandidate[]>([]);
   const [isConfirming, setIsConfirming] = useState(false);
   const [favorites, setFavorites] = useState<string[]>([]);
+  // Offline sync state
+  const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  const [isOnline, setIsOnline] = useState(true);
   const { showFriends } = useSettings();
 
   const isFocused = useIsFocused();
 
-  // Fetch Lots with TanStack Query (via Supabase Edge Functions)
-  const { data: lots = [], refetch: refetchLots } = useQuery<Lot[]>({
+  // ── Offline Queue Init ─────────────────────────────────────────────────────
+  useEffect(() => {
+    // Start the background network listener that auto-flushes queued actions
+    initOfflineQueue();
+
+    // Subscribe to queue depth changes so we can show the sync badge
+    const unsubscribeQueue = addQueueListener(count => {
+      setPendingSyncCount(count);
+    });
+
+    // Bootstrap: read current queue depth + network state
+    getPendingCount().then(setPendingSyncCount);
+    NetInfo.fetch().then(state => {
+      setIsOnline(!!state.isConnected);
+    });
+
+    // Live network badge
+    const unsubscribeNet = NetInfo.addEventListener(state => {
+      setIsOnline(!!state.isConnected);
+    });
+
+    return () => {
+      unsubscribeQueue();
+      unsubscribeNet();
+      // Note: we do NOT teardown the queue here because other screens can queue actions.
+      // Only call teardownOfflineQueue() when the entire app unmounts (in _layout).
+    };
+  }, []);
+
+  // ── Lot Data ────────────────────────────────────────────────────────────
+  //
+  // Two-tier caching strategy:
+  //  • Stale time 24 h — lot names, coordinates, polygon shapes almost never change.
+  //    A single fetch hydrates the day. Hot reloads re-use the in-memory cache.
+  //  • Occupancy data (occupancyRate, occupiedCount) does change — the query
+  //    re-fetches on a 2-minute interval ONLY when the map screen is focused.
+  //  • refetchOnMount:false ensures developer hot-reloads don’t spam the API.
+  //
+  const { data: lots = [], refetch: refetchOccupancy } = useQuery<Lot[]>({
     queryKey: ['lots'],
     queryFn: async () => {
+      // Do NOT pass a staleThresholdMs here — the cache guard inside
+      // fetchWithOfflineFallback would silently return the cached copy every
+      // time React Query polls (every 30 s), meaning other users' sessions
+      // would never show up. We let React Query own the staleness window;
+      // the offline cache is only used when the device is truly offline.
       const result = await fetchWithOfflineFallback(
         async () => {
           const res = await publicApiCall('/lots');
-          // Support both paginated enveloping ({ data: [...] }) and flat array structures
-          return res.data || res.lots || res || [];
+          return res.data ?? res.lots ?? res ?? [];
         },
         'offline_cache_lots'
       );
       return result.data;
     },
-    // Optimization: Only poll when map is focused. Increase interval to 60s.
-    refetchInterval: isFocused ? 60000 : false,
-    staleTime: 120000, // 2 minutes stale time
-    refetchOnWindowFocus: false, // Avoid excessive refetching on mobile app state changes
-  }); 
- 
+    staleTime: 0,                                        // Always consider lots data stale so polls go through
+    refetchInterval: isFocused ? 1000 * 15 : false,      // Poll occupancy every 15 s when map is visible
+    refetchOnMount: true,            // Re-fetch on every mount when stale (clears ghost lots on tab switch)
+    refetchOnWindowFocus: false,
+  });
 
+  // Derive selectedLot from lots array whenever lots or selectedLotId changes
+  const selectedLot = React.useMemo(() => {
+    if (!selectedLotId) return null;
+    return lots.find(l => l.id === selectedLotId) || null;
+  }, [lots, selectedLotId]);
 
+  // ── Active Session (React Query) ───────────────────────────────────────────
+  //
+  // Replaces the imperative fetchActiveSession() + useEffect([user]) pattern
+  // which was firing a fresh auth+session request on every single re-mount.
+  //
+  const { data: sessionData } = useQuery<{ session: ParkingSession | null }>({
+    queryKey: ['session', 'active'],
+    queryFn: async () => {
+      const result = await fetchWithOfflineFallback(
+        async () => {
+          const data = await authApiCall('/park/session/active');
+          return data;
+        },
+        'offline_cache_session',
+        1000 * 60 * 1 // 1 min threshold
+      );
+      return result.data ?? { session: null };
+    },
+    enabled: !!user,             // Only run when logged in
+    staleTime: 1000 * 60 * 2.5,  // Session is fresh for 2.5 mins (sync with detector)
+    refetchOnMount: false,       
+    refetchOnWindowFocus: false,
+  });
+
+  // Derive activeSession from query data (falls back to null so UI stays unchanged)
+  const activeSession = sessionData?.session ?? null;
 
   // Clusters computation
   const clusters = React.useMemo(() => {
@@ -137,6 +234,11 @@ export default function MapScreen() {
 
   }, [lots, zoomLevel]);
 
+  const regionRef = useRef<any>(null); // Track current region
+  const savedRegionRef = useRef<any>(null); // Save region before zooming in
+  const lotCooldownRef = useRef(false); // Prevent rapid open/close cycles
+  const prevLotsJsonRef = useRef<string>(''); // Track lots changes for side-effects
+
   const clearRouteSelectionParams = () => {
     router.setParams({
       selectedLotId: undefined,
@@ -146,16 +248,25 @@ export default function MapScreen() {
     });
   };
 
-  const closeLotDetails = () => {
-    setSelectedLot(null);
+  const closeLotDetails = useCallback(() => {
+    // If already selecting/closing or animating, ignore
+    if (lotCooldownRef.current) return;
+    
+    // Only proceed if a lot is actually selected
+    if (!selectedLotId) return;
 
-    if (savedRegionRef.current) {
+    lotCooldownRef.current = true;
+    setTimeout(() => { lotCooldownRef.current = false; }, 650);
+
+    setSelectedLotId(null);
+
+    if (savedRegionRef.current && AppState.currentState === 'active') {
       mapRef.current?.animateToRegion(savedRegionRef.current, 500);
       savedRegionRef.current = null;
     }
 
     clearRouteSelectionParams();
-  };
+  }, [selectedLotId]);
 
   const fetchFavorites = async () => {
     if (!user) return;
@@ -194,6 +305,7 @@ export default function MapScreen() {
       }
     } catch (e) {
       // Rollback on error
+      console.warn('[MapScreen] Failed to update favorite:', e);
       if (isFavorite) {
         setFavorites(prev => [...prev, lot.id]);
       } else {
@@ -204,26 +316,22 @@ export default function MapScreen() {
   };
 
   // Handle incoming search selections
-  const { selectedLotId, placeLat, placeLng, placeName } = params;
+  const { placeLat, placeLng, placeName } = params;
+  const selectedLotIdFromParams = params.selectedLotId as string | undefined;
 
   useEffect(() => {
-    if (selectedLotId) {
-      const lot = lots.find(l => l.id === selectedLotId);
+    if (selectedLotIdFromParams) {
+      const lot = lots.find(l => l.id === selectedLotIdFromParams);
       if (lot) {
-        setSelectedLot((prev) => {
-          if (prev?.id === lot.id) {
-            return prev;
-          }
-
-          mapRef.current?.animateToRegion({
-            latitude: lot.latitude,
-            longitude: lot.longitude,
-            latitudeDelta: 0.005,
-            longitudeDelta: 0.005,
-          }, 1000);
-
-          return lot;
-        });
+        setSelectedLotId(lot.id);
+        
+        mapRef.current?.animateToRegion({
+          latitude: lot.latitude,
+          longitude: lot.longitude,
+          latitudeDelta: 0.005,
+          longitudeDelta: 0.005,
+        }, 1000);
+        
         setSelectedPlace(null);
       }
     } else if (placeLat && placeLng) {
@@ -245,14 +353,35 @@ export default function MapScreen() {
 
         return { lat, lng, name };
       });
-      setSelectedLot(null);
+      setSelectedLotId(null);
     }
-  }, [selectedLotId, placeLat, placeLng, placeName, lots]);
+  }, [selectedLotIdFromParams, placeLat, placeLng, placeName, lots]);
 
   useEffect(() => {
     if (lots.length > 0) {
-      AsyncStorage.setItem('cached_lots', JSON.stringify(lots)).catch(() => {});
-      registerLotGeofences(lots).catch(err => console.warn('[MapScreen] Geofence registration failed:', err));
+      // Only run heavy side-effects (AsyncStorage write, geofence registration)
+      // when the lots data actually changed — not on every 15-second poll that
+      // returns the same list. Comparing a lightweight fingerprint avoids
+      // O(n) deep-equals.
+      // Only re-register geofences if the LOT LIST or COORDINATES changed.
+      // OccupancyRate changes every 15s, but geofences don't care about that.
+      const staticFingerprint = lots.map(l => `${l.id}:${l.latitude}:${l.longitude}`).join(',');
+      if (staticFingerprint !== prevLotsJsonRef.current) {
+        prevLotsJsonRef.current = staticFingerprint;
+        AsyncStorage.setItem('cached_lots', JSON.stringify(lots)).catch(() => {});
+        registerLotGeofences(lots).catch(err => console.warn('[MapScreen] Geofence registration failed:', err));
+      }
+
+      setSelectedLotId(prevId => {
+        if (prevId && !lots.find(l => l.id === prevId)) {
+          if (savedRegionRef.current) {
+            mapRef.current?.animateToRegion(savedRegionRef.current, 500);
+            savedRegionRef.current = null;
+          }
+          return null;
+        }
+        return prevId;
+      });
     }
   }, [lots]);
 
@@ -507,12 +636,113 @@ export default function MapScreen() {
     })();
   }, []);
 
+  const latestLocationRef = useRef(location);
+  useEffect(() => {
+    latestLocationRef.current = location;
+  }, [location]);
+
+  // Periodic Location Reporting for Friends
+  useEffect(() => {
+    if (!user || !isFocused) return;
+
+    // We only report/broadcast if the app is active to save battery and prevent background crashes
+    let dbInterval: any = null;
+    let broadcastInterval: any = null;
+    let channel: any = null;
+
+    const setupSync = () => {
+      // Cleanup existing if any (edge case)
+      if (dbInterval) clearInterval(dbInterval);
+      if (broadcastInterval) clearInterval(broadcastInterval);
+      if (channel) supabase.removeChannel(channel);
+
+      if (AppState.currentState !== 'active') return;
+
+      console.log('[MapScreen] Setting up location sync channel...');
+      // Supabase Channel for broadcasting
+      channel = supabase.channel(`user-location:${user.id}`, {
+        config: { broadcast: { self: false } }
+      });
+      
+      const reportToDB = async () => {
+        const currentLoc = latestLocationRef.current;
+        if (!currentLoc) return;
+        
+        try {
+          await authApiCall('/users/me/location', {
+            method: 'POST',
+            body: JSON.stringify({
+              latitude: currentLoc.coords.latitude,
+              longitude: currentLoc.coords.longitude,
+            }),
+          });
+        } catch (err) {
+          console.log('[MapScreen] DB location report failed:', err);
+        }
+      };
+
+      const broadcastLocation = () => {
+        const currentLoc = latestLocationRef.current;
+        if (!currentLoc) return;
+
+        if (channel && channel.state === 'joined') {
+          channel.send({
+            type: 'broadcast',
+            event: 'location_update',
+            payload: {
+              userId: user.id,
+              latitude: currentLoc.coords.latitude,
+              longitude: currentLoc.coords.longitude,
+              timestamp: new Date().toISOString(),
+            },
+          });
+        }
+      };
+
+      channel.subscribe((status: string) => {
+        if (status === 'SUBSCRIBED') {
+          broadcastLocation();
+        }
+      });
+
+      reportToDB();
+      dbInterval = setInterval(reportToDB, 1000 * 60);
+      broadcastInterval = setInterval(broadcastLocation, 1000 * 10);
+    };
+
+    const cleanupSync = () => {
+      console.log('[MapScreen] Cleaning up location sync channel...');
+      if (dbInterval) clearInterval(dbInterval);
+      if (broadcastInterval) clearInterval(broadcastInterval);
+      if (channel) supabase.removeChannel(channel);
+      dbInterval = null;
+      broadcastInterval = null;
+      channel = null;
+    };
+
+    setupSync();
+
+    const appStateSub = AppState.addEventListener('change', nextState => {
+      if (nextState === 'active') {
+        setupSync();
+      } else {
+        cleanupSync();
+      }
+    });
+
+    return () => {
+      cleanupSync();
+      appStateSub.remove();
+    };
+  }, [user, isFocused]); // Removed 'location' from dependencies to prevent thrashing
+
   useEffect(() => {
     if (user) {
-      fetchActiveSession();
+      // Session is now managed by useQuery above; just check for pending detection
       checkPendingParking();
     } else {
-      setActiveSession(null);
+      // Clear the cached session when the user signs out
+      queryClient.setQueryData(['session', 'active'], { session: null });
       setPendingCandidates([]);
     }
   }, [user]);
@@ -524,33 +754,22 @@ export default function MapScreen() {
     }
   };
 
-  // const fetchLots = async () => {
-  //   try {
-  //     const data = await publicApiCall('/lots');
-  //     setLots(data.lots || []);
-  //   } catch (error) {
-  //     console.error('Error fetching lots:', error);
-  //   }
-  // };
-
-  const fetchActiveSession = async () => {
-    try {
-      const result = await fetchWithOfflineFallback(
-        async () => {
-          const data = await authApiCall('/park/session/active');
-          if (data?._offline) throw new Error('Offline fallback triggered');
-          return data;
-        },
-        'offline_cache_session'
-      );
-      if (result.data?.session) {
-        setActiveSession(result.data.session);
-      } else {
-        setActiveSession(null);
-      }
-    } catch (error) {
-      console.error('Error fetching active session:', error);
-    }
+  const updateOptimisticOccupancy = (lotId: string, delta: number) => {
+    console.log(`[Occupancy] Optimistic update for ${lotId} with delta ${delta}`);
+    queryClient.setQueryData(['lots'], (old: Lot[] | undefined) => {
+      if (!old) return old;
+      return old.map(lot => {
+        if (String(lot.id) === String(lotId)) {
+          const newOcc = Math.max(0, (lot.occupiedCount || 0) + delta);
+          return {
+            ...lot,
+            occupiedCount: newOcc,
+            occupancyRate: lot.capacity > 0 ? (newOcc / lot.capacity * 100) : 0
+          };
+        }
+        return lot;
+      });
+    });
   };
 
   const handlePark = async (lotId: string) => {
@@ -573,37 +792,97 @@ export default function MapScreen() {
         return;
       }
 
-      const spotNumber = Math.floor(Math.random() * 1000).toString(); // Simulate spot selection
+      const spotNumber = Math.floor(Math.random() * 1000).toString();
+      const payload = {
+        lotId: lot.id,
+        spotNumber,
+        latitude: location?.coords.latitude,
+        longitude: location?.coords.longitude,
+        confirmed: true,
+      };
+
+      // ── Offline path: queue and surface optimistic session ──
+      const netState = await NetInfo.fetch();
+      if (!netState.isConnected) {
+        await queueParkAction('PARK', payload);
+        // Show an optimistic "offline" session so the user sees feedback
+        const optimisticSession: ParkingSession = {
+          id: `offline-${Date.now()}`,
+          lotId: lot.id,
+          startTime: new Date().toISOString(),
+          spotNumber,
+        };
+        queryClient.setQueryData(['session', 'active'], { session: optimisticSession });
+        updateOptimisticOccupancy(lot.id, 1);
+        setSelectedLotId(null);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert(
+          'Parked Offline 📵',
+          `You’re parked at Spot #${spotNumber}. Your session will sync automatically when you’re back online.`,
+        );
+        return;
+      }
+
+      // ── Online path ──
       const data = await authApiCall('/park/session', {
         method: 'POST',
-        body: JSON.stringify({
+        body: JSON.stringify(payload),
+      });
+      
+      if (data?.success) {
+        // Guard: synthesize a local session when _offline path returned no
+        // data.session (e.g. fetch-failure fallback that previously returned
+        // only { success, _offline }). This ensures the active-session banner
+        // always appears immediately, regardless of which offline path fired.
+        const session: ParkingSession = data.session ?? {
+          id: `offline-${Date.now()}`,
           lotId: lot.id,
+          spotNumber,
+          startTime: new Date().toISOString(),
+        };
+        if (data._offline) {
+          Alert.alert('Parked Offline 📵', `Your session at ${lot.name} will sync when back online.`);
+        } else {
+          Alert.alert('Success', `Parking session started at ${lot.name}`);
+        }
+        queryClient.setQueryData(['session', 'active'], { session });
+        updateOptimisticOccupancy(lot.id, 1);
+        setSelectedLotId(null);
+        // Do NOT call refetchOccupancy() here — it returns the AsyncStorage
+        // cache (fresh < 10 min) and overwrites the optimistic update.
+        // The 5-min polling interval will sync with the server automatically.
+      }
+    } catch (error: any) {
+      // Network error during an "online" attempt → fall back to queue
+      if (
+        error?.message?.toLowerCase().includes('network') ||
+        error?.message?.toLowerCase().includes('timeout') ||
+        error?.code === 'ECONNABORTED'
+      ) {
+        const lot2 = lots.find(l => l.id === lotId);
+        if (!lot2) {
+          Alert.alert('Error', 'Lot not found');
+          return;
+        }
+        const spotNumber = Math.floor(Math.random() * 1000).toString();
+        await queueParkAction('PARK', {
+          lotId: lot2.id,
           spotNumber,
           latitude: location?.coords.latitude,
           longitude: location?.coords.longitude,
           confirmed: true,
-        }),
-      });
-      
-      if (data.success) {
-        Alert.alert('Success', `Parking session started at Spot #${spotNumber}`);
-        setActiveSession(data.session);
-        setSelectedLot(null);
-        refetchLots(); // Refresh occupancy
+        });
+        updateOptimisticOccupancy(lot2.id, 1);
+        // Optimistic UI updated via queryClient
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      } else {
+        Alert.alert('Error', error.message || 'Failed to start parking session');
       }
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to start parking session');
     } finally {
       setLoading(false);
     }
   };
 
-  // Helper for dynamic lot coloring
-  const getOccupancyColor = (rate: number) => {
-    if (rate >= 90) return { full: '#ef4444', bg: 'rgba(239, 68, 68, 0.6)' }; // Red
-    if (rate >= 70) return { full: '#f59e0b', bg: 'rgba(245, 158, 11, 0.6)' }; // Amber
-    return { full: '#10b981', bg: 'rgba(16, 185, 129, 0.6)' }; // Emerald (Green)
-  };
 
   const handleEndSession = async () => {
     if (!activeSession) return;
@@ -614,15 +893,21 @@ export default function MapScreen() {
         body: JSON.stringify({}),
       });
 
-      if (data.success) {
-        // Just clear everything and showing the alert is enough
-        setActiveSession(null);
+      if (data?.success) {
+        const lotIdToRemove = activeSession.lotId;
+        queryClient.setQueryData(['session', 'active'], { session: null });
+        updateOptimisticOccupancy(lotIdToRemove, -1);
         clearCachedSession().catch(() => {});
-        setSelectedLot(null);
-        setSelectedPlace(null); // Clear navigation selection
-        clearRouteSelectionParams(); // Clear route params
-        refetchLots();
+        setSelectedLotId(null);
+        setSelectedPlace(null);
+        clearRouteSelectionParams();
+        // Do NOT call refetchOccupancy() here — it returns the AsyncStorage
+        // cache (fresh < 10 min) and overwrites the optimistic update.
         Alert.alert('Session Ended', 'Your parking session has ended.');
+      } else if (!data) {
+        // authApiCall returned null (no auth session / signed out)
+        queryClient.setQueryData(['session', 'active'], { session: null });
+        clearCachedSession().catch(() => {});
       }
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to end session');
@@ -635,26 +920,61 @@ export default function MapScreen() {
     if (!user) return;
     setIsConfirming(true);
     try {
-      const data = await authApiCall('/park/session', {
-        method: 'POST',
-        body: JSON.stringify({
+      const payload = {
+        lotId: candidate.lotId,
+        spotNumber: 'Auto-detected',
+        latitude: candidate.latitude,
+        longitude: candidate.longitude,
+        confirmed: true,
+      };
+
+      // ── Offline path ──
+      const netState = await NetInfo.fetch();
+      if (!netState.isConnected) {
+        await queueParkAction('CONFIRM_DETECTED', payload);
+        const optimisticSession2: ParkingSession = {
+          id: `offline-${Date.now()}`,
           lotId: candidate.lotId,
-          spotNumber: "Auto-detected",
-          latitude: candidate.latitude,
-          longitude: candidate.longitude,
-          confirmed: true,
-        }),
-      });
-      
-      if (data.success) {
-        setActiveSession(data.session);
+          startTime: new Date().toISOString(),
+          spotNumber: 'Auto-detected',
+        };
+        queryClient.setQueryData(['session', 'active'], { session: optimisticSession2 });
+        updateOptimisticOccupancy(candidate.lotId, 1);
         await clearPendingParkingCandidates();
         setPendingCandidates([]);
-        refetchLots();
-        Alert.alert('Parked!', `We've logged your spot at ${candidate.lotName}.`);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        return;
+      }
+
+      // ── Online path ──
+      const data = await authApiCall('/park/session', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      
+      if (data?.success) {
+        queryClient.setQueryData(['session', 'active'], { session: data.session });
+        updateOptimisticOccupancy(candidate.lotId, 1);
+        await clearPendingParkingCandidates();
+        setPendingCandidates([]);
+        // Do NOT call refetchOccupancy() here — AsyncStorage cache is fresh
+        // and would overwrite the optimistic update.
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to confirm parking');
+      // Network error → queue it
+      console.warn('[MapScreen] handleConfirmParking network error, queuing:', error?.message);
+      await queueParkAction('CONFIRM_DETECTED', {
+        lotId: candidate.lotId,
+        spotNumber: 'Auto-detected',
+        latitude: candidate.latitude,
+        longitude: candidate.longitude,
+        confirmed: true,
+      });
+      await clearPendingParkingCandidates();
+      setPendingCandidates([]);
+      updateOptimisticOccupancy(candidate.lotId, 1);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     } finally {
       setIsConfirming(false);
     }
@@ -665,28 +985,37 @@ export default function MapScreen() {
     setPendingCandidates([]);
   };
 
+
   // Dual-Map Strategy: Use Google Maps on Android, Default (Apple Maps) on iOS
   const mapProvider = Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_DEFAULT;
 
-  const regionRef = useRef<any>(null); // Track current region
-  const savedRegionRef = useRef<any>(null); // Save region before zooming in
+  const handleLotPress = useCallback((lot: Lot) => {
+    // Prevent rapid open/close cycles that cause competing native animations
+    if (lotCooldownRef.current) return;
+    // If the same lot is already showing, do nothing.
+    if (selectedLotId === lot.id) return;
 
-  const handleLotPress = (lot: Lot) => {
-    // If not already selected, save current region
-    if (!selectedLot && regionRef.current) {
+    lotCooldownRef.current = true;
+    setTimeout(() => { lotCooldownRef.current = false; }, 650);
+
+    // Save current region so we can restore it on close - ONLY if no lot is currently selected
+    // to avoid overwriting the "original" view with a zoomed-in one during rapid clicks.
+    if (!selectedLotId && regionRef.current && !savedRegionRef.current) {
       savedRegionRef.current = regionRef.current;
     }
+
+    setSelectedLotId(lot.id);
     
-    setSelectedLot(lot);
-    
-    // Zoom in with offset for the modal
-    mapRef.current?.animateToRegion({
-      latitude: lot.latitude - 0.002, 
-      longitude: lot.longitude,
-      latitudeDelta: 0.005,
-      longitudeDelta: 0.005,
-    }, 500);
-  };
+    // Zoom in with offset for the modal - ONLY if app is active
+    if (AppState.currentState === 'active') {
+      mapRef.current?.animateToRegion({
+        latitude: lot.latitude - 0.002, 
+        longitude: lot.longitude,
+        latitudeDelta: 0.005,
+        longitudeDelta: 0.005,
+      }, 500);
+    }
+  }, [selectedLotId]);
 
   return (
     <View style={styles.container}>
@@ -707,16 +1036,27 @@ export default function MapScreen() {
         }}
         onRegionChangeComplete={(region) => {
           regionRef.current = region;
-          setCurrentRegion(region);
           
           // Determine Zoom Level
+          let newZoom: ZoomLevel = 'hidden';
           if (region.latitudeDelta < 0.05) {
-            setZoomLevel('lot');
+            newZoom = 'lot';
           } else if (region.latitudeDelta < 0.6) {
-            setZoomLevel('campus');
-          } else {
-            setZoomLevel('hidden');
+            newZoom = 'campus';
           }
+
+          // Only update state when the zoom band or region actually changed
+          // to avoid re-rendering the entire marker tree on every pan.
+          setZoomLevel(prev => prev === newZoom ? prev : newZoom);
+          setCurrentRegion((prev: any) => {
+            // Skip update if delta hasn't changed enough to matter
+            if (prev && Math.abs(prev.latitude - region.latitude) < 0.0001
+                     && Math.abs(prev.longitude - region.longitude) < 0.0001
+                     && Math.abs(prev.latitudeDelta - region.latitudeDelta) < 0.0001) {
+              return prev;
+            }
+            return region;
+          });
         }}
         onPress={() => {
            // Only close if we are selecting something? behavior preference
@@ -728,22 +1068,33 @@ export default function MapScreen() {
       >
         {zoomLevel === 'lot' ? lots.map((lot) => {
           const isSelected = selectedLot?.id === lot.id;
+          const isFavorite = favorites.includes(lot.id);
           const colors = getOccupancyColor(lot.occupancyRate);
           
+          let polygonCoords: any[] = [];
+          if (lot.coordinates && Array.isArray(lot.coordinates)) {
+             polygonCoords = lot.coordinates
+               .map((p: any) => ({
+                 latitude: Number(Array.isArray(p) ? p[0] : (p.latitude ?? p.lat)),
+                 longitude: Number(Array.isArray(p) ? p[1] : (p.longitude ?? p.lng))
+               }))
+               .filter((c) => !isNaN(c.latitude) && !isNaN(c.longitude));
+          }
+
           return (
             <React.Fragment key={lot.id}>
-              {/* Polygon - Only show when really close? or always in 'lot' mode */}
-              {lot.coordinates && lot.coordinates.length >= 3 && (
+              {/* Polygon */}
+              {polygonCoords.length >= 3 && (
                 <Polygon
-                  coordinates={lot.coordinates.map((p) => ({ latitude: p[0], longitude: p[1] }))}
+                  coordinates={polygonCoords}
                   fillColor={isSelected ? "rgba(220, 38, 38, 0.6)" : colors.bg}
                   strokeColor={isSelected ? "#ffffff" : colors.full}
                   strokeWidth={isSelected ? 3 : 2}
                   tappable={true}
                   zIndex={isSelected ? 10 : 1}
                   onPress={(e) => {
-                     e.stopPropagation();
-                     handleLotPress(lot);
+                    e.stopPropagation();
+                    handleLotPress(lot);
                   }}
                 />
               )}
@@ -766,7 +1117,7 @@ export default function MapScreen() {
                     <Text style={styles.markerText}>
                       {Math.round(lot.occupancyRate)}%
                     </Text>
-                    {favorites.includes(lot.id) && (
+                    {isFavorite && (
                       <View style={styles.favoriteBadge}>
                         <IconSymbol name="star.fill" size={10} color="#f59e0b" />
                       </View>
@@ -786,6 +1137,10 @@ export default function MapScreen() {
             key={cluster.id}
             coordinate={{ latitude: cluster.latitude, longitude: cluster.longitude }}
             onPress={() => {
+              if (lotCooldownRef.current) return;
+              lotCooldownRef.current = true;
+              setTimeout(() => { lotCooldownRef.current = false; }, 650);
+
               // Zoom in on cluster
                mapRef.current?.animateToRegion({
                 latitude: cluster.latitude,
@@ -799,9 +1154,8 @@ export default function MapScreen() {
              <View style={styles.campusMarker}>
                 {/* Simplified Marker: Just the badge with Name + % */}
                 <View style={[
-                  styles.clusterBadge, 
-                  cluster.occupancyRate > 80 ? { backgroundColor: '#ef4444' } : 
-                  cluster.occupancyRate > 50 ? { backgroundColor: '#f59e0b' } : { backgroundColor: '#059669' }
+                  styles.clusterBadge,
+                  { backgroundColor: getClusterColor(cluster.occupancyRate) },
                 ]}>
                    <Text style={styles.clusterText}>{cluster.name}: {Math.round(cluster.occupancyRate)}%</Text>
                 </View>
@@ -820,9 +1174,18 @@ export default function MapScreen() {
             pinColor="#3b82f6"
           />
         )}
+
+        {/* Candidate Pins */}
+        {pendingCandidates.map(candidate => (
+          <CandidatePin
+            key={candidate.lotId}
+            candidate={candidate}
+            horizontalAccuracy={location?.coords.accuracy}
+            onPress={() => {}}
+          />
+        ))}
+
       </MapView>
-
-
 
       {/* Center on Me Button - Styled like LiquidGlassTabBar */}
       <View style={styles.centerButtonContainer}>
@@ -833,6 +1196,10 @@ export default function MapScreen() {
            style={[styles.centerButton, Platform.OS === 'android' && styles.centerButtonAndroid]}
            onPress={() => {
              if (location) {
+               if (lotCooldownRef.current) return;
+               lotCooldownRef.current = true;
+               setTimeout(() => { lotCooldownRef.current = false; }, 650);
+
                mapRef.current?.animateToRegion({
                  latitude: location.coords.latitude,
                  longitude: location.coords.longitude,
@@ -843,7 +1210,7 @@ export default function MapScreen() {
            }}
            activeOpacity={0.7}
          >
-           <IconSymbol name="location.fill" size={24} color="#ef4444" />
+           <IconSymbol name="location.fill" size= {24} color="#ef4444" />
          </TouchableOpacity>
       </View>
 
@@ -854,7 +1221,9 @@ export default function MapScreen() {
           <View style={styles.activeSessionContent}>
             <View>
               <Text style={styles.activeSessionText}>Active Parking Session</Text>
-              <Text style={styles.activeSessionSubtext}>Spot #{activeSession.spotNumber}</Text>
+              <Text style={styles.activeSessionSubtext}>
+                {lots.find(l => String(l.id) === String(activeSession.lotId))?.name || 'In Progress'}
+              </Text>
             </View>
             <TouchableOpacity 
               style={styles.endSessionButton} 
@@ -1044,5 +1413,4 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#f59e0b',
   },
-
 });
