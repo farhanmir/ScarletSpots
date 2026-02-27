@@ -1,15 +1,42 @@
-import React, { useState } from 'react';
+/**
+ * ParkingConfirmationSheet — Reanimated bottom sheet for auto-detected parking.
+ *
+ * All animations run on the UI thread via react-native-reanimated worklets:
+ *  • Spring slide-up from below the screen on mount
+ *  • Pan gesture for swipe-to-dismiss (dismiss threshold: 80 px drag)
+ *  • Button press scale feedback (0.95 spring on begin, 1.0 spring on release)
+ *
+ * Platform notes:
+ *  • iOS: BlurView frosted glass + haptic feedback
+ *  • Android: Solid dark surface, Material elevation
+ */
+
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
   Text,
-  TouchableOpacity,
   ActivityIndicator,
   Platform,
+  Dimensions,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+  runOnJS,
+} from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import * as Haptics from 'expo-haptics';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import type { ParkingCandidate } from '../services/ParkingDetectionService';
+
+const SCREEN_H = Dimensions.get('window').height;
+const DISMISS_THRESHOLD = 80;
+
+// ── Types ──────────────────────────────────────────────────────────────────────
 
 interface Props {
   candidates: ParkingCandidate[];
@@ -17,6 +44,63 @@ interface Props {
   onDismiss: () => void;
   isLoading?: boolean;
 }
+
+// ── Helper: Animated pressable button ─────────────────────────────────────────
+
+interface PressButtonProps {
+  onPress: () => void;
+  style: object;
+  disabled?: boolean;
+  children: React.ReactNode;
+}
+
+function PressButton({ onPress, style, disabled = false, children }: PressButtonProps) {
+  const scale = useSharedValue(1);
+
+  const tap = Gesture.Tap()
+    .enabled(!disabled)
+    .onBegin(() => {
+      scale.value = withSpring(0.95, { damping: 20, stiffness: 400 });
+    })
+    .onEnd(() => {
+      // onEnd only fires when the tap succeeds — NOT when the gesture is
+      // cancelled (e.g. by the parent pan-to-dismiss). Using onFinalize here
+      // would call onPress even on cancelled taps, triggering onConfirm while
+      // pendingCandidates is already cleared → crash.
+      runOnJS(onPress)();
+    })
+    .onFinalize(() => {
+      // Always reset scale, regardless of success or cancellation
+      scale.value = withSpring(1, { damping: 20, stiffness: 400 });
+    });
+
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: disabled ? 0.6 : 1,
+  }));
+
+  return (
+    <GestureDetector gesture={tap}>
+      <Animated.View style={[style, animStyle]}>{children}</Animated.View>
+    </GestureDetector>
+  );
+}
+
+// ── Confidence helpers ─────────────────────────────────────────────────────────
+
+function getConfidenceColor(c: number): string {
+  if (c >= 0.8) return '#10b981';
+  if (c >= 0.6) return '#f59e0b';
+  return '#ef4444';
+}
+
+function getConfidenceLabel(c: number): string {
+  if (c >= 0.8) return 'High';
+  if (c >= 0.6) return 'Medium';
+  return 'Low';
+}
+
+// ── Component ──────────────────────────────────────────────────────────────────
 
 export default function ParkingConfirmationSheet({
   candidates,
@@ -26,98 +110,132 @@ export default function ParkingConfirmationSheet({
 }: Props) {
   const [selectedIndex, setSelectedIndex] = useState(0);
 
+  // Slide-up entrance: starts off-screen, springs into view
+  const translateY = useSharedValue(SCREEN_H);
+  const backdropOpacity = useSharedValue(0);
+
+  useEffect(() => {
+    if (candidates.length > 0) {
+      translateY.value = withSpring(0, { damping: 22, stiffness: 220, mass: 1 });
+      backdropOpacity.value = withTiming(1, { duration: 300 });
+      if (Platform.OS === 'ios') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    }
+  }, [candidates.length, translateY, backdropOpacity]);
+
+  // Pan gesture for swipe-to-dismiss
+  const panStartY = useSharedValue(0);
+
+  const pan = Gesture.Pan()
+    .onStart(() => {
+      panStartY.value = translateY.value;
+    })
+    .onUpdate(e => {
+      // Runs on UI thread — directly track finger position without bridge lag
+      const next = panStartY.value + e.translationY;
+      translateY.value = Math.max(next, 0);
+    })
+    .onEnd(e => {
+      if (e.translationY > DISMISS_THRESHOLD) {
+        translateY.value = withTiming(SCREEN_H, { duration: 240 });
+        backdropOpacity.value = withTiming(0, { duration: 200 });
+        runOnJS(onDismiss)(); // Crosses to JS thread once — triggers state update
+      } else {
+        translateY.value = withSpring(0, { damping: 18, stiffness: 200 });
+      }
+    });
+
+  // ── Animated styles (UI thread) ────────────────────────────────────────────
+
+  const sheetStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }));
+
   if (candidates.length === 0) return null;
 
-  const getConfidenceColor = (confidence: number) => {
-    if (confidence >= 0.8) return '#10b981'; // Green
-    if (confidence >= 0.6) return '#f59e0b'; // Amber
-    return '#ef4444'; // Red
-  };
-
-  const getConfidenceLabel = (confidence: number) => {
-    if (confidence >= 0.8) return 'High';
-    if (confidence >= 0.6) return 'Medium';
-    return 'Low';
-  };
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <View style={styles.container}>
-      {Platform.OS === 'ios' && (
-        <BlurView intensity={90} tint="systemThickMaterialDark" style={StyleSheet.absoluteFill} />
-      )}
-      <View style={styles.content}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.handle} />
-          <View style={styles.headerRow}>
-            <IconSymbol name="car.fill" size={20} color="#ef4444" />
-            <Text style={styles.title}>Parking Detected</Text>
+    <GestureDetector gesture={pan}>
+      <Animated.View style={[styles.container, sheetStyle]}>
+        {Platform.OS === 'ios' && (
+          <BlurView intensity={90} tint="systemThickMaterialDark" style={StyleSheet.absoluteFill} />
+        )}
+        <View style={styles.content}>
+          {/* Drag handle */}
+          <View style={styles.header}>
+            <View style={styles.handle} />
+            <View style={styles.headerRow}>
+              <IconSymbol name="car.fill" size={20} color="#ef4444" />
+              <Text style={styles.title}>Parking Detected</Text>
+            </View>
+            <Text style={styles.subtitle}>
+              We think you just parked. Confirm your spot below.
+            </Text>
           </View>
-          <Text style={styles.subtitle}>
-            We think you just parked. Confirm your spot below.
-          </Text>
-        </View>
 
-        {/* Candidate List */}
-        <View style={styles.candidateList}>
-          {candidates.map((candidate, index) => {
-            const isSelected = index === selectedIndex;
-            const color = getConfidenceColor(candidate.confidence);
+          {/* Candidate list */}
+          <View style={styles.candidateList}>
+            {candidates.map((candidate, index) => {
+              const isSelected = index === selectedIndex;
+              const color = getConfidenceColor(candidate.confidence);
 
-            return (
-              <TouchableOpacity
-                key={candidate.lotId}
-                style={[
-                  styles.candidateRow,
-                  isSelected && styles.candidateRowSelected,
-                  isSelected && { borderColor: color },
-                ]}
-                onPress={() => setSelectedIndex(index)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.candidateInfo}>
-                  <Text style={styles.candidateName}>{candidate.lotName}</Text>
-                  <View style={styles.confidenceBadge}>
-                    <View style={[styles.confidenceDot, { backgroundColor: color }]} />
-                    <Text style={[styles.confidenceText, { color }]}>
-                      {getConfidenceLabel(candidate.confidence)} ({Math.round(candidate.confidence * 100)}%)
-                    </Text>
+              return (
+                <PressButton
+                  key={candidate.lotId}
+                  style={[
+                    styles.candidateRow,
+                    isSelected && styles.candidateRowSelected,
+                    isSelected && { borderColor: color },
+                  ]}
+                  onPress={() => {
+                    setSelectedIndex(index);
+                    if (Platform.OS === 'ios') Haptics.selectionAsync();
+                  }}
+                >
+                  <View style={styles.candidateInfo}>
+                    <Text style={styles.candidateName}>{candidate.lotName}</Text>
+                    <View style={styles.confidenceBadge}>
+                      <View style={[styles.confidenceDot, { backgroundColor: color }]} />
+                      <Text style={[styles.confidenceText, { color }]}>
+                        {getConfidenceLabel(candidate.confidence)} ({Math.round(candidate.confidence * 100)}%)
+                      </Text>
+                    </View>
                   </View>
-                </View>
-                {isSelected && (
-                  <IconSymbol name="checkmark.circle.fill" size={24} color={color} />
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+                  {isSelected && (
+                    <IconSymbol name="checkmark.circle.fill" size={24} color={color} />
+                  )}
+                </PressButton>
+              );
+            })}
+          </View>
 
-        {/* Actions */}
-        <View style={styles.actions}>
-          <TouchableOpacity
-            style={styles.dismissButton}
-            onPress={onDismiss}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.dismissText}>Not Now</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.confirmButton}
-            onPress={() => onConfirm(candidates[selectedIndex])}
-            disabled={isLoading}
-            activeOpacity={0.7}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <Text style={styles.confirmText}>Confirm Parking</Text>
-            )}
-          </TouchableOpacity>
+          {/* Action buttons */}
+          <View style={styles.actions}>
+            <PressButton style={styles.dismissButton} onPress={onDismiss}>
+              <Text style={styles.dismissText}>Not Now</Text>
+            </PressButton>
+
+            <PressButton
+              style={styles.confirmButton}
+              onPress={() => onConfirm(candidates[selectedIndex])}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.confirmText}>Confirm Parking</Text>
+              )}
+            </PressButton>
+          </View>
         </View>
-      </View>
-    </View>
+      </Animated.View>
+    </GestureDetector>
   );
 }
+
+// ── Styles ─────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   container: {

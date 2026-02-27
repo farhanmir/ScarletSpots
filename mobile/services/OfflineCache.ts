@@ -7,6 +7,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
+import { LOT_CACHE_TTL_MS } from '../constants/featureFlags';
 
 const CACHE_KEYS = {
   lots: 'offline_cache_lots',
@@ -14,7 +15,8 @@ const CACHE_KEYS = {
   timestamp: 'offline_cache_timestamp',
 };
 
-const STALE_THRESHOLD_MS = 60 * 60 * 1000; // 1 hour
+/** Cache entries older than this are considered stale (from feature flag, default 1 h). */
+const STALE_THRESHOLD_MS = LOT_CACHE_TTL_MS;
 
 interface CacheEntry<T> {
   data: T;
@@ -35,7 +37,7 @@ async function setCache<T>(key: string, data: T): Promise<void> {
   }
 }
 
-async function getCache<T>(key: string): Promise<{ data: T; isStale: boolean } | null> {
+async function getCache<T>(key: string): Promise<{ data: T; isStale: boolean; cachedAt: string } | null> {
   try {
     const raw = await AsyncStorage.getItem(key);
     if (!raw) return null;
@@ -45,6 +47,7 @@ async function getCache<T>(key: string): Promise<{ data: T; isStale: boolean } |
     return {
       data: entry.data,
       isStale: age > STALE_THRESHOLD_MS,
+      cachedAt: entry.cachedAt,
     };
   } catch {
     return null;
@@ -69,7 +72,7 @@ export async function cacheSession(session: any): Promise<void> {
   await setCache(CACHE_KEYS.session, session);
 }
 
-export async function getCachedSession(): Promise<any | null> {
+export async function getCachedSession(): Promise<unknown> {
   const result = await getCache<any>(CACHE_KEYS.session);
   return result?.data ?? null;
 }
@@ -87,8 +90,19 @@ export async function clearCachedSession(): Promise<void> {
 export async function fetchWithOfflineFallback<T>(
   fetchFn: () => Promise<T>,
   cacheKey: string,
+  staleThresholdMs?: number,
 ): Promise<{ data: T; fromCache: boolean; isStale: boolean }> {
   const netState = await NetInfo.fetch();
+  const cached = await getCache<T>(cacheKey);
+
+  // If we have a fresh cache and are online, skip the network call to save bandwidth
+  if (netState.isConnected && cached && staleThresholdMs) {
+    const age = Date.now() - new Date(cached.cachedAt).getTime();
+    if (age < staleThresholdMs) {
+      console.log(`[Cache] Using fresh cache for ${cacheKey} (age: ${Math.round(age/1000)}s)`);
+      return { data: cached.data, fromCache: true, isStale: false };
+    }
+  }
 
   if (netState.isConnected) {
     try {
@@ -100,8 +114,7 @@ export async function fetchWithOfflineFallback<T>(
     }
   }
 
-  // Offline or fetch failed — try cache
-  const cached = await getCache<T>(cacheKey);
+  // Offline or fetch failed — return the cache we already read at the top
   if (cached) {
     return { data: cached.data, fromCache: true, isStale: cached.isStale };
   }

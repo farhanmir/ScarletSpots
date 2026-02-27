@@ -1,7 +1,7 @@
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { PARKING_DETECTION_TASK } from './BackgroundTasks';
+import { PARKING_DETECTION_TASK, stopSensorTracking } from './BackgroundTasks';
 
 export const GEOFENCE_TASK_NAME = 'SCARLETSPOTS_GEOFENCE_TASK';
 
@@ -9,8 +9,11 @@ export const GEOFENCE_TASK_NAME = 'SCARLETSPOTS_GEOFENCE_TASK';
  * Registers geofences for all known lots.
  * When a user enters a geofence, we start more intensive location/sensor tracking.
  */
+let isRegistering = false;
 export async function registerLotGeofences(lots: any[]) {
   if (lots.length === 0) return;
+  if (isRegistering) return;
+  isRegistering = true;
 
   // Check permissions first
   try {
@@ -24,14 +27,17 @@ export async function registerLotGeofences(lots: any[]) {
     return;
   }
 
-  const regions = lots.map(lot => ({
-    identifier: lot.id,
-    latitude: lot.latitude,
-    longitude: lot.longitude,
-    radius: 500, // 500 meters radius to trigger "near lot" state
-    notifyOnEntry: true,
-    notifyOnExit: true,
-  }));
+  const regions = lots
+    .filter(lot => lot.latitude && lot.longitude)
+    .slice(0, 20) // iOS has a strict hard limit of 20 monitored regions per app
+    .map(lot => ({
+      identifier: String(lot.id),
+      latitude: Number(lot.latitude),
+      longitude: Number(lot.longitude),
+      radius: 500, // 500 meters radius to trigger "near lot" state
+      notifyOnEntry: true,
+      notifyOnExit: true,
+    }));
 
   try {
     const isRegistered = await Location.hasStartedGeofencingAsync(GEOFENCE_TASK_NAME);
@@ -43,6 +49,8 @@ export async function registerLotGeofences(lots: any[]) {
     console.log(`[GeofenceManager] Registered ${regions.length} regions.`);
   } catch (err) {
     console.error('[GeofenceManager] Registration failed:', err);
+  } finally {
+    isRegistering = false;
   }
 }
 
@@ -73,7 +81,8 @@ TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data: { eventType, region },
     console.log(`[GeofenceManager] Exited region: ${region.identifier}. Stopping active tracking.`);
     await AsyncStorage.removeItem('current_geofence_lot_id');
     
-    // Stop active tracking to save battery
+    // Stop active tracking and sensors to save battery/memory
+    stopSensorTracking();
     await Location.stopLocationUpdatesAsync(PARKING_DETECTION_TASK);
   }
 });

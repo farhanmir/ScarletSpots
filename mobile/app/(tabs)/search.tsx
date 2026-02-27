@@ -16,6 +16,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { publicApiCall } from '../../lib/supabase';
 import * as Location from 'expo-location';
 import { RUTGERS_BUILDINGS } from '@/data/buildings';
+import { fetchWithOfflineFallback } from '../../services/OfflineCache';
 
 // Types
 interface Lot {
@@ -137,8 +138,17 @@ export default function SearchScreen() {
 
   const fetchLots = async () => {
     try {
-      const data = await publicApiCall('/lots');
-      setLots(data.lots || []);
+      const result = await fetchWithOfflineFallback(
+        async () => {
+          const res = await publicApiCall('/lots');
+          return res;
+        },
+        'offline_cache_lots'
+      );
+      
+      // The backend returns a raw array of lots, but we handle objects just in case
+      const lotsData = result.data?.lots || result.data || [];
+      setLots(Array.isArray(lotsData) ? lotsData : []);
     } catch (error) {
       console.error('Error fetching lots:', error);
     } finally {
@@ -259,7 +269,7 @@ export default function SearchScreen() {
                           latitude: lot.latitude,
                           longitude: lot.longitude,
                           type: 'lot',
-                          campus: lot.campus,
+                          address: `${lot.campus} Campus`,
                           data: lot
                         } as any)}
                       >
