@@ -1,6 +1,7 @@
 from __future__ import annotations
 from pydantic import BaseModel, ConfigDict
 from datetime import datetime
+from typing import Optional
 
 class ProfileBase(BaseModel):
     first_name: str | None = None
@@ -13,12 +14,16 @@ class UserCreate(BaseModel):
     name: str | None = None
 
 class ProfileUpdate(ProfileBase):
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     model_config = ConfigDict(extra='forbid')
 
 class Profile(ProfileBase):
     id: str  # maps to auth.users.id (uuid)
     email: str | None = None
     username: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
     role: str = 'user'
     created_at: datetime
     updated_at: datetime

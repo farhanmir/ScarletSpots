@@ -18,7 +18,7 @@ from app.core.logger import logger
 from app.routers import users, lots, friends, park, compass, admin, favorites
 from contextlib import asynccontextmanager
 
-# --- C11: FastAPI Lifespan for Supabase Client Pooling ---
+# FastAPI Lifespan for Supabase Client Pooling
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Initialize shared clients once per process
@@ -26,7 +26,7 @@ async def lifespan(app: FastAPI):
     clients = init_supabase_clients()
     app.state.supabase = clients["supabase"]
     app.state.admin_supabase = clients["admin_supabase"]
-    
+    print("!!! BACKEND STARTING UP !!!", flush=True)
     yield
     
     # Cleanup on shutdown
@@ -43,7 +43,7 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
-# --- TD-17: Sanitize 500 error responses ---
+# Sanitize 500 error responses
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception):
     """
@@ -80,7 +80,11 @@ class CorrelationIdMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         correlation_id = request.headers.get("X-Correlation-ID", str(uuid.uuid4())[:8])
         request.state.correlation_id = correlation_id
-        logger.info(f"[{correlation_id}] {request.method} {request.url.path}")
+        msg = f"[{correlation_id}] {request.method} {request.url.path}"
+        # Use sys.stderr and flush=True to bypass potential buffering
+        import sys
+        print(f"\n>>>>> REQUEST: {msg} <<<<<", file=sys.stderr, flush=True)
+        logger.info(msg)
         response = await call_next(request)
         response.headers["X-Correlation-ID"] = correlation_id
         return response

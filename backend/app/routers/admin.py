@@ -23,14 +23,8 @@ def get_admin_stats(request: Request, current_user=Depends(require_admin)):
         total_users = users_res.count or 0
         
         # 2. Active Sessions
-        active_sessions = 0
-        try:
-            sessions_res = admin_db.table("parking_sessions").select("id", count="exact").eq("active", True).execute()
-            active_sessions = sessions_res.count or 0
-        except:
-            # Fallback
-            logs_res = admin_db.table("occupancy_logs").select("id", count="exact").eq("status", "open").execute()
-            active_sessions = logs_res.count or 0
+        sessions_res = admin_db.table("parking_sessions").select("id", count="exact").eq("active", True).execute()
+        active_sessions = sessions_res.count or 0
             
         # 3. Total Geofences (Lots)
         lots_res = admin_db.table("parking_lots").select("id, name, campus, capacity, current_occupancy").execute()
@@ -70,7 +64,7 @@ def list_users(request: Request, limit: int = 50, offset: int = 0, current_user=
                 "created_at": u.get("created_at")
             })
         return {
-            "data": users,
+            "users": users,
             "total": res.count or 0,
             "limit": limit,
             "offset": offset

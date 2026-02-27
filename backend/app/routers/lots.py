@@ -45,7 +45,7 @@ def list_lots(campus: str | None = None, limit: int = 50, offset: int = 0):
                     lot["coordinates"] = json.loads(coords)
                 except Exception:
                     pass
-        return data
+        return {"lots": data}
     except Exception as exc:
         log.error("Failed to list lots: %s", exc)
         raise HTTPException(status_code=500, detail="Failed to list lots")
@@ -96,11 +96,12 @@ def get_lot(lot_id: UUID):
             import json
             try:
                 lot["coordinates"] = json.loads(coords)
-            except Exception:
-                pass
-                
-        return lot
-    except HTTPException:
+                            except Exception:
+                                pass
+                            
+                    return {"lot": lot}
+                except HTTPException:
+            
         raise
     except Exception as exc:
         log.error("Failed to get lot: %s", exc)

@@ -45,6 +45,8 @@ def get_friends(current_user=Depends(get_current_user), db=Depends(get_auth_db),
                 "status": status_text,
                 "parked": parked,
                 "avatar": None,
+                "latitude": profile.get("latitude"),
+                "longitude": profile.get("longitude"),
                 "sharing_enabled": friendship.get("sharing_enabled", True)
             }
 
