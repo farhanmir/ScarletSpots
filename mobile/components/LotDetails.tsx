@@ -60,7 +60,6 @@ import ForecastSlices from './lots/ForecastSlices';
 import ForecastChart from './lots/ForecastChart';
 
 export default function LotDetails({ lot, onClose, onPark, isParking, user, activeSession, isFavorite, onToggleFavorite }: LotDetailsProps) {
-  const [expanded, setExpanded] = useState(false);
   // Track whether this component is still mounted so async callbacks never
   // call setState / onClose after unmount.
   const mountedRef = useRef(true);
@@ -104,13 +103,6 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, acti
   // Quick-glance slices (15m, 30m, 60m)
   const slices = forecastData?.slices;
 
-  // Simple toggle — no LayoutAnimation. LayoutAnimation inside a Modal causes
-  // native layout-ref crashes on Android, especially on rapid taps or when the
-  // Modal unmounts mid-animation.
-  const toggleExpand = useCallback(() => {
-    setExpanded(prev => !prev);
-  }, []);
-
   const handleClose = useCallback(() => {
     if (mountedRef.current) {
       onClose();
@@ -141,25 +133,19 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, acti
 
       <Animated.View 
         entering={SlideInDown.duration(250)}
-        style={[styles.container, expanded && styles.containerExpanded]}
+        style={styles.container}
       >
         {Platform.OS === 'ios' && (
           <BlurView intensity={90} tint="systemThickMaterialDark" style={StyleSheet.absoluteFill} />
         )}
         
-        {/* Tappable Header Area for Expansion */}
-        <TouchableOpacity 
-           activeOpacity={1} 
-           onPress={toggleExpand}
-           style={styles.expandableHeader}
-        >
-          {/* Handle Bar */}
-          <View style={styles.handleContainer}>
-            <View style={styles.handle} />
-          </View>
+        {/* Handle Bar */}
+        <View style={styles.handleContainer}>
+          <View style={styles.handle} />
+        </View>
 
-          {/* Content */}
-          <View style={styles.content}>
+        {/* Content */}
+        <View style={styles.content}>
             <View style={styles.header}>
               <View style={styles.titleContainer}>
                 <Text style={styles.title}>{lot.name}</Text>
@@ -260,36 +246,11 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, acti
                 <Text style={[styles.actionButtonText, styles.directionsText]}>Directions</Text>
               </TouchableOpacity>
             </View>
-            
-            {/* Hint Text if collapsed */}
-            {!expanded && (
-              <Text style={styles.tapToExpandHint}>Tap to view rates & rules</Text>
-            )}
-
-            {expanded && (
-              <ScrollView style={styles.expandedContent} showsVerticalScrollIndicator={false}>
-                <Text style={styles.sectionHeader}>Information</Text>
-                <Text style={styles.infoText}>
-                  Standard Rutgers parking rules apply. This lot is monitored 24/7. 
-                  Please ensure you have a valid permit or active session for this specific lot.
-                  {'\n\n'}
-                  <Text style={{fontWeight: 'bold', color: 'white'}}>Rates:</Text>
-                  {'\n'}• 0-2 Hours: $3.00
-                  {'\n'}• 2-4 Hours: $5.00
-                  {'\n'}• Daily Max: $10.00
-                  {'\n\n'}
-                  <Text style={{fontWeight: 'bold', color: 'white'}}>Enforcement:</Text>
-                  {'\n'}• Mon-Fri: 8am - 8pm
-                  {'\n'}• Weekends: Free (unless event)
-                </Text>
-              </ScrollView>
-            )}
 
             {!user && (
                <Text style={styles.signInHint}>Go to Profile tab to sign in</Text>
             )}
           </View>
-        </TouchableOpacity>
       </Animated.View>
     </Modal>
   );
@@ -312,12 +273,6 @@ const styles = StyleSheet.create({
     paddingBottom: Platform.OS === 'ios' ? 40 : 20,
     maxHeight: height * 0.9,
   },
-  containerExpanded: {
-    height: height * 0.7,
-  },
-  expandableHeader: {
-    // Make the whole top area part of the touch target
-  },
   handleContainer: {
     width: '100%',
     alignItems: 'center',
@@ -332,7 +287,6 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 20,
     paddingBottom: 20,
-    flex: 1, 
   },
   header: {
     flexDirection: 'row',

@@ -153,11 +153,63 @@ export default function MapScreen() {
       );
       return result.data;
     },
-    staleTime: 0,                                        // Always consider lots data stale so polls go through
-    refetchInterval: isFocused ? 1000 * 15 : false,      // Poll occupancy every 15 s when map is visible
+    staleTime: 1000 * 60 * 5,                            // 5 minutes
+    refetchInterval: isFocused ? 1000 * 60 * 5 : false,  // Very slow 5-min poll fallback for Realtime
     refetchOnMount: true,            // Re-fetch on every mount when stale (clears ghost lots on tab switch)
     refetchOnWindowFocus: false,
   });
+
+  // ── Realtime Occupancy Subscription ──────────────────────────────────────────
+  useEffect(() => {
+    // Only subscribe to Postgres changes if we are focused (reading the map)
+    if (!isFocused) return;
+
+    // Listen to UPDATE events on the 'parking_lots' table in the 'public' schema
+    const channel = supabase
+      .channel('public:parking_lots')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'parking_lots' },
+        (payload) => {
+          const newLotData = payload.new;
+          if (!newLotData || !newLotData.id) return;
+          
+          // Look up the lot to see if the occupancy changed
+          queryClient.setQueryData(['lots'], (old: Lot[] | undefined) => {
+            if (!old) return old;
+            return old.map(lot => {
+              if (lot.id === newLotData.id && String(lot.id).startsWith('custom:') === false) {
+                 const newOccupiedCount = newLotData.current_occupancy !== undefined 
+                    ? newLotData.current_occupancy 
+                    : lot.occupiedCount;
+                 
+                 const newCapacity = newLotData.capacity !== undefined 
+                    ? newLotData.capacity 
+                    : lot.capacity;
+
+                 const newRate = newCapacity > 0 ? (newOccupiedCount / newCapacity * 100) : 0;
+                 return {
+                    ...lot,
+                    occupiedCount: newOccupiedCount,
+                    capacity: newCapacity,
+                    occupancyRate: newRate
+                 };
+              }
+              return lot;
+            });
+          });
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('[MapScreen] Subscribed to realtime lot occupancy updates');
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isFocused, queryClient]);
 
   // Derive selectedLot from lots array whenever lots or selectedLotId changes
   const selectedLot = React.useMemo(() => {
@@ -693,6 +745,8 @@ export default function MapScreen() {
               userId: user.id,
               latitude: currentLoc.coords.latitude,
               longitude: currentLoc.coords.longitude,
+              parked: !!activeSession,
+              lotId: activeSession?.lotId,
               timestamp: new Date().toISOString(),
             },
           });
@@ -706,7 +760,7 @@ export default function MapScreen() {
       });
 
       reportToDB();
-      dbInterval = setInterval(reportToDB, 1000 * 60);
+      dbInterval = setInterval(reportToDB, 1000 * 60 * 3); // 3 minutes
       broadcastInterval = setInterval(broadcastLocation, 1000 * 10);
     };
 
@@ -734,7 +788,7 @@ export default function MapScreen() {
       cleanupSync();
       appStateSub.remove();
     };
-  }, [user, isFocused]); // Removed 'location' from dependencies to prevent thrashing
+  }, [user, isFocused, activeSession]); // Re-bind when session changes so broadcast grabs it
 
   useEffect(() => {
     if (user) {
@@ -846,11 +900,38 @@ export default function MapScreen() {
           Alert.alert('Success', `Parking session started at ${lot.name}`);
         }
         queryClient.setQueryData(['session', 'active'], { session });
-        updateOptimisticOccupancy(lot.id, 1);
+
+        // If the server returned the DB-confirmed occupancy, anchor to it
+        // directly rather than relying purely on the +1 optimistic delta.
+        if (!data._offline && data.confirmedOccupancy !== undefined) {
+          queryClient.setQueryData(['lots'], (old: Lot[] | undefined) => {
+            if (!old) return old;
+            return old.map(l => {
+              if (String(l.id) === String(lot.id)) {
+                const cap = l.capacity > 0 ? l.capacity : 1;
+                return {
+                  ...l,
+                  occupiedCount: data.confirmedOccupancy,
+                  occupancyRate: Math.min(100, (data.confirmedOccupancy / cap) * 100),
+                };
+              }
+              return l;
+            });
+          });
+        } else {
+          // Optimistic +1 while Realtime / next poll confirm the true value
+          updateOptimisticOccupancy(lot.id, 1);
+        }
+
         setSelectedLotId(null);
-        // Do NOT call refetchOccupancy() here — it returns the AsyncStorage
-        // cache (fresh < 10 min) and overwrites the optimistic update.
-        // The 5-min polling interval will sync with the server automatically.
+
+        // Schedule a single background refetch 3 s after a confirmed online
+        // session to reconcile any discrepancy between the optimistic state and
+        // the DB (e.g. silent RPC failure).  fetchWithOfflineFallback no longer
+        // has a staleThresholdMs guard here, so this hits the live /lots API.
+        if (!data._offline) {
+          setTimeout(() => refetchOccupancy(), 3000);
+        }
       }
     } catch (error: any) {
       // Network error during an "online" attempt → fall back to queue
@@ -1101,12 +1182,14 @@ export default function MapScreen() {
               
               {/* Marker */}
               <Marker
+                key={`lot-${lot.id}`}
                 coordinate={{ latitude: lot.latitude, longitude: lot.longitude }}
                 onPress={(e) => {
                   e.stopPropagation();
                   handleLotPress(lot);
                 }}
                 zIndex={isSelected ? 11 : 2}
+                tracksViewChanges={true}
               >
                 <View style={[styles.markerContainer, isSelected && { transform: [{ scale: 1.2 }] }]}>
                   <View style={[
@@ -1134,8 +1217,9 @@ export default function MapScreen() {
           );
         }) : clusters.map((cluster) => (
            <Marker
-            key={cluster.id}
+            key={`cluster-${cluster.id}`}
             coordinate={{ latitude: cluster.latitude, longitude: cluster.longitude }}
+            tracksViewChanges={true}
             onPress={() => {
               if (lotCooldownRef.current) return;
               lotCooldownRef.current = true;

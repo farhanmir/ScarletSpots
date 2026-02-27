@@ -85,6 +85,8 @@ def start_parking_session(
 
     try:
         occupancy_level = 0
+        rpc_res = None
+        new_count: int | None = None
         try:
             lot_db = get_admin_supabase()
             # Atomic SQL-level increment — avoids lost-update race conditions
@@ -129,6 +131,10 @@ def start_parking_session(
 
         return {
             "success": True,
+            # Return the DB-confirmed occupancy count so the mobile client can
+            # anchor its optimistic update to the real value instead of relying
+            # on a +1 delta that diverges if the RPC partially fails.
+            "confirmedOccupancy": new_count,
             "session": {
                 "id": str(new_session["id"]),
                 "lotId": str(new_session["lot_id"]),

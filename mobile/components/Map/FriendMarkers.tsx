@@ -58,11 +58,11 @@ export default function FriendMarkers({ region }: { region: Region | null }) {
   const { data: friendsData = [] } = useQuery({
     queryKey: ['friend_markers'],
     queryFn: fetchFriendsWithLocation,
-    refetchInterval: 15000, // Refresh every 15s
+    // Polling removed - now entirely relies on Realtime Broadcasts 
   });
 
   // Realtime overrides
-  const [realtimeLocations, setRealtimeLocations] = useState<Record<string, { lat: number, lng: number }>>({});
+  const [realtimeOverrides, setRealtimeOverrides] = useState<Record<string, { lat?: number, lng?: number, parked?: boolean, lotId?: string }>>({});
   const channelsRef = useRef<Record<string, any>>({});
   const isMounted = useRef(true);
 
@@ -106,9 +106,14 @@ export default function FriendMarkers({ region }: { region: Region | null }) {
         const channel = supabase.channel(`user-location:${friend.friend_id}`)
           .on('broadcast', { event: 'location_update' }, ({ payload }) => {
             if (isMounted.current) {
-              setRealtimeLocations(prev => ({
+              setRealtimeOverrides(prev => ({
                 ...prev,
-                [payload.userId]: { lat: payload.latitude, lng: payload.longitude }
+                [payload.userId]: { 
+                  lat: payload.latitude, 
+                  lng: payload.longitude,
+                  parked: payload.parked,
+                  lotId: payload.lotId
+                }
               }));
             }
           })
@@ -121,13 +126,19 @@ export default function FriendMarkers({ region }: { region: Region | null }) {
 
   const friends = useMemo(() => {
     return friendsData.map(f => {
-      const rt = realtimeLocations[f.friend_id];
+      const rt = realtimeOverrides[f.friend_id];
       if (rt) {
-        return { ...f, latitude: rt.lat, longitude: rt.lng };
+        return { 
+          ...f, 
+          latitude: rt.lat ?? f.latitude, 
+          longitude: rt.lng ?? f.longitude,
+          parked: rt.parked !== undefined ? rt.parked : f.parked,
+          lot_id: rt.lotId !== undefined ? rt.lotId : f.lot_id
+        };
       }
       return f;
     });
-  }, [friendsData, realtimeLocations]);
+  }, [friendsData, realtimeOverrides]);
 
   // Apply filter mode
   const filteredFriends = React.useMemo(() => {

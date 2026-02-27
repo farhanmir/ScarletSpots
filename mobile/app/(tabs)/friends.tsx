@@ -25,7 +25,7 @@ export default function FriendsScreen() {
       }
       return { friends: res?.friends || [], requests: res?.requests || [] };
     },
-    refetchInterval: 10000, // refresh every 10s
+    // Removed polling so the screen doesn't continuously reload UI
   });
 
   const { friends, requests } = data;
