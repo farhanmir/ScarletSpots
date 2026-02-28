@@ -1,0 +1,40 @@
+---
+description: ScarletSpots project architecture, key constraints, and what NOT to change
+alwaysApply: true
+---
+
+# ScarletSpots — Core Architecture Rules
+
+ScarletSpots is a **React Native (Expo) app** for Rutgers parking. Read `PLAN.md` and `SESSION_STATE.md` for full context.
+
+## The Golden Rule: Static vs Dynamic
+
+**Static data (lot metadata) lives in the app. Dynamic data (sessions, occupancy counts) lives in Supabase.**
+
+```
+mobile/data/rutgers_parking_data.json  ← 245 lots, bundled at build time, ZERO API calls
+mobile/data/lots.ts                    ← getAllLots(), getLotById(), applyOccupancy()
+```
+
+## Hard Constraints — Do NOT Violate
+
+- **Never add a `parking_lots` table back** to the database. It was intentionally removed.
+- **`lot_id` is always TEXT** (the JSON `mapId`, e.g. `"10001"`). Never use UUID for lot IDs.
+- **Never fetch lot metadata from the backend** in the mobile app. Always use `getLotById()` or `getAllLots()` from `mobile/data/lots.ts`.
+- **No friend map markers.** Friends show their lot in the Friends tab only — never on the MapView.
+- **The compass (navigate tab) is intentionally simple** — bearing + distance only. No haptics, no proximity states.
+- **Do not work on `frontend/`** — the React/Vite admin is deleted and planned as a v2 item.
+
+## Database (6 tables only)
+
+```
+profiles, parking_sessions, lot_occupancy, friendships, user_favorites, session_feedback
+```
+
+Live occupancy uses Supabase Realtime on `lot_occupancy`. Backend uses atomic RPCs:
+`increment_lot_occupancy(p_lot_id TEXT)` / `decrement_lot_occupancy(p_lot_id TEXT)`
+
+## Backend is Thin
+
+The FastAPI backend only handles: `/users`, `/park`, `/friends`, `/favorites`, `/lots` (occupancy + forecast).
+All lot metadata comes from the bundled JSON, not the backend.

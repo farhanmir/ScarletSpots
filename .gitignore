@@ -141,3 +141,7 @@ supabase/.temp
 
 # package-lock.json
 package-lock.json
+
+# Cursor IDE — commit rules, ignore everything else
+.cursor/*
+!.cursor/rules/
