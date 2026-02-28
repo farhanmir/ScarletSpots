@@ -86,6 +86,8 @@ export interface RutgersLot {
   evCharging: number;
   garage: boolean;
   uncovered: boolean;
+  regularGate: boolean;
+  smartGate: boolean;
   student: boolean;
   employee: boolean;
   /** Operating hours / notes. */
@@ -134,9 +136,17 @@ function rawToLot(raw: RawLot): RutgersLot {
   // those entries, so we always pick the ring with the most points to ensure
   // the actual lot boundary is used.
   const rings = raw.gtfsGeometry?.coordinates;
+  // Pick the ring with the largest geographic bounding-box area rather than
+  // the most points.  Dense gate/detail rings have many points but a tiny
+  // footprint and would previously overshadow the actual lot boundary.
+  const bbArea = (ring: [number, number][]) => {
+    const lngs = ring.map(p => p[0]);
+    const lats = ring.map(p => p[1]);
+    return (Math.max(...lngs) - Math.min(...lngs)) * (Math.max(...lats) - Math.min(...lats));
+  };
   const bestRing: [number, number][] | undefined =
     rings && rings.length > 0
-      ? rings.reduce((best, ring) => (ring.length > best.length ? ring : best))
+      ? rings.reduce((best, ring) => (bbArea(ring) > bbArea(best) ? ring : best))
       : undefined;
   const coordinates: [number, number][] =
     bestRing?.map(([lng, lat]) => [lat, lng] as [number, number]) ?? [];
@@ -154,6 +164,8 @@ function rawToLot(raw: RawLot): RutgersLot {
     evCharging: raw.evCharging ?? 0,
     garage: raw.garage ?? false,
     uncovered: raw.uncovered ?? false,
+    regularGate: raw.regularGate ?? false,
+    smartGate: raw.smartGate ?? false,
     student: raw.student ?? false,
     employee: raw.employee ?? false,
     empHours: raw.empHours ?? '',
