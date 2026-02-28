@@ -139,8 +139,9 @@ Thumbs.db
 supabase/functions/import_map.json
 supabase/.temp
 
-# package-lock.json
+# package-lock.json – excluded at root but allowed in subdirectories that need it
 package-lock.json
+!mobile/package-lock.json
 
 # Cursor IDE — commit rules, ignore everything else
 .cursor/*
