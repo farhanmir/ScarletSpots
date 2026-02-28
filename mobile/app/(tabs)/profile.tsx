@@ -16,7 +16,7 @@ import { getLotById, type RutgersLot } from '@/data/lots';
 import { fetchWithOfflineFallback, cacheFavorites } from '../../services/OfflineCache';
 
 export default function ProfileScreen() {
-  const { session, user, loading, signOut } = useAuth();
+  const { session, user, loading, signOut, permitType, noPermitMode, customLotFilter } = useAuth();
   const router = useRouter();
   const [favorites, setFavorites] = useState<RutgersLot[]>([]);
 
@@ -121,6 +121,26 @@ export default function ProfileScreen() {
           </View>
 
 
+
+          {/* Parking Permit */}
+          <TouchableOpacity
+            style={styles.settingRow}
+            onPress={() => router.push('/onboarding/permit?fromProfile=true')}
+          >
+            <View style={styles.settingInfo}>
+              <Text style={styles.settingLabel}>Parking Permit</Text>
+              <Text style={styles.settingSubtext}>
+                {!permitType
+                  ? 'Not set — tap to configure'
+                  : noPermitMode === 'commuter_all'
+                    ? 'No permit · All commuter lots'
+                    : noPermitMode === 'custom'
+                      ? `No permit · Custom (${Array.from(customLotFilter).join(', ')})`
+                      : permitType}
+              </Text>
+            </View>
+            <IconSymbol name="chevron.right" size={14} color="#52525b" />
+          </TouchableOpacity>
 
           {/* Notifications */}
           <TouchableOpacity style={styles.settingRow}>

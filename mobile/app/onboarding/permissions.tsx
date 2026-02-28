@@ -68,7 +68,7 @@ export default function PermissionsScreen() {
   };
 
   const finish = () => {
-    router.replace('/(tabs)');
+    router.replace('/onboarding/permit');
   };
 
   const requestPermission = async () => {

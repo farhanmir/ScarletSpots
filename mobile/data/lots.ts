@@ -15,6 +15,7 @@
 
  
 const RAW_DATA: RawLot[] = require('./rutgers_parking_data.json');
+const PERMIT_MAPPING: Record<string, { id: string; name: string }[]> = require('./permit_mapping.json');
 
 // ── Raw JSON shape (as received from data source) ──────────────────────────
 
@@ -238,3 +239,31 @@ export function applyOccupancy(
   }
   return lots;
 }
+
+// ── Permit helpers ─────────────────────────────────────────────────────────
+
+/**
+ * Sorted list of every real permit type name from permit_mapping.json.
+ * Used to populate the permit picker UI.
+ */
+export const ALL_PERMIT_TYPES: string[] = Object.keys(PERMIT_MAPPING).sort();
+
+/**
+ * Returns the set of lot mapIds accessible with the given permit type.
+ * Returns an empty Set for unknown/null permit types.
+ */
+export function getPermitLotIds(permitType: string | null | undefined): Set<string> {
+  if (!permitType) return new Set();
+  const entries = PERMIT_MAPPING[permitType] ?? [];
+  return new Set(entries.map(e => e.id));
+}
+
+/**
+ * Pre-computed union of all lots accessible via any *Commuter permit.
+ * Used for the "No permit — show all commuter lots" mode.
+ */
+export const ALL_COMMUTER_LOT_IDS: Set<string> = new Set(
+  Object.entries(PERMIT_MAPPING)
+    .filter(([key]) => key.toLowerCase().includes('commuter'))
+    .flatMap(([, entries]) => entries.map(e => e.id))
+);
