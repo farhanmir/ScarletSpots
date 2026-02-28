@@ -61,11 +61,13 @@ export async function registerLotGeofences(lots: LotGeoPoint[]) {
   }
 }
 
-TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data: { eventType, region }, error }: any) => {
+TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }: any) => {
   if (error) {
     console.error('[GeofenceManager] Task error:', error);
     return;
   }
+  if (!data) return;
+  const { eventType, region } = data;
 
   if (eventType === Location.GeofencingEventType.Enter) {
     console.log(`[GeofenceManager] Entered region: ${region.identifier}. Starting active tracking.`);

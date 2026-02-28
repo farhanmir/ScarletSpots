@@ -105,39 +105,69 @@ export default function NavigateScreen() {
   useEffect(() => {
     let headingSub: Location.LocationSubscription | undefined;
     let positionSub: Location.LocationSubscription | undefined;
+    let magnetometerSub: ReturnType<typeof Magnetometer.addListener> | undefined;
+    let cancelled = false;
 
     (async () => {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') { setLoading(false); return; }
+        if (cancelled || status !== 'granted') { setLoading(false); return; }
 
-        // watchHeadingAsync uses the OS compass which accounts for device orientation,
-        // so the arrow stays correct when the phone is rotated.
-        headingSub = await Location.watchHeadingAsync((obj) => {
-          const raw = (obj.trueHeading != null && obj.trueHeading >= 0) ? obj.trueHeading : obj.magHeading;
-          smoothedHeading.current = lowPass(raw, smoothedHeading.current);
-          lastHeadingRef.current = smoothedHeading.current;
-          applyRotation(bearingRef.current, smoothedHeading.current);
-        });
+        // Try magnetometer first for accurate heading
+        try {
+          const available = await Magnetometer.isAvailableAsync();
+          if (cancelled) return;
+          if (available) {
+            Magnetometer.setUpdateInterval(60);
+            magnetometerSub = Magnetometer.addListener(({ x, y }) => {
+              const raw = magnetometerToHeading(x, y);
+              smoothedHeading.current = lowPass(raw, smoothedHeading.current);
+              lastHeadingRef.current = smoothedHeading.current;
+              rotationValue.setValue(bearingRef.current - smoothedHeading.current);
+            });
+            setUseMagnetometer(true);
+          } else {
+            throw new Error('unavailable');
+          }
+        } catch {
+          if (cancelled) return;
+          setUseMagnetometer(false);
+          headingSub = await Location.watchHeadingAsync((obj) => {
+            const h = obj.trueHeading || obj.magHeading;
+            smoothedHeading.current = lowPass(h, smoothedHeading.current);
+            lastHeadingRef.current = smoothedHeading.current;
+            rotationValue.setValue(bearingRef.current - smoothedHeading.current);
+          });
+        }
+
+        if (cancelled) { headingSub?.remove(); return; }
 
         positionSub = await Location.watchPositionAsync(
           { accuracy: Location.Accuracy.High, timeInterval: 1000, distanceInterval: 3 },
           (loc) => { setLocation(loc); }
         );
 
-        if (user) await loadActiveSession();
-        setLoading(false);
+        if (cancelled) { positionSub.remove(); return; }
+
+        if (!cancelled) setLoading(false);
       } catch (err) {
         console.warn('[Navigate] Init failed:', err);
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
 
     return () => {
+      cancelled = true;
       headingSub?.remove();
       positionSub?.remove();
     };
-  }, [user, loadActiveSession, applyRotation]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- sensors should only restart on user change, not on every params/loadActiveSession change
+  }, [user]);
+
+  // Load active session separately so params changes don't restart sensors
+  useEffect(() => {
+    if (user) loadActiveSession();
+  }, [user, loadActiveSession]);
 
   // ── 2. Refresh on focus ────────────────────────────────────────────────
 
