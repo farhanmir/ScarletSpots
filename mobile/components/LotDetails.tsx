@@ -193,6 +193,35 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, acti
             </View>
           </View>
 
+          {/* Lot type badges */}
+          <View style={styles.badgeRow}>
+            {lot.student && (
+              <View style={[styles.badge, styles.badgeStudent]}>
+                <Text style={styles.badgeText}>🎓 Student</Text>
+              </View>
+            )}
+            {lot.employee && (
+              <View style={[styles.badge, styles.badgeEmployee]}>
+                <Text style={styles.badgeText}>👔 Employee</Text>
+              </View>
+            )}
+            {(lot.regularGate || lot.smartGate) && (
+              <View style={[styles.badge, styles.badgeGated]}>
+                <Text style={styles.badgeText}>🔒 Gated</Text>
+              </View>
+            )}
+            {lot.evCharging > 0 && (
+              <View style={[styles.badge, styles.badgeEV]}>
+                <Text style={styles.badgeText}>⚡ EV</Text>
+              </View>
+            )}
+            {lot.handicapped > 0 && (
+              <View style={[styles.badge, styles.badgeAccessible]}>
+                <Text style={styles.badgeText}>♿ Accessible</Text>
+              </View>
+            )}
+          </View>
+
           <ForecastSlices slices={slices} />
           <ForecastChart curve={forecast} isLoading={isLoadingForecast} />
 
@@ -412,5 +441,46 @@ const styles = StyleSheet.create({
   },
   favoriteButton: {
     padding: 4,
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 20,
+  },
+  badge: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+  },
+  badgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  badgeStudent: {
+    backgroundColor: 'rgba(99, 102, 241, 0.25)',
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.5)',
+  },
+  badgeEmployee: {
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.4)',
+  },
+  badgeGated: {
+    backgroundColor: 'rgba(245, 158, 11, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.4)',
+  },
+  badgeEV: {
+    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.4)',
+  },
+  badgeAccessible: {
+    backgroundColor: 'rgba(168, 85, 247, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(168, 85, 247, 0.4)',
   },
 });

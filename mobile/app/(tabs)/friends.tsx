@@ -1,15 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, FlatList, TouchableOpacity, Modal, TextInput, ActivityIndicator, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
+import { useIsFocused } from '@react-navigation/native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { authApiCall } from '../../lib/supabase';
+import { authApiCall, supabase } from '../../lib/supabase';
+import { useAuth } from '@/context/AuthProvider';
 import { getLotById } from '../../data/lots';
 
 export default function FriendsScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+  const isFocused = useIsFocused();
   const [activeTab, setActiveTab] = useState<'friends' | 'requests'>('friends');
   const [isAddModalVisible, setIsAddModalVisible] = useState(false);
   const [friendEmail, setFriendEmail] = useState('');
@@ -26,8 +30,35 @@ export default function FriendsScreen() {
       }
       return { friends: res?.friends ?? [], requests: res?.requests ?? [] };
     },
-    // Removed polling so the screen doesn't continuously reload UI
+    // Poll every 60s while focused for friend parking status updates
+    // (parking_sessions are RLS-gated so Realtime can't deliver them here)
+    refetchInterval: isFocused ? 60000 : false,
   });
+
+  // ── Realtime: friendships table ──────────────────────────────────────────
+  // Two channels so each subscription is filtered precisely via RLS:
+  //   1. Rows where I am the initiator (user_id) — outbound request status changes
+  //   2. Rows where I am the target (friend_id)  — incoming requests & acceptance
+  useEffect(() => {
+    if (!isFocused || !user?.id) return;
+
+    const invalidate = () => queryClient.invalidateQueries({ queryKey: ['friends_list'] });
+
+    const outbound = supabase
+      .channel('friendships-outbound')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'friendships', filter: `user_id=eq.${user.id}` }, invalidate)
+      .subscribe();
+
+    const inbound = supabase
+      .channel('friendships-inbound')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'friendships', filter: `friend_id=eq.${user.id}` }, invalidate)
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(outbound);
+      supabase.removeChannel(inbound);
+    };
+  }, [isFocused, user?.id, queryClient]);
 
   const { friends, requests } = data;
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { StyleSheet, View, Platform, Alert, Text, TouchableOpacity, ActivityIndicator, AppState } from 'react-native';
+import { StyleSheet, View, Platform, Alert, Text, TouchableOpacity, ActivityIndicator, AppState, ScrollView } from 'react-native';
 import { BlurView } from 'expo-blur';
 import MapView, { PROVIDER_GOOGLE, PROVIDER_DEFAULT, Polygon, Marker } from 'react-native-maps';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -17,7 +17,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { getPendingParkingCandidates, clearPendingParkingCandidates } from '../../services/BackgroundTasks';
 import { type ParkingCandidate } from '../../services/ParkingDetectionService';
 import { registerLotGeofences } from '../../services/GeofenceManager';
-import { fetchWithOfflineFallback, clearCachedSession } from '../../services/OfflineCache';
+import { fetchWithOfflineFallback, clearCachedSession, cacheFavorites, getCachedFavorites } from '../../services/OfflineCache';
 import {
   initOfflineQueue,
   queueParkAction,
@@ -86,6 +86,7 @@ export default function MapScreen() {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [isOnline, setIsOnline] = useState(true);
+  const [lotTypeFilter, setLotTypeFilter] = useState<'student' | 'employee' | 'gated' | 'ev' | null>(null);
 
   const isFocused = useIsFocused();
 
@@ -212,6 +213,21 @@ export default function MapScreen() {
     return lots.find(l => l.id === selectedLotId) ?? null;
   }, [lots, selectedLotId]);
 
+  // ── Derived: displayedLots (filtered for map) ──────────────────────────
+
+  const displayedLots = React.useMemo(() => {
+    if (!lotTypeFilter) return lots;
+    return lots.filter(lot => {
+      switch (lotTypeFilter) {
+        case 'student':  return lot.student;
+        case 'employee': return lot.employee;
+        case 'gated':    return lot.regularGate || lot.smartGate;
+        case 'ev':       return lot.evCharging > 0;
+        default:         return true;
+      }
+    });
+  }, [lots, lotTypeFilter]);
+
   // ── Clusters ───────────────────────────────────────────────────────────
 
   const clusters = React.useMemo<Cluster[]>(() => {
@@ -262,12 +278,22 @@ export default function MapScreen() {
   const fetchFavorites = useCallback(async () => {
     if (!user) return;
     try {
-      const data = await authApiCall('/favorites');
-      if (data?.favorite_lots) {
-        setFavorites(data.favorite_lots.map((l: any) => String(l.lot_id ?? l.id)));
-      }
+      const { data } = await fetchWithOfflineFallback(
+        async () => {
+          const resp = await authApiCall('/favorites');
+          const ids = (resp?.favorite_lots ?? []).map((l: any) => String(l.lot_id ?? l.id));
+          await cacheFavorites(ids);
+          return ids;
+        },
+        'favorites_cache',
+        1000 * 60 * 5, // 5-minute staleness threshold
+      );
+      setFavorites(data);
     } catch (e) {
-      console.error('[MapScreen] Failed to fetch favorites:', e);
+      // Fall back to local cache even if fetchWithOfflineFallback throws
+      const cached = await getCachedFavorites();
+      if (cached) setFavorites(cached);
+      else console.error('[MapScreen] Failed to fetch favorites:', e);
     }
   }, [user]);
 
@@ -276,7 +302,9 @@ export default function MapScreen() {
   const toggleFavorite = async (lot: RutgersLot) => {
     if (!user) return;
     const isFavorite = favorites.includes(lot.id);
-    setFavorites(prev => isFavorite ? prev.filter(id => id !== lot.id) : [...prev, lot.id]);
+    const updated = isFavorite ? favorites.filter(id => id !== lot.id) : [...favorites, lot.id];
+    setFavorites(updated);
+    cacheFavorites(updated);
     try {
       if (isFavorite) {
         await authApiCall(`/favorites/${lot.id}`, { method: 'DELETE' });
@@ -286,6 +314,7 @@ export default function MapScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
       setFavorites(prev => isFavorite ? [...prev, lot.id] : prev.filter(id => id !== lot.id));
+      cacheFavorites(favorites); // rollback cache too
       Alert.alert('Error', 'Failed to update favorites');
     }
   };
@@ -632,7 +661,7 @@ export default function MapScreen() {
         }}
       >
         {/* Lot polygons + markers at zoom level 'lot' */}
-        {zoomLevel === 'lot' && lots.map((lot) => {
+        {zoomLevel === 'lot' && displayedLots.map((lot) => {
           const isSelected = selectedLot?.id === lot.id;
           const isFavorite = favorites.includes(lot.id);
           const colors = getOccupancyColor(lot.occupancyRate);
@@ -723,6 +752,35 @@ export default function MapScreen() {
           />
         ))}
       </MapView>
+
+      {/* ── Lot Type Filter Chips ── */}
+      <View style={styles.filterBar} pointerEvents="box-none">
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterBarContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          {([
+            { key: null,       label: 'All' },
+            { key: 'student',  label: '🎓 Student' },
+            { key: 'employee', label: '👔 Employee' },
+            { key: 'gated',    label: '🔒 Gated' },
+            { key: 'ev',       label: '⚡ EV' },
+          ] as const).map(({ key, label }) => (
+            <TouchableOpacity
+              key={String(key)}
+              style={[styles.filterChip, lotTypeFilter === key && styles.filterChipActive]}
+              onPress={() => setLotTypeFilter(prev => prev === key ? null : key)}
+              activeOpacity={0.75}
+            >
+              <Text style={[styles.filterChipText, lotTypeFilter === key && styles.filterChipTextActive]}>
+                {label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
 
       {/* Center-on-me button */}
       <View style={styles.centerButtonContainer}>
@@ -967,6 +1025,40 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#f59e0b',
+  },
+
+  // ── Lot type filter chips ──────────────────────────────────────────────
+  filterBar: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 54 : 16,
+    left: 0,
+    right: 0,
+    pointerEvents: 'box-none',
+  },
+  filterBarContent: {
+    paddingHorizontal: 12,
+    gap: 8,
+    flexDirection: 'row',
+  },
+  filterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: 'rgba(24, 24, 27, 0.82)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  filterChipActive: {
+    backgroundColor: '#dc2626',
+    borderColor: '#dc2626',
+  },
+  filterChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#d4d4d8',
+  },
+  filterChipTextActive: {
+    color: '#fff',
   },
 
   // ── Campus clusters ────────────────────────────────────────────────────
