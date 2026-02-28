@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { StyleSheet, View, Platform, Alert, Text, TouchableOpacity, ActivityIndicator, AppState, ScrollView } from 'react-native';
+import { StyleSheet, View, Platform, Alert, Text, TouchableOpacity, ActivityIndicator, AppState } from 'react-native';
 import { BlurView } from 'expo-blur';
 import MapView, { PROVIDER_GOOGLE, PROVIDER_DEFAULT, Polygon, Marker } from 'react-native-maps';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -87,6 +87,7 @@ export default function MapScreen() {
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [isOnline, setIsOnline] = useState(true);
   const [lotTypeFilter, setLotTypeFilter] = useState<'student' | 'employee' | 'gated' | 'ev' | null>(null);
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
 
   const isFocused = useIsFocused();
 
@@ -753,25 +754,22 @@ export default function MapScreen() {
         ))}
       </MapView>
 
-      {/* ── Lot Type Filter Chips ── */}
-      <View style={styles.filterBar} pointerEvents="box-none">
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterBarContent}
-          keyboardShouldPersistTaps="handled"
-        >
+      {/* ── Filter button (collapses to panel on tap) ── */}
+      {showFilterPanel && (
+        <View style={styles.filterPanel}>
           {([
-            { key: null,       label: 'All' },
             { key: 'student',  label: '🎓 Student' },
             { key: 'employee', label: '👔 Employee' },
             { key: 'gated',    label: '🔒 Gated' },
             { key: 'ev',       label: '⚡ EV' },
           ] as const).map(({ key, label }) => (
             <TouchableOpacity
-              key={String(key)}
-              style={[styles.filterChip, lotTypeFilter === key && styles.filterChipActive]}
-              onPress={() => setLotTypeFilter(prev => prev === key ? null : key)}
+              key={key}
+              style={[styles.filterPanelChip, lotTypeFilter === key && styles.filterChipActive]}
+              onPress={() => {
+                setLotTypeFilter(prev => prev === key ? null : key);
+                setShowFilterPanel(false);
+              }}
               activeOpacity={0.75}
             >
               <Text style={[styles.filterChipText, lotTypeFilter === key && styles.filterChipTextActive]}>
@@ -779,8 +777,8 @@ export default function MapScreen() {
               </Text>
             </TouchableOpacity>
           ))}
-        </ScrollView>
-      </View>
+        </View>
+      )}
 
       {/* Center-on-me button */}
       <View style={styles.centerButtonContainer}>
@@ -804,6 +802,25 @@ export default function MapScreen() {
         >
           <IconSymbol name="location.fill" size={24} color="#ef4444" />
         </TouchableOpacity>
+      </View>
+
+      {/* Filter button */}
+      <View style={styles.filterButtonContainer}>
+        {Platform.OS === 'ios' && (
+          <BlurView intensity={80} tint="systemChromeMaterialDark" style={StyleSheet.absoluteFill} />
+        )}
+        <TouchableOpacity
+          style={[styles.filterButton, Platform.OS === 'android' && styles.filterButtonAndroid]}
+          onPress={() => setShowFilterPanel(p => !p)}
+          activeOpacity={0.7}
+        >
+          <IconSymbol
+            name="line.3.horizontal.decrease"
+            size={20}
+            color={lotTypeFilter ? '#ef4444' : '#e4e4e7'}
+          />
+        </TouchableOpacity>
+        {lotTypeFilter && <View style={styles.filterActiveDot} />}
       </View>
 
       {/* Offline / sync badge */}
@@ -1027,30 +1044,66 @@ const styles = StyleSheet.create({
     borderColor: '#f59e0b',
   },
 
-  // ── Lot type filter chips ──────────────────────────────────────────────
-  filterBar: {
+  // ── Lot type filter button + panel ────────────────────────────────────
+  filterButtonContainer: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 54 : 16,
-    left: 0,
-    right: 0,
-    pointerEvents: 'box-none',
+    bottom: 170,
+    right: 16,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    overflow: 'hidden',
+    borderWidth: 0.5,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
-  filterBarContent: {
-    paddingHorizontal: 12,
-    gap: 8,
-    flexDirection: 'row',
+  filterButton: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(12, 12, 12, 0.3)',
   },
-  filterChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-    backgroundColor: 'rgba(24, 24, 27, 0.82)',
+  filterButtonAndroid: { backgroundColor: '#18181b' },
+  filterActiveDot: {
+    position: 'absolute',
+    top: 9,
+    right: 9,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#dc2626',
+    borderWidth: 1.5,
+    borderColor: '#09090b',
+  },
+  filterPanel: {
+    position: 'absolute',
+    bottom: 230,
+    right: 16,
+    backgroundColor: 'rgba(18, 18, 20, 0.96)',
+    borderRadius: 16,
+    paddingVertical: 6,
+    paddingHorizontal: 6,
+    gap: 2,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
+    borderColor: 'rgba(255,255,255,0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 8,
+    minWidth: 150,
+  },
+  filterPanelChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
   },
   filterChipActive: {
     backgroundColor: '#dc2626',
-    borderColor: '#dc2626',
   },
   filterChipText: {
     fontSize: 13,
