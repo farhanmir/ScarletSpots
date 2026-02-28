@@ -53,13 +53,13 @@
 
 **Goal:** Take the visual design to the next level. Only after core is stable.
 
-This phase is intentionally left vague — design decisions happen when core is solid.
-
-- [ ] Map redesign: richer lot cards, better occupancy color encoding
-- [ ] Parking confirmation sheet: polish candidate flow
-- [ ] Compass redesign: make the needle beautiful (the "Knight Needle" vision)
+- [ ] Map redesign: richer lot cards, better occupancy color encoding, color-coded markers (green/yellow/red)
+- [ ] Parking confirmation sheet: polish candidate flow, snap-to-spot with drag-to-adjust for GPS drift
+- [ ] Compass redesign: make the needle beautiful — "Knight Needle" vision (center red lance, haptic thud on lock-on)
 - [ ] Friends tab: richer friend cards with lot info, campus indicator
 - [ ] Profile: full settings, data export, account deletion flow
+- [ ] Auto-switch to compass mode when user is within 500 ft of parked lot (Virtual Grid "Find Flow")
+- [ ] Knight Mode theme: dark map style, retro 8-bit pixel needle, JetBrains Mono font, Pip-Boy vibe (vs default Campus Mode)
 
 **Exit criteria:** App looks beautiful. UX is delightful. Ship.
 
@@ -81,10 +81,22 @@ This phase is intentionally left vague — design decisions happen when core is 
 
 These are real ideas, just not for v1:
 
-- **Admin portal** (web): Occupancy dashboard, session monitoring, lot management
+- **Admin portal** (web): Occupancy dashboard, session monitoring, lot management — geofence editor with visual draw/edit of lot polygons, "Test Mode" to simulate entering/exiting geofences, user management (ban/unban)
 - **Google OAuth**: Add as a sign-in option alongside email/password
 - **Push notifications**: "Your lot is almost full" / "Your friend just parked nearby"
 - **Account deletion**: Full GDPR-compliant flow (export + delete data)
 - **All campuses by default**: Enable Newark, Camden, Piscataway in the main build
-- **Permit validation**: Cross-reference Rutgers Parking Services data for permit type
+- **Permit validation**: Cross-reference Rutgers Parking Services data for permit type (✅ started — onboarding + profile screen added in Feb 2026)
 - **Event integration**: Boost forecasts during football games, graduation, etc.
+- **Friend markers on map**: Show pins where friends are parked (currently friends-tab only)
+- **Common Commuter Spots database**: Pre-populate high-traffic Rutgers buildings (student centers, athletic facilities, lecture halls, admin buildings) for destination-based parking suggestions
+- **Navigation hand-off**: Deep-link to Google Maps / Apple Maps for turn-by-turn directions to a parking lot
+- **Heat map overlays**: Visualize per-lot density by zone (red = near-full sub-areas), updated in real-time from active sessions
+- **Virtual Grid — Park Flow**: Geofence triggers session, accelerometer detects driving→walking transition, app highlights 3 closest plausible spots for confirmation
+- **Bluetooth-assisted detection**: Use car Bluetooth disconnect as a parking confirmation signal
+- **ScarletSpots Premium** (post-launch, monetization):
+  - Ticket reporting system: report tickets with lot/time/date/agency
+  - Real-time enforcement alerts for users currently parked in flagged lots
+  - Enforcement analytics: identify lots and times with higher ticket activity
+  - Parking recommendations based on enforcement risk
+  - Subscription model (positioned as cheaper than a parking permit)

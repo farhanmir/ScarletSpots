@@ -80,15 +80,23 @@ Database (Supabase, 5 tables)
 - **Favorites**: Save/remove lots (lot_id references JSON mapId)
 - **Offline**: Map always loads (data is local). Session actions queue to OfflineQueue and replay on reconnect.
 - **Forecasting**: Heuristic model for launch, ML model once session data accumulates (2–4 weeks)
+- **Parking Permit**: Onboarding permit picker + profile settings row. Permit type stored in `profiles.permit_type`. Permit-aware lot filtering on map. Permit validity badge on LotDetails. Supports no-permit modes (commuter-all, custom chip filter).
 
 ### Out for v1 (documented as future)
 
-- Web admin frontend (completely removed — plan as v2 admin portal)
-- Friend location markers on map
-- Push notifications
+- Web admin frontend (completely removed — plan as v2 admin portal with geofence editor, live heatmap, user management)
+- Friend location markers on map (friends tab only for v1)
+- Push notifications ("lot almost full" / "friend parked nearby")
 - Google OAuth
 - Account deletion flow (placeholder in profile)
 - Notification preferences screen
+- Heat map overlays (per-zone density visualization)
+- Virtual Grid Park Flow (accelerometer-based spot suggestion)
+- Bluetooth-assisted parking detection
+- Common Commuter Spots database (pre-mapped Rutgers buildings for destination suggestions)
+- Navigation hand-off to Google Maps / Apple Maps
+- Knight Mode / Campus Mode theme toggle (retro dark skin vs default)
+- ScarletSpots Premium: ticket reporting + enforcement analytics (post-launch, monetization)
 
 ### Changed from original
 
@@ -100,6 +108,7 @@ Database (Supabase, 5 tables)
 | Lot data source | PostgreSQL database via API | Bundled JSON, zero API calls |
 | Realtime updates | Poll `parking_lots` table every 5 min | Push subscription on `lot_occupancy` table |
 | Geofencing | Loaded polygons from API | Loaded from bundled JSON |
+| Permit filtering | Not planned for v1 | Added — permit-aware lot filtering + onboarding picker |
 
 ---
 
