@@ -28,6 +28,7 @@ export default function PermissionsScreen() {
   // Check initial status on mount
   useEffect(() => {
     checkInitialStatus();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const checkInitialStatus = async () => {
@@ -102,7 +103,7 @@ export default function PermissionsScreen() {
               );
           }
       } else if (currentStep === 'notifications') {
-          const { status } = await Notifications.requestPermissionsAsync();
+          await Notifications.requestPermissionsAsync();
           // Always proceed after notifications, granted or not
           finish();
       }
@@ -228,7 +229,7 @@ export default function PermissionsScreen() {
 
           <Text style={styles.title}>Permission Denied</Text>
           <Text style={styles.subtitle}>
-             ScarletSpots can't function properly without this permission. Please enable it in settings.
+             ScarletSpots can&apos;t function properly without this permission. Please enable it in settings.
           </Text>
 
           <TouchableOpacity
@@ -248,7 +249,7 @@ export default function PermissionsScreen() {
             {loading ? (
               <ActivityIndicator color="#dc2626" />
             ) : (
-              <Text style={styles.secondaryButtonText}>I've Enabled It</Text>
+              <Text style={styles.secondaryButtonText}>I&apos;ve Enabled It</Text>
             )}
           </TouchableOpacity>
         </View>

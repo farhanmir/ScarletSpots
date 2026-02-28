@@ -25,7 +25,7 @@ def signup(request: Request, body: UserCreate):
         )
 
     admin_db = get_admin_supabase()
-    
+
     try:
         # Create user in Auth
         res = admin_db.auth.admin.create_user({
@@ -34,10 +34,10 @@ def signup(request: Request, body: UserCreate):
             "user_metadata": {"name": body.name},
             "email_confirm": True
         })
-        
-        # Profile creation is usually handled by a DB trigger in Supabase, 
+
+        # Profile creation is usually handled by a DB trigger in Supabase,
         # but if not, we can insert it here.
-        
+
         return SignupResponse(success=True, id=str(res.user.id), email=res.user.email)
     except Exception as exc:
         log.error("Signup failed: %s", exc)
@@ -114,17 +114,17 @@ def request_password_reset(request: Request, body: PasswordResetRequest):
 def update_location(body: ProfileUpdate, current_user=Depends(get_current_user)):
     """Update the authenticated user's coordinates."""
     user_id = current_user.id
-    
+
     # We only care about lat/lng here
     update_data = {}
     if body.latitude is not None:
         update_data["latitude"] = body.latitude
     if body.longitude is not None:
         update_data["longitude"] = body.longitude
-        
+
     if not update_data:
         raise HTTPException(status_code=400, detail="Latitude or longitude required")
-        
+
     try:
         # We use admin_db (service role) to bypass RLS for coordinates,
         # ensuring the mobile app's rapid background updates don't fail
@@ -138,9 +138,9 @@ def update_location(body: ProfileUpdate, current_user=Depends(get_current_user))
         if "column" in err_msg.lower() and ("latitude" in err_msg.lower() or "longitude" in err_msg.lower()):
             log.warning("Location update failed: columns missing in database. Run migration 20260306_add_profile_location.sql.")
             raise HTTPException(
-                status_code=501, 
+                status_code=501,
                 detail="Location tracking not yet enabled on server. Please contact administrator to run schema migrations."
             )
-        
+
         log.error("Failed to update location via admin_db: %s", exc)
         raise HTTPException(status_code=500, detail="Failed to update location")

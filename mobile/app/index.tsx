@@ -5,15 +5,13 @@ import { View, ActivityIndicator } from 'react-native';
 import * as Location from 'expo-location';
 
 export default function Index() {
-  const { session, loading: authLoading } = useAuth();
-  const [permissionStatus, setPermissionStatus] = useState<Location.PermissionStatus | null>(null);
+  const { loading: authLoading } = useAuth();
   const [checkingPerms, setCheckingPerms] = useState(true);
 
   useEffect(() => {
     (async () => {
       // Check if we already have permission without asking
-      const { status } = await Location.getForegroundPermissionsAsync();
-      setPermissionStatus(status);
+      await Location.getForegroundPermissionsAsync();
       setCheckingPerms(false);
     })();
   }, []);

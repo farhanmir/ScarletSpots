@@ -11,7 +11,7 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { supabase, publicApiCall } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { Stack, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { IconSymbol } from '@/components/ui/icon-symbol';

@@ -46,7 +46,7 @@ export default function SearchScreen() {
     const lowerQuery = query.toLowerCase();
     
     // 1. Filter Lots (from bundled JSON — instant, no network)
-    const lotResults: PlaceResult[] = lots
+    const lotResults: PlaceResult[] = STATIC_LOTS
       .filter(lot =>
         lot.name.toLowerCase().includes(lowerQuery) ||
         lot.campus.toLowerCase().includes(lowerQuery) ||
@@ -219,7 +219,7 @@ export default function SearchScreen() {
                 ) : (
                   <View style={styles.suggestionContainer}>
                     <Text style={styles.sectionTitle}>Suggestions</Text>
-                    {lots.slice(0, 5).map(lot => (
+                    {STATIC_LOTS.slice(0, 5).map(lot => (
                       <TouchableOpacity
                         key={lot.id}
                         style={styles.suggestionItem}

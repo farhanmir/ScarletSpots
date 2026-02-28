@@ -17,7 +17,6 @@ heuristic → ML happens automatically once a model file exists for a lot.
 """
 
 import datetime
-import os
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -121,7 +120,10 @@ class MLForecastProvider(ForecastProvider):
 
 
 def _label(rate: float) -> str:
-    if rate >= 85: return "full"
-    if rate >= 60: return "high"
-    if rate >= 25: return "medium"
+    if rate >= 85:
+        return "full"
+    if rate >= 60:
+        return "high"
+    if rate >= 25:
+        return "medium"
     return "low"

@@ -158,7 +158,7 @@ export default function FriendsScreen() {
             const lot = getLotById(item.lot_id);
             if (lot) {
               router.push({
-                pathname: '/(tabs)/',
+                pathname: '/(tabs)',
                 params: { selectedLotId: lot.id },
               });
             }
@@ -264,7 +264,7 @@ export default function FriendsScreen() {
           <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Add Friend</Text>
-            <Text style={styles.modalSubtitle}>Enter your friend's email address to send a request.</Text>
+            <Text style={styles.modalSubtitle}>Enter your friend&apos;s email address to send a request.</Text>
             
             <TextInput
               style={styles.input}

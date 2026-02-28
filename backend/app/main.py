@@ -28,7 +28,7 @@ async def lifespan(app: FastAPI):
     app.state.admin_supabase = clients["admin_supabase"]
     print("!!! BACKEND STARTING UP !!!", flush=True)
     yield
-    
+
     # Cleanup on shutdown
     await close_supabase_clients()
 

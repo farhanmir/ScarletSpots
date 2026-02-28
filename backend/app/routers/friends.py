@@ -1,8 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
-from typing import List, Optional
 from uuid import UUID
-from app.core.security import get_current_user, get_supabase, get_auth_db
+from app.core.security import get_current_user, get_auth_db
 from app.core.limiter import limiter
 from app.core.logger import get_logger
 
@@ -22,7 +21,7 @@ def get_friends(current_user=Depends(get_current_user), db=Depends(get_auth_db),
     user_id = current_user.id
     limit = max(1, min(limit, 200))
     offset = max(0, offset)
-    
+
     # Get all friendships for the user
     try:
         def _format_friend(db_client, friendship, profile):
@@ -61,20 +60,20 @@ def get_friends(current_user=Depends(get_current_user), db=Depends(get_auth_db),
 
         # 1. Incoming requests (status = pending, friend_id = me)
         incoming_query = db.table("friendships").select("id, status, user_id, profiles!friendships_user_id_fkey(id, email, full_name)", count="exact").eq("friend_id", user_id).eq("status", "pending").range(offset, offset + limit - 1).execute()
-        
+
         # 2. Accepted friends: we check both directions
         # Query A: Where I am the initiator
         q1 = db.table("friendships").select(
             "id, status, user_id, friend_id, sharing_enabled, "
             "friend:profiles!friendships_friend_id_fkey(id, email, full_name)", count="exact"
         ).eq("user_id", user_id).eq("status", "accepted").range(offset, offset + limit - 1).execute()
-        
+
         # Query B: Where I am the target
         q2 = db.table("friendships").select(
             "id, status, user_id, friend_id, sharing_enabled, "
             "initiator:profiles!friendships_user_id_fkey(id, email, full_name)", count="exact"
         ).eq("friend_id", user_id).eq("status", "accepted").range(offset, offset + limit - 1).execute()
-        
+
         requests = []
         for req in incoming_query.data:
             profile = req.get("profiles", {}) or {}
@@ -86,7 +85,7 @@ def get_friends(current_user=Depends(get_current_user), db=Depends(get_auth_db),
                 "status": "Incoming Request",
                 "avatar": None
             })
-            
+
         friends = []
         # Process Initiator Query
         for f in q1.data:
@@ -99,7 +98,7 @@ def get_friends(current_user=Depends(get_current_user), db=Depends(get_auth_db),
             friend_profile = f.get("initiator")
             if friend_profile:
                 friends.append(_format_friend(db, f, friend_profile))
-            
+
         # De-duplicate friends by friend_id
         seen_friend_ids = set()
         unique_friends = []
@@ -108,7 +107,7 @@ def get_friends(current_user=Depends(get_current_user), db=Depends(get_auth_db),
             if f_id not in seen_friend_ids:
                 seen_friend_ids.add(f_id)
                 unique_friends.append(friend)
-        
+
         friends = unique_friends
 
         return {
@@ -132,18 +131,18 @@ def send_friend_request(request: Request, body: FriendRequest, current_user=Depe
         friend_res = db.table("profiles").select("id").eq("email", body.friend_email).execute()
         if not friend_res.data:
             raise HTTPException(status_code=404, detail="User not found")
-            
+
         friend_id = friend_res.data[0]["id"]
-        
+
         if friend_id == current_user.id:
             raise HTTPException(status_code=400, detail="Cannot add yourself")
-            
+
         # Check if friendship already exists in either direction
         existing = db.table("friendships").select("id, status").or_(
             f"and(user_id.eq.{current_user.id},friend_id.eq.{friend_id}),"
             f"and(user_id.eq.{friend_id},friend_id.eq.{current_user.id})"
         ).execute()
-        
+
         if existing.data:
             status = existing.data[0].get("status")
             if status == "accepted":
@@ -176,10 +175,10 @@ def accept_friend_request(body: FriendAction, current_user=Depends(get_current_u
         req_res = db.table("friendships").select("*").eq("id", str(body.request_id)).eq("friend_id", current_user.id).execute()
         if not req_res.data:
             raise HTTPException(status_code=404, detail="Request not found")
-            
+
         # Update original request to accepted
         db.table("friendships").update({"status": "accepted"}).eq("id", str(body.request_id)).execute()
-        
+
         return {"success": True}
     except HTTPException:
         raise

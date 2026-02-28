@@ -16,17 +16,16 @@ import { IconSymbol } from './ui/icon-symbol';
 import { BlurView } from 'expo-blur';
 import { type RutgersLot } from '../data/lots';
 
+import { useQuery } from '@tanstack/react-query';
+import { publicApiCall } from '../lib/supabase';
+import { ForecastResponse, ForecastPoint } from './lots/types';
+import OccupancyBadge from './lots/OccupancyBadge';
+import ForecastSlices from './lots/ForecastSlices';
+import ForecastChart from './lots/ForecastChart';
+
 const { height } = Dimensions.get('window');
 
 type Lot = RutgersLot;
-
-interface User {
-  id: string;
-  email: string;
-  user_metadata?: {
-    full_name?: string;
-  };
-}
 
 interface LotDetailsProps {
   lot: Lot;
@@ -38,13 +37,6 @@ interface LotDetailsProps {
   isFavorite?: boolean;
   onToggleFavorite?: () => void;
 }
-
-import { useQuery } from '@tanstack/react-query';
-import { publicApiCall } from '../lib/supabase';
-import { ForecastResponse, ForecastPoint } from './lots/types';
-import OccupancyBadge from './lots/OccupancyBadge';
-import ForecastSlices from './lots/ForecastSlices';
-import ForecastChart from './lots/ForecastChart';
 
 export default function LotDetails({ lot, onClose, onPark, isParking, user, activeSession, isFavorite, onToggleFavorite }: LotDetailsProps) {
   // Track whether this component is still mounted so async callbacks never
@@ -95,6 +87,15 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, acti
       onClose();
     }
   }, [onClose]);
+
+  const renderActionText = () => {
+    if (!user) return 'Sign in to Park';
+    if (activeSession && activeSession.lotId === lot.id) return 'Parked Here';
+    if (activeSession) return 'End Current Session First';
+    if (lot.occupancyRate >= 100) return 'Lot Full';
+    if (isParking) return 'Confirming...';
+    return 'Park Here';
+  };
 
   const openDirections = () => {
     const scheme = Platform.select({ ios: 'maps:0,0?q=', android: 'geo:0,0?q=' });
@@ -217,7 +218,7 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, acti
                 >
                   <IconSymbol name="p.circle.fill" size={20} color="#fff" />
                   <Text style={styles.actionButtonText}>
-                    {isParking ? 'Starting...' : !user ? 'Login to Park' : 'Start Session'}
+                    {renderActionText()}
                   </Text>
                 </TouchableOpacity>
               )}

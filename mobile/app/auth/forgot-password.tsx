@@ -102,7 +102,7 @@ export default function ForgotPasswordScreen() {
                 A reset link was sent to{'\n'}<Text style={{ color: '#d4d4d8', fontWeight: '600' }}>{email.trim()}</Text>
               </Text>
               <Text style={[styles.cardText, { marginTop: 8 }]}>
-                Check your spam folder if you don't see it.
+                Check your spam folder if you don&apos;t see it.
               </Text>
 
               <TouchableOpacity
@@ -121,7 +121,7 @@ export default function ForgotPasswordScreen() {
           ) : (
             <>
               <Text style={styles.subtitle}>
-                Enter your Rutgers email and we'll send password reset instructions.
+                Enter your Rutgers email and we&apos;ll send password reset instructions.
               </Text>
               <TextInput
                 style={styles.input}

@@ -13,7 +13,7 @@
  * app release when needed.
  */
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+ 
 const RAW_DATA: RawLot[] = require('./rutgers_parking_data.json');
 
 // ── Raw JSON shape (as received from data source) ──────────────────────────
