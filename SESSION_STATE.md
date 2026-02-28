@@ -182,7 +182,7 @@ POST /users/password-reset     → trigger password reset email
 
 ---
 
-## Completed Work (Phases 1–3, Phase 5 partial)
+## Completed Work (Phases 1–3, Phase 5 partial, Permit Integration)
 
 ### Phase 1 — Architecture Pivot ✅
 - Bundled `rutgers_parking_data.json` into `mobile/data/`
@@ -212,11 +212,26 @@ POST /users/password-reset     → trigger password reset email
 - `mobile/eas.json` — development, preview, production EAS build profiles
 - `.github/workflows/ci.yml` — CI for backend, mobile TS check, migrations
 
+### Parking Permit Integration ✅ (Feb 28, 2026)
+- `permit_type` column added to `profiles` table (migration `20260315_add_permit_type.sql`)
+- `ALL_PERMIT_TYPES`, `getPermitLotIds`, `ALL_COMMUTER_LOT_IDS` added to `mobile/data/lots.ts`
+- `AuthProvider` extended with `permitType`, `noPermitMode`, `customLotFilter`, `setPermitPreference`
+- Onboarding permit picker screen (`mobile/app/onboarding/permit.tsx`) — grouped permit list, no-permit modes
+- Permit step wired into onboarding flow: permissions → permit → tabs
+- Parking Permit row added to Profile settings tab
+- Map applies permit-aware lot filtering (real permit, commuter-all, custom chip filter)
+- Permit validity badge on LotDetails sheet
+- Permit banner chip on map when no permit is configured
+- `permit_type` added to backend `ProfileBase` schema
+- `mobile/data/permit_mapping.json` — full Rutgers permit-to-lots mapping data
+
 ### Documentation
 - `README.md` — complete rewrite
-- `PLAN.md` — authoritative architecture contract
-- `ROADMAP.md` — phased roadmap
+- `PLAN.md` — authoritative architecture contract (updated with permit feature + full future backlog)
+- `ROADMAP.md` — phased roadmap (updated with recovered features from original plan)
 - `ARCHITECTURE.md` — technical deep-dive
+- `docs/archive/` — preserved copies of all old docs from git history
+- `docs/CHANGELOG_DOCS.md` — documentation history and feature recovery log
 
 ---
 
@@ -225,11 +240,13 @@ POST /users/password-reset     → trigger password reset email
 ### Phase 4 — UI/UX Upgrade (not started)
 This is intentionally deferred until core functionality is stable and tested.
 
-- [ ] Map: richer lot cards, better occupancy color encoding
-- [ ] Parking confirmation sheet: polish + animations
-- [ ] Compass: make the needle visually beautiful ("Knight Needle")
+- [ ] Map: richer lot cards, better occupancy color encoding, color-coded markers (green/yellow/red)
+- [ ] Parking confirmation sheet: polish + animations, snap-to-spot drag-adjust for GPS drift
+- [ ] Compass: make the needle visually beautiful ("Knight Needle" — center red lance, haptic lock-on)
+- [ ] Auto-switch to compass mode when within 500 ft of parked lot
 - [ ] Friends tab: richer friend cards with lot info, campus indicator
 - [ ] Profile: settings, data export, account deletion flow
+- [ ] Knight Mode / Campus Mode theme toggle (dark retro skin vs default)
 
 ### Phase 5 — Launch Readiness (remaining)
 - [ ] Load test: simulate 50k users at 3 calls/day peak (k6 or locust)
