@@ -146,14 +146,14 @@ export default function NavigateScreen() {
           });
         }
 
-        if (cancelled) { headingSub?.remove(); return; }
+        if (cancelled) { headingSub?.remove(); magnetometerSub?.remove(); return; }
 
         positionSub = await Location.watchPositionAsync(
           { accuracy: Location.Accuracy.High, timeInterval: 1000, distanceInterval: 3 },
           (loc) => { setLocation(loc); }
         );
 
-        if (cancelled) { positionSub.remove(); return; }
+        if (cancelled) { positionSub.remove(); magnetometerSub?.remove(); return; }
 
         if (!cancelled) setLoading(false);
       } catch (err) {
@@ -166,6 +166,7 @@ export default function NavigateScreen() {
       cancelled = true;
       headingSub?.remove();
       positionSub?.remove();
+      magnetometerSub?.remove();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- sensors should only restart on user change, not on every params/loadActiveSession change
   }, [user]);

@@ -2,6 +2,10 @@
   "name": "mobile",
   "main": "expo-router/entry",
   "version": "1.0.0",
+  "_compat": {
+    "newArchNote": "New Architecture (newArchEnabled) is intentionally disabled in app.json. The combination of Expo 54 + react-native-maps 1.20.1 + New Arch is a known-fragile profile on iOS physical devices. Re-enable only after validating a development build on a physical iPhone with react-native-maps rendering correctly at all zoom levels. Track upstream: https://github.com/react-native-maps/react-native-maps/issues",
+    "testedStableMatrix": "expo@54, react-native@0.81, react-native-maps@1.20.1, newArchEnabled: false"
+  },
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",

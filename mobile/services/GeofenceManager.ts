@@ -1,6 +1,7 @@
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AppState } from 'react-native';
 import { PARKING_DETECTION_TASK, stopSensorTracking } from './BackgroundTasks';
 
 export const GEOFENCE_TASK_NAME = 'SCARLETSPOTS_GEOFENCE_TASK';
@@ -17,41 +18,50 @@ interface LotGeoPoint {
  * When a user enters a geofence, intensive location/sensor tracking starts.
  */
 let isRegistering = false;
+/** Last lot set passed to registerLotGeofences — used by the retry listener. */
+let _lastLots: LotGeoPoint[] = [];
+
 export async function registerLotGeofences(lots: LotGeoPoint[]) {
   if (lots.length === 0) return;
   if (isRegistering) return;
   isRegistering = true;
+  _lastLots = lots;
 
-  // Check permissions first
+  // Single try/finally guarantees isRegistering is reset on every exit path,
+  // including permission-denied and permission-check-error early-outs.
   try {
-    const { status: bgStatus } = await Location.getBackgroundPermissionsAsync();
+    // Check permissions — fail fast but always release the lock via finally.
+    let bgStatus: string;
+    try {
+      const result = await Location.getBackgroundPermissionsAsync();
+      bgStatus = result.status;
+    } catch (err) {
+      console.warn('[GeofenceManager] Failed to check permissions:', err);
+      return; // lock released by outer finally
+    }
+
     if (bgStatus !== 'granted') {
       console.warn('[GeofenceManager] Background location permission not granted. Geofencing will not work.');
-      return;
+      return; // lock released by outer finally
     }
-  } catch (err) {
-    console.warn('[GeofenceManager] Failed to check permissions:', err);
-    return;
-  }
 
-  const regions = lots
-    .filter(lot => lot.latitude && lot.longitude)
-    .slice(0, 20) // iOS has a strict hard limit of 20 monitored regions per app
-    .map(lot => ({
-      identifier: String(lot.id),
-      latitude: Number(lot.latitude),
-      longitude: Number(lot.longitude),
-      radius: 500, // 500 meters radius to trigger "near lot" state
-      notifyOnEntry: true,
-      notifyOnExit: true,
-    }));
+    const regions = lots
+      .filter(lot => lot.latitude && lot.longitude)
+      .slice(0, 20) // iOS has a strict hard limit of 20 monitored regions per app
+      .map(lot => ({
+        identifier: String(lot.id),
+        latitude: Number(lot.latitude),
+        longitude: Number(lot.longitude),
+        radius: 500, // 500 meters radius to trigger "near lot" state
+        notifyOnEntry: true,
+        notifyOnExit: true,
+      }));
 
-  try {
     const isRegistered = await Location.hasStartedGeofencingAsync(GEOFENCE_TASK_NAME);
     if (isRegistered) {
       await Location.stopGeofencingAsync(GEOFENCE_TASK_NAME);
     }
-    
+
     await Location.startGeofencingAsync(GEOFENCE_TASK_NAME, regions);
     console.log(`[GeofenceManager] Registered ${regions.length} regions.`);
   } catch (err) {
@@ -60,6 +70,20 @@ export async function registerLotGeofences(lots: LotGeoPoint[]) {
     isRegistering = false;
   }
 }
+
+/**
+ * Re-attempt geofence registration when the app returns to the foreground.
+ * This handles the common case where the user navigates to iOS Settings,
+ * grants background location, then returns — the lock is now clear and
+ * registration will succeed on the next foreground transition.
+ */
+AppState.addEventListener('change', (nextState) => {
+  if (nextState === 'active' && _lastLots.length > 0) {
+    registerLotGeofences(_lastLots).catch(err =>
+      console.warn('[GeofenceManager] Foreground retry failed:', err)
+    );
+  }
+});
 
 TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }: any) => {
   if (error) {

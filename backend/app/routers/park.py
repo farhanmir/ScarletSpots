@@ -88,7 +88,12 @@ def start_parking_session(
     current_user=Depends(get_current_user),
     db=Depends(get_auth_db),
 ):
-    """Start a new parking session and atomically increment lot occupancy."""
+    """Start a new parking session and atomically increment lot occupancy.
+
+    Uses start_parking_session_atomic RPC so the session INSERT and the
+    lot_occupancy upsert live in a single database transaction — partial
+    failures cannot leave counts inconsistent.
+    """
     user_id = current_user.id
 
     if not body.lotId or not body.lotId.strip():
@@ -96,81 +101,80 @@ def start_parking_session(
 
     lot_id = body.lotId.strip()
 
-    # If user already has an active session, end it first
+    # If user already has an active session, end it first (DB unique index is
+    # the hard safety net; this makes the UX seamless).
     existing = get_active_session(current_user=current_user, db=db)
     if existing.get("session"):
-        end_parking_session(current_user=current_user, db=db)
+        end_parking_session(current_user=current_user)
 
-    new_count: Optional[int] = None
     try:
         admin_db = get_admin_supabase()
         rpc_res = admin_db.rpc(
-            "increment_lot_occupancy", {"p_lot_id": lot_id}
-        ).execute()
-        if rpc_res.data:
-            new_count = rpc_res.data if isinstance(rpc_res.data, int) else None
-    except Exception as e:
-        log.warning("Failed to increment lot occupancy for %s: %s", lot_id, e)
-
-    try:
-        session_data = {
-            "user_id": user_id,
-            "lot_id": lot_id,
-            "spot_number": body.spotNumber,
-            "latitude": body.latitude,
-            "longitude": body.longitude,
-            "active": True,
-            "start_time": datetime.now(timezone.utc).isoformat(),
-        }
-        res = db.table("parking_sessions").insert(session_data).execute()
-        new_session = res.data[0]
-
-        return {
-            "success": True,
-            "confirmedOccupancy": new_count,
-            "session": {
-                "id": str(new_session["id"]),
-                "lotId": str(new_session["lot_id"]),
-                "spotNumber": new_session.get("spot_number", ""),
-                "startTime": new_session.get("start_time") or new_session.get("created_at"),
-                "active": True,
+            "start_parking_session_atomic",
+            {
+                "p_user_id": str(user_id),
+                "p_lot_id": lot_id,
+                "p_spot_number": body.spotNumber,
+                "p_latitude": body.latitude,
+                "p_longitude": body.longitude,
             },
-        }
+        ).execute()
     except Exception as exc:
-        log.error("Failed to start parking session: %s", exc)
+        log.error(
+            "Atomic start session RPC failed for user %s lot %s: %s",
+            user_id,
+            lot_id,
+            exc,
+        )
         raise HTTPException(status_code=500, detail="Failed to start parking session")
+
+    if not rpc_res.data:
+        log.error(
+            "start_parking_session_atomic returned no data for user %s lot %s",
+            user_id,
+            lot_id,
+        )
+        raise HTTPException(status_code=500, detail="Failed to start parking session")
+
+    new_session = rpc_res.data[0]
+    return {
+        "success": True,
+        "session": {
+            "id": str(new_session["id"]),
+            "lotId": str(new_session["lot_id"]),
+            "spotNumber": new_session.get("spot_number", ""),
+            "startTime": new_session.get("start_time") or new_session.get("created_at"),
+            "active": True,
+        },
+    }
 
 
 @router.post("/end")
-def end_parking_session(current_user=Depends(get_current_user), db=Depends(get_auth_db)):
-    """End the active parking session and atomically decrement lot occupancy."""
+def end_parking_session(current_user=Depends(get_current_user)):
+    """End the active parking session and atomically decrement lot occupancy.
+
+    Uses end_parking_session_atomic RPC so the session UPDATE and the
+    lot_occupancy decrement live in a single transaction.  If the user
+    somehow ended up with multiple active sessions (data inconsistency
+    predating the unique index), all are closed and their lots decremented.
+    Errors in the occupancy step are no longer swallowed — the whole call
+    fails so the client knows to retry.
+    """
     user_id = current_user.id
 
     try:
-        active_res = (
-            db.table("parking_sessions")
-            .select("id, lot_id")
-            .eq("user_id", user_id)
-            .eq("active", True)
-            .execute()
-        )
-
-        db.table("parking_sessions").update(
-            {"active": False, "end_time": datetime.now(timezone.utc).isoformat()}
-        ).eq("user_id", user_id).eq("active", True).execute()
-
-        if active_res.data:
-            lot_id = active_res.data[0]["lot_id"]
-            try:
-                admin_db = get_admin_supabase()
-                admin_db.rpc("decrement_lot_occupancy", {"p_lot_id": lot_id}).execute()
-            except Exception as e:
-                log.warning("Failed to decrement lot occupancy for %s: %s", lot_id, e)
-
-        return {"success": True}
+        admin_db = get_admin_supabase()
+        rpc_res = admin_db.rpc(
+            "end_parking_session_atomic",
+            {"p_user_id": str(user_id)},
+        ).execute()
     except Exception as exc:
-        log.error("Failed to end parking session: %s", exc)
+        log.error("Atomic end session RPC failed for user %s: %s", user_id, exc)
         raise HTTPException(status_code=500, detail="Failed to end parking session")
+
+    ended_count = rpc_res.data if isinstance(rpc_res.data, int) else 0
+    log.info("Ended %d active session(s) for user %s", ended_count, user_id)
+    return {"success": True}
 
 
 @router.post("/feedback")

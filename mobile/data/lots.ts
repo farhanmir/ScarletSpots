@@ -102,6 +102,14 @@ export interface RutgersLot {
    */
   coordinates: [number, number][];
 
+  /**
+   * Downsampled polygon boundary for low-detail map rendering.
+   * Contains every 3rd point of `coordinates` (minimum 3 retained so the
+   * polygon remains valid).  Use for non-selected lots at lot zoom to reduce
+   * the overlay vertex budget on iOS.
+   */
+  simplifiedCoordinates: [number, number][];
+
   // ── Dynamic fields populated at runtime from lot_occupancy table ──────────
   /** Number of active parking sessions at this lot right now. */
   occupiedCount: number;
@@ -124,6 +132,28 @@ export const NB_CAMPUS_NAMES = [
   'Health - Piscataway',
   'Health - New Brunswick',
 ];
+
+// ── Polygon simplification ────────────────────────────────────────────────
+
+/**
+ * Returns a downsampled copy of `ring` by keeping every `step`-th point.
+ * Always retains the first and last point so the ring stays closed.
+ * Guarantees at least 3 points for a valid polygon; returns the original
+ * array when it is already too small to benefit from simplification.
+ */
+function simplifyRing(
+  ring: [number, number][],
+  step = 3,
+): [number, number][] {
+  if (ring.length <= step * 2) return ring;
+  const result: [number, number][] = [];
+  for (let i = 0; i < ring.length; i++) {
+    if (i === 0 || i === ring.length - 1 || i % step === 0) {
+      result.push(ring[i]);
+    }
+  }
+  return result.length >= 3 ? result : ring;
+}
 
 // ── Internal converter ─────────────────────────────────────────────────────
 
@@ -173,6 +203,7 @@ function rawToLot(raw: RawLot): RutgersLot {
     note: raw.note ?? '',
     photos: raw.photos ?? [],
     coordinates,
+    simplifiedCoordinates: simplifyRing(coordinates),
     occupiedCount: 0,
     occupancyRate: 0,
   };

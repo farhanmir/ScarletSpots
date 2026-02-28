@@ -88,6 +88,13 @@ export default function MapScreen() {
   const [isOnline, setIsOnline] = useState(true);
   const [lotTypeFilter, setLotTypeFilter] = useState<'student' | 'employee' | 'gated' | 'ev' | null>(null);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
+  // Tracks the last completed map region — drives viewport-culled rendering.
+  const [visibleRegion, setVisibleRegion] = useState<{
+    latitude: number;
+    longitude: number;
+    latitudeDelta: number;
+    longitudeDelta: number;
+  } | null>(null);
 
   const isFocused = useIsFocused();
 
@@ -250,6 +257,27 @@ export default function MapScreen() {
       }
     });
   }, [lots, lotTypeFilter, permitType, noPermitMode, customLotFilter]);
+
+  // ── Derived: visibleLots (viewport-filtered for lot zoom) ────────────────────
+  // Only lots whose centre coordinate falls within the visible map region
+  // (plus a 50 % padding buffer) are passed to the renderer.  At typical
+  // lot-zoom the viewport covers ~5-15 lots instead of the full 193+.
+
+  const visibleLots = React.useMemo(() => {
+    if (zoomLevel !== 'lot' || !visibleRegion) return displayedLots;
+    const pad = 0.5;
+    const halfLat = visibleRegion.latitudeDelta * (0.5 + pad);
+    const halfLng = visibleRegion.longitudeDelta * (0.5 + pad);
+    const minLat = visibleRegion.latitude - halfLat;
+    const maxLat = visibleRegion.latitude + halfLat;
+    const minLng = visibleRegion.longitude - halfLng;
+    const maxLng = visibleRegion.longitude + halfLng;
+    return displayedLots.filter(
+      lot =>
+        lot.latitude  >= minLat && lot.latitude  <= maxLat &&
+        lot.longitude >= minLng && lot.longitude <= maxLng,
+    );
+  }, [displayedLots, visibleRegion, zoomLevel]);
 
   // ── Clusters ───────────────────────────────────────────────────────────
 
@@ -673,6 +701,7 @@ export default function MapScreen() {
         initialRegion={{ latitude: 40.5008, longitude: -74.4474, latitudeDelta: 0.0922, longitudeDelta: 0.0421 }}
         onRegionChangeComplete={(region) => {
           regionRef.current = region;
+          setVisibleRegion(region);
           let newZoom: ZoomLevel = 'hidden';
           if (region.latitudeDelta < 0.05) newZoom = 'lot';
           else if (region.latitudeDelta < 0.6) newZoom = 'campus';
@@ -684,12 +713,15 @@ export default function MapScreen() {
         }}
       >
         {/* Lot polygons + markers at zoom level 'lot' */}
-        {zoomLevel === 'lot' && displayedLots.map((lot) => {
+        {zoomLevel === 'lot' && visibleLots.map((lot) => {
           const isSelected = selectedLot?.id === lot.id;
           const isFavorite = favorites.includes(lot.id);
           const colors = getOccupancyColor(lot.occupancyRate);
 
-          const polygonCoords = lot.coordinates
+          // Full coordinates for the selected lot; simplified for all others
+          // to reduce the polygon vertex budget on iOS at lot zoom.
+          const rawCoords = isSelected ? lot.coordinates : lot.simplifiedCoordinates;
+          const polygonCoords = rawCoords
             .map(([lat, lng]) => ({ latitude: lat, longitude: lng }))
             .filter(c => !Number.isNaN(c.latitude) && !Number.isNaN(c.longitude));
 

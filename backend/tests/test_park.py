@@ -1,5 +1,11 @@
 """
 Tests for the parking session lifecycle.
+
+Coverage:
+  - Auth-guard checks (no token → 4xx)
+  - Happy-path start → active → end lifecycle
+  - Partial-failure: atomic RPC raises → 500, no dangling session
+  - Concurrent-start: second start while one is active is handled gracefully
 """
 
 from app.main import app
@@ -38,8 +44,10 @@ def test_parking_session_lifecycle():
     via mocked Supabase client.
 
     park.py now uses:
-      - get_auth_db (FastAPI Depends) for parking_sessions table operations
-      - get_admin_supabase (direct call) for atomic RPC occupancy updates
+      - get_auth_db (FastAPI Depends) for get_active_session reads
+      - get_admin_supabase (direct call) for start_parking_session_atomic and
+        end_parking_session_atomic RPCs that mutate parking_sessions and
+        lot_occupancy together in one transaction.
       - get_current_user (FastAPI Depends) for the authenticated user
 
     We override the Depends injections via app.dependency_overrides and patch
@@ -52,31 +60,44 @@ def test_parking_session_lifecycle():
     mock_user = MagicMock()
     mock_user.id = "test-user-id"
 
-    # ── Mock auth DB (session table operations) ────────────────────────────────
+    # ── Mock auth DB (only select reads — active-session check) ───────────────
     mock_db = MagicMock()
 
     # GET /active — no active session initially
-    mock_db.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.return_value.data = (
+    mock_db.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = (
         []
     )
 
-    # POST /park/session — INSERT returns the new session row
-    mock_db.table.return_value.insert.return_value.execute.return_value.data = [
+    # ── Mock admin DB (atomic RPC calls) ───────────────────────────────────────
+    mock_admin_db = MagicMock()
+
+    # start_parking_session_atomic → returns the new session row
+    start_rpc_data = [
         {
             "id": "session-1",
             "lot_id": "a0000000-0000-0000-0000-000000000001",
+            "user_id": "test-user-id",
             "spot_number": "42",
             "active": True,
             "start_time": "2026-02-26T00:00:00+00:00",
+            "latitude": None,
+            "longitude": None,
         }
     ]
+    # end_parking_session_atomic → returns count of sessions ended (integer)
+    end_rpc_data = 1
 
-    # ── Mock admin DB (RPC occupancy calls) ────────────────────────────────────
-    mock_admin_db = MagicMock()
-    # increment_lot_occupancy → returns [{current_occupancy: 1, capacity: 50}]
-    mock_admin_db.rpc.return_value.execute.return_value.data = [
-        {"current_occupancy": 1, "capacity": 50}
-    ]
+    def _rpc_side_effect(fn_name, params):
+        mock_call = MagicMock()
+        if fn_name == "start_parking_session_atomic":
+            mock_call.execute.return_value.data = start_rpc_data
+        elif fn_name == "end_parking_session_atomic":
+            mock_call.execute.return_value.data = end_rpc_data
+        else:
+            mock_call.execute.return_value.data = None
+        return mock_call
+
+    mock_admin_db.rpc.side_effect = _rpc_side_effect
 
     # ── Override FastAPI dependencies ──────────────────────────────────────────
     app.dependency_overrides[get_current_user] = lambda: mock_user
@@ -97,12 +118,146 @@ def test_parking_session_lifecycle():
             assert data["success"] is True
             assert data["session"]["id"] == "session-1"
 
-            # Verify RPC called for occupancy increment
-            mock_admin_db.rpc.assert_called_once_with(
-                "increment_lot_occupancy",
-                {"p_lot_id": "a0000000-0000-0000-0000-000000000001"},
+            # Verify atomic start RPC was called (not the old split RPCs)
+            start_call_args = mock_admin_db.rpc.call_args_list[0]
+            assert start_call_args[0][0] == "start_parking_session_atomic"
+            assert (
+                start_call_args[0][1]["p_lot_id"]
+                == "a0000000-0000-0000-0000-000000000001"
             )
+
+            # End the session
+            resp_end = client.post("/api/v1/park/session/end")
+            assert resp_end.status_code == 200, resp_end.text
+            assert resp_end.json()["success"] is True
+
+            # Verify atomic end RPC was called
+            end_call_args = mock_admin_db.rpc.call_args_list[-1]
+            assert end_call_args[0][0] == "end_parking_session_atomic"
+            assert end_call_args[0][1]["p_user_id"] == "test-user-id"
     finally:
         # Always clean up dependency overrides
+        app.dependency_overrides.pop(get_current_user, None)
+        app.dependency_overrides.pop(get_auth_db, None)
+
+
+def test_start_session_atomic_rpc_failure():
+    """When start_parking_session_atomic raises, a 500 is returned.
+
+    Previously the code swallowed occupancy errors, inserted the session
+    anyway, and returned success — leaving occupancy counts drifted.
+    Now the single atomic RPC either succeeds entirely or the endpoint fails.
+    """
+    from unittest.mock import MagicMock, patch
+
+    from app.core.security import get_auth_db, get_current_user
+
+    mock_user = MagicMock()
+    mock_user.id = "test-user-id"
+
+    mock_db = MagicMock()
+    # No existing active session
+    mock_db.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = (
+        []
+    )
+
+    mock_admin_db = MagicMock()
+    # Simulate a database / network error inside the atomic RPC
+    mock_admin_db.rpc.side_effect = Exception("DB connection lost")
+
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+    app.dependency_overrides[get_auth_db] = lambda: mock_db
+
+    try:
+        with patch("app.routers.park.get_admin_supabase", return_value=mock_admin_db):
+            resp = client.post(
+                "/api/v1/park/session",
+                json={"lotId": "10001", "spotNumber": "99"},
+            )
+            # Must fail — not silently succeed with a drifted occupancy count
+            assert resp.status_code == 500, resp.text
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+        app.dependency_overrides.pop(get_auth_db, None)
+
+
+def test_concurrent_start_ends_previous_session_then_starts_new():
+    """When a user starts a second session while one is already active, the
+    previous session is atomically ended before the new one is created.
+
+    This exercises the guard path in start_parking_session that calls
+    end_parking_session_atomic when an existing session is found.
+    """
+    from unittest.mock import MagicMock, call, patch
+
+    from app.core.security import get_auth_db, get_current_user
+
+    mock_user = MagicMock()
+    mock_user.id = "test-user-id"
+
+    mock_db = MagicMock()
+    # Simulate an already-active session for this user
+    mock_db.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = [
+        {
+            "id": "old-session",
+            "lot_id": "10001",
+            "spot_number": "1",
+            "active": True,
+            "start_time": "2026-02-26T00:00:00+00:00",
+            "latitude": None,
+            "longitude": None,
+        }
+    ]
+
+    mock_admin_db = MagicMock()
+    new_session_row = [
+        {
+            "id": "new-session",
+            "lot_id": "10002",
+            "user_id": "test-user-id",
+            "spot_number": "2",
+            "active": True,
+            "start_time": "2026-02-26T01:00:00+00:00",
+            "latitude": None,
+            "longitude": None,
+        }
+    ]
+
+    def _rpc_side_effect(fn_name, params):
+        mock_call = MagicMock()
+        if fn_name == "start_parking_session_atomic":
+            mock_call.execute.return_value.data = new_session_row
+        elif fn_name == "end_parking_session_atomic":
+            mock_call.execute.return_value.data = 1
+        else:
+            mock_call.execute.return_value.data = None
+        return mock_call
+
+    mock_admin_db.rpc.side_effect = _rpc_side_effect
+
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+    app.dependency_overrides[get_auth_db] = lambda: mock_db
+
+    try:
+        with patch("app.routers.park.get_admin_supabase", return_value=mock_admin_db):
+            resp = client.post(
+                "/api/v1/park/session",
+                json={"lotId": "10002", "spotNumber": "2"},
+            )
+            assert resp.status_code == 200, resp.text
+            data = resp.json()
+            assert data["success"] is True
+            assert data["session"]["id"] == "new-session"
+
+            # end_parking_session_atomic must have been called first to close
+            # the pre-existing session, then start_parking_session_atomic.
+            rpc_calls = [c[0][0] for c in mock_admin_db.rpc.call_args_list]
+            assert (
+                rpc_calls[0] == "end_parking_session_atomic"
+            ), "Expected end_parking_session_atomic to be called first"
+            assert (
+                rpc_calls[1] == "start_parking_session_atomic"
+            ), "Expected start_parking_session_atomic to be called second"
+    finally:
         app.dependency_overrides.pop(get_current_user, None)
         app.dependency_overrides.pop(get_auth_db, None)
