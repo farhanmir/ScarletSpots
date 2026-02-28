@@ -13,24 +13,30 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { authApiCall } from '@/lib/supabase';
 import { useFocusEffect } from '@react-navigation/native';
 import { getLotById, type RutgersLot } from '@/data/lots';
+import { fetchWithOfflineFallback, cacheFavorites } from '../../services/OfflineCache';
 
 export default function ProfileScreen() {
   const { session, user, loading, signOut } = useAuth();
   const router = useRouter();
   const [favorites, setFavorites] = useState<RutgersLot[]>([]);
-  const lastFetchRef = React.useRef(0);
 
   const fetchFavorites = React.useCallback(async () => {
     if (!session) return;
     try {
-      const data = await authApiCall('/favorites');
-      if (data?.favorite_lots) {
-        // Backend returns {lot_id} objects; look up full details from bundled JSON
-        const lots = (data.favorite_lots as { lot_id: string }[])
-          .map((item) => getLotById(item.lot_id))
-          .filter((lot): lot is RutgersLot => lot !== undefined);
-        setFavorites(lots);
-      }
+      const { data: ids } = await fetchWithOfflineFallback(
+        async () => {
+          const resp = await authApiCall('/favorites');
+          const lotIds = (resp?.favorite_lots as { lot_id: string }[]).map((item) => item.lot_id);
+          await cacheFavorites(lotIds);
+          return lotIds;
+        },
+        'favorites_cache',
+        1000 * 60 * 5, // 5-minute staleness threshold
+      );
+      const lots = ids
+        .map((id: string) => getLotById(id))
+        .filter((lot): lot is RutgersLot => lot !== undefined);
+      setFavorites(lots);
     } catch (e) {
       console.error('Failed to fetch favorites:', e);
     }
@@ -38,12 +44,7 @@ export default function ProfileScreen() {
 
   useFocusEffect(
     React.useCallback(() => {
-      const now = Date.now();
-      // Only refresh if data is older than 5 minutes (favorites change rarely)
-      if (session && now - lastFetchRef.current > 300000) {
-        fetchFavorites();
-        lastFetchRef.current = now;
-      }
+      if (session) fetchFavorites();
     }, [session, fetchFavorites])
   );
 
