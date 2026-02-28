@@ -17,12 +17,10 @@ export default function ProfileScreen() {
   const { session, user, loading, signOut } = useAuth();
   const router = useRouter();
   const [favorites, setFavorites] = useState<any[]>([]);
-  const [fetchingFavorites, setFetchingFavorites] = useState(false);
   const lastFetchRef = React.useRef(0);
 
-  const fetchFavorites = async () => {
+  const fetchFavorites = React.useCallback(async () => {
     if (!session) return;
-    setFetchingFavorites(true);
     try {
       const data = await authApiCall('/favorites');
       if (data?.favorite_lots) {
@@ -30,10 +28,8 @@ export default function ProfileScreen() {
       }
     } catch (e) {
       console.error('Failed to fetch favorites:', e);
-    } finally {
-      setFetchingFavorites(false);
     }
-  };
+  }, [session]);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -43,7 +39,7 @@ export default function ProfileScreen() {
         fetchFavorites();
         lastFetchRef.current = now;
       }
-    }, [session])
+    }, [session, fetchFavorites])
   );
 
   if (!loading && !session) {

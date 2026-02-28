@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Dimensions, Animated } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Animated } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import * as Location from 'expo-location';
@@ -10,7 +10,6 @@ import { useAuth } from '@/context/AuthProvider';
 import { useFocusEffect } from '@react-navigation/native';
 import { getLotById, type RutgersLot } from '../../data/lots';
 
-const { width } = Dimensions.get('window');
 
 // ── Math Helpers ────────────────────────────────────────────────────────────
 
@@ -131,33 +130,12 @@ export default function NavigateScreen() {
 
   // ── 2. Refresh on focus ────────────────────────────────────────────────
 
-  useFocusEffect(
-    React.useCallback(() => {
-      const now = Date.now();
-      if (user && now - lastFetchRef.current > 60000) {
-        loadActiveSession();
-        lastFetchRef.current = now;
-      }
-    }, [user])
-  );
-
-  // ── 3. Handle incoming params (e.g. from search tab) ──────────────────
-
-  useEffect(() => {
-    if (params.selectedLotId) {
-      const lot = getLotById(params.selectedLotId as string);
-      if (lot) setTargetLot(lot);
-    }
-  }, [params.selectedLotId]);
-
-  // ── 4. Fetch active session ───────────────────────────────────────────
-
-  const loadActiveSession = async () => {
+  const loadActiveSession = React.useCallback(async () => {
     try {
       const data = await authApiCall('/park/session/active');
       if (data?.session) {
         setActiveSession(data.session);
-        // Look up the lot from the bundled JSON — no extra API call needed
+        // Look up the lot from the bundled JSON no extra API call needed
         if (!params.selectedLotId) {
           const lot = getLotById(data.session.lotId);
           if (lot) setTargetLot(lot);
@@ -168,7 +146,25 @@ export default function NavigateScreen() {
     } catch (e) {
       console.warn('[Navigate] Failed to load session:', e);
     }
-  };
+  }, [params.selectedLotId]);
+  useFocusEffect(
+    React.useCallback(() => {
+      const now = Date.now();
+      if (user && now - lastFetchRef.current > 60000) {
+        loadActiveSession();
+        lastFetchRef.current = now;
+      }
+    }, [user, loadActiveSession])
+  );
+
+  // ── 3. Handle incoming params (e.g. from search tab) ──────────────────
+
+  useEffect(() => {
+    if (params.selectedLotId) {
+      const lot = getLotById(params.selectedLotId as string);
+      if (lot) setTargetLot(lot);
+    }
+  }, [params.selectedLotId]);
 
   // ── 5. Target Resolution ──────────────────────────────────────────────
 
@@ -212,7 +208,7 @@ export default function NavigateScreen() {
     );
     bearingRef.current = b;
     rotationValue.setValue(b - lastHeadingRef.current);
-  }, [location, activeTarget]);
+  }, [location, activeTarget, rotationValue]);
 
   // ── 7. Format helpers ─────────────────────────────────────────────────
 

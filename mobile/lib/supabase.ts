@@ -1,8 +1,11 @@
 import { supabase, supabaseAnonKey } from './supabase-client';
-export { supabase, supabaseAnonKey };
 
 // API Helpers derived from base
 import { fetchBackend, safeJson } from './api-base';
+
+import NetInfo from '@react-native-community/netinfo';
+import { queueParkAction } from '../services/OfflineQueue';
+export { supabase, supabaseAnonKey };
 
 /**
  * Public API call - uses the anon key, no user session required.
@@ -28,9 +31,6 @@ export async function publicApiCall(endpoint: string, options: RequestInit = {})
 
   return data;
 }
-
-import NetInfo from '@react-native-community/netinfo';
-import { queueParkAction } from '../services/OfflineQueue';
 
 /**
  * Authenticated API call - requires a valid user session.

@@ -6,10 +6,7 @@ import 'react-native-reanimated';
 import { useEffect } from 'react';
 import { QueryClient } from '@tanstack/react-query';
 import '../services/BackgroundTasks'; // Register background tasks globally
-import '../services/GeofenceManager'; // Register geofence tasks globally
-
-// Global Error Boundary
-export { ErrorBoundary } from 'expo-router';
+import '../services/GeofenceManager';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AuthProvider, useAuth } from '@/context/AuthProvider';
@@ -19,6 +16,13 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import OfflineBanner from '@/components/ui/OfflineBanner';
+import { initOfflineQueue, teardownOfflineQueue } from '../services/OfflineQueue';
+import { installGlobalCrashHandlers } from '@/services/CrashLogger'; // Register geofence tasks globally
+
+// Global Error Boundary
+export { ErrorBoundary } from 'expo-router';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -62,7 +66,7 @@ function InitialLayout() {
       // Redirect to app if signed in and trying to access login
       router.replace('/(tabs)');
     }
-  }, [session, loading, segments]);
+  }, [session, loading, segments, router]);
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
@@ -77,10 +81,6 @@ function InitialLayout() {
     </ThemeProvider>
   );
 }
-
-import OfflineBanner from '@/components/ui/OfflineBanner';
-import { initOfflineQueue, teardownOfflineQueue } from '../services/OfflineQueue';
-import { installGlobalCrashHandlers } from '@/services/CrashLogger';
 
 function ConfigErrorScreen() {
   return (

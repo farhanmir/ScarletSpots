@@ -22,7 +22,6 @@ Target: occupancy_ratio (0.0–1.0) at session start time.
 Training cadence: run once per week (or cron'd via CI) after data accumulates.
 """
 
-import os
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -45,7 +44,6 @@ def train():
         sys.exit(1)
 
     from app.core.security import get_supabase
-    from app.core.config import settings
 
     print("Connecting to Supabase...")
     db = get_supabase()
@@ -88,10 +86,7 @@ def train():
                 pass
 
     # Fetch current occupancy per lot to compute target ratio
-    occ_res = db.table("lot_occupancy").select("lot_id, count").execute()
-    occupancy_map: dict[str, int] = {
-        row["lot_id"]: row["count"] for row in (occ_res.data or [])
-    }
+    db.table("lot_occupancy").select("lot_id, count").execute()
 
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
 

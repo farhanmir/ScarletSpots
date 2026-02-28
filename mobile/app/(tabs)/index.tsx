@@ -353,9 +353,9 @@ export default function MapScreen() {
 
   // ── Close Lot Sheet ────────────────────────────────────────────────────
 
-  const clearRouteSelectionParams = () => {
+  const clearRouteSelectionParams = useCallback(() => {
     router.setParams({ selectedLotId: undefined, placeLat: undefined, placeLng: undefined, placeName: undefined });
-  };
+  }, [router]);
 
   const closeLotDetails = useCallback(() => {
     if (lotCooldownRef.current || !selectedLotId) return;
@@ -367,7 +367,7 @@ export default function MapScreen() {
       savedRegionRef.current = null;
     }
     clearRouteSelectionParams();
-  }, [selectedLotId]);
+  }, [selectedLotId, clearRouteSelectionParams]);
 
   // ── Optimistic Occupancy ───────────────────────────────────────────────
 
@@ -493,8 +493,8 @@ export default function MapScreen() {
         queryClient.setQueryData(['session', 'active'], { session: null });
         clearCachedSession().catch(() => {});
       }
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to end session');
+    } catch {
+      Alert.alert('Error', 'Failed to end session');
     } finally {
       setLoading(false);
     }
