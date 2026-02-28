@@ -68,6 +68,14 @@ ScarletSpots/
 
 ---
 
+## Security Note
+
+> **Action recommended**: The Supabase **anon key** was accidentally committed in a previous commit (`TEAM_ENV_ALL_KEYS.env`, added Feb 14, deleted Feb 27). The file is gone from the working tree but exists in git history. The **service role key was NOT exposed**. The anon key is a public-facing JWT protected by RLS, but you should rotate it in the Supabase dashboard as a precaution:  
+> Settings → API → `anon` key → Regenerate  
+> Then update `backend/.env`, `mobile/.env`, and any deployed environments.
+
+---
+
 ## Supabase Project
 
 | Key | Value |
