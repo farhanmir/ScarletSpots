@@ -169,7 +169,10 @@ export default function MapScreen() {
       )
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      channel.unsubscribe();
+      supabase.removeChannel(channel);
+    };
   }, [isFocused, queryClient]);
 
   // ── Geofence Registration ──────────────────────────────────────────────

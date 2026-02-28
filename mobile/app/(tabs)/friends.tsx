@@ -55,6 +55,8 @@ export default function FriendsScreen() {
       .subscribe();
 
     return () => {
+      outbound.unsubscribe();
+      inbound.unsubscribe();
       supabase.removeChannel(outbound);
       supabase.removeChannel(inbound);
     };

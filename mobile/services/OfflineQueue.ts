@@ -57,6 +57,7 @@ function notifyListeners(count: number) {
 // ── Network Subscription ───────────────────────────────────────────────────────
 
 let netInfoUnsubscribe: NetInfoSubscription | null = null;
+let isFlushing = false;
 
 /**
  * Call once (e.g. in app _layout or AuthProvider) to register the
@@ -147,6 +148,9 @@ export async function queueParkAction(
  * - Actions that have failed ≥ 5 times are dropped to avoid stale data.
  */
 export async function flushQueue(): Promise<{ flushed: number; failed: number }> {
+  if (isFlushing) return { flushed: 0, failed: 0 };
+  isFlushing = true;
+  try {
   const queue = await readQueue();
   if (queue.length === 0) return { flushed: 0, failed: 0 };
 
@@ -178,6 +182,9 @@ export async function flushQueue(): Promise<{ flushed: number; failed: number }>
   notifyListeners(remaining.length);
 
   return { flushed, failed };
+  } finally {
+    isFlushing = false;
+  }
 }
 
 /**
