@@ -127,10 +127,19 @@ export const NB_CAMPUS_NAMES = [
 function rawToLot(raw: RawLot): RutgersLot {
   // GeoJSON uses [longitude, latitude] — swap to [latitude, longitude] for
   // react-native-maps Polygon / expo-location Geofencing.
+  //
+  // Some lots have `type: "MultiPolygon"` in the data but store coordinates in
+  // the same flat ring-array format as Polygon.  In either case coordinates is
+  // rings[][points][2].  coordinates[0] is often a degenerate 4-point ring for
+  // those entries, so we always pick the ring with the most points to ensure
+  // the actual lot boundary is used.
+  const rings = raw.gtfsGeometry?.coordinates;
+  const bestRing: [number, number][] | undefined =
+    rings && rings.length > 0
+      ? rings.reduce((best, ring) => (ring.length > best.length ? ring : best))
+      : undefined;
   const coordinates: [number, number][] =
-    raw.gtfsGeometry?.coordinates?.[0]?.map(
-      ([lng, lat]) => [lat, lng] as [number, number]
-    ) ?? [];
+    bestRing?.map(([lng, lat]) => [lat, lng] as [number, number]) ?? [];
 
   return {
     id: raw.mapId,
