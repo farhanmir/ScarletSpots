@@ -3,6 +3,7 @@ import { StyleSheet, Text, View, TouchableOpacity, Animated } from 'react-native
 import { BlurView } from 'expo-blur';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import * as Location from 'expo-location';
+import { Magnetometer, type MagnetometerMeasurement } from 'expo-sensors';
 import { useLocalSearchParams } from 'expo-router';
 import { authApiCall } from '../../lib/supabase';
 import { useAuth } from '@/context/AuthProvider';
@@ -36,6 +37,10 @@ const getBearing = (sLat: number, sLng: number, dLat: number, dLng: number): num
 const ALPHA = 0.15;
 const lowPass = (current: number, prev: number) => prev + ALPHA * (current - prev);
 
+// Converts raw magnetometer x/y readings to a compass heading in degrees [0, 360).
+const magnetometerToHeading = (x: number, y: number): number =>
+  (Math.atan2(y, x) * (180 / Math.PI) + 360) % 360;
+
 // Returns the closest equivalent of `to` relative to `from`, taking the shortest arc.
 // Prevents the arrow from spinning 340° when it could go 20° the other way.
 const shortestRotation = (from: number, to: number): number => {
@@ -65,6 +70,7 @@ export default function NavigateScreen() {
   const [targetLot, setTargetLot] = useState<RutgersLot | null>(null);
   const [distance, setDistance] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [useMagnetometer, setUseMagnetometer] = useState(false);
 
   const smoothedHeading = useRef(0);
   const bearingRef = useRef(0);
@@ -119,7 +125,7 @@ export default function NavigateScreen() {
           if (cancelled) return;
           if (available) {
             Magnetometer.setUpdateInterval(60);
-            magnetometerSub = Magnetometer.addListener(({ x, y }) => {
+            magnetometerSub = Magnetometer.addListener(({ x, y }: MagnetometerMeasurement) => {
               const raw = magnetometerToHeading(x, y);
               smoothedHeading.current = lowPass(raw, smoothedHeading.current);
               lastHeadingRef.current = smoothedHeading.current;
@@ -272,7 +278,7 @@ export default function NavigateScreen() {
       {/* Sensor indicator */}
       <View style={styles.sensorBadge}>
         <IconSymbol name="location.fill" size={12} color="#52525b" />
-        <Text style={styles.sensorText}>Compass</Text>
+        <Text style={styles.sensorText}>{useMagnetometer ? 'Magnetometer' : 'Compass'}</Text>
       </View>
 
       {!activeTarget || !activeTarget.lat || !activeTarget.lng ? (
