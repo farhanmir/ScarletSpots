@@ -17,7 +17,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { getPendingParkingCandidates, clearPendingParkingCandidates } from '../../services/BackgroundTasks';
 import { type ParkingCandidate } from '../../services/ParkingDetectionService';
 import { registerLotGeofences } from '../../services/GeofenceManager';
-import { fetchWithOfflineFallback, clearCachedSession } from '../../services/OfflineCache';
+import { fetchWithOfflineFallback, clearCachedSession, cacheFavorites, getCachedFavorites } from '../../services/OfflineCache';
 import {
   initOfflineQueue,
   queueParkAction,
@@ -262,12 +262,22 @@ export default function MapScreen() {
   const fetchFavorites = useCallback(async () => {
     if (!user) return;
     try {
-      const data = await authApiCall('/favorites');
-      if (data?.favorite_lots) {
-        setFavorites(data.favorite_lots.map((l: any) => String(l.lot_id ?? l.id)));
-      }
+      const { data } = await fetchWithOfflineFallback(
+        async () => {
+          const resp = await authApiCall('/favorites');
+          const ids = (resp?.favorite_lots ?? []).map((l: any) => String(l.lot_id ?? l.id));
+          await cacheFavorites(ids);
+          return ids;
+        },
+        'favorites_cache',
+        1000 * 60 * 5, // 5-minute staleness threshold
+      );
+      setFavorites(data);
     } catch (e) {
-      console.error('[MapScreen] Failed to fetch favorites:', e);
+      // Fall back to local cache even if fetchWithOfflineFallback throws
+      const cached = await getCachedFavorites();
+      if (cached) setFavorites(cached);
+      else console.error('[MapScreen] Failed to fetch favorites:', e);
     }
   }, [user]);
 
@@ -276,7 +286,9 @@ export default function MapScreen() {
   const toggleFavorite = async (lot: RutgersLot) => {
     if (!user) return;
     const isFavorite = favorites.includes(lot.id);
-    setFavorites(prev => isFavorite ? prev.filter(id => id !== lot.id) : [...prev, lot.id]);
+    const updated = isFavorite ? favorites.filter(id => id !== lot.id) : [...favorites, lot.id];
+    setFavorites(updated);
+    cacheFavorites(updated);
     try {
       if (isFavorite) {
         await authApiCall(`/favorites/${lot.id}`, { method: 'DELETE' });
@@ -286,6 +298,7 @@ export default function MapScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
       setFavorites(prev => isFavorite ? [...prev, lot.id] : prev.filter(id => id !== lot.id));
+      cacheFavorites(favorites); // rollback cache too
       Alert.alert('Error', 'Failed to update favorites');
     }
   };
