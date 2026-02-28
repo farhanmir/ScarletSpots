@@ -64,6 +64,7 @@ export function installGlobalCrashHandlers(): void {
   });
 
   // 2. Unhandled promise rejections
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const rejectionTracking = require('promise/setimmediate/rejection-tracking');
   rejectionTracking.enable({
     allRejections: true,

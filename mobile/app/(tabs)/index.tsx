@@ -451,11 +451,11 @@ export default function MapScreen() {
           Alert.alert('Parked Offline', `Session at ${lot.shortName} will sync when back online.`);
         }
       }
-    } catch (error: any) {
+    } catch (e: any) {
       if (
-        error?.message?.toLowerCase().includes('network') ||
-        error?.message?.toLowerCase().includes('timeout') ||
-        error?.code === 'ECONNABORTED'
+        e?.message?.toLowerCase().includes('network') ||
+        e?.message?.toLowerCase().includes('timeout') ||
+        e?.code === 'ECONNABORTED'
       ) {
         const spotNumber = Math.floor(Math.random() * 1000).toString();
         await queueParkAction('PARK', {
@@ -467,7 +467,7 @@ export default function MapScreen() {
         updateOptimisticOccupancy(lot.id, 1);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       } else {
-        Alert.alert('Error', error.message || 'Failed to start parking session');
+        Alert.alert('Error', e.message || 'Failed to start parking session');
       }
     } finally {
       setLoading(false);
@@ -533,7 +533,7 @@ export default function MapScreen() {
         setPendingCandidates([]);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
-    } catch (error: any) {
+    } catch {
       await queueParkAction('CONFIRM_DETECTED', {
         lotId: candidate.lotId, spotNumber: 'Auto-detected',
         latitude: candidate.latitude, longitude: candidate.longitude, confirmed: true,
