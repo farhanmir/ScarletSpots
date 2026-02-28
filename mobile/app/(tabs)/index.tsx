@@ -24,7 +24,7 @@ import {
   addQueueListener,
   getPendingCount,
 } from '../../services/OfflineQueue';
-import { getAllLots, applyOccupancy, type RutgersLot } from '../../data/lots';
+import { getAllLots, applyOccupancy, getPermitLotIds, ALL_COMMUTER_LOT_IDS, type RutgersLot } from '../../data/lots';
 import { ENABLE_ALL_CAMPUSES } from '../../constants/featureFlags';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -71,7 +71,7 @@ const STATIC_LOTS = getAllLots(ENABLE_ALL_CAMPUSES);
 
 export default function MapScreen() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, permitType, noPermitMode, customLotFilter } = useAuth();
   const queryClient = useQueryClient();
   const mapRef = useRef<MapView>(null);
   const params = useLocalSearchParams();
@@ -220,8 +220,27 @@ export default function MapScreen() {
   // ── Derived: displayedLots (filtered for map) ──────────────────────────
 
   const displayedLots = React.useMemo(() => {
-    if (!lotTypeFilter) return lots;
-    return lots.filter(lot => {
+    // 1. Apply permit-aware filter first
+    let filtered = lots;
+    if (noPermitMode === 'commuter_all') {
+      filtered = lots.filter(lot => ALL_COMMUTER_LOT_IDS.has(lot.id));
+    } else if (noPermitMode === 'custom' && customLotFilter.size > 0) {
+      filtered = lots.filter(lot =>
+        Array.from(customLotFilter).some(flag => {
+          if (flag === 'student')  return lot.student;
+          if (flag === 'employee') return lot.employee;
+          if (flag === 'gated')    return lot.regularGate || lot.smartGate;
+          if (flag === 'ev')       return lot.evCharging > 0;
+          return false;
+        })
+      );
+    } else if (permitType && !permitType.startsWith('__')) {
+      const permitIds = getPermitLotIds(permitType);
+      filtered = lots.filter(lot => permitIds.has(lot.id));
+    }
+    // 2. Apply the additional manual type filter on top
+    if (!lotTypeFilter) return filtered;
+    return filtered.filter(lot => {
       switch (lotTypeFilter) {
         case 'student':  return lot.student;
         case 'employee': return lot.employee;
@@ -230,7 +249,7 @@ export default function MapScreen() {
         default:         return true;
       }
     });
-  }, [lots, lotTypeFilter]);
+  }, [lots, lotTypeFilter, permitType, noPermitMode, customLotFilter]);
 
   // ── Clusters ───────────────────────────────────────────────────────────
 
@@ -873,6 +892,19 @@ export default function MapScreen() {
         </View>
       )}
 
+      {/* Permit banner — shown when no permit is configured */}
+      {!permitType && (
+        <TouchableOpacity
+          style={styles.permitBanner}
+          onPress={() => router.push('/onboarding/permit?fromProfile=true')}
+          activeOpacity={0.8}
+        >
+          <IconSymbol name="p.circle" size={14} color="#a1a1aa" />
+          <Text style={styles.permitBannerText}>Set your permit to filter lots</Text>
+          <IconSymbol name="chevron.right" size={12} color="#52525b" />
+        </TouchableOpacity>
+      )}
+
       {/* Lot Details Sheet */}
       {selectedLot && (
         <LotDetails
@@ -885,6 +917,7 @@ export default function MapScreen() {
           activeSession={activeSession}
           isFavorite={favorites.includes(selectedLot.id)}
           onToggleFavorite={() => toggleFavorite(selectedLot)}
+          permitType={permitType}
         />
       )}
 
@@ -1003,6 +1036,23 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   offlineBadgeText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+
+  // ── Permit banner ─────────────────────────────────────────────────────
+  permitBanner: {
+    position: 'absolute',
+    bottom: 110,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(24, 24, 27, 0.92)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#3f3f46',
+  },
+  permitBannerText: { color: '#a1a1aa', fontSize: 12, fontWeight: '500' },
 
   // ── Lot markers ───────────────────────────────────────────────────────
   markerContainer: { alignItems: 'center' },

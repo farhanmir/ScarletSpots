@@ -15,7 +15,7 @@ import {
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import { IconSymbol } from './ui/icon-symbol';
 import { BlurView } from 'expo-blur';
-import { type RutgersLot } from '../data/lots';
+import { type RutgersLot, getPermitLotIds, ALL_COMMUTER_LOT_IDS } from '../data/lots';
 
 import { useQuery } from '@tanstack/react-query';
 import { publicApiCall } from '../lib/supabase';
@@ -33,13 +33,15 @@ interface LotDetailsProps {
   onClose: () => void;
   onPark: (lotId: string) => void;
   isParking: boolean;
-  user: any; 
+  user: any;
   activeSession?: any;
   isFavorite?: boolean;
   onToggleFavorite?: () => void;
+  /** Raw permit_type from AuthProvider — used to show the permit validity badge. */
+  permitType?: string | null;
 }
 
-export default function LotDetails({ lot, onClose, onPark, isParking, user, activeSession, isFavorite, onToggleFavorite }: LotDetailsProps) {
+export default function LotDetails({ lot, onClose, onPark, isParking, user, activeSession, isFavorite, onToggleFavorite, permitType }: LotDetailsProps) {
   // Track whether this component is still mounted so async callbacks never
   // call setState / onClose after unmount.
   const mountedRef = useRef(true);
@@ -84,6 +86,23 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, acti
 
   // Quick-glance slices (15m, 30m, 60m)
   const slices = forecastData?.slices;
+
+  // ── Permit validity (null = no permit set, don't show badge) ────────────
+  const permitValidity: boolean | null = React.useMemo(() => {
+    if (!permitType) return null;
+    if (permitType === '__commuter_all') return ALL_COMMUTER_LOT_IDS.has(lot.id);
+    if (permitType.startsWith('__custom:')) {
+      const flags = permitType.slice('__custom:'.length).split(',');
+      return flags.some(flag => {
+        if (flag === 'student')  return lot.student;
+        if (flag === 'employee') return lot.employee;
+        if (flag === 'gated')    return lot.regularGate || lot.smartGate;
+        if (flag === 'ev')       return lot.evCharging > 0;
+        return false;
+      });
+    }
+    return getPermitLotIds(permitType).has(lot.id);
+  }, [permitType, lot]);
 
   const handleClose = useCallback(() => {
     if (mountedRef.current) {
@@ -221,6 +240,15 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, acti
               </View>
             )}
           </View>
+
+          {/* Permit validity badge */}
+          {permitValidity !== null && (
+            <View style={[styles.permitBadge, permitValidity ? styles.permitBadgeValid : styles.permitBadgeInvalid]}>
+              <Text style={[styles.permitBadgeText, permitValidity ? styles.permitBadgeTextValid : styles.permitBadgeTextInvalid]}>
+                {permitValidity ? '✓ Valid for your permit' : '✗ Not valid for your permit'}
+              </Text>
+            </View>
+          )}
 
           <ForecastSlices slices={slices} />
           <ForecastChart curve={forecast} isLoading={isLoadingForecast} />
@@ -482,5 +510,33 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(168, 85, 247, 0.2)',
     borderWidth: 1,
     borderColor: 'rgba(168, 85, 247, 0.4)',
+  },
+
+  // Permit validity badge
+  permitBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+    marginBottom: 18,
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+  },
+  permitBadgeValid: {
+    backgroundColor: 'rgba(34, 197, 94, 0.12)',
+    borderColor: 'rgba(34, 197, 94, 0.35)',
+  },
+  permitBadgeInvalid: {
+    backgroundColor: 'rgba(113, 113, 122, 0.12)',
+    borderColor: 'rgba(113, 113, 122, 0.25)',
+  },
+  permitBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  permitBadgeTextValid: {
+    color: '#4ade80',
+  },
+  permitBadgeTextInvalid: {
+    color: '#71717a',
   },
 });
