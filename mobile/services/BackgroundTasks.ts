@@ -11,7 +11,6 @@ import {
   detectParking,
   type LotForDetection,
   type ParkingCandidate,
-  computePedometerScore,
 } from './ParkingDetectionService';
 import { PARKING_CONFIDENCE_THRESHOLD } from '../constants/featureFlags';
 

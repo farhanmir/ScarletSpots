@@ -72,6 +72,25 @@ export default function NavigateScreen() {
 
   // ── 1. Permissions + Sensors ────────────────────────────────────────────
 
+  // Forward declaration for exhaustive-deps
+  const loadActiveSession = React.useCallback(async () => {
+    try {
+      const data = await authApiCall('/park/session/active');
+      if (data?.session) {
+        setActiveSession(data.session);
+        // Look up the lot from the bundled JSON — no extra API call needed
+        if (!params.selectedLotId) {
+          const lot = getLotById(data.session.lotId);
+          if (lot) setTargetLot(lot);
+        }
+      } else {
+        setActiveSession(null);
+      }
+    } catch (e) {
+      console.warn('[Navigate] Failed to load session:', e);
+    }
+  }, [params.selectedLotId]);
+
   useEffect(() => {
     let headingSub: Location.LocationSubscription | undefined;
     let positionSub: Location.LocationSubscription | undefined;
@@ -125,28 +144,10 @@ export default function NavigateScreen() {
       positionSub?.remove();
       magnetometerSub?.remove();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, loadActiveSession, rotationValue]);
 
   // ── 2. Refresh on focus ────────────────────────────────────────────────
 
-  const loadActiveSession = React.useCallback(async () => {
-    try {
-      const data = await authApiCall('/park/session/active');
-      if (data?.session) {
-        setActiveSession(data.session);
-        // Look up the lot from the bundled JSON no extra API call needed
-        if (!params.selectedLotId) {
-          const lot = getLotById(data.session.lotId);
-          if (lot) setTargetLot(lot);
-        }
-      } else {
-        setActiveSession(null);
-      }
-    } catch (e) {
-      console.warn('[Navigate] Failed to load session:', e);
-    }
-  }, [params.selectedLotId]);
   useFocusEffect(
     React.useCallback(() => {
       const now = Date.now();
@@ -165,6 +166,8 @@ export default function NavigateScreen() {
       if (lot) setTargetLot(lot);
     }
   }, [params.selectedLotId]);
+
+  // ── 4. Removed - refactored loadActiveSession above ──────────────────
 
   // ── 5. Target Resolution ──────────────────────────────────────────────
 

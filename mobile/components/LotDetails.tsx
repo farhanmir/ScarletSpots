@@ -10,6 +10,7 @@ import {
   Modal,
   TouchableWithoutFeedback,
   Alert,
+  ScrollView,
 } from 'react-native';
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import { IconSymbol } from './ui/icon-symbol';
@@ -132,113 +133,120 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, acti
           <View style={styles.handle} />
         </View>
 
-        {/* Content */}
-        <View style={styles.content}>
-            <View style={styles.header}>
-              <View style={styles.titleContainer}>
-                <Text style={styles.title}>{lot.name}</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <OccupancyBadge rate={lot.occupancyRate} campus={lot.campus} />
-                  {user && onToggleFavorite && (
-                    <TouchableOpacity 
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        onToggleFavorite();
-                      }}
-                      style={styles.favoriteButton}
-                    >
-                      <IconSymbol 
-                        name={isFavorite ? "star.fill" : "star"} 
-                        size={18} 
-                        color={isFavorite ? "#f59e0b" : "#52525b"} 
-                      />
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </View>
-              
-              <TouchableOpacity 
-                onPress={(e) => {
-                  e.stopPropagation();
-                  handleClose();
-                }} 
-                style={styles.closeButton}
-                hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-              >
-                <IconSymbol name="xmark.circle.fill" size={30} color="#52525b" />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.statsContainer}>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{Math.round(lot.occupancyRate)}%</Text>
-                <Text style={styles.statLabel}>Occupancy</Text>
-              </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{Math.max(0, lot.capacity - lot.occupiedCount)}</Text>
-                <Text style={styles.statLabel}>Open Spots</Text>
-              </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{lot.capacity}</Text>
-                <Text style={styles.statLabel}>Total Cap</Text>
+        <ScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
+          <View style={styles.header}>
+            <View style={styles.titleContainer}>
+              <Text style={styles.title}>{lot.name}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <OccupancyBadge rate={lot.occupancyRate} campus={lot.campus} />
+                {user && onToggleFavorite && (
+                  <TouchableOpacity 
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      onToggleFavorite();
+                    }}
+                    style={styles.favoriteButton}
+                  >
+                    <IconSymbol 
+                      name={isFavorite ? "star.fill" : "star"} 
+                      size={18} 
+                      color={isFavorite ? "#f59e0b" : "#52525b"} 
+                    />
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
-
-            <ForecastSlices slices={slices} />
-            <ForecastChart curve={forecast} isLoading={isLoadingForecast} />
-
-            <View style={styles.actions}>
-              {!activeSession && (
-                <TouchableOpacity 
-                  style={[
-                    styles.actionButton, 
-                    styles.parkButton,
-                    (!user || lot.occupancyRate >= 100) && styles.disabledButton
-                  ]} 
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    if (user && lot.occupancyRate < 100) {
-                       Alert.alert(
-                        'Confirm Parking',
-                        `Start a session at ${lot.name}?`,
-                        [
-                          { text: 'Cancel', style: 'cancel' },
-                          { 
-                            text: 'Park Here', 
-                            style: 'default',
-                            onPress: () => onPark(lot.id) 
-                          }
-                        ]
-                      );
-                    }
-                  }}
-                  disabled={isParking || !user || lot.occupancyRate >= 100}
-                >
-                  <IconSymbol name="p.circle.fill" size={20} color="#fff" />
-                  <Text style={styles.actionButtonText}>
-                    {renderActionText()}
-                  </Text>
-                </TouchableOpacity>
-              )}
-
-              <TouchableOpacity 
-                style={[styles.actionButton, styles.directionsButton]} 
-                onPress={(e) => {
-                  e.stopPropagation();
-                  openDirections();
-                }}
-              >
-                <IconSymbol name="arrow.triangle.turn.up.right.diamond.fill" size={20} color="#3b82f6" />
-                <Text style={[styles.actionButtonText, styles.directionsText]}>Directions</Text>
-              </TouchableOpacity>
-            </View>
-
-            {!user && (
-               <Text style={styles.signInHint}>Go to Profile tab to sign in</Text>
-            )}
+            
+            <TouchableOpacity 
+              onPress={(e) => {
+                e.stopPropagation();
+                handleClose();
+              }} 
+              style={styles.closeButton}
+              hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+            >
+              <IconSymbol name="xmark.circle.fill" size={30} color="#52525b" />
+            </TouchableOpacity>
           </View>
+
+          <View style={styles.statsContainer}>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{Math.round(lot.occupancyRate)}%</Text>
+              <Text style={styles.statLabel}>Occupancy</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{Math.max(0, lot.capacity - lot.occupiedCount)}</Text>
+              <Text style={styles.statLabel}>Open Spots</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{lot.capacity}</Text>
+              <Text style={styles.statLabel}>Total Cap</Text>
+            </View>
+          </View>
+
+          <ForecastSlices slices={slices} />
+          <ForecastChart curve={forecast} isLoading={isLoadingForecast} />
+
+          <View style={styles.actions}>
+            {!activeSession && (
+              <TouchableOpacity 
+                style={[
+                  styles.actionButton, 
+                  styles.parkButton,
+                  (!user || lot.occupancyRate >= 100) && styles.disabledButton
+                ]} 
+                onPress={(e) => {
+                  e.stopPropagation();
+                  if (user && lot.occupancyRate < 100) {
+                     Alert.alert(
+                      'Confirm Parking',
+                      `Start a session at ${lot.name}?`,
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        { 
+                          text: 'Park Here', 
+                          style: 'default',
+                          onPress: () => onPark(lot.id) 
+                        }
+                      ]
+                    );
+                  }
+                }}
+                disabled={isParking || !user || lot.occupancyRate >= 100}
+              >
+                <IconSymbol name="p.circle.fill" size={20} color="#fff" />
+                <Text style={styles.actionButtonText}>
+                  {renderActionText()}
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.directionsButton]} 
+              onPress={(e) => {
+                e.stopPropagation();
+                openDirections();
+              }}
+            >
+              <IconSymbol name="arrow.triangle.turn.up.right.diamond.fill" size={20} color="#3b82f6" />
+              <Text style={[styles.actionButtonText, styles.directionsText]}>Directions</Text>
+            </TouchableOpacity>
+          </View>
+
+          {!user && (
+             <Text style={styles.signInHint}>Go to Profile tab to sign in</Text>
+          )}
+
+          {/* Spacer to ensure content isn't flush with the bottom on small screens */}
+          <View style={{ height: 40 }} />
+        </ScrollView>
       </Animated.View>
     </Modal>
   );
@@ -258,8 +266,8 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     overflow: 'hidden',
-    paddingBottom: Platform.OS === 'ios' ? 40 : 20,
-    maxHeight: height * 0.9,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    maxHeight: height * 0.90,
   },
   handleContainer: {
     width: '100%',
@@ -272,9 +280,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.2)',
     borderRadius: 2,
   },
+  scrollView: {
+    width: '100%',
+  },
   content: {
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 24,
   },
   header: {
     flexDirection: 'row',

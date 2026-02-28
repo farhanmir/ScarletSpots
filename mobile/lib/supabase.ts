@@ -77,7 +77,7 @@ export async function authApiCall(endpoint: string, options: RequestInit = {}): 
         ...(options.headers || {}),
       } as HeadersInit,
     });
-  } catch (error) {
+  } catch {
     // Fetch threw an error (likely network failure midway).
     // For park mutations, queue the semantic action type and return the same
     // consistent session payload that the explicit offline path returns — so
@@ -121,7 +121,7 @@ export async function authApiCall(endpoint: string, options: RequestInit = {}): 
             'x-user-token': refreshData.session.access_token,
           } as any,
         });
-      } catch (err) {
+      } catch {
         return { success: true, _offline: true };
       }
     } else {
