@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -35,6 +35,11 @@ export default function SearchScreen() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<PlaceResult[]>([]);
   const [searching, setSearching] = useState(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    return () => { mountedRef.current = false; };
+  }, []);
 
   // Filter lots when query changes
   useEffect(() => {
@@ -91,7 +96,7 @@ export default function SearchScreen() {
           
           const geocodeResults = await Location.geocodeAsync(contextualQuery);
           
-          if (geocodeResults && geocodeResults.length > 0) {
+          if (geocodeResults && geocodeResults.length > 0 && mountedRef.current) {
             const firstResult = geocodeResults[0];
             
             const nativeResult: PlaceResult = {
@@ -108,7 +113,7 @@ export default function SearchScreen() {
         } catch (err) {
           console.log('[Search] Geocoding error or rate limit:', err);
         } finally {
-          setSearching(false);
+          if (mountedRef.current) setSearching(false);
         }
       }, 500); // 500ms debounce
 

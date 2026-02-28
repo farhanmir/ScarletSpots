@@ -34,7 +34,8 @@ const startSensorTracking = async () => {
   // Pedometer
   if (!pedometerSubscription) {
     const isAvailable = await Pedometer.isAvailableAsync();
-    if (isAvailable) {
+    // Re-check after await in case stopSensorTracking was called concurrently
+    if (isAvailable && !pedometerSubscription) {
       pedometerSubscription = Pedometer.watchStepCount(result => {
         pushSteps(result.steps);
       });

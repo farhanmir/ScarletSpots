@@ -95,15 +95,17 @@ export default function NavigateScreen() {
     let headingSub: Location.LocationSubscription | undefined;
     let positionSub: Location.LocationSubscription | undefined;
     let magnetometerSub: ReturnType<typeof Magnetometer.addListener> | undefined;
+    let cancelled = false;
 
     (async () => {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') { setLoading(false); return; }
+        if (cancelled || status !== 'granted') { setLoading(false); return; }
 
         // Try magnetometer first for accurate heading
         try {
           const available = await Magnetometer.isAvailableAsync();
+          if (cancelled) return;
           if (available) {
             Magnetometer.setUpdateInterval(60);
             magnetometerSub = Magnetometer.addListener(({ x, y }) => {
@@ -117,6 +119,7 @@ export default function NavigateScreen() {
             throw new Error('unavailable');
           }
         } catch {
+          if (cancelled) return;
           setUseMagnetometer(false);
           headingSub = await Location.watchHeadingAsync((obj) => {
             const h = obj.trueHeading || obj.magHeading;
@@ -126,25 +129,35 @@ export default function NavigateScreen() {
           });
         }
 
+        if (cancelled) { headingSub?.remove(); return; }
+
         positionSub = await Location.watchPositionAsync(
           { accuracy: Location.Accuracy.High, timeInterval: 1000, distanceInterval: 3 },
           (loc) => { setLocation(loc); }
         );
 
-        if (user) await loadActiveSession();
-        setLoading(false);
+        if (cancelled) { positionSub.remove(); return; }
+
+        if (!cancelled) setLoading(false);
       } catch (err) {
         console.warn('[Navigate] Init failed:', err);
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
 
     return () => {
+      cancelled = true;
       headingSub?.remove();
       positionSub?.remove();
       magnetometerSub?.remove();
     };
-  }, [user, loadActiveSession, rotationValue]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- sensors should only restart on user change, not on every params/loadActiveSession change
+  }, [user]);
+
+  // Load active session separately so params changes don't restart sensors
+  useEffect(() => {
+    if (user) loadActiveSession();
+  }, [user, loadActiveSession]);
 
   // ── 2. Refresh on focus ────────────────────────────────────────────────
 
