@@ -1,0 +1,35 @@
+---
+description: ScarletSpots — architecture, constraints, and patterns for AI agents
+alwaysApply: true
+---
+
+# ScarletSpots
+
+Rutgers parking app: Expo mobile + FastAPI backend + Supabase. Read `PLAN.md` and `SESSION_STATE.md` for full context.
+
+## Golden Rule
+
+**Static data (lot metadata) = bundled in app. Dynamic data (sessions, occupancy) = Supabase.**
+
+- Lot data: `mobile/data/rutgers_parking_data.json` + `mobile/data/lots.ts` (`getAllLots()`, `getLotById()`, `applyOccupancy()`)
+- Never fetch lot metadata from the backend. Never add `parking_lots` table back.
+- `lot_id` is always TEXT (e.g. `"10001"`), never UUID.
+
+## Hard Constraints
+
+- No friend map markers — Friends tab only.
+- Compass = bearing + distance only. No haptics, no proximity states.
+- Frontend admin = deleted. Planned for v2.
+- Database: `profiles`, `parking_sessions`, `lot_occupancy`, `friendships`, `user_favorites`, `session_feedback`.
+
+## Mobile
+
+- Use `authApiCall` for park/friends/favorites. Use `supabase` client for Realtime on `lot_occupancy`.
+- Map loads offline (data bundled). Session actions queue via `OfflineQueue` when offline.
+- `ENABLE_ALL_CAMPUSES` in `featureFlags.ts` gates non-NB lots.
+
+## Backend
+
+- Use `increment_lot_occupancy` / `decrement_lot_occupancy` RPCs — never direct writes to `lot_occupancy`.
+- `get_admin_supabase()` for occupancy RPCs. `get_auth_db()` for user-scoped reads.
+- Routers: `users`, `lots`, `friends`, `park`, `favorites`. No `admin` or `compass`.
