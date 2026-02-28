@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Animated } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import * as Location from 'expo-location';
-import { Magnetometer } from 'expo-sensors';
 import { useLocalSearchParams } from 'expo-router';
 import { authApiCall } from '../../lib/supabase';
 import { useAuth } from '@/context/AuthProvider';
@@ -37,9 +36,13 @@ const getBearing = (sLat: number, sLng: number, dLat: number, dLng: number): num
 const ALPHA = 0.15;
 const lowPass = (current: number, prev: number) => prev + ALPHA * (current - prev);
 
-const magnetometerToHeading = (x: number, y: number): number => {
-  const angle = Math.atan2(y, x) * (180 / Math.PI);
-  return (360 - ((angle + 360) % 360)) % 360;
+// Returns the closest equivalent of `to` relative to `from`, taking the shortest arc.
+// Prevents the arrow from spinning 340° when it could go 20° the other way.
+const shortestRotation = (from: number, to: number): number => {
+  // Double-modulo normalises the difference to [0, 360), then shift to [-180, 180).
+  let delta = ((to - from) % 360 + 360) % 360;
+  if (delta > 180) delta -= 360;
+  return from + delta;
 };
 
 // ── Component ───────────────────────────────────────────────────────────────
@@ -58,7 +61,6 @@ export default function NavigateScreen() {
   const { user } = useAuth();
 
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
-  const [useMagnetometer, setUseMagnetometer] = useState(true);
   const [activeSession, setActiveSession] = useState<ParkingSession | null>(null);
   const [targetLot, setTargetLot] = useState<RutgersLot | null>(null);
   const [distance, setDistance] = useState(0);
@@ -68,9 +70,18 @@ export default function NavigateScreen() {
   const bearingRef = useRef(0);
   const lastHeadingRef = useRef(0);
   const rotationValue = useRef(new Animated.Value(0)).current;
+  const cumulativeRotation = useRef(0); // tracks total rotation to take the shortest arc
   const lastFetchRef = useRef(0);
 
   // ── 1. Permissions + Sensors ────────────────────────────────────────────
+
+  // Updates the animated arrow taking the shortest rotation arc.
+  const applyRotation = useCallback((bearing: number, heading: number) => {
+    const target = bearing - heading;
+    const next = shortestRotation(cumulativeRotation.current, target);
+    cumulativeRotation.current = next;
+    rotationValue.setValue(next);
+  }, [rotationValue]);
 
   // Forward declaration for exhaustive-deps
   const loadActiveSession = React.useCallback(async () => {
@@ -94,37 +105,20 @@ export default function NavigateScreen() {
   useEffect(() => {
     let headingSub: Location.LocationSubscription | undefined;
     let positionSub: Location.LocationSubscription | undefined;
-    let magnetometerSub: ReturnType<typeof Magnetometer.addListener> | undefined;
 
     (async () => {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== 'granted') { setLoading(false); return; }
 
-        // Try magnetometer first for accurate heading
-        try {
-          const available = await Magnetometer.isAvailableAsync();
-          if (available) {
-            Magnetometer.setUpdateInterval(60);
-            magnetometerSub = Magnetometer.addListener(({ x, y }) => {
-              const raw = magnetometerToHeading(x, y);
-              smoothedHeading.current = lowPass(raw, smoothedHeading.current);
-              lastHeadingRef.current = smoothedHeading.current;
-              rotationValue.setValue(bearingRef.current - smoothedHeading.current);
-            });
-            setUseMagnetometer(true);
-          } else {
-            throw new Error('unavailable');
-          }
-        } catch {
-          setUseMagnetometer(false);
-          headingSub = await Location.watchHeadingAsync((obj) => {
-            const h = obj.trueHeading || obj.magHeading;
-            smoothedHeading.current = lowPass(h, smoothedHeading.current);
-            lastHeadingRef.current = smoothedHeading.current;
-            rotationValue.setValue(bearingRef.current - smoothedHeading.current);
-          });
-        }
+        // watchHeadingAsync uses the OS compass which accounts for device orientation,
+        // so the arrow stays correct when the phone is rotated.
+        headingSub = await Location.watchHeadingAsync((obj) => {
+          const raw = (obj.trueHeading != null && obj.trueHeading >= 0) ? obj.trueHeading : obj.magHeading;
+          smoothedHeading.current = lowPass(raw, smoothedHeading.current);
+          lastHeadingRef.current = smoothedHeading.current;
+          applyRotation(bearingRef.current, smoothedHeading.current);
+        });
 
         positionSub = await Location.watchPositionAsync(
           { accuracy: Location.Accuracy.High, timeInterval: 1000, distanceInterval: 3 },
@@ -142,9 +136,8 @@ export default function NavigateScreen() {
     return () => {
       headingSub?.remove();
       positionSub?.remove();
-      magnetometerSub?.remove();
     };
-  }, [user, loadActiveSession, rotationValue]);
+  }, [user, loadActiveSession, applyRotation]);
 
   // ── 2. Refresh on focus ────────────────────────────────────────────────
 
@@ -210,8 +203,8 @@ export default function NavigateScreen() {
       activeTarget.lat, activeTarget.lng
     );
     bearingRef.current = b;
-    rotationValue.setValue(b - lastHeadingRef.current);
-  }, [location, activeTarget, rotationValue]);
+    applyRotation(b, lastHeadingRef.current);
+  }, [location, activeTarget, applyRotation]);
 
   // ── 7. Format helpers ─────────────────────────────────────────────────
 
@@ -248,14 +241,8 @@ export default function NavigateScreen() {
 
       {/* Sensor indicator */}
       <View style={styles.sensorBadge}>
-        <IconSymbol
-          name={useMagnetometer ? 'antenna.radiowaves.left.and.right' : 'location.fill'}
-          size={12}
-          color="#52525b"
-        />
-        <Text style={styles.sensorText}>
-          {useMagnetometer ? 'Magnetometer' : 'GPS Heading'}
-        </Text>
+        <IconSymbol name="location.fill" size={12} color="#52525b" />
+        <Text style={styles.sensorText}>Compass</Text>
       </View>
 
       {!activeTarget || !activeTarget.lat || !activeTarget.lng ? (
