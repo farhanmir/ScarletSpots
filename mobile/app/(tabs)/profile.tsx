@@ -12,11 +12,12 @@ import { useRouter } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { authApiCall } from '@/lib/supabase';
 import { useFocusEffect } from '@react-navigation/native';
+import { getLotById, type RutgersLot } from '@/data/lots';
 
 export default function ProfileScreen() {
   const { session, user, loading, signOut } = useAuth();
   const router = useRouter();
-  const [favorites, setFavorites] = useState<any[]>([]);
+  const [favorites, setFavorites] = useState<RutgersLot[]>([]);
   const lastFetchRef = React.useRef(0);
 
   const fetchFavorites = React.useCallback(async () => {
@@ -24,7 +25,11 @@ export default function ProfileScreen() {
     try {
       const data = await authApiCall('/favorites');
       if (data?.favorite_lots) {
-        setFavorites(data.favorite_lots);
+        // Backend returns {lot_id} objects; look up full details from bundled JSON
+        const lots = (data.favorite_lots as { lot_id: string }[])
+          .map((item) => getLotById(item.lot_id))
+          .filter((lot): lot is RutgersLot => lot !== undefined);
+        setFavorites(lots);
       }
     } catch (e) {
       console.error('Failed to fetch favorites:', e);

@@ -49,9 +49,11 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, acti
   }, []);
 
   const { data: forecastData, isLoading: isLoadingForecast } = useQuery<ForecastResponse>({
-    queryKey: ['forecast', lot.id],
+    queryKey: ['forecast', lot.id, lot.capacity],
     queryFn: async () => {
-      const data = await publicApiCall(`/lots/${lot.id}/forecast`);
+      const data = await publicApiCall(
+        `/lots/${lot.id}/forecast?capacity=${lot.capacity}&current_occupancy=${lot.occupiedCount}`
+      );
       return data || {};
     },
     enabled: !!lot.id && !lot.id.startsWith('custom:'),

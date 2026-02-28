@@ -219,9 +219,6 @@ def block_user(body: BlockAction, current_user=Depends(get_current_user), db=Dep
             "status": "blocked"
         }).execute()
 
-        # Audit log
-        _log_sharing_event(db, current_user.id, target_id, "blocked")
-
         return {"success": True}
     except Exception as exc:
         log.error("Failed to block user: %s", exc)
@@ -233,8 +230,6 @@ def unblock_user(body: BlockAction, current_user=Depends(get_current_user), db=D
     """Unblock a user."""
     try:
         db.table("friendships").delete().eq("user_id", current_user.id).eq("friend_id", body.user_id).eq("status", "blocked").execute()
-
-        _log_sharing_event(db, current_user.id, body.user_id, "unblocked")
 
         return {"success": True}
     except Exception as exc:
@@ -255,25 +250,9 @@ def toggle_sharing(friendship_id: UUID, body: SharingToggle, current_user=Depend
         if not res.data:
             raise HTTPException(status_code=404, detail="Friendship not found")
 
-        friendship = res.data[0]
-
-        # Upsert sharing setting
-        try:
-            db.table("friend_sharing_settings").upsert({
-                "user_id": current_user.id,
-                "friend_id": friendship["friend_id"],
-                "sharing_enabled": body.enabled
-            }, on_conflict="user_id,friend_id").execute()
-        except Exception:
-            # Table may not exist yet — update the friendship itself as fallback
-            db.table("friendships").update({
-                "sharing_enabled": body.enabled
-            }).eq("id", str(friendship_id)).execute()
-
-        _log_sharing_event(
-            db, current_user.id, friendship["friend_id"],
-            "sharing_enabled" if body.enabled else "sharing_disabled"
-        )
+        db.table("friendships").update({
+            "sharing_enabled": body.enabled
+        }).eq("id", str(friendship_id)).execute()
 
         return {"success": True, "sharing_enabled": body.enabled}
     except HTTPException:
@@ -281,16 +260,3 @@ def toggle_sharing(friendship_id: UUID, body: SharingToggle, current_user=Depend
     except Exception as exc:
         log.error("Failed to toggle sharing: %s", exc)
         raise HTTPException(status_code=500, detail="Failed to toggle sharing")
-
-
-def _log_sharing_event(db, user_id: str, target_id: str, action: str):
-    """Write an audit log entry for sharing state changes."""
-    try:
-        db.table("event_logs").insert({
-            "user_id": user_id,
-            "target_id": target_id,
-            "action": action,
-            "entity_type": "friendship"
-        }).execute()
-    except Exception:
-        pass  # Audit logging should never block the main action
