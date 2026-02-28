@@ -8,18 +8,14 @@ router = APIRouter(prefix="/favorites", tags=["favorites"])
 
 @router.get("")
 def get_favorites(current_user=Depends(get_current_user), db=Depends(get_auth_db)):
-    """List all favorite lots for the current user."""
+    """List all favorite lots for the current user.
+
+    Lot metadata (name, campus, coords) lives in the mobile app's bundled JSON.
+    This endpoint only returns the lot_id strings so the client can look them up locally.
+    """
     try:
-        # Fetch lot IDs from user_favorites
         res = db.table("user_favorites").select("lot_id").eq("user_id", current_user.id).execute()
-        lot_ids = [row["lot_id"] for row in res.data]
-
-        if not lot_ids:
-            return {"favorite_lots": []}
-
-        # Fetch lot details from parking_lots
-        lots_res = db.table("parking_lots").select("*").in_("id", lot_ids).execute()
-        return {"favorite_lots": lots_res.data}
+        return {"favorite_lots": [{"lot_id": row["lot_id"]} for row in (res.data or [])]}
     except Exception as exc:
         log.error("Failed to get favorites: %s", exc)
         raise HTTPException(status_code=500, detail="Failed to retrieve favorites")
