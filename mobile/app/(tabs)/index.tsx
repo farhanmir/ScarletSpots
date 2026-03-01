@@ -718,26 +718,39 @@ export default function MapScreen() {
           const isFavorite = favorites.includes(lot.id);
           const colors = getOccupancyColor(lot.occupancyRate);
 
-          // Full coordinates for the selected lot; simplified for all others
-          // to reduce the polygon vertex budget on iOS at lot zoom.
-          const rawCoords = isSelected ? lot.coordinates : lot.simplifiedCoordinates;
-          const polygonCoords = rawCoords
-            .map(([lat, lng]) => ({ latitude: lat, longitude: lng }))
-            .filter(c => !Number.isNaN(c.latitude) && !Number.isNaN(c.longitude));
+          // Each lot now contains an array of distinct polygons (for MultiPolygon support)
+          const rawPolygons = lot.coordinates;
 
           return (
             <React.Fragment key={lot.id}>
-              {polygonCoords.length >= 3 && (
-                <Polygon
-                  coordinates={polygonCoords}
-                  fillColor={isSelected ? 'rgba(220, 38, 38, 0.6)' : colors.bg}
-                  strokeColor={isSelected ? '#ffffff' : colors.full}
-                  strokeWidth={isSelected ? 3 : 2}
-                  tappable={true}
-                  zIndex={isSelected ? 10 : 1}
-                  onPress={(e) => { e.stopPropagation(); handleLotPress(lot); }}
-                />
-              )}
+              {rawPolygons.map((polyCoords, index) => {
+                const polygonCoords = polyCoords
+                  .map(([lat, lng]) => ({ latitude: lat, longitude: lng }))
+                  .filter(c => !Number.isNaN(c.latitude) && !Number.isNaN(c.longitude));
+
+                // Convert corresponding hole rings for this specific polygon
+                const holeCoords = (lot.holes[index] || [])
+                  .map(ring => ring
+                    .map(([lat, lng]) => ({ latitude: lat, longitude: lng }))
+                    .filter(c => !Number.isNaN(c.latitude) && !Number.isNaN(c.longitude)))
+                  .filter(ring => ring.length >= 3);
+
+                if (polygonCoords.length < 3) return null;
+
+                return (
+                  <Polygon
+                    key={`${lot.id}-poly-${index}`}
+                    coordinates={polygonCoords}
+                    holes={holeCoords.length > 0 ? holeCoords : undefined}
+                    fillColor={isSelected ? colors.bg : colors.bg}
+                    strokeColor={isSelected ? '#ffffff' : colors.full}
+                    strokeWidth={isSelected ? 3 : 2}
+                    tappable={true}
+                    zIndex={isSelected ? 10 : 1}
+                    onPress={(e) => { e.stopPropagation(); handleLotPress(lot); }}
+                  />
+                );
+              })}
               <Marker
                 key={`lot-${lot.id}`}
                 coordinate={{ latitude: lot.latitude, longitude: lot.longitude }}

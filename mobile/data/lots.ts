@@ -97,18 +97,22 @@ export interface RutgersLot {
   /** Photo URLs (from Firebase Storage). */
   photos: string[];
   /**
-   * Polygon boundary for map rendering and geofencing.
+   * Polygon boundaries for map rendering and geofencing. Each item is a separate
+   * polygon (for MultiPolygons that have disconnected shapes).
    * Format: [latitude, longitude][] — converted from GeoJSON [lng, lat].
    */
-  coordinates: [number, number][];
+  coordinates: [number, number][][];
 
   /**
-   * Downsampled polygon boundary for low-detail map rendering.
-   * Contains every 3rd point of `coordinates` (minimum 3 retained so the
-   * polygon remains valid).  Use for non-selected lots at lot zoom to reduce
-   * the overlay vertex budget on iOS.
+   * Downsampled polygon boundaries for low-detail map rendering.
    */
-  simplifiedCoordinates: [number, number][];
+  simplifiedCoordinates: [number, number][][];
+
+  /**
+   * Interior hole rings for lots whose boundary has cutouts.
+   * Matches 1-to-1 with the `coordinates` array (an array of hole arrays per polygon).
+   */
+  holes: [number, number][][][];
 
   // ── Dynamic fields populated at runtime from lot_occupancy table ──────────
   /** Number of active parking sessions at this lot right now. */
@@ -161,26 +165,44 @@ function rawToLot(raw: RawLot): RutgersLot {
   // GeoJSON uses [longitude, latitude] — swap to [latitude, longitude] for
   // react-native-maps Polygon / expo-location Geofencing.
   //
-  // Some lots have `type: "MultiPolygon"` in the data but store coordinates in
-  // the same flat ring-array format as Polygon.  In either case coordinates is
-  // rings[][points][2].  coordinates[0] is often a degenerate 4-point ring for
-  // those entries, so we always pick the ring with the most points to ensure
-  // the actual lot boundary is used.
-  const rings = raw.gtfsGeometry?.coordinates;
-  // Pick the ring with the largest geographic bounding-box area rather than
-  // the most points.  Dense gate/detail rings have many points but a tiny
-  // footprint and would previously overshadow the actual lot boundary.
-  const bbArea = (ring: [number, number][]) => {
-    const lngs = ring.map(p => p[0]);
-    const lats = ring.map(p => p[1]);
-    return (Math.max(...lngs) - Math.min(...lngs)) * (Math.max(...lats) - Math.min(...lats));
-  };
-  const bestRing: [number, number][] | undefined =
-    rings && rings.length > 0
-      ? rings.reduce((best, ring) => (bbArea(ring) > bbArea(best) ? ring : best))
-      : undefined;
-  const coordinates: [number, number][] =
-    bestRing?.map(([lng, lat]) => [lat, lng] as [number, number]) ?? [];
+  let parsedPolygons: { outer: [number, number][], holes: [number, number][][] }[] = [];
+
+  const rings: any[] | undefined = raw.gtfsGeometry?.coordinates;
+
+  if (rings && rings.length > 0) {
+    if (raw.gtfsGeometry?.type === 'Polygon') {
+      // coordinates[0] = outer boundary, coordinates[1..] = holes
+      parsedPolygons.push({
+        outer: rings[0],
+        holes: rings.slice(1)
+      });
+    } else if (raw.gtfsGeometry?.type === 'MultiPolygon') {
+      // MultiPolygon format for this specific dataset is non-standard.
+      // It stores the geometry as a flat array of rings: [number, number][][]
+      // Each ring represents an outer boundary of a disconnected part of the lot.
+      rings.forEach(ring => {
+        if (ring.length >= 3) {
+          parsedPolygons.push({
+            outer: ring,
+            holes: []
+          });
+        }
+      });
+    }
+  }
+
+  // Fallback if empty
+  if (parsedPolygons.length === 0) {
+    parsedPolygons.push({ outer: [], holes: [] });
+  }
+
+  const coordinates: [number, number][][] = parsedPolygons.map(p => 
+    p.outer.map(([lng, lat]) => [lat, lng] as [number, number])
+  );
+  
+  const holes: [number, number][][][] = parsedPolygons.map(p =>
+    p.holes.map(ring => ring.map(([lng, lat]) => [lat, lng] as [number, number]))
+  );
 
   return {
     id: raw.mapId,
@@ -203,7 +225,8 @@ function rawToLot(raw: RawLot): RutgersLot {
     note: raw.note ?? '',
     photos: raw.photos ?? [],
     coordinates,
-    simplifiedCoordinates: simplifyRing(coordinates),
+    simplifiedCoordinates: coordinates.map(ring => simplifyRing(ring)),
+    holes,
     occupiedCount: 0,
     occupancyRate: 0,
   };

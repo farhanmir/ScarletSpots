@@ -42,6 +42,3 @@ class SignupResponse(BaseModel):
     success: bool
     id: str
     email: str | None = None
-    success: bool
-    id: str
-    email: str | None = None
