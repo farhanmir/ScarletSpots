@@ -58,7 +58,7 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, acti
       );
       return data || {};
     },
-    enabled: !!lot.id && !lot.id.startsWith('custom:'),
+    enabled: !!lot.id && !lot.id.startsWith('custom:') && (lot.capacity ?? 0) > 0,
     staleTime: 60000 * 15, // 15 minutes
     retry: 1,              // Only retry once — a 404 won't fix itself
   });

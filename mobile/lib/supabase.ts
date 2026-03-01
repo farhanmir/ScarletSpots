@@ -95,7 +95,6 @@ export async function authApiCall(endpoint: string, options: RequestInit = {}): 
           session: {
             id: `offline-${Date.now()}`,
             lotId: payload.lotId as string,
-            spotNumber: payload.spotNumber as string,
             startTime: new Date().toISOString(),
             active: true,
           },

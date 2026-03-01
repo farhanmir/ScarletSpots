@@ -28,7 +28,6 @@ router = APIRouter(prefix="/park/session", tags=["parking_session"])
 
 class ParkSessionCreate(BaseModel):
     lotId: str
-    spotNumber: str
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     confirmed: bool = True
@@ -67,7 +66,6 @@ def get_active_session(current_user=Depends(get_current_user), db=Depends(get_au
                 "session": {
                     "id": str(s["id"]),
                     "lotId": str(s["lot_id"]),
-                    "spotNumber": s.get("spot_number", ""),
                     "latitude": s.get("latitude"),
                     "longitude": s.get("longitude"),
                     "startTime": s.get("start_time") or s.get("created_at"),
@@ -114,7 +112,6 @@ def start_parking_session(
             {
                 "p_user_id": str(user_id),
                 "p_lot_id": lot_id,
-                "p_spot_number": body.spotNumber,
                 "p_latitude": body.latitude,
                 "p_longitude": body.longitude,
             },
@@ -137,15 +134,32 @@ def start_parking_session(
         raise HTTPException(status_code=500, detail="Failed to start parking session")
 
     new_session = rpc_res.data[0]
+
+    # Fetch the confirmed occupancy count so the mobile client can render
+    # the exact value without waiting for a realtime event.
+    confirmed_occupancy: Optional[int] = None
+    try:
+        occ_res = (
+            admin_db.table("lot_occupancy")
+            .select("count")
+            .eq("lot_id", lot_id)
+            .single()
+            .execute()
+        )
+        if occ_res.data:
+            confirmed_occupancy = occ_res.data.get("count")
+    except Exception as exc:
+        log.warning("Could not fetch confirmed occupancy for lot %s: %s", lot_id, exc)
+
     return {
         "success": True,
         "session": {
             "id": str(new_session["id"]),
             "lotId": str(new_session["lot_id"]),
-            "spotNumber": new_session.get("spot_number", ""),
             "startTime": new_session.get("start_time") or new_session.get("created_at"),
             "active": True,
         },
+        "confirmedOccupancy": confirmed_occupancy,
     }
 
 

@@ -25,10 +25,7 @@ def test_start_session_requires_auth():
     """POST /park/session without auth should fail."""
     response = client.post(
         "/api/v1/park/session",
-        json={
-            "lotId": "test",
-            "spotNumber": "1",
-        },
+        json={"lotId": "test"},
     )
     assert response.status_code in (401, 403, 422, 500)
 
@@ -77,7 +74,6 @@ def test_parking_session_lifecycle():
             "id": "session-1",
             "lot_id": "a0000000-0000-0000-0000-000000000001",
             "user_id": "test-user-id",
-            "spot_number": "42",
             "active": True,
             "start_time": "2026-02-26T00:00:00+00:00",
             "latitude": None,
@@ -108,10 +104,7 @@ def test_parking_session_lifecycle():
             # Start a session
             resp_start = client.post(
                 "/api/v1/park/session",
-                json={
-                    "lotId": "a0000000-0000-0000-0000-000000000001",
-                    "spotNumber": "42",
-                },
+                json={"lotId": "a0000000-0000-0000-0000-000000000001"},
             )
             assert resp_start.status_code == 200, resp_start.text
             data = resp_start.json()
@@ -172,7 +165,7 @@ def test_start_session_atomic_rpc_failure():
         with patch("app.routers.park.get_admin_supabase", return_value=mock_admin_db):
             resp = client.post(
                 "/api/v1/park/session",
-                json={"lotId": "10001", "spotNumber": "99"},
+                json={"lotId": "10001"},
             )
             # Must fail — not silently succeed with a drifted occupancy count
             assert resp.status_code == 500, resp.text
@@ -201,7 +194,6 @@ def test_concurrent_start_ends_previous_session_then_starts_new():
         {
             "id": "old-session",
             "lot_id": "10001",
-            "spot_number": "1",
             "active": True,
             "start_time": "2026-02-26T00:00:00+00:00",
             "latitude": None,
@@ -215,7 +207,6 @@ def test_concurrent_start_ends_previous_session_then_starts_new():
             "id": "new-session",
             "lot_id": "10002",
             "user_id": "test-user-id",
-            "spot_number": "2",
             "active": True,
             "start_time": "2026-02-26T01:00:00+00:00",
             "latitude": None,
@@ -242,7 +233,7 @@ def test_concurrent_start_ends_previous_session_then_starts_new():
         with patch("app.routers.park.get_admin_supabase", return_value=mock_admin_db):
             resp = client.post(
                 "/api/v1/park/session",
-                json={"lotId": "10002", "spotNumber": "2"},
+                json={"lotId": "10002"},
             )
             assert resp.status_code == 200, resp.text
             data = resp.json()
