@@ -34,7 +34,6 @@ interface ParkingSession {
   lotId: string;
   startTime: string;
   endTime?: string;
-  spotNumber: string;
 }
 
 type ZoomLevel = 'lot' | 'campus' | 'hidden';
@@ -475,10 +474,8 @@ export default function MapScreen() {
 
     setLoading(true);
     try {
-      const spotNumber = Math.floor(Math.random() * 1000).toString();
       const payload = {
         lotId: lot.id,
-        spotNumber,
         latitude: location?.coords.latitude,
         longitude: location?.coords.longitude,
         confirmed: true,
@@ -489,7 +486,7 @@ export default function MapScreen() {
         await queueParkAction('PARK', payload);
         const optimisticSession: ParkingSession = {
           id: `offline-${Date.now()}`, lotId: lot.id,
-          startTime: new Date().toISOString(), spotNumber,
+          startTime: new Date().toISOString(),
         };
         queryClient.setQueryData(['session', 'active'], { session: optimisticSession });
         updateOptimisticOccupancy(lot.id, 1);
@@ -507,7 +504,7 @@ export default function MapScreen() {
       if (data?.success) {
         const session: ParkingSession = data.session ?? {
           id: `offline-${Date.now()}`, lotId: lot.id,
-          spotNumber, startTime: new Date().toISOString(),
+          startTime: new Date().toISOString(),
         };
         queryClient.setQueryData(['session', 'active'], { session });
         if (!data._offline && data.confirmedOccupancy !== undefined) {
@@ -537,9 +534,8 @@ export default function MapScreen() {
         e?.message?.toLowerCase().includes('timeout') ||
         e?.code === 'ECONNABORTED'
       ) {
-        const spotNumber = Math.floor(Math.random() * 1000).toString();
-        await queueParkAction('PARK', {
-          lotId: lot.id, spotNumber,
+          await queueParkAction('PARK', {
+          lotId: lot.id,
           latitude: location?.coords.latitude,
           longitude: location?.coords.longitude,
           confirmed: true,
@@ -588,7 +584,6 @@ export default function MapScreen() {
     try {
       const payload = {
         lotId: candidate.lotId,
-        spotNumber: 'Auto-detected',
         latitude: candidate.latitude,
         longitude: candidate.longitude,
         confirmed: true,
@@ -597,7 +592,7 @@ export default function MapScreen() {
       if (!netState.isConnected) {
         await queueParkAction('CONFIRM_DETECTED', payload);
         queryClient.setQueryData(['session', 'active'], {
-          session: { id: `offline-${Date.now()}`, lotId: candidate.lotId, startTime: new Date().toISOString(), spotNumber: 'Auto-detected' },
+          session: { id: `offline-${Date.now()}`, lotId: candidate.lotId, startTime: new Date().toISOString() },
         });
         updateOptimisticOccupancy(candidate.lotId, 1);
         await clearPendingParkingCandidates();
@@ -615,7 +610,7 @@ export default function MapScreen() {
       }
     } catch {
       await queueParkAction('CONFIRM_DETECTED', {
-        lotId: candidate.lotId, spotNumber: 'Auto-detected',
+        lotId: candidate.lotId,
         latitude: candidate.latitude, longitude: candidate.longitude, confirmed: true,
       });
       await clearPendingParkingCandidates();

@@ -43,7 +43,7 @@ BEGIN
   INSERT INTO public.parking_sessions
     (user_id, lot_id, spot_number, latitude, longitude, active, start_time)
   VALUES
-    (p_user_id, p_lot_id, p_spot_number, p_latitude, p_longitude, true, now())
+    (p_user_id::uuid, p_lot_id, p_spot_number, p_latitude, p_longitude, true, now())
   RETURNING * INTO v_session;
 
   -- Atomically increment lot occupancy in the same transaction.
@@ -83,7 +83,7 @@ BEGIN
     UPDATE public.parking_sessions
     SET    active   = false,
            end_time = now()
-    WHERE  user_id = p_user_id
+    WHERE  user_id = p_user_id::uuid
       AND  active  = true
     RETURNING lot_id
   LOOP

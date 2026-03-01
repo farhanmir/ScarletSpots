@@ -57,7 +57,6 @@ interface ParkingSession {
   lotId: string;
   latitude?: number;
   longitude?: number;
-  spotNumber: string;
   startTime: string;
 }
 
@@ -209,7 +208,7 @@ export default function NavigateScreen() {
         lng: activeSession.longitude ?? targetLot?.longitude,
         name: hasExactCoords ? 'Your Vehicle' : (targetLot?.shortName ?? 'Active Session'),
         sub: hasExactCoords
-          ? `Spot #${activeSession.spotNumber}`
+          ? 'Your Vehicle'
           : (targetLot ? `${targetLot.campus} Campus` : 'Parking Area'),
       };
     }
