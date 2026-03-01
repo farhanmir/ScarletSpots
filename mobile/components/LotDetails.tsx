@@ -19,7 +19,7 @@ import Animated, {
   withTiming,
   runOnJS,
 } from 'react-native-reanimated';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { IconSymbol } from './ui/icon-symbol';
 import { BlurView } from 'expo-blur';
 import { type RutgersLot, getPermitLotIds, ALL_COMMUTER_LOT_IDS } from '../data/lots';
@@ -182,16 +182,17 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, acti
 
   return (
     <Modal visible={true} transparent={true} animationType="none" onRequestClose={handleClose}>
-      <TouchableWithoutFeedback onPress={handleClose}>
-        <Animated.View 
-          style={[styles.overlay, StyleSheet.absoluteFill]} 
-        />
-      </TouchableWithoutFeedback>
+      <GestureHandlerRootView style={styles.rootView}>
+        <TouchableWithoutFeedback onPress={handleClose}>
+          <Animated.View 
+            style={[styles.overlay, StyleSheet.absoluteFill]} 
+          />
+        </TouchableWithoutFeedback>
 
-      <GestureDetector gesture={pan}>
-        <Animated.View 
-          style={[styles.container, sheetStyle]}
-        >
+        <GestureDetector gesture={pan}>
+          <Animated.View 
+            style={[styles.container, sheetStyle]}
+          >
           {Platform.OS === 'ios' && (
             <BlurView intensity={80} tint="systemThickMaterialDark" style={StyleSheet.absoluteFill} />
           )}
@@ -353,13 +354,17 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, acti
           {/* Spacer to ensure content isn't flush with the bottom on small screens */}
           <View style={{ height: 40 }} />
         </ScrollView>
-      </Animated.View>
-      </GestureDetector>
+          </Animated.View>
+        </GestureDetector>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  rootView: {
+    flex: 1,
+  },
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
