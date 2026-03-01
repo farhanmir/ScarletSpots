@@ -51,9 +51,9 @@ interface Cluster {
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 const getOccupancyColor = (rate: number) => {
-  if (rate >= 90) return { full: '#ef4444', bg: 'rgba(239, 68, 68, 0.6)' };
-  if (rate >= 70) return { full: '#f59e0b', bg: 'rgba(245, 158, 11, 0.6)' };
-  return { full: '#10b981', bg: 'rgba(16, 185, 129, 0.6)' };
+  if (rate >= 90) return { full: '#b91c1c', bg: 'rgba(185, 28, 28, 0.45)', glow: '#b91c1c' };
+  if (rate >= 70) return { full: '#b45309', bg: 'rgba(180, 83, 9, 0.45)', glow: '#b45309' };
+  return { full: '#047857', bg: 'rgba(4, 120, 87, 0.40)', glow: '#059669' };
 };
 
 const getClusterColor = (rate: number) => {
@@ -752,17 +752,20 @@ export default function MapScreen() {
                 onPress={(e) => { e.stopPropagation(); handleLotPress(lot); }}
                 zIndex={isSelected ? 11 : 2}
                 tracksViewChanges={false}
+                anchor={{ x: 0.5, y: 0.5 }}
               >
-                <View style={[styles.markerContainer, isSelected && { transform: [{ scale: 1.2 }] }]}>
-                  <View style={[styles.markerBubble, { backgroundColor: colors.full }, isSelected && { borderColor: '#fff', borderWidth: 2 }]}>
-                    <Text style={styles.markerText}>{Math.round(lot.occupancyRate)}%</Text>
-                    {isFavorite && (
-                      <View style={styles.favoriteBadge}>
-                        <IconSymbol name="star.fill" size={10} color="#f59e0b" />
-                      </View>
-                    )}
-                  </View>
-                  <View style={[styles.markerArrow, { borderTopColor: colors.full }, isSelected && { borderTopColor: '#fff' }]} />
+                <View style={styles.dotContainer}>
+                  {isSelected && (
+                    <View style={styles.dotCallout}>
+                      <Text style={styles.dotCalloutText}>{Math.round(lot.occupancyRate)}%</Text>
+                    </View>
+                  )}
+                  <View style={[
+                    styles.dotMarker,
+                    { backgroundColor: colors.full, shadowColor: colors.glow },
+                    isSelected && styles.dotMarkerSelected,
+                  ]} />
+                  {isFavorite && <View style={styles.favoriteDot} />}
                 </View>
               </Marker>
             </React.Fragment>
@@ -1094,47 +1097,54 @@ const styles = StyleSheet.create({
   },
   permitBannerText: { color: '#a1a1aa', fontSize: 12, fontWeight: '500' },
 
-  // ── Lot markers ───────────────────────────────────────────────────────
-  markerContainer: { alignItems: 'center' },
-  markerBubble: {
-    backgroundColor: '#dc2626',
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    minWidth: 40,
+  // ── Lot dot markers ───────────────────────────────────────────────────────
+  dotContainer: {
     alignItems: 'center',
-    shadowColor: '#dc2626',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
-    shadowRadius: 4,
+    justifyContent: 'center',
+  },
+  dotMarker: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.65)',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.85,
+    shadowRadius: 5,
     elevation: 4,
   },
-  markerText: { color: 'white', fontSize: 12, fontWeight: 'bold' },
-  markerArrow: {
-    width: 0,
-    height: 0,
-    backgroundColor: 'transparent',
-    borderStyle: 'solid',
-    borderLeftWidth: 6,
-    borderRightWidth: 6,
-    borderTopWidth: 8,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderTopColor: '#dc2626',
-    transform: [{ translateY: -1 }],
+  dotMarkerSelected: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderColor: '#ffffff',
+    borderWidth: 2.5,
   },
-  favoriteBadge: {
+  dotCallout: {
     position: 'absolute',
-    top: -6,
-    right: -6,
-    backgroundColor: '#18181b',
+    bottom: 22,
+    backgroundColor: 'rgba(28, 28, 30, 0.95)',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
     borderRadius: 8,
-    width: 16,
-    height: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#f59e0b',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  dotCalloutText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  favoriteDot: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#f59e0b',
+    borderWidth: 1,
+    borderColor: 'rgba(28, 28, 30, 0.8)',
   },
 
   // ── Lot type filter button + panel ────────────────────────────────────

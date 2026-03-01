@@ -12,7 +12,14 @@ import {
   Alert,
   ScrollView,
 } from 'react-native';
-import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+  runOnJS,
+} from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { IconSymbol } from './ui/icon-symbol';
 import { BlurView } from 'expo-blur';
 import { type RutgersLot, getPermitLotIds, ALL_COMMUTER_LOT_IDS } from '../data/lots';
@@ -25,6 +32,12 @@ import ForecastSlices from './lots/ForecastSlices';
 import ForecastChart from './lots/ForecastChart';
 
 const { height } = Dimensions.get('window');
+
+// ── Sheet snap constants ──────────────────────────────────────────────────────
+const FULL_HEIGHT = height * 0.90;
+const SNAP_FULL = 0;
+const SNAP_HALF = FULL_HEIGHT - height * 0.50;
+const SNAP_PEEK = FULL_HEIGHT - 148;
 
 type Lot = RutgersLot;
 
@@ -110,6 +123,41 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, acti
     }
   }, [onClose]);
 
+  // ── Multi-level sheet animation ──────────────────────────────────────────
+  const translateY = useSharedValue(FULL_HEIGHT);
+  const panStartY = useSharedValue(0);
+
+  useEffect(() => {
+    translateY.value = withSpring(SNAP_HALF, { damping: 22, stiffness: 220, mass: 0.9 });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const pan = Gesture.Pan()
+    .onStart(() => {
+      panStartY.value = translateY.value;
+    })
+    .onUpdate(e => {
+      translateY.value = Math.max(SNAP_FULL, panStartY.value + e.translationY);
+    })
+    .onEnd(e => {
+      const current = translateY.value;
+      const vel = e.velocityY;
+      if (current > SNAP_PEEK + 60 || vel > 600) {
+        translateY.value = withTiming(FULL_HEIGHT, { duration: 240 });
+        runOnJS(handleClose)();
+      } else if (current < SNAP_HALF - 60 || vel < -400) {
+        translateY.value = withSpring(SNAP_FULL, { damping: 22, stiffness: 200 });
+      } else if (current > (SNAP_PEEK + SNAP_HALF) / 2) {
+        translateY.value = withSpring(SNAP_PEEK, { damping: 22, stiffness: 200 });
+      } else {
+        translateY.value = withSpring(SNAP_HALF, { damping: 22, stiffness: 200 });
+      }
+    });
+
+  const sheetStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }));
+
   const renderActionText = () => {
     if (!user) return 'Sign in to Park';
     if (activeSession && activeSession.lotId === lot.id) return 'Parked Here';
@@ -136,18 +184,17 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, acti
     <Modal visible={true} transparent={true} animationType="none" onRequestClose={handleClose}>
       <TouchableWithoutFeedback onPress={handleClose}>
         <Animated.View 
-          entering={FadeIn.duration(200)}
           style={[styles.overlay, StyleSheet.absoluteFill]} 
         />
       </TouchableWithoutFeedback>
 
-      <Animated.View 
-        entering={SlideInDown.duration(250)}
-        style={styles.container}
-      >
-        {Platform.OS === 'ios' && (
-          <BlurView intensity={90} tint="systemThickMaterialDark" style={StyleSheet.absoluteFill} />
-        )}
+      <GestureDetector gesture={pan}>
+        <Animated.View 
+          style={[styles.container, sheetStyle]}
+        >
+          {Platform.OS === 'ios' && (
+            <BlurView intensity={80} tint="systemThickMaterialDark" style={StyleSheet.absoluteFill} />
+          )}
         
         {/* Handle Bar */}
         <View style={styles.handleContainer}>
@@ -307,6 +354,7 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, acti
           <View style={{ height: 40 }} />
         </ScrollView>
       </Animated.View>
+      </GestureDetector>
     </Modal>
   );
 }
@@ -314,19 +362,27 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, acti
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
   },
   container: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
+    height: FULL_HEIGHT,
     backgroundColor: Platform.OS === 'android' ? '#18181b' : 'transparent',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     overflow: 'hidden',
     paddingBottom: Platform.OS === 'ios' ? 40 : 24,
-    maxHeight: height * 0.90,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 12,
+    borderWidth: 0.5,
+    borderBottomWidth: 0,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
   handleContainer: {
     width: '100%',
@@ -334,9 +390,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   handle: {
-    width: 40,
+    width: 36,
     height: 4,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: 'rgba(255,255,255,0.35)',
     borderRadius: 2,
   },
   scrollView: {
