@@ -2,9 +2,14 @@ fastapi>=0.115.0
 uvicorn[standard]>=0.34.0
 python-dotenv>=1.0.0
 pydantic>=2.10.0
-supabase>=2.3.0
-httpx>=0.24.1
-httpcore>=0.17.3
+# supabase >=2.10.0 requires httpx>=0.26 which pulls httpcore 1.x — fixes the
+# Python 3.14 "typing.Union has no __module__" crash in httpcore 0.17.x.
+# <2.26.0 avoids storage3 pulling in pyiceberg (requires C++ build tools).
+supabase>=2.10.0,<2.26.0
+httpx>=0.27.0
+httpcore>=1.0.2
+# websockets>=13 required for realtime 2.x (websockets.asyncio.client API)
+websockets>=13.0
 pytest>=8.0.0
 PyJWT>=2.8.0
 slowapi>=0.1.9
