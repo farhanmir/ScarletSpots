@@ -2,6 +2,8 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { StyleSheet, View, Platform, Alert, Text, TouchableOpacity, ActivityIndicator, AppState } from 'react-native';
 import { BlurView } from 'expo-blur';
 import MapView, { PROVIDER_GOOGLE, PROVIDER_DEFAULT, Polygon, Marker } from 'react-native-maps';
+import GlassCard from '../../components/ui/GlassCard';
+import { Theme } from '@/constants/theme';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
 import * as Location from 'expo-location';
@@ -819,6 +821,18 @@ export default function MapScreen() {
         ))}
       </MapView>
 
+      {/* ── Search Pill HUD ────────────────────────────────────────────────── */}
+      <GlassCard style={styles.searchPillContainer} borderRadius={24}>
+        <TouchableOpacity
+          style={styles.searchPill}
+          onPress={() => router.push('/(tabs)/search')}
+          activeOpacity={0.75}
+        >
+          <IconSymbol name="magnifyingglass" size={16} color={Theme.textSecondary} />
+          <Text style={styles.searchPillText}>Search lots & places…</Text>
+        </TouchableOpacity>
+      </GlassCard>
+
       {/* ── Filter button (collapses to panel on tap) ── */}
       {showFilterPanel && (
         <View style={styles.filterPanel}>
@@ -846,12 +860,9 @@ export default function MapScreen() {
       )}
 
       {/* Center-on-me button */}
-      <View style={styles.centerButtonContainer}>
-        {Platform.OS === 'ios' && (
-          <BlurView intensity={80} tint="systemChromeMaterialDark" style={StyleSheet.absoluteFill} />
-        )}
+      <GlassCard style={styles.centerButtonContainer} borderRadius={25} noShadow={false}>
         <TouchableOpacity
-          style={[styles.centerButton, Platform.OS === 'android' && styles.centerButtonAndroid]}
+          style={styles.centerButton}
           onPress={() => {
             if (!location || lotCooldownRef.current) return;
             lotCooldownRef.current = true;
@@ -865,28 +876,25 @@ export default function MapScreen() {
           }}
           activeOpacity={0.7}
         >
-          <IconSymbol name="location.fill" size={24} color="#ef4444" />
+          <IconSymbol name="location.fill" size={24} color={Theme.scarlet} />
         </TouchableOpacity>
-      </View>
+      </GlassCard>
 
       {/* Filter button */}
-      <View style={styles.filterButtonContainer}>
-        {Platform.OS === 'ios' && (
-          <BlurView intensity={80} tint="systemChromeMaterialDark" style={StyleSheet.absoluteFill} />
-        )}
+      <GlassCard style={styles.filterButtonContainer} borderRadius={25} noShadow={false}>
         <TouchableOpacity
-          style={[styles.filterButton, Platform.OS === 'android' && styles.filterButtonAndroid]}
+          style={styles.filterButton}
           onPress={() => setShowFilterPanel(p => !p)}
           activeOpacity={0.7}
         >
           <IconSymbol
             name="line.3.horizontal.decrease"
             size={20}
-            color={lotTypeFilter ? '#ef4444' : '#e4e4e7'}
+            color={lotTypeFilter ? Theme.scarlet : Theme.textPrimary}
           />
         </TouchableOpacity>
         {lotTypeFilter && <View style={styles.filterActiveDot} />}
-      </View>
+      </GlassCard>
 
       {/* Offline / sync badge */}
       {(!isOnline || pendingSyncCount > 0) && (
@@ -981,6 +989,28 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   map: { width: '100%', height: '100%' },
 
+  // ── Search Pill HUD ───────────────────────────────────────────────────────
+  searchPillContainer: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 56 : 40,
+    left: 16,
+    right: 16,
+    zIndex: 10,
+  },
+  searchPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 13,
+    paddingHorizontal: 16,
+    backgroundColor: Theme.glass,
+  },
+  searchPillText: {
+    color: Theme.textTertiary,
+    fontSize: 15,
+    fontWeight: '400',
+  },
+
   // ── Session chip (replaces the intrusive top banner) ──────────────────
   sessionChipContainer: {
     position: 'absolute',
@@ -989,7 +1019,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(220, 38, 38, 0.35)',
+    borderColor: Theme.scarletBorder,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
@@ -1009,7 +1039,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#ef4444',
+    backgroundColor: Theme.scarlet,
   },
   sessionChipText: {
     color: '#f4f4f5',
@@ -1038,7 +1068,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 2,
   },
   sessionChipEndText: {
-    color: '#ef4444',
+    color: Theme.scarlet,
     fontSize: 13,
     fontWeight: '700',
   },
@@ -1051,29 +1081,19 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    overflow: 'hidden',
-    borderWidth: 0.5,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
   },
   centerButton: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(12, 12, 12, 0.3)',
   },
-  centerButtonAndroid: { backgroundColor: '#18181b' },
 
   // ── Offline badge ──────────────────────────────────────────────────────
   offlineBadge: {
     position: 'absolute',
     top: 60,
     alignSelf: 'center',
-    backgroundColor: 'rgba(239, 68, 68, 0.85)',
+    backgroundColor: 'rgba(204, 0, 51, 0.85)',
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 20,
@@ -1088,14 +1108,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(24, 24, 27, 0.92)',
+    backgroundColor: Theme.glass,
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#3f3f46',
+    borderRadius: Theme.radiusLG,
+    borderWidth: 0.5,
+    borderColor: Theme.borderDefault,
   },
-  permitBannerText: { color: '#a1a1aa', fontSize: 12, fontWeight: '500' },
+  permitBannerText: { color: Theme.textSecondary, fontSize: 12, fontWeight: '500' },
 
   // ── Lot dot markers ───────────────────────────────────────────────────────
   dotContainer: {
@@ -1155,22 +1175,12 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    overflow: 'hidden',
-    borderWidth: 0.5,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
   },
   filterButton: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(12, 12, 12, 0.3)',
   },
-  filterButtonAndroid: { backgroundColor: '#18181b' },
   filterActiveDot: {
     position: 'absolute',
     top: 9,
@@ -1178,21 +1188,21 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#dc2626',
+    backgroundColor: Theme.scarlet,
     borderWidth: 1.5,
-    borderColor: '#09090b',
+    borderColor: Theme.baseDeep,
   },
   filterPanel: {
     position: 'absolute',
     bottom: 230,
     right: 16,
-    backgroundColor: 'rgba(18, 18, 20, 0.96)',
-    borderRadius: 16,
+    backgroundColor: Theme.glassAndroid,
+    borderRadius: Theme.radiusMD,
     paddingVertical: 6,
     paddingHorizontal: 6,
     gap: 2,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 0.5,
+    borderColor: Theme.borderDefault,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
@@ -1203,15 +1213,15 @@ const styles = StyleSheet.create({
   filterPanelChip: {
     paddingHorizontal: 14,
     paddingVertical: 10,
-    borderRadius: 10,
+    borderRadius: Theme.radiusSM,
   },
   filterChipActive: {
-    backgroundColor: '#dc2626',
+    backgroundColor: Theme.scarlet,
   },
   filterChipText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#d4d4d8',
+    color: Theme.textSecondary,
   },
   filterChipTextActive: {
     color: '#fff',
