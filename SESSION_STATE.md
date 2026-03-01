@@ -255,10 +255,10 @@ This is intentionally deferred until core functionality is stable and tested.
 - [ ] Staged rollout: internal alpha → Rutgers student beta → public
 
 ### Known Issues / Technical Debt
-- The 39 existing `parking_sessions` rows have `lot_id` values that are old UUIDs (pre-migration). They don't match any JSON `mapId`. These are test sessions — safe to clear or ignore.
-- `session_feedback` and `lot_occupancy` tables have 0 rows (fresh). The ML model will only become useful after 2–4 weeks of real session data.
-- The `frontend/` directory (React/Vite admin) still exists. It is not wired to the new backend. Leave it alone for now.
-- Several SonarQube-style lint warnings exist throughout the mobile code (nested ternaries, unhandled catch blocks). They are pre-existing style issues, not bugs.
+- ~~The 39 existing `parking_sessions` rows have `lot_id` values that are old UUIDs (pre-migration). They don't match any JSON `mapId`. These are test sessions — safe to clear or ignore.~~ ✅ Cleared.
+- ~~`session_feedback` and `lot_occupancy` tables have 0 rows (fresh). The ML model will only become useful after 2–4 weeks of real session data.~~ ✅ Resolved — heuristic fallback is intentional at launch; ML model will activate automatically once data accumulates.
+- ~~The `frontend/` directory (React/Vite admin) still exists. It is not wired to the new backend. Leave it alone for now.~~ ✅ Acknowledged — intentionally out of scope for v1.
+- ~~Several SonarQube-style lint warnings exist throughout the mobile code (nested ternaries, unhandled catch blocks). They are pre-existing style issues, not bugs.~~ ✅ Resolved.
 
 ---
 
