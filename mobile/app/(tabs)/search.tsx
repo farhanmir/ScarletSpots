@@ -9,7 +9,9 @@ import {
   Platform,
   Keyboard,
   TouchableWithoutFeedback,
+  StatusBar,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import * as Location from 'expo-location';
@@ -29,19 +31,32 @@ interface PlaceResult {
 
 const STATIC_LOTS = getAllLots(ENABLE_ALL_CAMPUSES);
 
+const CAMPUSES = [
+  { name: 'Busch', icon: 'building.2.fill' as const, lat: 40.5231, lng: -74.4588 },
+  { name: 'College Ave', icon: 'building.columns.fill' as const, lat: 40.5008, lng: -74.4474 },
+  { name: 'Livingston', icon: 'leaf.fill' as const, lat: 40.5238, lng: -74.4368 },
+  { name: 'Cook/Doug', icon: 'fork.knife' as const, lat: 40.4851, lng: -74.4373 },
+];
+
+const getOccupancyColor = (rate: number) => {
+  if (rate >= 90) return '#ef4444';
+  if (rate >= 70) return '#f59e0b';
+  return '#10b981';
+};
+
 export default function SearchScreen() {
   const router = useRouter();
 
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<PlaceResult[]>([]);
   const [searching, setSearching] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
   const mountedRef = useRef(true);
 
   useEffect(() => {
     return () => { mountedRef.current = false; };
   }, []);
 
-  // Filter lots when query changes
   useEffect(() => {
     if (!query) {
       setResults([]);
@@ -49,8 +64,7 @@ export default function SearchScreen() {
     }
 
     const lowerQuery = query.toLowerCase();
-    
-    // 1. Filter Lots (from bundled JSON — instant, no network)
+
     const lotResults: PlaceResult[] = STATIC_LOTS
       .filter(lot =>
         lot.name.toLowerCase().includes(lowerQuery) ||
@@ -67,9 +81,6 @@ export default function SearchScreen() {
         data: lot,
       }));
 
-    setResults(lotResults);
-
-    // 2. SEARCH STATIC RUTGERS BUILDINGS (Expanded List)
     const buildingResults: PlaceResult[] = RUTGERS_BUILDINGS
       .filter(place => place.name.toLowerCase().includes(lowerQuery))
       .map((place, index) => ({
@@ -78,327 +89,380 @@ export default function SearchScreen() {
         address: place.address,
         latitude: place.latitude,
         longitude: place.longitude,
-        type: 'place'
+        type: 'place' as const,
       }));
 
-    // Update with static results immediately
     setResults([...lotResults, ...buildingResults]);
 
-    // 3. ASYNC NATIVE GEOCODING (OS Level)
-    // Only fire if the query is substantive and we haven't found an exact match
     if (query.length > 3) {
       setSearching(true);
-      
       const searchTimeout = setTimeout(async () => {
         try {
-          // Append context to prevent global results (e.g. searching "Target" giving a California store)
           const contextualQuery = `${query} New Brunswick, NJ`;
-          
           const geocodeResults = await Location.geocodeAsync(contextualQuery);
-          
-          if (geocodeResults && geocodeResults.length > 0 && mountedRef.current) {
+          if (geocodeResults?.length > 0 && mountedRef.current) {
             const firstResult = geocodeResults[0];
-            
-            const nativeResult: PlaceResult = {
+            setResults(prev => [...prev, {
               id: `native-${Date.now()}`,
-              name: query, // Label the pin what they searched
+              name: query,
               address: 'Custom Location (New Brunswick Area)',
               latitude: firstResult.latitude,
               longitude: firstResult.longitude,
-              type: 'place'
-            };
-            
-            setResults(prev => [...prev, nativeResult]);
+              type: 'place' as const,
+            }]);
           }
-        } catch (err) {
-          console.log('[Search] Geocoding error or rate limit:', err);
+        } catch {
+          // ignore geocoding errors
         } finally {
           if (mountedRef.current) setSearching(false);
         }
-      }, 500); // 500ms debounce
-
+      }, 500);
       return () => clearTimeout(searchTimeout);
     } else {
       setSearching(false);
     }
-
   }, [query]);
 
   const handleSelect = (item: PlaceResult) => {
     Keyboard.dismiss();
-    
     if (item.type === 'lot') {
-      // Use push or navigate to ensure we switch tabs correctly with params
-      router.push({
-        pathname: '/(tabs)',
-        params: {
-          selectedLotId: item.id,
-        }
-      });
+      router.push({ pathname: '/(tabs)', params: { selectedLotId: item.id } });
     } else {
-      router.push({
-        pathname: '/(tabs)',
-        params: { 
-          placeLat: item.latitude, 
-          placeLng: item.longitude, 
-          placeName: item.name 
-        }
-      });
+      router.push({ pathname: '/(tabs)', params: { placeLat: item.latitude, placeLng: item.longitude, placeName: item.name } });
     }
   };
 
-  const getOccupancyColor = (rate: number) => {
-    if (rate >= 90) return '#ef4444'; // Red
-    if (rate >= 70) return '#f59e0b'; // Amber
-    return '#10b981'; // Emerald
-  };
+  const lotResults = results.filter(r => r.type === 'lot');
+  const placeResults = results.filter(r => r.type === 'place');
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
       <View style={styles.container}>
-        {/* Search Header */}
+        <StatusBar barStyle="light-content" />
+        <LinearGradient colors={['#0f0f12', '#09090b']} style={StyleSheet.absoluteFill} />
+
+        {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>Where to?</Text>
-          <View style={styles.searchBar}>
-            <IconSymbol name="magnifyingglass" size={20} color="#a1a1aa" />
+          <Text style={styles.title}>Search</Text>
+          <Text style={styles.subtitle}>Lots, buildings & places</Text>
+
+          <View style={[styles.searchBar, isFocused && styles.searchBarFocused]}>
+            <IconSymbol name="magnifyingglass" size={18} color={isFocused ? '#dc2626' : '#52525b'} />
             <TextInput
               style={styles.input}
-              placeholder="Search lots, campuses, or places..."
-              placeholderTextColor="#71717a"
+              placeholder="Lots, buildings, addresses…"
+              placeholderTextColor="#3f3f46"
               value={query}
               onChangeText={setQuery}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
               autoCapitalize="none"
               autoCorrect={false}
               returnKeyType="search"
             />
-            {query.length > 0 && (
-              <TouchableOpacity onPress={() => setQuery('')}>
-                <IconSymbol name="xmark.circle.fill" size={18} color="#71717a" />
+            {query.length > 0 ? (
+              <TouchableOpacity onPress={() => setQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <IconSymbol name="xmark.circle.fill" size={18} color="#52525b" />
               </TouchableOpacity>
-            )}
+            ) : searching ? (
+              <View style={styles.searchingDot} />
+            ) : null}
           </View>
         </View>
 
-        {/* Results List */}
-        <View style={styles.resultsContainer}>
+        {query.length === 0 ? (
           <FlatList
-              data={results}
-              keyExtractor={(item) => item.id}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={{ paddingBottom: 100 }}
-              ListEmptyComponent={
-                query.length > 0 ? (
-                  <View style={styles.emptyState}>
-                    <Text style={styles.emptyText}>
-                      {searching ? 'Searching places...' : 'No specific results found'}
-                    </Text>
-                    {!searching && (
-                      <View style={{ marginTop: 24, width: '100%' }}>
-                        <Text style={[styles.sectionTitle, { marginBottom: 12 }]}>Try a Campus</Text>
-                        {[
-                          { name: 'Busch Campus', lat: 40.5231, lng: -74.4588 },
-                          { name: 'College Avenue', lat: 40.5008, lng: -74.4474 },
-                          { name: 'Livingston', lat: 40.5238, lng: -74.4368 },
-                          { name: 'Cook/Douglass', lat: 40.4851, lng: -74.4373 },
-                        ].map((campus) => (
-                           <TouchableOpacity 
-                            key={campus.name} 
-                            style={styles.suggestionItem}
-                            onPress={() => handleSelect({
-                              id: `campus-${campus.name}`,
-                              name: campus.name,
-                              address: 'Rutgers University',
-                              latitude: campus.lat,
-                              longitude: campus.lng,
-                              type: 'place' as const,
-                            })}
-                          >
-                            <IconSymbol name="mappin.and.ellipse" size={16} color="#71717a" />
-                            <Text style={styles.suggestionText}>{campus.name}</Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    )}
-                  </View>
-                ) : (
-                  <View style={styles.suggestionContainer}>
-                    <Text style={styles.sectionTitle}>Suggestions</Text>
-                    {STATIC_LOTS.slice(0, 5).map(lot => (
-                      <TouchableOpacity
-                        key={lot.id}
-                        style={styles.suggestionItem}
-                        onPress={() => handleSelect({
-                          id: lot.id,
-                          name: lot.name,
-                          latitude: lot.latitude,
-                          longitude: lot.longitude,
-                          type: 'lot' as const,
-                          address: `${lot.campus} Campus`,
-                          data: lot,
-                        })}
-                      >
-                        <IconSymbol name="clock" size={16} color="#71717a" />
-                        <Text style={styles.suggestionText}>{lot.name}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )
-              }
-              renderItem={({ item }) => (
-                <TouchableOpacity 
-                  style={styles.resultItem}
-                  onPress={() => handleSelect(item)}
-                >
-                  <View style={styles.iconContainer}>
-                    <IconSymbol 
-                      name={item.type === 'lot' ? 'car.fill' : 'mappin.and.ellipse'} 
-                      size={24} 
-                      color={item.type === 'lot' ? '#dc2626' : '#3b82f6'} 
-                    />
-                  </View>
-                  
-                  <View style={styles.textContainer}>
-                    <Text style={styles.resultName}>{item.name}</Text>
-                    <Text style={styles.resultAddress}>{item.address || 'Unknown Location'}</Text>
-                  </View>
+            data={[]}
+            keyExtractor={() => ''}
+            renderItem={null}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.emptyBody}
+            ListHeaderComponent={
+              <>
+                <Text style={styles.sectionLabel}>CAMPUSES</Text>
+                <View style={styles.campusRow}>
+                  {CAMPUSES.map(c => (
+                    <TouchableOpacity
+                      key={c.name}
+                      style={styles.campusPill}
+                      onPress={() => handleSelect({ id: `c-${c.name}`, name: c.name, latitude: c.lat, longitude: c.lng, type: 'place' })}
+                      activeOpacity={0.75}
+                    >
+                      <IconSymbol name={c.icon} size={15} color="#dc2626" />
+                      <Text style={styles.campusPillText}>{c.name}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
 
-                  {item.type === 'lot' && item.data && (
-                    <View style={styles.occupancyContainer}>
-                      <View 
-                        style={[
-                          styles.occupancyDot, 
-                          { backgroundColor: getOccupancyColor(item.data.occupancyRate) }
-                        ]} 
-                      />
-                      <Text style={styles.occupancyText}>
-                        {Math.round(item.data.occupancyRate)}%
+                <Text style={[styles.sectionLabel, { marginTop: 28 }]}>POPULAR LOTS</Text>
+                {STATIC_LOTS.slice(0, 6).map(lot => (
+                  <TouchableOpacity
+                    key={lot.id}
+                    style={styles.popularRow}
+                    onPress={() => handleSelect({ id: lot.id, name: lot.name, latitude: lot.latitude, longitude: lot.longitude, type: 'lot', address: `${lot.campus} Campus`, data: lot })}
+                    activeOpacity={0.75}
+                  >
+                    <View style={styles.popularIcon}>
+                      <IconSymbol name="car.fill" size={15} color="#dc2626" />
+                    </View>
+                    <View style={styles.popularText}>
+                      <Text style={styles.popularName}>{lot.name}</Text>
+                      <Text style={styles.popularSub}>{lot.campus} · {lot.capacity} spots</Text>
+                    </View>
+                    <View style={[styles.occupancyPill, { borderColor: getOccupancyColor(lot.occupancyRate) + '40' }]}>
+                      <View style={[styles.occupancyDot, { backgroundColor: getOccupancyColor(lot.occupancyRate) }]} />
+                      <Text style={[styles.occupancyText, { color: getOccupancyColor(lot.occupancyRate) }]}>
+                        {Math.round(lot.occupancyRate)}%
                       </Text>
                     </View>
+                  </TouchableOpacity>
+                ))}
+              </>
+            }
+          />
+        ) : results.length === 0 && !searching ? (
+          <View style={styles.noResultsWrap}>
+            <IconSymbol name="magnifyingglass" size={40} color="#27272a" />
+            <Text style={styles.noResultsTitle}>No results</Text>
+            <Text style={styles.noResultsSub}>Try a lot name, campus, or building</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={results}
+            keyExtractor={item => item.id}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.resultsList}
+            renderItem={({ item, index }) => {
+              const prevItem = results[index - 1];
+              const showLotHeader = item.type === 'lot' && (index === 0 || prevItem?.type !== 'lot');
+              const showPlaceHeader = item.type === 'place' && (index === 0 || prevItem?.type !== 'place');
+              return (
+                <>
+                  {showLotHeader && lotResults.length > 0 && (
+                    <Text style={styles.sectionLabel}>PARKING LOTS</Text>
                   )}
-                </TouchableOpacity>
-              )}
-            />
-        </View>
+                  {showPlaceHeader && placeResults.length > 0 && (
+                    <Text style={[styles.sectionLabel, lotResults.length > 0 && { marginTop: 24 }]}>PLACES</Text>
+                  )}
+                  <TouchableOpacity style={styles.resultCard} onPress={() => handleSelect(item)} activeOpacity={0.75}>
+                    <View style={[styles.resultIcon, item.type === 'place' && styles.resultIconPlace]}>
+                      <IconSymbol
+                        name={item.type === 'lot' ? 'car.fill' : 'mappin.and.ellipse'}
+                        size={18}
+                        color={item.type === 'lot' ? '#dc2626' : '#3b82f6'}
+                      />
+                    </View>
+                    <View style={styles.resultText}>
+                      <Text style={styles.resultName} numberOfLines={1}>{item.name}</Text>
+                      <Text style={styles.resultAddr} numberOfLines={1}>{item.address ?? 'Unknown Location'}</Text>
+                    </View>
+                    {item.type === 'lot' && item.data && (
+                      <View style={[styles.occupancyPill, { borderColor: getOccupancyColor(item.data.occupancyRate) + '40' }]}>
+                        <View style={[styles.occupancyDot, { backgroundColor: getOccupancyColor(item.data.occupancyRate) }]} />
+                        <Text style={[styles.occupancyText, { color: getOccupancyColor(item.data.occupancyRate) }]}>
+                          {Math.round(item.data.occupancyRate)}%
+                        </Text>
+                      </View>
+                    )}
+                    {item.type === 'place' && (
+                      <IconSymbol name="chevron.right" size={14} color="#3f3f46" />
+                    )}
+                  </TouchableOpacity>
+                </>
+              );
+            }}
+          />
+        )}
       </View>
     </TouchableWithoutFeedback>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#09090b', // Zinc-950
-  },
+  container: { flex: 1 },
+
   header: {
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingTop: Platform.OS === 'ios' ? 60 : 44,
     paddingHorizontal: 20,
-    paddingBottom: 20,
-    backgroundColor: '#09090b',
-    borderBottomWidth: 1,
-    borderBottomColor: '#27272a',
+    paddingBottom: 16,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#f4f4f5',
-    marginBottom: 15,
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#fafafa',
+    letterSpacing: -0.5,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#52525b',
+    marginTop: 2,
+    marginBottom: 18,
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#18181b', // Zinc-900
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderWidth: 1,
+    backgroundColor: '#111113',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: Platform.OS === 'ios' ? 13 : 10,
+    borderWidth: 1.5,
     borderColor: '#27272a',
+    gap: 10,
+  },
+  searchBarFocused: {
+    borderColor: '#dc2626',
+    backgroundColor: '#130d0d',
   },
   input: {
     flex: 1,
-    marginLeft: 10,
     color: '#f4f4f5',
     fontSize: 16,
+    padding: 0,
   },
-  resultsContainer: {
-    flex: 1,
+  searchingDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#dc2626',
+    opacity: 0.7,
+  },
+
+  emptyBody: {
     paddingHorizontal: 20,
+    paddingBottom: 120,
   },
-  resultItem: {
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#52525b',
+    letterSpacing: 1,
+    marginBottom: 12,
+    marginTop: 4,
+  },
+  campusRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  campusPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 16,
+    gap: 6,
+    backgroundColor: 'rgba(220, 38, 38, 0.08)',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(220, 38, 38, 0.18)',
+  },
+  campusPillText: {
+    color: '#e4e4e7',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+
+  popularRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 11,
     borderBottomWidth: 1,
     borderBottomColor: '#18181b',
+    gap: 12,
   },
-  iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#18181b',
+  popularIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(220, 38, 38, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
   },
-  textContainer: {
-    flex: 1,
-  },
-  resultName: {
+  popularText: { flex: 1 },
+  popularName: {
     color: '#e4e4e7',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
-    marginBottom: 4,
   },
-  resultAddress: {
-    color: '#71717a',
-    fontSize: 13,
+  popularSub: {
+    color: '#52525b',
+    fontSize: 12,
+    marginTop: 2,
   },
-  occupancyContainer: {
+
+  occupancyPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#18181b',
+    gap: 5,
+    borderWidth: 1,
+    borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 8,
   },
   occupancyDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    marginRight: 6,
   },
   occupancyText: {
-    color: '#a1a1aa',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
   },
-  emptyState: {
-    paddingTop: 40,
-    alignItems: 'center',
+
+  resultsList: {
+    paddingHorizontal: 20,
+    paddingBottom: 120,
+    paddingTop: 4,
   },
-  emptyText: {
-    color: '#52525b',
-    fontSize: 14,
-  },
-  suggestionContainer: {
-    marginTop: 20,
-  },
-  sectionTitle: {
-    color: '#a1a1aa',
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 10,
-  },
-  suggestionItem: {
+  resultCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#18181b',
+    backgroundColor: '#111113',
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#1f1f23',
+    gap: 12,
   },
-  suggestionText: {
-    color: '#d4d4d8',
+  resultIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: 'rgba(220, 38, 38, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  resultIconPlace: {
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+  },
+  resultText: { flex: 1 },
+  resultName: {
+    color: '#f4f4f5',
     fontSize: 15,
-    marginLeft: 12,
+    fontWeight: '600',
+  },
+  resultAddr: {
+    color: '#52525b',
+    fontSize: 12,
+    marginTop: 2,
+  },
+
+  noResultsWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -80,
+    gap: 10,
+  },
+  noResultsTitle: {
+    color: '#52525b',
+    fontSize: 17,
+    fontWeight: '600',
+  },
+  noResultsSub: {
+    color: '#3f3f46',
+    fontSize: 13,
   },
 });

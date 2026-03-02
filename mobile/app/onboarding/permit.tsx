@@ -17,8 +17,7 @@ import { ALL_PERMIT_TYPES } from '@/data/lots';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-type CustomFlag = 'student' | 'employee' | 'gated' | 'ev';
-type NoPermitSubMode = null | 'commuter_all' | 'custom';
+type NoPermitSubMode = null | 'all' | 'commuter_all';
 
 // ── Permit grouping ────────────────────────────────────────────────────────
 
@@ -55,15 +54,6 @@ function groupPermits(permits: string[], query: string): PermitSection[] {
     .map(([title, data]) => ({ title, data }));
 }
 
-// ── Custom flag chips ──────────────────────────────────────────────────────
-
-const CUSTOM_FLAGS: { key: CustomFlag; label: string }[] = [
-  { key: 'student',  label: '🎓 Student' },
-  { key: 'employee', label: '👔 Employee' },
-  { key: 'gated',    label: '🔒 Gated' },
-  { key: 'ev',       label: '⚡ EV' },
-];
-
 // ── Screen ─────────────────────────────────────────────────────────────────
 
 export default function PermitScreen() {
@@ -76,21 +66,13 @@ export default function PermitScreen() {
   // Selection state
   const [selected, setSelected] = useState<string | null>(permitType);
   const [noPermitExpanded, setNoPermitExpanded] = useState(
-    permitType === '__commuter_all' || (permitType?.startsWith('__custom:') ?? false)
+    permitType === '__commuter_all' || permitType === '__all'
   );
   const [noPermitSubMode, setNoPermitSubMode] = useState<NoPermitSubMode>(
-    permitType === '__commuter_all'
-      ? 'commuter_all'
-      : permitType?.startsWith('__custom:')
-        ? 'custom'
-        : null
+    permitType === '__commuter_all' ? 'commuter_all'
+    : permitType === '__all' ? 'all'
+    : null
   );
-  const [customFlags, setCustomFlags] = useState<Set<CustomFlag>>(() => {
-    if (permitType?.startsWith('__custom:')) {
-      return new Set(permitType.slice('__custom:'.length).split(',') as CustomFlag[]);
-    }
-    return new Set();
-  });
 
   const [query, setQuery] = useState('');
 
@@ -104,20 +86,9 @@ export default function PermitScreen() {
     setNoPermitSubMode(null);
   };
 
-  const toggleCustomFlag = (flag: CustomFlag) => {
-    setCustomFlags(prev => {
-      const next = new Set(prev);
-      next.has(flag) ? next.delete(flag) : next.add(flag);
-      return next;
-    });
-  };
-
   const buildRawValue = (): string | null => {
     if (noPermitSubMode === 'commuter_all') return '__commuter_all';
-    if (noPermitSubMode === 'custom') {
-      if (customFlags.size === 0) return null;
-      return `__custom:${Array.from(customFlags).join(',')}`;
-    }
+    if (noPermitSubMode === 'all') return '__all';
     return selected;
   };
 
@@ -143,8 +114,7 @@ export default function PermitScreen() {
 
   const isNoPermitSelected = noPermitSubMode !== null;
   const canConfirm =
-    (isNoPermitSelected && noPermitSubMode === 'commuter_all') ||
-    (isNoPermitSelected && noPermitSubMode === 'custom' && customFlags.size > 0) ||
+    (isNoPermitSelected && (noPermitSubMode === 'commuter_all' || noPermitSubMode === 'all')) ||
     (!isNoPermitSelected && selected !== null);
 
   return (
@@ -209,9 +179,24 @@ export default function PermitScreen() {
 
         {noPermitExpanded && (
           <View style={styles.noPermitOptions}>
+            {/* Show All Lots */}
+            <TouchableOpacity
+              style={[styles.subOption, noPermitSubMode === 'all' && styles.subOptionActive]}
+              onPress={() => setNoPermitSubMode(prev => prev === 'all' ? null : 'all')}
+              activeOpacity={0.8}
+            >
+              <View style={styles.subOptionLeft}>
+                <Text style={styles.subOptionTitle}>🗺️  Show all lots</Text>
+                <Text style={styles.subOptionSub}>Display every parking lot on the map with no filter</Text>
+              </View>
+              {noPermitSubMode === 'all' && (
+                <IconSymbol name="checkmark.circle.fill" size={20} color="#22c55e" />
+              )}
+            </TouchableOpacity>
+
             {/* Commuter All */}
             <TouchableOpacity
-              style={[styles.subOption, noPermitSubMode === 'commuter_all' && styles.subOptionActive]}
+              style={[styles.subOption, styles.subOptionLast, noPermitSubMode === 'commuter_all' && styles.subOptionActive]}
               onPress={() => setNoPermitSubMode(prev => prev === 'commuter_all' ? null : 'commuter_all')}
               activeOpacity={0.8}
             >
@@ -223,38 +208,6 @@ export default function PermitScreen() {
                 <IconSymbol name="checkmark.circle.fill" size={20} color="#22c55e" />
               )}
             </TouchableOpacity>
-
-            {/* Custom */}
-            <TouchableOpacity
-              style={[styles.subOption, styles.subOptionLast, noPermitSubMode === 'custom' && styles.subOptionActive]}
-              onPress={() => setNoPermitSubMode(prev => prev === 'custom' ? null : 'custom')}
-              activeOpacity={0.8}
-            >
-              <View style={styles.subOptionLeft}>
-                <Text style={styles.subOptionTitle}>🎛️  Custom filter</Text>
-                <Text style={styles.subOptionSub}>Pick which lot types to show</Text>
-              </View>
-              {noPermitSubMode === 'custom' && (
-                <IconSymbol name="checkmark.circle.fill" size={20} color="#22c55e" />
-              )}
-            </TouchableOpacity>
-
-            {noPermitSubMode === 'custom' && (
-              <View style={styles.customFlagsRow}>
-                {CUSTOM_FLAGS.map(({ key, label }) => (
-                  <TouchableOpacity
-                    key={key}
-                    style={[styles.customChip, customFlags.has(key) && styles.customChipActive]}
-                    onPress={() => toggleCustomFlag(key)}
-                    activeOpacity={0.75}
-                  >
-                    <Text style={[styles.customChipText, customFlags.has(key) && styles.customChipTextActive]}>
-                      {label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
           </View>
         )}
       </View>
@@ -446,37 +399,6 @@ const styles = StyleSheet.create({
     color: '#52525b',
     fontSize: 12,
     lineHeight: 17,
-  },
-
-  // Custom flag chips
-  customFlagsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#27272a',
-  },
-  customChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#3f3f46',
-    backgroundColor: 'transparent',
-  },
-  customChipActive: {
-    borderColor: '#dc2626',
-    backgroundColor: 'rgba(220, 38, 38, 0.15)',
-  },
-  customChipText: {
-    color: '#71717a',
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  customChipTextActive: {
-    color: '#fca5a5',
   },
 
   // Divider

@@ -70,7 +70,7 @@ const STATIC_LOTS = getAllLots(ENABLE_ALL_CAMPUSES);
 
 export default function MapScreen() {
   const router = useRouter();
-  const { user, permitType, noPermitMode, customLotFilter } = useAuth();
+  const { user, permitType, noPermitMode } = useAuth();
   const queryClient = useQueryClient();
   const mapRef = useRef<MapView>(null);
   const params = useLocalSearchParams();
@@ -85,8 +85,6 @@ export default function MapScreen() {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [isOnline, setIsOnline] = useState(true);
-  const [lotTypeFilter, setLotTypeFilter] = useState<'student' | 'employee' | 'gated' | 'ev' | null>(null);
-  const [showFilterPanel, setShowFilterPanel] = useState(false);
   // Tracks the last completed map region — drives viewport-culled rendering.
   const [visibleRegion, setVisibleRegion] = useState<{
     latitude: number;
@@ -226,36 +224,18 @@ export default function MapScreen() {
   // ── Derived: displayedLots (filtered for map) ──────────────────────────
 
   const displayedLots = React.useMemo(() => {
-    // 1. Apply permit-aware filter first
+    // noPermitMode === 'all'  → show every lot, no filter
+    if (noPermitMode === 'all') return lots;
+    // 1. Apply permit-aware filter
     let filtered = lots;
     if (noPermitMode === 'commuter_all') {
       filtered = lots.filter(lot => ALL_COMMUTER_LOT_IDS.has(lot.id));
-    } else if (noPermitMode === 'custom' && customLotFilter.size > 0) {
-      filtered = lots.filter(lot =>
-        Array.from(customLotFilter).some(flag => {
-          if (flag === 'student')  return lot.student;
-          if (flag === 'employee') return lot.employee;
-          if (flag === 'gated')    return lot.regularGate || lot.smartGate;
-          if (flag === 'ev')       return lot.evCharging > 0;
-          return false;
-        })
-      );
     } else if (permitType && !permitType.startsWith('__')) {
       const permitIds = getPermitLotIds(permitType);
       filtered = lots.filter(lot => permitIds.has(lot.id));
     }
-    // 2. Apply the additional manual type filter on top
-    if (!lotTypeFilter) return filtered;
-    return filtered.filter(lot => {
-      switch (lotTypeFilter) {
-        case 'student':  return lot.student;
-        case 'employee': return lot.employee;
-        case 'gated':    return lot.regularGate || lot.smartGate;
-        case 'ev':       return lot.evCharging > 0;
-        default:         return true;
-      }
-    });
-  }, [lots, lotTypeFilter, permitType, noPermitMode, customLotFilter]);
+    return filtered;
+  }, [lots, permitType, noPermitMode]);
 
   // ── Derived: visibleLots (viewport-filtered for lot zoom) ────────────────────
   // Only lots whose centre coordinate falls within the visible map region
@@ -816,32 +796,6 @@ export default function MapScreen() {
         ))}
       </MapView>
 
-      {/* ── Filter button (collapses to panel on tap) ── */}
-      {showFilterPanel && (
-        <View style={styles.filterPanel}>
-          {([
-            { key: 'student',  label: '🎓 Student' },
-            { key: 'employee', label: '👔 Employee' },
-            { key: 'gated',    label: '🔒 Gated' },
-            { key: 'ev',       label: '⚡ EV' },
-          ] as const).map(({ key, label }) => (
-            <TouchableOpacity
-              key={key}
-              style={[styles.filterPanelChip, lotTypeFilter === key && styles.filterChipActive]}
-              onPress={() => {
-                setLotTypeFilter(prev => prev === key ? null : key);
-                setShowFilterPanel(false);
-              }}
-              activeOpacity={0.75}
-            >
-              <Text style={[styles.filterChipText, lotTypeFilter === key && styles.filterChipTextActive]}>
-                {label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
-
       {/* Center-on-me button */}
       <View style={styles.centerButtonContainer}>
         {Platform.OS === 'ios' && (
@@ -864,25 +818,6 @@ export default function MapScreen() {
         >
           <IconSymbol name="location.fill" size={24} color="#ef4444" />
         </TouchableOpacity>
-      </View>
-
-      {/* Filter button */}
-      <View style={styles.filterButtonContainer}>
-        {Platform.OS === 'ios' && (
-          <BlurView intensity={80} tint="systemChromeMaterialDark" style={StyleSheet.absoluteFill} />
-        )}
-        <TouchableOpacity
-          style={[styles.filterButton, Platform.OS === 'android' && styles.filterButtonAndroid]}
-          onPress={() => setShowFilterPanel(p => !p)}
-          activeOpacity={0.7}
-        >
-          <IconSymbol
-            name="line.3.horizontal.decrease"
-            size={20}
-            color={lotTypeFilter ? '#ef4444' : '#e4e4e7'}
-          />
-        </TouchableOpacity>
-        {lotTypeFilter && <View style={styles.filterActiveDot} />}
       </View>
 
       {/* Offline / sync badge */}
@@ -1135,76 +1070,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#f59e0b',
-  },
-
-  // ── Lot type filter button + panel ────────────────────────────────────
-  filterButtonContainer: {
-    position: 'absolute',
-    bottom: 170,
-    right: 16,
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    overflow: 'hidden',
-    borderWidth: 0.5,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  filterButton: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(12, 12, 12, 0.3)',
-  },
-  filterButtonAndroid: { backgroundColor: '#18181b' },
-  filterActiveDot: {
-    position: 'absolute',
-    top: 9,
-    right: 9,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#dc2626',
-    borderWidth: 1.5,
-    borderColor: '#09090b',
-  },
-  filterPanel: {
-    position: 'absolute',
-    bottom: 230,
-    right: 16,
-    backgroundColor: 'rgba(18, 18, 20, 0.96)',
-    borderRadius: 16,
-    paddingVertical: 6,
-    paddingHorizontal: 6,
-    gap: 2,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    elevation: 8,
-    minWidth: 150,
-  },
-  filterPanelChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 10,
-  },
-  filterChipActive: {
-    backgroundColor: '#dc2626',
-  },
-  filterChipText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#d4d4d8',
-  },
-  filterChipTextActive: {
-    color: '#fff',
   },
 
   // ── Campus clusters ────────────────────────────────────────────────────

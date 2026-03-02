@@ -6,7 +6,7 @@ import { authApiCall } from '../lib/supabase';
 // ── Permit preference helpers ─────────────────────────────────────────────
 
 export type CustomLotFilter = Set<'student' | 'employee' | 'gated' | 'ev'>;
-export type NoPermitMode = 'commuter_all' | 'custom' | null;
+export type NoPermitMode = 'commuter_all' | 'all' | null;
 
 /** Parse the raw `permit_type` string stored in the DB into structured state. */
 function parsePermitPreference(raw: string | null): {
@@ -20,9 +20,8 @@ function parsePermitPreference(raw: string | null): {
   if (raw === '__commuter_all') {
     return { permitType: raw, noPermitMode: 'commuter_all', customLotFilter: new Set() };
   }
-  if (raw.startsWith('__custom:')) {
-    const flags = raw.slice('__custom:'.length).split(',') as Array<'student' | 'employee' | 'gated' | 'ev'>;
-    return { permitType: raw, noPermitMode: 'custom', customLotFilter: new Set(flags) };
+  if (raw === '__all') {
+    return { permitType: raw, noPermitMode: 'all', customLotFilter: new Set() };
   }
   return { permitType: raw, noPermitMode: null, customLotFilter: new Set() };
 }

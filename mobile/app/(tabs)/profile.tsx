@@ -6,7 +6,10 @@ import {
   TouchableOpacity,
   ScrollView,
   Platform,
+  StatusBar,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import { useAuth } from '@/context/AuthProvider';
 import { useRouter } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -16,7 +19,7 @@ import { getLotById, type RutgersLot } from '@/data/lots';
 import { fetchWithOfflineFallback, cacheFavorites } from '../../services/OfflineCache';
 
 export default function ProfileScreen() {
-  const { session, user, loading, signOut, permitType, noPermitMode, customLotFilter } = useAuth();
+  const { session, user, loading, signOut, permitType, noPermitMode } = useAuth();
   const router = useRouter();
   const [favorites, setFavorites] = useState<RutgersLot[]>([]);
 
@@ -31,7 +34,7 @@ export default function ProfileScreen() {
           return lotIds;
         },
         'favorites_cache',
-        1000 * 60 * 5, // 5-minute staleness threshold
+        1000 * 60 * 5,
       );
       const lots = ids
         .map((id: string) => getLotById(id))
@@ -51,9 +54,13 @@ export default function ProfileScreen() {
   if (!loading && !session) {
     return (
       <View style={styles.container}>
+        <LinearGradient colors={['#0f0f12', '#09090b']} style={StyleSheet.absoluteFill} />
         <View style={styles.centerContent}>
-          <IconSymbol name="person.fill" size={60} color="#333" />
+          <View style={styles.notSignedInIcon}>
+            <IconSymbol name="person.fill" size={36} color="#3f3f46" />
+          </View>
           <Text style={styles.notLoggedInText}>Not signed in</Text>
+          <Text style={styles.notLoggedInSub}>Sign in to view your profile</Text>
           <TouchableOpacity style={styles.loginButton} onPress={() => router.replace('/auth/login')}>
             <Text style={styles.loginButtonText}>Sign In</Text>
           </TouchableOpacity>
@@ -64,111 +71,137 @@ export default function ProfileScreen() {
 
   const initials = user?.email?.charAt(0).toUpperCase() || '?';
 
+  const permitLabel = !permitType
+    ? 'Not configured'
+    : noPermitMode === 'all'
+      ? 'Show all lots'
+      : noPermitMode === 'commuter_all'
+        ? 'All commuter lots'
+        : permitType;
+
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
+      <LinearGradient colors={['#0f0f12', '#09090b']} style={StyleSheet.absoluteFill} />
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header / Avatar */}
-        <View style={styles.header}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initials}</Text>
-          </View>
-          <Text style={styles.email}>{user?.email}</Text>
-          <Text style={styles.memberSince}>
-            Member since {new Date(user?.created_at || '').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-          </Text>
-        </View>
-
-        {/* Favorite Locations */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <IconSymbol name="star.fill" size={18} color="#f59e0b" />
-            <Text style={styles.sectionTitle}>Favorite Locations</Text>
-          </View>
-          
-          {favorites.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>No favorites yet</Text>
-              <Text style={styles.emptySubtext}>
-                Long-press a lot on the map to save it here
+        {/* ── Hero Card ── */}
+        <View style={styles.heroCard}>
+          {Platform.OS === 'ios' && (
+            <BlurView intensity={18} tint="dark" style={StyleSheet.absoluteFill} />
+          )}
+          <View style={styles.heroInner}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{initials}</Text>
+              <View style={styles.avatarRing} />
+            </View>
+            <View style={styles.heroText}>
+              <Text style={styles.heroEmail} numberOfLines={1}>{user?.email}</Text>
+              <Text style={styles.heroSince}>
+                Member since {new Date(user?.created_at || '').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
               </Text>
             </View>
+          </View>
+        </View>
+
+        {/* ── Permit row ── */}
+        <TouchableOpacity
+          style={styles.permitRow}
+          onPress={() => router.push('/onboarding/permit?fromProfile=true')}
+          activeOpacity={0.75}
+        >
+          {Platform.OS === 'ios' && (
+            <BlurView intensity={12} tint="dark" style={StyleSheet.absoluteFill} />
+          )}
+          <View style={styles.permitIconWrap}>
+            <IconSymbol name="parkingsign.circle.fill" size={22} color="#dc2626" />
+          </View>
+          <View style={styles.permitText}>
+            <Text style={styles.permitRowLabel}>Parking Permit</Text>
+            <Text style={styles.permitRowValue} numberOfLines={1}>{permitLabel}</Text>
+          </View>
+          <IconSymbol name="chevron.right" size={14} color="#3f3f46" />
+        </TouchableOpacity>
+
+        {/* ── Favorites ── */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <IconSymbol name="star.fill" size={15} color="#f59e0b" />
+            <Text style={styles.sectionTitle}>Saved Lots</Text>
+            <Text style={styles.sectionCount}>{favorites.length}</Text>
+          </View>
+
+          {favorites.length === 0 ? (
+            <View style={styles.emptyState}>
+              <IconSymbol name="star" size={28} color="#27272a" />
+              <Text style={styles.emptyText}>No saved lots yet</Text>
+              <Text style={styles.emptySubtext}>Long-press any lot on the map to save it</Text>
+            </View>
           ) : (
-            favorites.map((lot) => (
-              <TouchableOpacity 
-                key={lot.id} 
-                style={styles.historyItem}
+            favorites.map((lot, i) => (
+              <TouchableOpacity
+                key={lot.id}
+                style={[styles.favRow, i === favorites.length - 1 && { borderBottomWidth: 0 }]}
                 onPress={() => router.push({ pathname: '/', params: { selectedLotId: lot.id } })}
+                activeOpacity={0.75}
               >
-                <View style={styles.historyLeft}>
-                  <Text style={styles.historyLot}>{lot.name}</Text>
-                  <Text style={styles.historyDate}>{lot.campus} Campus</Text>
+                <View style={styles.favIcon}>
+                  <IconSymbol name="car.fill" size={14} color="#f59e0b" />
                 </View>
-                <IconSymbol name="chevron.right" size={14} color="#52525b" />
+                <View style={styles.favText}>
+                  <Text style={styles.favName}>{lot.name}</Text>
+                  <Text style={styles.favSub}>{lot.campus} Campus</Text>
+                </View>
+                <IconSymbol name="chevron.right" size={13} color="#3f3f46" />
               </TouchableOpacity>
             ))
           )}
         </View>
 
-        {/* Settings */}
+        {/* ── Settings ── */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <IconSymbol name="gearshape.fill" size={18} color="#a1a1aa" />
+            <IconSymbol name="gearshape.fill" size={15} color="#71717a" />
             <Text style={styles.sectionTitle}>Settings</Text>
           </View>
 
-
-
-          {/* Parking Permit */}
-          <TouchableOpacity
-            style={styles.settingRow}
-            onPress={() => router.push('/onboarding/permit?fromProfile=true')}
-          >
-            <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>Parking Permit</Text>
-              <Text style={styles.settingSubtext}>
-                {!permitType
-                  ? 'Not set — tap to configure'
-                  : noPermitMode === 'commuter_all'
-                    ? 'No permit · All commuter lots'
-                    : noPermitMode === 'custom'
-                      ? `No permit · Custom (${Array.from(customLotFilter).join(', ')})`
-                      : permitType}
-              </Text>
+          <TouchableOpacity style={styles.settingRow} activeOpacity={0.75}>
+            <View style={styles.settingLeft}>
+              <View style={[styles.settingIconWrap, { backgroundColor: 'rgba(59,130,246,0.12)' }]}>
+                <IconSymbol name="bell.fill" size={14} color="#3b82f6" />
+              </View>
+              <View>
+                <Text style={styles.settingLabel}>Notifications</Text>
+                <Text style={styles.settingSubtext}>Session alerts & reminders</Text>
+              </View>
             </View>
-            <IconSymbol name="chevron.right" size={14} color="#52525b" />
+            <IconSymbol name="chevron.right" size={13} color="#3f3f46" />
           </TouchableOpacity>
 
-          {/* Notifications */}
-          <TouchableOpacity style={styles.settingRow}>
-            <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>Notifications</Text>
-              <Text style={styles.settingSubtext}>Session alerts & reminders</Text>
+          <TouchableOpacity style={[styles.settingRow, { borderBottomWidth: 0 }]} activeOpacity={0.75}>
+            <View style={styles.settingLeft}>
+              <View style={[styles.settingIconWrap, { backgroundColor: 'rgba(239,68,68,0.12)' }]}>
+                <IconSymbol name="trash.fill" size={14} color="#ef4444" />
+              </View>
+              <View>
+                <Text style={[styles.settingLabel, { color: '#ef4444' }]}>Delete Account</Text>
+                <Text style={styles.settingSubtext}>Permanently remove all data</Text>
+              </View>
             </View>
-            <IconSymbol name="chevron.right" size={14} color="#52525b" />
-          </TouchableOpacity>
-
-
-
-          {/* Delete Account */}
-          <TouchableOpacity style={[styles.settingRow, { borderBottomWidth: 0 }]}>
-            <View style={styles.settingInfo}>
-              <Text style={[styles.settingLabel, { color: '#ef4444' }]}>Delete Account</Text>
-              <Text style={styles.settingSubtext}>Permanently remove all data</Text>
-            </View>
-            <IconSymbol name="chevron.right" size={14} color="#52525b" />
+            <IconSymbol name="chevron.right" size={13} color="#3f3f46" />
           </TouchableOpacity>
         </View>
 
-        {/* Sign Out */}
-        <TouchableOpacity style={styles.signOutButton} onPress={signOut}>
+        {/* ── Sign out ── */}
+        <TouchableOpacity style={styles.signOutButton} onPress={signOut} activeOpacity={0.8}>
+          <IconSymbol name="rectangle.portrait.and.arrow.right" size={17} color="#dc2626" />
           <Text style={styles.signOutText}>Sign Out</Text>
         </TouchableOpacity>
 
-        {/* Extra padding for tab bar */}
         <View style={{ height: 120 }} />
       </ScrollView>
     </View>
@@ -176,189 +209,179 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#09090b',
+  container: { flex: 1 },
+  scrollView: { flex: 1 },
+  scrollContent: {
+    paddingTop: Platform.OS === 'ios' ? 72 : 52,
+    paddingHorizontal: 16,
   },
+
   centerContent: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 16,
+    gap: 12,
   },
-  notLoggedInText: {
-    color: '#52525b',
-    fontSize: 16,
-  },
-  loginButton: {
-    backgroundColor: '#dc2626',
-    paddingVertical: 12,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-  },
-  loginButtonText: {
-    color: 'white',
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingTop: Platform.OS === 'ios' ? 80 : 50,
-    paddingHorizontal: 20,
-  },
-
-  // Header
-  header: {
-    alignItems: 'center',
-    marginBottom: 30,
-  },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+  notSignedInIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     backgroundColor: '#18181b',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#dc2626',
+    marginBottom: 4,
+  },
+  notLoggedInText: { color: '#e4e4e7', fontSize: 18, fontWeight: '700' },
+  notLoggedInSub: { color: '#52525b', fontSize: 14 },
+  loginButton: {
+    marginTop: 8,
+    backgroundColor: '#dc2626',
+    paddingVertical: 13,
+    paddingHorizontal: 40,
+    borderRadius: 14,
+  },
+  loginButtonText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+
+  // Hero card
+  heroCard: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: '#111113',
+    borderWidth: 1,
+    borderColor: '#1f1f23',
     marginBottom: 12,
   },
-  avatarText: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#dc2626',
+  heroInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 18,
+    gap: 16,
   },
-  email: {
-    color: '#e4e4e7',
-    fontSize: 16,
-    fontWeight: '600',
+  avatar: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: 'rgba(220,38,38,0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  memberSince: {
-    color: '#52525b',
-    fontSize: 12,
-    marginTop: 4,
+  avatarRing: {
+    position: 'absolute',
+    inset: 0,
+    borderRadius: 29,
+    borderWidth: 2,
+    borderColor: 'rgba(220,38,38,0.35)',
   },
+  avatarText: { fontSize: 24, fontWeight: '700', color: '#dc2626' },
+  heroText: { flex: 1 },
+  heroEmail: { color: '#f4f4f5', fontSize: 15, fontWeight: '600' },
+  heroSince: { color: '#52525b', fontSize: 12, marginTop: 3 },
 
-  // Sections
-  section: {
-    backgroundColor: '#18181b',
+  // Permit row
+  permitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
+    overflow: 'hidden',
+    backgroundColor: '#111113',
     borderWidth: 1,
-    borderColor: '#27272a',
+    borderColor: '#1f1f23',
+    padding: 14,
+    gap: 12,
+    marginBottom: 12,
+  },
+  permitIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 11,
+    backgroundColor: 'rgba(220,38,38,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  permitText: { flex: 1 },
+  permitRowLabel: { color: '#a1a1aa', fontSize: 11, fontWeight: '600', letterSpacing: 0.5, textTransform: 'uppercase' },
+  permitRowValue: { color: '#f4f4f5', fontSize: 14, fontWeight: '600', marginTop: 2 },
+
+  // Section
+  section: {
+    backgroundColor: '#111113',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#1f1f23',
+    padding: 16,
+    marginBottom: 12,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
     marginBottom: 14,
   },
-  sectionTitle: {
-    color: '#e4e4e7',
-    fontSize: 15,
+  sectionTitle: { color: '#d4d4d8', fontSize: 14, fontWeight: '700', flex: 1 },
+  sectionCount: {
+    color: '#52525b',
+    fontSize: 13,
     fontWeight: '600',
   },
 
   // Empty state
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 16,
-  },
-  emptyText: {
-    color: '#52525b',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  emptySubtext: {
-    color: '#3f3f46',
-    fontSize: 12,
-    marginTop: 4,
-    textAlign: 'center',
-  },
+  emptyState: { alignItems: 'center', paddingVertical: 20, gap: 8 },
+  emptyText: { color: '#52525b', fontSize: 14, fontWeight: '600' },
+  emptySubtext: { color: '#3f3f46', fontSize: 12, textAlign: 'center' },
 
-  // Action button
-  actionButton: {
+  // Favorites
+  favRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 11,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1a1a1e',
+    gap: 12,
+  },
+  favIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 9,
+    backgroundColor: 'rgba(245,158,11,0.1)',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 10,
-    marginTop: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.3)',
+    alignItems: 'center',
   },
-  actionButtonText: {
-    color: '#3b82f6',
-    fontSize: 14,
-    fontWeight: '600',
-  },
+  favText: { flex: 1 },
+  favName: { color: '#e4e4e7', fontSize: 14, fontWeight: '500' },
+  favSub: { color: '#52525b', fontSize: 12, marginTop: 1 },
 
   // Settings
   settingRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
+    paddingVertical: 11,
     borderBottomWidth: 1,
-    borderBottomColor: '#27272a',
+    borderBottomColor: '#1a1a1e',
   },
-  settingInfo: {
-    flex: 1,
-    marginRight: 12,
+  settingLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  settingIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 9,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  settingLabel: {
-    color: '#d4d4d8',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  settingSubtext: {
-    color: '#52525b',
-    fontSize: 12,
-    marginTop: 2,
-  },
+  settingLabel: { color: '#d4d4d8', fontSize: 14, fontWeight: '500' },
+  settingSubtext: { color: '#52525b', fontSize: 12, marginTop: 1 },
 
   // Sign out
   signOutButton: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
     paddingVertical: 14,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(220, 38, 38, 0.3)',
-    marginTop: 8,
+    borderColor: 'rgba(220,38,38,0.25)',
+    backgroundColor: 'rgba(220,38,38,0.06)',
+    marginBottom: 8,
   },
-  signOutText: {
-    color: '#dc2626',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  historyItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#27272a',
-  },
-  historyLeft: {
-    gap: 2,
-  },
-  historyLot: {
-    color: '#e4e4e7',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  historyDate: {
-    color: '#71717a',
-    fontSize: 12,
-  },
-  historyPrice: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
-  },
+  signOutText: { color: '#dc2626', fontSize: 15, fontWeight: '600' },
 });
