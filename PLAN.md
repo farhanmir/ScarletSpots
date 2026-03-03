@@ -72,12 +72,13 @@ Database (Supabase, 5 tables)
 ### In for v1
 
 - **Auth**: email + password, Rutgers domain enforced (`@rutgers.edu`, `@scarletmail.rutgers.edu`)
-- **Map**: All NB lots from bundled JSON with live occupancy overlay. Other campuses behind `ENABLE_ALL_CAMPUSES` feature flag.
+- **Map**: All NB lots from bundled JSON with live occupancy overlay. Other campuses behind `ENABLE_ALL_CAMPUSES` feature flag. Includes map redesign with better occupancy color encoding and multi-polygon rendering.
 - **Parking session**: Start (confirmation sheet), active state, end session
 - **Session chip**: Subtle floating pill above tab bar showing "Lot X • Find Car | End" — not an intrusive full-width banner
 - **Compass (Navigate tab)**: Bearing + distance to parked lot's coordinates from JSON. No proximity state machine, no haptic lock-on. Simple and reliable.
-- **Friends**: Send/accept/block. See which lot a friend is parked at in the Friends tab. No friend markers on the map.
+- **Friends**: Send/accept/block. See which lot a friend is parked at in the Friends tab. Includes richer friend cards with lot info. No friend markers on the map.
 - **Favorites**: Save/remove lots (lot_id references JSON mapId)
+- **Profile**: Full settings, data export, account deletion flow
 - **Offline**: Map always loads (data is local). Session actions queue to OfflineQueue and replay on reconnect.
 - **Forecasting**: Heuristic model for launch, ML model once session data accumulates (2–4 weeks)
 - **Parking Permit**: Onboarding permit picker + profile settings row. Permit type stored in `profiles.permit_type`. Permit-aware lot filtering on map. Permit validity badge on LotDetails. Supports no-permit modes (commuter-all, custom chip filter).
@@ -88,7 +89,6 @@ Database (Supabase, 5 tables)
 - Friend location markers on map (friends tab only for v1)
 - Push notifications ("lot almost full" / "friend parked nearby")
 - Google OAuth
-- Account deletion flow (placeholder in profile)
 - Notification preferences screen
 - Heat map overlays (per-zone density visualization)
 - Virtual Grid Park Flow (accelerometer-based spot suggestion)
@@ -122,7 +122,7 @@ Database (Supabase, 5 tables)
 
 ### Park start
 1. User taps "Park Here" on a lot
-2. `POST /park/session {lotId, spotNumber, lat, lng}`
+2. `POST /park/session {lotId, lat, lng}`
 3. Backend calls `increment_lot_occupancy(lot_id)` RPC → `lot_occupancy.count++`
 4. Supabase Realtime pushes the change to all subscribed clients
 5. Mobile updates optimistically, anchors to `confirmedOccupancy` from response

@@ -60,7 +60,7 @@ ScarletSpots/
 | State / Data | `@tanstack/react-query`, Supabase Realtime |
 | Maps | `react-native-maps` |
 | Location | `expo-location`, `expo-sensors` (magnetometer) |
-| Backend | FastAPI (Python 3.12), Supabase Python client |
+| Backend | FastAPI (Python 3.14), Supabase Python client |
 | Database | Supabase (PostgreSQL) — hosted |
 | Auth | Supabase Auth (email/password, Rutgers domains only) |
 | Build | EAS (Expo Application Services) |
@@ -142,7 +142,7 @@ The Supabase CLI is installed (`npx supabase`) and the user is already logged in
 GET  /lots/occupancy           → {lot_id: count} map for all lots with active sessions
 GET  /lots/{lot_id}/forecast   → occupancy forecast (requires ?capacity=N&current_occupancy=N)
 
-POST /park/session             → start parking session {lotId, spotNumber, lat, lng}
+POST /park/session             → start parking session {lotId, lat, lng}
 POST /park/session/end         → end active session
 GET  /park/session/active      → get user's current active session
 POST /park/session/feedback    → submit detection quality correction
@@ -237,15 +237,15 @@ POST /users/password-reset     → trigger password reset email
 
 ## What's Left To Do
 
-### Phase 4 — UI/UX Upgrade (not started)
-This is intentionally deferred until core functionality is stable and tested.
+### Phase 4 — UI/UX Upgrade (in progress)
+This is intentionally deferred until core functionality is stable and tested. Now in progress.
 
-- [ ] Map: richer lot cards, better occupancy color encoding, color-coded markers (green/yellow/red)
+- [x] Map: richer lot cards, better occupancy color encoding, color-coded markers (green/yellow/red)
 - [ ] Parking confirmation sheet: polish + animations, snap-to-spot drag-adjust for GPS drift
 - [ ] Compass: make the needle visually beautiful ("Knight Needle" — center red lance, haptic lock-on)
 - [ ] Auto-switch to compass mode when within 500 ft of parked lot
-- [ ] Friends tab: richer friend cards with lot info, campus indicator
-- [ ] Profile: settings, data export, account deletion flow
+- [x] Friends tab: richer friend cards with lot info, campus indicator
+- [x] Profile: settings, data export, account deletion flow
 - [ ] Knight Mode / Campus Mode theme toggle (dark retro skin vs default)
 
 ### Phase 5 — Launch Readiness (remaining)

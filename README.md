@@ -59,7 +59,7 @@ EXPO_PUBLIC_API_URL=http://localhost:8001/api/v1
 
 ## Backend
 
-**FastAPI** (Python 3.11) with Supabase as the database. The backend is intentionally thin — it only handles things that must be server-authoritative.
+**FastAPI** (Python 3.14) with Supabase as the database. The backend is intentionally thin — it only handles things that must be server-authoritative.
 
 ### Running locally
 

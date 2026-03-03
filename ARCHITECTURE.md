@@ -28,7 +28,6 @@ parking_sessions
   id          UUID DEFAULT gen_random_uuid() PRIMARY KEY
   user_id     UUID REFERENCES profiles(id)
   lot_id      TEXT NOT NULL     -- JSON mapId e.g. "10001"
-  spot_number TEXT
   latitude    FLOAT
   longitude   FLOAT
   active      BOOLEAN DEFAULT true
@@ -129,7 +128,6 @@ Content-Type: application/json
 
 {
   "lotId": "10001",           // JSON mapId string
-  "spotNumber": "Auto-detected",
   "latitude": 40.5138,
   "longitude": -74.4646,
   "confirmed": true
@@ -142,7 +140,6 @@ Response:
   "session": {
     "id": "uuid",
     "lotId": "10001",
-    "spotNumber": "Auto-detected",
     "startTime": "2026-03-10T12:00:00Z",
     "active": true
   }

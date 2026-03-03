@@ -53,11 +53,11 @@
 
 **Goal:** Take the visual design to the next level. Only after core is stable.
 
-- [ ] Map redesign: richer lot cards, better occupancy color encoding, color-coded markers (green/yellow/red)
+- [x] Map redesign: richer lot cards, better occupancy color encoding, color-coded markers (green/yellow/red)
 - [ ] Parking confirmation sheet: polish candidate flow, snap-to-spot with drag-to-adjust for GPS drift
 - [ ] Compass redesign: make the needle beautiful — "Knight Needle" vision (center red lance, haptic thud on lock-on)
-- [ ] Friends tab: richer friend cards with lot info, campus indicator
-- [ ] Profile: full settings, data export, account deletion flow
+- [x] Friends tab: richer friend cards with lot info, campus indicator
+- [x] Profile: full settings, data export, account deletion flow
 - [ ] Auto-switch to compass mode when user is within 500 ft of parked lot (Virtual Grid "Find Flow")
 - [ ] Knight Mode theme: dark map style, retro 8-bit pixel needle, JetBrains Mono font, Pip-Boy vibe (vs default Campus Mode)
 
