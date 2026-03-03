@@ -51,9 +51,24 @@ interface Cluster {
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 const getOccupancyColor = (rate: number) => {
-  if (rate >= 90) return { full: '#ef4444', bg: 'rgba(239, 68, 68, 0.6)' };
-  if (rate >= 70) return { full: '#f59e0b', bg: 'rgba(245, 158, 11, 0.6)' };
-  return { full: '#10b981', bg: 'rgba(16, 185, 129, 0.6)' };
+  if (rate >= 90) return {
+    full:           '#ef4444',
+    stroke:         '#ef4444',
+    fill:           'rgba(239, 68, 68, 0.18)',
+    fillSelected:   'rgba(239, 68, 68, 0.38)',
+  };
+  if (rate >= 70) return {
+    full:           '#f59e0b',
+    stroke:         '#f59e0b',
+    fill:           'rgba(245, 158, 11, 0.18)',
+    fillSelected:   'rgba(245, 158, 11, 0.38)',
+  };
+  return {
+    full:           '#10b981',
+    stroke:         '#10b981',
+    fill:           'rgba(16, 185, 129, 0.15)',
+    fillSelected:   'rgba(16, 185, 129, 0.35)',
+  };
 };
 
 const getClusterColor = (rate: number) => {
@@ -717,9 +732,9 @@ export default function MapScreen() {
                     key={`${lot.id}-poly-${index}`}
                     coordinates={polygonCoords}
                     holes={holeCoords.length > 0 ? holeCoords : undefined}
-                    fillColor={isSelected ? colors.bg : colors.bg}
-                    strokeColor={isSelected ? '#ffffff' : colors.full}
-                    strokeWidth={isSelected ? 3 : 2}
+                    fillColor={isSelected ? colors.fillSelected : colors.fill}
+                    strokeColor={isSelected ? '#ffffff' : colors.stroke}
+                    strokeWidth={isSelected ? 2.5 : 1.5}
                     tappable={true}
                     zIndex={isSelected ? 10 : 1}
                     onPress={(e) => { e.stopPropagation(); handleLotPress(lot); }}
@@ -733,16 +748,20 @@ export default function MapScreen() {
                 zIndex={isSelected ? 11 : 2}
                 tracksViewChanges={false}
               >
-                <View style={[styles.markerContainer, isSelected && { transform: [{ scale: 1.2 }] }]}>
-                  <View style={[styles.markerBubble, { backgroundColor: colors.full }, isSelected && { borderColor: '#fff', borderWidth: 2 }]}>
-                    <Text style={styles.markerText}>{Math.round(lot.occupancyRate)}%</Text>
+                <View style={styles.markerContainer}>
+                  <View style={[
+                    styles.markerPill,
+                    { borderColor: colors.stroke },
+                    isSelected && styles.markerPillSelected,
+                  ]}>
+                    <View style={[styles.markerDot, { backgroundColor: colors.full }]} />
+                    <Text style={[styles.markerText, isSelected && styles.markerTextSelected]}>
+                      {Math.round(lot.occupancyRate)}%
+                    </Text>
                     {isFavorite && (
-                      <View style={styles.favoriteBadge}>
-                        <IconSymbol name="star.fill" size={10} color="#f59e0b" />
-                      </View>
+                      <IconSymbol name="star.fill" size={9} color="#f59e0b" />
                     )}
                   </View>
-                  <View style={[styles.markerArrow, { borderTopColor: colors.full }, isSelected && { borderTopColor: '#fff' }]} />
                 </View>
               </Marker>
             </React.Fragment>
@@ -769,8 +788,13 @@ export default function MapScreen() {
             zIndex={20}
           >
             <View style={styles.campusMarker}>
-              <View style={[styles.clusterBadge, { backgroundColor: getClusterColor(cluster.occupancyRate) }]}>
-                <Text style={styles.clusterText}>{cluster.name}: {Math.round(cluster.occupancyRate)}%</Text>
+              <View style={styles.clusterBadge}>
+                <View style={[styles.clusterDot, { backgroundColor: getClusterColor(cluster.occupancyRate) }]} />
+                <Text style={styles.clusterName}>{cluster.name}</Text>
+                <View style={styles.clusterDivider} />
+                <Text style={[styles.clusterRate, { color: getClusterColor(cluster.occupancyRate) }]}>
+                  {Math.round(cluster.occupancyRate)}%
+                </Text>
               </View>
             </View>
           </Marker>
@@ -820,14 +844,7 @@ export default function MapScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Offline / sync badge */}
-      {(!isOnline || pendingSyncCount > 0) && (
-        <View style={styles.offlineBadge}>
-          <Text style={styles.offlineBadgeText}>
-            {!isOnline ? 'Offline' : `${pendingSyncCount} pending`}
-          </Text>
-        </View>
-      )}
+
 
       {/* ── Active Session Floating Chip ── */}
       {activeSession && (
@@ -867,18 +884,16 @@ export default function MapScreen() {
         </View>
       )}
 
-      {/* Permit banner — shown when no permit is configured */}
-      {!permitType && (
-        <TouchableOpacity
-          style={styles.permitBanner}
-          onPress={() => router.push('/onboarding/permit?fromProfile=true')}
-          activeOpacity={0.8}
-        >
-          <IconSymbol name="p.circle" size={14} color="#a1a1aa" />
-          <Text style={styles.permitBannerText}>Set your permit to filter lots</Text>
-          <IconSymbol name="chevron.right" size={12} color="#52525b" />
-        </TouchableOpacity>
+      {/* Offline / sync badge */}
+      {(!isOnline || pendingSyncCount > 0) && (
+        <View style={styles.offlineBadge}>
+          <Text style={styles.offlineBadgeText}>
+            {!isOnline ? 'Offline' : `${pendingSyncCount} pending`}
+          </Text>
+        </View>
       )}
+
+
 
       {/* Lot Details Sheet */}
       {selectedLot && (
@@ -913,7 +928,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   map: { width: '100%', height: '100%' },
 
-  // ── Session chip (replaces the intrusive top banner) ──────────────────
+  // ── Session chip ──────────────────────────────────────────────────────
   sessionChipContainer: {
     position: 'absolute',
     bottom: 105,
@@ -921,21 +936,21 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(220, 38, 38, 0.35)',
-    shadowColor: '#000',
+    borderColor: 'rgba(220, 38, 38, 0.4)',
+    shadowColor: '#dc2626',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
     elevation: 8,
     maxWidth: 320,
   },
   sessionChipContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    gap: 8,
-    backgroundColor: 'rgba(24, 24, 27, 0.5)',
+    paddingVertical: 11,
+    paddingHorizontal: 16,
+    gap: 10,
+    backgroundColor: Platform.OS === 'android' ? 'rgba(14,14,16,0.97)' : 'rgba(20, 20, 22, 0.4)',
   },
   sessionChipDot: {
     width: 8,
@@ -966,9 +981,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
-  sessionChipEnd: {
-    paddingHorizontal: 2,
-  },
+  sessionChipEnd: { paddingHorizontal: 2 },
   sessionChipEndText: {
     color: '#ef4444',
     fontSize: 13,
@@ -980,25 +993,25 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 110,
     right: 16,
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     overflow: 'hidden',
-    borderWidth: 0.5,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
   },
   centerButton: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(12, 12, 12, 0.3)',
+    backgroundColor: 'rgba(10,10,12,0.25)',
   },
-  centerButtonAndroid: { backgroundColor: '#18181b' },
+  centerButtonAndroid: { backgroundColor: '#111113' },
 
   // ── Offline badge ──────────────────────────────────────────────────────
   offlineBadge: {
@@ -1017,74 +1030,94 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 110,
     alignSelf: 'center',
+    borderRadius: 18,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(220,38,38,0.2)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 6,
+    backgroundColor: Platform.OS === 'android' ? 'rgba(14,14,16,0.97)' : 'transparent',
+  },
+  permitBannerInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(24, 24, 27, 0.92)',
+    gap: 8,
     paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#3f3f46',
+    paddingVertical: 10,
+    backgroundColor: Platform.OS === 'android' ? 'transparent' : 'rgba(18,18,20,0.35)',
   },
-  permitBannerText: { color: '#a1a1aa', fontSize: 12, fontWeight: '500' },
+  permitBannerIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(220,38,38,0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  permitBannerText: { color: '#a1a1aa', fontSize: 13, fontWeight: '500' },
 
   // ── Lot markers ───────────────────────────────────────────────────────
   markerContainer: { alignItems: 'center' },
-  markerBubble: {
-    backgroundColor: '#dc2626',
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    minWidth: 40,
+  markerPill: {
+    flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#dc2626',
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 20,
+    backgroundColor: 'rgba(10, 10, 12, 0.82)',
+    borderWidth: 1.5,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
-    shadowRadius: 4,
-    elevation: 4,
+    shadowOpacity: 0.45,
+    shadowRadius: 6,
+    elevation: 5,
   },
-  markerText: { color: 'white', fontSize: 12, fontWeight: 'bold' },
-  markerArrow: {
-    width: 0,
-    height: 0,
-    backgroundColor: 'transparent',
-    borderStyle: 'solid',
-    borderLeftWidth: 6,
-    borderRightWidth: 6,
-    borderTopWidth: 8,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderTopColor: '#dc2626',
-    transform: [{ translateY: -1 }],
+  markerPillSelected: {
+    backgroundColor: 'rgba(15, 15, 18, 0.95)',
+    borderColor: '#ffffff',
+    shadowOpacity: 0.7,
+    shadowRadius: 10,
   },
-  favoriteBadge: {
-    position: 'absolute',
-    top: -6,
-    right: -6,
-    backgroundColor: '#18181b',
-    borderRadius: 8,
-    width: 16,
-    height: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#f59e0b',
+  markerDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+  },
+  markerText: {
+    color: '#e4e4e7',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+  },
+  markerTextSelected: {
+    color: '#ffffff',
+    fontSize: 13,
   },
 
   // ── Campus clusters ────────────────────────────────────────────────────
   campusMarker: { alignItems: 'center' },
   clusterBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+    borderRadius: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.45,
+    shadowRadius: 8,
+    elevation: 6,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(14,14,16,0.92)',
   },
-  clusterText: { color: '#fff', fontSize: 13, fontWeight: 'bold' },
+  clusterDot: { width: 7, height: 7, borderRadius: 3.5 },
+  clusterName: { color: '#e4e4e7', fontSize: 13, fontWeight: '700' },
+  clusterDivider: { width: 1, height: 12, backgroundColor: 'rgba(255,255,255,0.12)' },
+  clusterRate: { fontSize: 13, fontWeight: '800', fontVariant: ['tabular-nums'] as any },
 });
