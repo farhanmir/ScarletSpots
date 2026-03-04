@@ -114,8 +114,8 @@ export default function LiquidGlassTabBar({
               >
                 <IconSymbol
                   name={config.icon as any}
-                  size={isFocused ? 21 : 19}
-                  color={isFocused ? '#fff' : 'rgba(255,255,255,0.35)'}
+                  size={isFocused ? 22 : 19}
+                  color={isFocused ? '#dc2626' : 'rgba(255,255,255,0.4)'}
                 />
                 {config.label ? (
                   <Text style={[styles.label, isFocused && styles.labelActive]}>
@@ -144,20 +144,20 @@ const styles = StyleSheet.create({
     height: TAB_BAR_HEIGHT,
     borderRadius: 32,
     overflow: 'hidden',
-    borderWidth: 0.5,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.6,
-    shadowRadius: 24,
-    elevation: 16,
+    shadowOpacity: 0.65,
+    shadowRadius: 28,
+    elevation: 18,
   },
   glassOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(12, 12, 12, 0.3)',
+    backgroundColor: 'rgba(10, 10, 12, 0.35)',
   },
   glassOverlayAndroid: {
-    backgroundColor: 'rgba(10, 10, 10, 0.92)',
+    backgroundColor: 'rgba(8, 8, 10, 0.95)',
   },
 
   // Pill
@@ -169,9 +169,9 @@ const styles = StyleSheet.create({
   },
   pill: {
     borderRadius: 21,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderWidth: 0.5,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
+    backgroundColor: 'rgba(220, 38, 38, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(220, 38, 38, 0.2)',
   },
 
   // Tabs
@@ -191,10 +191,10 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 10,
     fontWeight: '500',
-    color: 'rgba(255,255,255,0.35)',
+    color: 'rgba(255,255,255,0.4)',
   },
   labelActive: {
-    color: '#fff',
-    fontWeight: '600',
+    color: '#dc2626',
+    fontWeight: '700',
   },
 });

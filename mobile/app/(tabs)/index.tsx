@@ -820,14 +820,7 @@ export default function MapScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Offline / sync badge */}
-      {(!isOnline || pendingSyncCount > 0) && (
-        <View style={styles.offlineBadge}>
-          <Text style={styles.offlineBadgeText}>
-            {!isOnline ? 'Offline' : `${pendingSyncCount} pending`}
-          </Text>
-        </View>
-      )}
+
 
       {/* ── Active Session Floating Chip ── */}
       {activeSession && (
@@ -867,18 +860,16 @@ export default function MapScreen() {
         </View>
       )}
 
-      {/* Permit banner — shown when no permit is configured */}
-      {!permitType && (
-        <TouchableOpacity
-          style={styles.permitBanner}
-          onPress={() => router.push('/onboarding/permit?fromProfile=true')}
-          activeOpacity={0.8}
-        >
-          <IconSymbol name="p.circle" size={14} color="#a1a1aa" />
-          <Text style={styles.permitBannerText}>Set your permit to filter lots</Text>
-          <IconSymbol name="chevron.right" size={12} color="#52525b" />
-        </TouchableOpacity>
+      {/* Offline / sync badge */}
+      {(!isOnline || pendingSyncCount > 0) && (
+        <View style={styles.offlineBadge}>
+          <Text style={styles.offlineBadgeText}>
+            {!isOnline ? 'Offline' : `${pendingSyncCount} pending`}
+          </Text>
+        </View>
       )}
+
+
 
       {/* Lot Details Sheet */}
       {selectedLot && (
@@ -913,7 +904,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   map: { width: '100%', height: '100%' },
 
-  // ── Session chip (replaces the intrusive top banner) ──────────────────
+  // ── Session chip ──────────────────────────────────────────────────────
   sessionChipContainer: {
     position: 'absolute',
     bottom: 105,
@@ -921,21 +912,21 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(220, 38, 38, 0.35)',
-    shadowColor: '#000',
+    borderColor: 'rgba(220, 38, 38, 0.4)',
+    shadowColor: '#dc2626',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
     elevation: 8,
     maxWidth: 320,
   },
   sessionChipContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    gap: 8,
-    backgroundColor: 'rgba(24, 24, 27, 0.5)',
+    paddingVertical: 11,
+    paddingHorizontal: 16,
+    gap: 10,
+    backgroundColor: Platform.OS === 'android' ? 'rgba(14,14,16,0.97)' : 'rgba(20, 20, 22, 0.4)',
   },
   sessionChipDot: {
     width: 8,
@@ -966,9 +957,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
-  sessionChipEnd: {
-    paddingHorizontal: 2,
-  },
+  sessionChipEnd: { paddingHorizontal: 2 },
   sessionChipEndText: {
     color: '#ef4444',
     fontSize: 13,
@@ -980,25 +969,25 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 110,
     right: 16,
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     overflow: 'hidden',
-    borderWidth: 0.5,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
   },
   centerButton: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(12, 12, 12, 0.3)',
+    backgroundColor: 'rgba(10,10,12,0.25)',
   },
-  centerButtonAndroid: { backgroundColor: '#18181b' },
+  centerButtonAndroid: { backgroundColor: '#111113' },
 
   // ── Offline badge ──────────────────────────────────────────────────────
   offlineBadge: {
@@ -1017,17 +1006,34 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 110,
     alignSelf: 'center',
+    borderRadius: 18,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(220,38,38,0.2)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 6,
+    backgroundColor: Platform.OS === 'android' ? 'rgba(14,14,16,0.97)' : 'transparent',
+  },
+  permitBannerInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(24, 24, 27, 0.92)',
+    gap: 8,
     paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#3f3f46',
+    paddingVertical: 10,
+    backgroundColor: Platform.OS === 'android' ? 'transparent' : 'rgba(18,18,20,0.35)',
   },
-  permitBannerText: { color: '#a1a1aa', fontSize: 12, fontWeight: '500' },
+  permitBannerIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(220,38,38,0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  permitBannerText: { color: '#a1a1aa', fontSize: 13, fontWeight: '500' },
 
   // ── Lot markers ───────────────────────────────────────────────────────
   markerContainer: { alignItems: 'center' },
