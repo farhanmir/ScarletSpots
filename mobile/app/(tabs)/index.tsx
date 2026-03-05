@@ -243,20 +243,18 @@ export default function MapScreen() {
   // lot-zoom the viewport covers ~5-15 lots instead of the full 193+.
 
   const visibleLots = React.useMemo(() => {
-    if (zoomLevel !== 'lot' || !visibleRegion) return displayedLots;
-    const pad = 0.5;
-    const halfLat = visibleRegion.latitudeDelta * (0.5 + pad);
-    const halfLng = visibleRegion.longitudeDelta * (0.5 + pad);
-    const minLat = visibleRegion.latitude - halfLat;
-    const maxLat = visibleRegion.latitude + halfLat;
-    const minLng = visibleRegion.longitude - halfLng;
-    const maxLng = visibleRegion.longitude + halfLng;
-    return displayedLots.filter(
-      lot =>
-        lot.latitude  >= minLat && lot.latitude  <= maxLat &&
-        lot.longitude >= minLng && lot.longitude <= maxLng,
-    );
-  }, [displayedLots, visibleRegion, zoomLevel]);
+    // [Expo Go / New Architecture Workaround]
+    // Because Expo Go strictly enforces React Native's New Architecture (Fabric),
+    // and react-native-maps (v1.20.1) has a known crash on iOS where dynamically
+    // culling/adding Native Component Polygons and Markers causes an 
+    // `insertObject:atIndex: index beyond bounds` crash due to the view
+    // indices de-syncing, we must disable viewport culling.
+    // We simply return all displayedLots at the cost of map performance.
+    //
+    // Re-enable viewport culling only when building a non-Expo-Go Development Build
+    // with `newArchEnabled: false`.
+    return displayedLots;
+  }, [displayedLots]);
 
   // ── Clusters ───────────────────────────────────────────────────────────
 
@@ -687,65 +685,66 @@ export default function MapScreen() {
           setSelectedPlace(null);
         }}
       >
-        {/* Lot polygons + markers at zoom level 'lot' */}
+        {/* Lot polygons at zoom level 'lot' */}
+        {zoomLevel === 'lot' && visibleLots.flatMap((lot) => {
+          const isSelected = selectedLot?.id === lot.id;
+          const colors = getOccupancyColor(lot.occupancyRate);
+
+          const validPolys = lot.coordinates.map((polyCoords, index) => {
+            const polygonCoords = polyCoords
+              .map(([lat, lng]) => ({ latitude: lat, longitude: lng }))
+              .filter(c => !Number.isNaN(c.latitude) && !Number.isNaN(c.longitude));
+
+            const holeCoords = (lot.holes[index] || [])
+              .map(ring => ring
+                .map(([lat, lng]) => ({ latitude: lat, longitude: lng }))
+                .filter(c => !Number.isNaN(c.latitude) && !Number.isNaN(c.longitude)))
+              .filter(ring => ring.length >= 3);
+
+            return { polygonCoords, holeCoords, index };
+          }).filter(p => p.polygonCoords.length >= 3);
+
+          return validPolys.map(({ polygonCoords, holeCoords, index }) => (
+            <Polygon
+              key={`${lot.id}-poly-${index}`}
+              coordinates={polygonCoords}
+              holes={holeCoords.length > 0 ? holeCoords : undefined}
+              fillColor={isSelected ? colors.bg : colors.bg}
+              strokeColor={isSelected ? '#ffffff' : colors.full}
+              strokeWidth={isSelected ? 3 : 2}
+              tappable={true}
+              zIndex={isSelected ? 10 : 1}
+              onPress={(e) => { e.stopPropagation(); handleLotPress(lot); }}
+            />
+          ));
+        })}
+
+        {/* Lot markers at zoom level 'lot' */}
         {zoomLevel === 'lot' && visibleLots.map((lot) => {
           const isSelected = selectedLot?.id === lot.id;
           const isFavorite = favorites.includes(lot.id);
           const colors = getOccupancyColor(lot.occupancyRate);
 
-          // Each lot now contains an array of distinct polygons (for MultiPolygon support)
-          const rawPolygons = lot.coordinates;
-
           return (
-            <React.Fragment key={lot.id}>
-              {rawPolygons.map((polyCoords, index) => {
-                const polygonCoords = polyCoords
-                  .map(([lat, lng]) => ({ latitude: lat, longitude: lng }))
-                  .filter(c => !Number.isNaN(c.latitude) && !Number.isNaN(c.longitude));
-
-                // Convert corresponding hole rings for this specific polygon
-                const holeCoords = (lot.holes[index] || [])
-                  .map(ring => ring
-                    .map(([lat, lng]) => ({ latitude: lat, longitude: lng }))
-                    .filter(c => !Number.isNaN(c.latitude) && !Number.isNaN(c.longitude)))
-                  .filter(ring => ring.length >= 3);
-
-                if (polygonCoords.length < 3) return null;
-
-                return (
-                  <Polygon
-                    key={`${lot.id}-poly-${index}`}
-                    coordinates={polygonCoords}
-                    holes={holeCoords.length > 0 ? holeCoords : undefined}
-                    fillColor={isSelected ? colors.bg : colors.bg}
-                    strokeColor={isSelected ? '#ffffff' : colors.full}
-                    strokeWidth={isSelected ? 3 : 2}
-                    tappable={true}
-                    zIndex={isSelected ? 10 : 1}
-                    onPress={(e) => { e.stopPropagation(); handleLotPress(lot); }}
-                  />
-                );
-              })}
-              <Marker
-                key={`lot-${lot.id}`}
-                coordinate={{ latitude: lot.latitude, longitude: lot.longitude }}
-                onPress={(e) => { e.stopPropagation(); handleLotPress(lot); }}
-                zIndex={isSelected ? 11 : 2}
-                tracksViewChanges={false}
-              >
-                <View style={[styles.markerContainer, isSelected && { transform: [{ scale: 1.2 }] }]}>
-                  <View style={[styles.markerBubble, { backgroundColor: colors.full }, isSelected && { borderColor: '#fff', borderWidth: 2 }]}>
-                    <Text style={styles.markerText}>{Math.round(lot.occupancyRate)}%</Text>
-                    {isFavorite && (
-                      <View style={styles.favoriteBadge}>
-                        <IconSymbol name="star.fill" size={10} color="#f59e0b" />
-                      </View>
-                    )}
-                  </View>
-                  <View style={[styles.markerArrow, { borderTopColor: colors.full }, isSelected && { borderTopColor: '#fff' }]} />
+            <Marker
+              key={`lot-${lot.id}`}
+              coordinate={{ latitude: lot.latitude, longitude: lot.longitude }}
+              onPress={(e) => { e.stopPropagation(); handleLotPress(lot); }}
+              zIndex={isSelected ? 11 : 2}
+              tracksViewChanges={false}
+            >
+              <View style={[styles.markerContainer, isSelected && { transform: [{ scale: 1.2 }] }]}>
+                <View style={[styles.markerBubble, { backgroundColor: colors.full }, isSelected && { borderColor: '#fff', borderWidth: 2 }]}>
+                  <Text style={styles.markerText}>{Math.round(lot.occupancyRate)}%</Text>
+                  {isFavorite && (
+                    <View style={styles.favoriteBadge}>
+                      <IconSymbol name="star.fill" size={10} color="#f59e0b" />
+                    </View>
+                  )}
                 </View>
-              </Marker>
-            </React.Fragment>
+                <View style={[styles.markerArrow, { borderTopColor: colors.full }, isSelected && { borderTopColor: '#fff' }]} />
+              </View>
+            </Marker>
           );
         })}
 
