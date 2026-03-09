@@ -6,9 +6,12 @@ const localHostIp = debuggerHost?.split(':')[0] || 'localhost';
 
 // If on physical device, use the LAN IP extracted from Expo. 
 // If on Android emulator and debuggerHost fails, fallback to 10.0.2.2.
-export const LOCAL_FASTAPI_URL = debuggerHost
+// Alternatively, use EXPO_PUBLIC_API_URL if defined in the env
+const ENV_API_URL = process.env.EXPO_PUBLIC_API_URL;
+
+export const LOCAL_FASTAPI_URL = ENV_API_URL || (debuggerHost
   ? `http://${localHostIp}:8000/api/v1`
-  : Platform.OS === 'android' ? 'http://10.0.2.2:8000/api/v1' : 'http://localhost:8000/api/v1';
+  : Platform.OS === 'android' ? 'http://10.0.2.2:8000/api/v1' : 'http://localhost:8000/api/v1');
 
 export async function fetchBackend(endpoint: string, init: RequestInit): Promise<Response> {
   const url = `${LOCAL_FASTAPI_URL}${endpoint}`;
