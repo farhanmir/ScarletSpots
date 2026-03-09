@@ -109,7 +109,7 @@ def health_check():
 
 
 @app.get("/")
-def root():
+async def root():
     return RedirectResponse(url="/docs")
 
 
