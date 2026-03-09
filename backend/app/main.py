@@ -7,7 +7,7 @@ import traceback
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from slowapi import _rate_limit_exceeded_handler
@@ -110,7 +110,7 @@ def health_check():
 
 @app.get("/")
 def root():
-    return {"message": "Welcome to ScarletSpots API"}
+    return RedirectResponse(url="/docs")
 
 
 if __name__ == "__main__":
