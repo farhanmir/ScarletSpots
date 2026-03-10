@@ -66,7 +66,6 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, acti
     return [];
   }, [forecastData]);
 
-  const slices = forecastData?.slices;
 
   const permitValidity: boolean | null = React.useMemo(() => {
     if (!permitType) return null;
@@ -219,26 +218,6 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, acti
             </View>
           )}
 
-          {/* ── Forecast slices ── */}
-          {slices && (
-            <View style={styles.slicesSection}>
-              <Text style={styles.sectionTitle}>FORECAST</Text>
-              <View style={styles.slicesRow}>
-                {['15m', '30m', '60m'].map(key => {
-                  const s = slices[key];
-                  if (!s) return null;
-                  const c = getOccupancyColor(s.expected_occupancy);
-                  return (
-                    <View key={key} style={styles.sliceCard}>
-                      <Text style={styles.sliceTime}>{key}</Text>
-                      <Text style={[styles.sliceVal, { color: c }]}>{s.expected_occupancy}%</Text>
-                      <View style={[styles.sliceDot, { backgroundColor: c }]} />
-                    </View>
-                  );
-                })}
-              </View>
-            </View>
-          )}
 
           {/* ── Forecast chart ── */}
           <ForecastChart curve={forecast} isLoading={isLoadingForecast} />
@@ -422,29 +401,7 @@ const styles = StyleSheet.create({
   },
   permitRowText: { fontSize: 13, fontWeight: '700' },
 
-  // Slices
-  slicesSection: { marginBottom: 16 },
-  sectionTitle: {
-    color: '#71717a',
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1,
-    marginBottom: 10,
-  },
-  slicesRow: { flexDirection: 'row', gap: 10 },
-  sliceCard: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    borderRadius: 14,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-    gap: 4,
-  },
-  sliceTime: { color: '#52525b', fontSize: 11, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' },
-  sliceVal: { fontSize: 18, fontWeight: '800', fontVariant: ['tabular-nums'] as any },
-  sliceDot: { width: 5, height: 5, borderRadius: 2.5 },
+
 
   // Actions
   actionsRow: {
