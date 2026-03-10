@@ -15,7 +15,7 @@ import {
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import { IconSymbol } from './ui/icon-symbol';
 import { BlurView } from 'expo-blur';
-import { type RutgersLot, getPermitLotIds, ALL_COMMUTER_LOT_IDS } from '../data/lots';
+import { type RutgersLot, getPermitLotIds, ALL_COMMUTER_LOT_IDS, getLotScheduleInfo, isLotAvailableNow } from '../data/lots';
 
 import { useQuery } from '@tanstack/react-query';
 import { publicApiCall } from '../lib/supabase';
@@ -83,6 +83,14 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, acti
     return getPermitLotIds(permitType).has(lot.id);
   }, [permitType, lot]);
 
+  const scheduleInfo = React.useMemo(() => {
+    return getLotScheduleInfo(permitType, lot.id);
+  }, [permitType, lot.id]);
+
+  const lotAvailable = React.useMemo(() => {
+    return isLotAvailableNow(permitType, lot.id);
+  }, [permitType, lot.id]);
+
   const handleClose = useCallback(() => {
     if (mountedRef.current) onClose();
   }, [onClose]);
@@ -149,7 +157,14 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, acti
                   <Text style={styles.campusPillText}>{lot.campus} Campus</Text>
                 </View>
               ) : null}
-              <Text style={styles.lotName}>{lot.name}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={styles.lotName}>{lot.name}</Text>
+                {permitValidity !== null && (
+                  <View style={[styles.permitBadge, { backgroundColor: permitValidity ? 'rgba(34,197,94,0.12)' : 'rgba(113,113,122,0.08)', borderColor: permitValidity ? 'rgba(34,197,94,0.3)' : 'rgba(113,113,122,0.15)' }]}>
+                    <IconSymbol name={permitValidity ? 'checkmark' : 'xmark'} size={10} color={permitValidity ? '#4ade80' : '#52525b'} />
+                  </View>
+                )}
+              </View>
             </View>
             <View style={styles.headerRight}>
               {user && onToggleFavorite && (
@@ -204,20 +219,41 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, acti
             </View>
           )}
 
-          {/* ── Permit validity ── */}
-          {permitValidity !== null && (
-            <View style={[styles.permitRow, permitValidity ? styles.permitRowValid : styles.permitRowInvalid]}>
-              <IconSymbol
-                name={permitValidity ? 'checkmark.circle.fill' : 'xmark.circle.fill'}
-                size={16}
-                color={permitValidity ? '#4ade80' : '#52525b'}
-              />
-              <Text style={[styles.permitRowText, { color: permitValidity ? '#4ade80' : '#52525b' }]}>
-                {permitValidity ? 'Valid for your permit' : 'Not valid for your permit'}
-              </Text>
+          {/* ── Schedule info ── */}
+          {scheduleInfo && (
+            <View style={styles.scheduleSection}>
+              <View style={styles.scheduleHeader}>
+                <IconSymbol name="clock.fill" size={13} color="#71717a" />
+                <Text style={styles.scheduleTitle}>SCHEDULE</Text>
+                {lotAvailable !== null && (
+                  <View style={[styles.availBadge, lotAvailable ? styles.availBadgeOpen : styles.availBadgeClosed]}>
+                    <View style={[styles.availDot, { backgroundColor: lotAvailable ? '#4ade80' : '#ef4444' }]} />
+                    <Text style={[styles.availText, { color: lotAvailable ? '#4ade80' : '#ef4444' }]}>
+                      {lotAvailable ? 'OPEN' : 'CLOSED'}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              {scheduleInfo.time_text_1 ? (
+                <Text style={styles.scheduleText}>{scheduleInfo.time_text_1}</Text>
+              ) : null}
+              {scheduleInfo.time_text_2 ? (
+                <Text style={styles.scheduleText}>{scheduleInfo.time_text_2}</Text>
+              ) : null}
             </View>
           )}
 
+          {/* ── Notes ── */}
+          {(lot.note || lot.empHours) && (
+            <View style={styles.notesSection}>
+              <View style={styles.notesHeader}>
+                <IconSymbol name="info.circle.fill" size={13} color="#71717a" />
+                <Text style={styles.notesTitle}>NOTES</Text>
+              </View>
+              {lot.note ? <Text style={styles.notesText}>{lot.note}</Text> : null}
+              {lot.empHours ? <Text style={styles.notesText}>{lot.empHours}</Text> : null}
+            </View>
+          )}
 
           {/* ── Forecast chart ── */}
           <ForecastChart curve={forecast} isLoading={isLoadingForecast} />
@@ -380,26 +416,92 @@ const styles = StyleSheet.create({
   },
   featurePillText: { fontSize: 12, fontWeight: '700' },
 
-  // Permit row
-  permitRow: {
+  // Permit badge (inline after lot name)
+  permitBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+
+  // Schedule
+  scheduleSection: {
+    marginBottom: 16,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  scheduleHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
-    marginBottom: 20,
+    gap: 6,
+    marginBottom: 8,
+  },
+  scheduleTitle: {
+    color: '#71717a',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1,
+    flex: 1,
+  },
+  availBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
     borderWidth: 1,
   },
-  permitRowValid: {
+  availBadgeOpen: {
     backgroundColor: 'rgba(34,197,94,0.08)',
     borderColor: 'rgba(34,197,94,0.25)',
   },
-  permitRowInvalid: {
-    backgroundColor: 'rgba(113,113,122,0.08)',
-    borderColor: 'rgba(113,113,122,0.15)',
+  availBadgeClosed: {
+    backgroundColor: 'rgba(239,68,68,0.08)',
+    borderColor: 'rgba(239,68,68,0.25)',
   },
-  permitRowText: { fontSize: 13, fontWeight: '700' },
+  availDot: { width: 5, height: 5, borderRadius: 2.5 },
+  availText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
+  scheduleText: {
+    color: '#a1a1aa',
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 20,
+  },
+
+  // Notes
+  notesSection: {
+    marginBottom: 16,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  notesHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  notesTitle: {
+    color: '#71717a',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  notesText: {
+    color: '#a1a1aa',
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 20,
+  },
 
 
 

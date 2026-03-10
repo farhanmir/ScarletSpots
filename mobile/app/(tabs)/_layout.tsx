@@ -8,9 +8,8 @@ export default function TabLayout() {
       screenOptions={{ headerShown: false }}
       tabBar={(props) => <LiquidGlassTabBar {...props} />}
     >
-      <Tabs.Screen name="search" />
       <Tabs.Screen name="index" />
-      <Tabs.Screen name="navigate" />
+      <Tabs.Screen name="search" />
       <Tabs.Screen name="friends" />
       <Tabs.Screen name="profile" />
     </Tabs>

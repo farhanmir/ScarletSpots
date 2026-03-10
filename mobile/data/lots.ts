@@ -321,3 +321,73 @@ export const ALL_COMMUTER_LOT_IDS: Set<string> = new Set(
     .filter(([key]) => key.toLowerCase().includes('commuter'))
     .flatMap(([, entries]) => entries.map(e => e.id))
 );
+
+// ── Permit schedule helpers ────────────────────────────────────────────────
+
+interface ScheduleSlot {
+  start: string; // "06:00"
+  end: string;   // "24:00"
+}
+
+interface ScheduleInfo {
+  schedule: ScheduleSlot[][]; // 7-element array (Sun=0 … Sat=6)
+  time_text_1: string;        // e.g. "Monday - Friday, 5PM - 12AM"
+  time_text_2: string;        // e.g. "Saturday - Sunday, 6AM - 12AM"
+}
+
+type PermitSchedules = Record<string, Record<string, ScheduleInfo>>;
+
+const PERMIT_SCHEDULES: PermitSchedules = require('./permit_schedules.json');
+
+/**
+ * Returns the schedule info (time text strings + schedule array) for a lot
+ * under a specific permit type. Returns null if no schedule data exists.
+ */
+export function getLotScheduleInfo(
+  permitType: string | null | undefined,
+  lotId: string,
+): { time_text_1: string; time_text_2: string } | null {
+  if (!permitType) return null;
+  const info = PERMIT_SCHEDULES[permitType]?.[lotId];
+  if (!info) return null;
+  if (!info.time_text_1 && !info.time_text_2) return null;
+  return { time_text_1: info.time_text_1, time_text_2: info.time_text_2 };
+}
+
+/**
+ * Checks whether a lot is currently within operating hours for the given
+ * permit type.
+ *
+ * @returns `true` if available now, `false` if outside hours, `null` if
+ *   no schedule data exists (treat as always available).
+ */
+export function isLotAvailableNow(
+  permitType: string | null | undefined,
+  lotId: string,
+  now: Date = new Date(),
+): boolean | null {
+  if (!permitType) return null;
+  const info = PERMIT_SCHEDULES[permitType]?.[lotId];
+  if (!info?.schedule) return null;
+
+  const dayIndex = now.getDay(); // 0=Sun, 1=Mon … 6=Sat
+  const daySlots = info.schedule[dayIndex];
+
+  // No slots for today → lot is closed today for this permit
+  if (!daySlots || daySlots.length === 0) return false;
+
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+  for (const slot of daySlots) {
+    const [startH, startM] = slot.start.split(':').map(Number);
+    const [endH, endM] = slot.end.split(':').map(Number);
+    const startMin = startH * 60 + startM;
+    const endMin = endH * 60 + endM;
+
+    if (currentMinutes >= startMin && currentMinutes < endMin) {
+      return true;
+    }
+  }
+
+  return false;
+}

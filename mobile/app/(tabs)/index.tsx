@@ -24,7 +24,7 @@ import {
   addQueueListener,
   getPendingCount,
 } from '../../services/OfflineQueue';
-import { getAllLots, applyOccupancy, getPermitLotIds, ALL_COMMUTER_LOT_IDS, type RutgersLot } from '../../data/lots';
+import { getAllLots, applyOccupancy, getPermitLotIds, ALL_COMMUTER_LOT_IDS, isLotAvailableNow, type RutgersLot } from '../../data/lots';
 import { ENABLE_ALL_CAMPUSES } from '../../constants/featureFlags';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -688,7 +688,11 @@ export default function MapScreen() {
         {/* Lot polygons at zoom level 'lot' */}
         {zoomLevel === 'lot' && visibleLots.flatMap((lot) => {
           const isSelected = selectedLot?.id === lot.id;
-          const colors = getOccupancyColor(lot.occupancyRate);
+          const available = isLotAvailableNow(permitType, lot.id);
+          const isDimmed = available === false;
+          const colors = isDimmed
+            ? { full: '#52525b', bg: 'rgba(82, 82, 91, 0.25)' }
+            : getOccupancyColor(lot.occupancyRate);
 
           const validPolys = lot.coordinates.map((polyCoords, index) => {
             const polygonCoords = polyCoords
@@ -723,7 +727,11 @@ export default function MapScreen() {
         {zoomLevel === 'lot' && visibleLots.map((lot) => {
           const isSelected = selectedLot?.id === lot.id;
           const isFavorite = favorites.includes(lot.id);
-          const colors = getOccupancyColor(lot.occupancyRate);
+          const available = isLotAvailableNow(permitType, lot.id);
+          const isDimmed = available === false;
+          const colors = isDimmed
+            ? { full: '#52525b', bg: 'rgba(82, 82, 91, 0.25)' }
+            : getOccupancyColor(lot.occupancyRate);
 
           return (
             <Marker
@@ -735,7 +743,7 @@ export default function MapScreen() {
             >
               <View style={[styles.markerContainer, isSelected && { transform: [{ scale: 1.2 }] }]}>
                 <View style={[styles.markerBubble, { backgroundColor: colors.full }, isSelected && { borderColor: '#fff', borderWidth: 2 }]}>
-                  <Text style={styles.markerText}>{Math.round(lot.occupancyRate)}%</Text>
+                  <Text style={styles.markerText}>{isDimmed ? '—' : `${Math.round(lot.occupancyRate)}%`}</Text>
                   {isFavorite && (
                     <View style={styles.favoriteBadge}>
                       <IconSymbol name="star.fill" size={10} color="#f59e0b" />
