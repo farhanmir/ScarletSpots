@@ -23,13 +23,15 @@ from contextlib import asynccontextmanager
 async def lifespan(app: FastAPI):
     # Initialize shared clients once per process
     from app.core.security import init_supabase_clients, close_supabase_clients
+    from app.core.cache import init_cache, close_cache
     clients = init_supabase_clients()
     app.state.supabase = clients["supabase"]
     app.state.admin_supabase = clients["admin_supabase"]
+    await init_cache()
     print("!!! BACKEND STARTING UP !!!", flush=True)
     yield
-
     # Cleanup on shutdown
+    await close_cache()
     await close_supabase_clients()
 
 app = FastAPI(

@@ -9,6 +9,9 @@ MagicMock clients before any test is executed.
 
 from unittest.mock import MagicMock
 
+from fastapi_cache import FastAPICache
+from fastapi_cache.backends.inmemory import InMemoryBackend
+
 import pytest
 from app.main import app
 
@@ -16,6 +19,9 @@ from app.main import app
 @pytest.fixture(autouse=True, scope="session")
 def mock_app_state():
     """Populate app.state as if the lifespan startup has run."""
+    # Use in-memory backend so tests don't need a live Redis
+    FastAPICache.init(InMemoryBackend(), prefix="test:")
+
     mock_db = MagicMock()
 
     # GET /lots/{id}/forecast  →  .table().select().eq().single().execute().data

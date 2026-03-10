@@ -18,6 +18,9 @@ class Settings:
     SUPABASE_SERVICE_ROLE_KEY: str = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
     SUPABASE_JWT_SECRET: str = os.getenv("SUPABASE_JWT_SECRET", "")
 
+    # Redis (local, no auth by default)
+    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
     # CORS
     BACKEND_CORS_ORIGINS: list[str] = [
         "http://localhost:3000",

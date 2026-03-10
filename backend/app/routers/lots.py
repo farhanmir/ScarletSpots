@@ -14,6 +14,7 @@ from app.core.security import get_supabase
 from app.services.forecast_provider import ForecastProvider
 from app.services.ml_forecast_provider import MLForecastProvider
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi_cache.decorator import cache as fastapi_cache
 
 log = get_logger(__name__)
 
@@ -28,7 +29,8 @@ def _get_forecast_provider() -> ForecastProvider:
 
 
 @router.get("/occupancy")
-def get_all_occupancy():
+@fastapi_cache(expire=30)
+async def get_all_occupancy():
     """Return current occupancy counts for all lots from the lot_occupancy table."""
     db = get_supabase()
     try:
