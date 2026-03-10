@@ -1,8 +1,8 @@
 """
 Redis cache bootstrap with graceful degradation.
 
-If Redis is unreachable at startup the application continues without caching —
-all @cache-decorated endpoints simply fall through to the original function.
+If Redis is unreachable at startup, the application falls back to an in-memory
+Python RAM cache (InMemoryBackend) — no 500 errors, still some performance gain.
 """
 
 import logging
@@ -10,6 +10,7 @@ import logging
 from redis import asyncio as aioredis
 
 from fastapi_cache import FastAPICache
+from fastapi_cache.backends.inmemory import InMemoryBackend
 from fastapi_cache.backends.redis import RedisBackend
 
 from app.core.config import settings
@@ -36,8 +37,10 @@ async def init_cache() -> None:
         FastAPICache.init(RedisBackend(_redis_pool), prefix="scarletspots:")
         log.info("Redis cache connected (%s)", settings.REDIS_URL)
     except Exception as exc:
-        log.warning("Redis unavailable — caching disabled: %s", exc)
+        log.warning("Redis unavailable — falling back to Python RAM cache: %s", exc)
         _redis_pool = None
+        # Give the decorator a fallback engine so it doesn't crash
+        FastAPICache.init(InMemoryBackend(), prefix="scarletspots_fallback:")
 
 
 async def close_cache() -> None:
