@@ -178,8 +178,8 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, acti
               <Text style={styles.statLab}>Full</Text>
             </View>
             <View style={styles.statCard}>
-              <Text style={styles.statVal}>{openSpots}</Text>
-              <Text style={styles.statLab}>Open Spots</Text>
+              <Text style={styles.statVal}>{lot.occupiedCount}</Text>
+              <Text style={styles.statLab}>Sessions</Text>
             </View>
             <View style={styles.statCard}>
               <Text style={styles.statVal}>{lot.capacity}</Text>
