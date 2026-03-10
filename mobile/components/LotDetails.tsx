@@ -244,16 +244,16 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, acti
           )}
 
           {/* ── Notes ── */}
-          {(lot.note || lot.empHours) && (
+          {/* ── Notes ── */}
+          {lot.note ? (
             <View style={styles.notesSection}>
               <View style={styles.notesHeader}>
                 <IconSymbol name="info.circle.fill" size={13} color="#71717a" />
                 <Text style={styles.notesTitle}>NOTES</Text>
               </View>
-              {lot.note ? <Text style={styles.notesText}>{lot.note}</Text> : null}
-              {lot.empHours ? <Text style={styles.notesText}>{lot.empHours}</Text> : null}
+              <Text style={styles.notesText}>{lot.note}</Text>
             </View>
-          )}
+          ) : null}
 
           {/* ── Forecast chart ── */}
           <ForecastChart curve={forecast} isLoading={isLoadingForecast} />
