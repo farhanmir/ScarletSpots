@@ -2,6 +2,8 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { authApiCall } from '../lib/supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { NB_CAMPUS_NAMES } from '../data/lots';
 
 // ── Permit preference helpers ─────────────────────────────────────────────
 
@@ -49,6 +51,11 @@ type AuthContextType = {
    * Pass null to clear the preference.
    */
   setPermitPreference: (raw: string | null) => Promise<void>;
+
+  /** Set of campus names that are enabled for display. */
+  enabledCampuses: Set<string>;
+  /** Toggle a campus on or off. */
+  toggleCampus: (campus: string) => void;
 };
 
 const AuthContext = createContext<AuthContextType>({
@@ -60,6 +67,8 @@ const AuthContext = createContext<AuthContextType>({
   noPermitMode: null,
   customLotFilter: new Set(),
   setPermitPreference: async () => {},
+  enabledCampuses: new Set(NB_CAMPUS_NAMES),
+  toggleCampus: () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -72,6 +81,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [permitType, setPermitType] = useState<string | null>(null);
   const [noPermitMode, setNoPermitMode] = useState<NoPermitMode>(null);
   const [customLotFilter, setCustomLotFilter] = useState<CustomLotFilter>(new Set());
+
+  // ── Campus filter ──
+  const [enabledCampuses, setEnabledCampuses] = useState<Set<string>>(new Set(NB_CAMPUS_NAMES));
+
+  // Load saved campus preferences from AsyncStorage
+  useEffect(() => {
+    AsyncStorage.getItem('enabled_campuses').then(raw => {
+      if (raw) {
+        try {
+          const arr = JSON.parse(raw);
+          if (Array.isArray(arr)) setEnabledCampuses(new Set(arr));
+        } catch {}
+      }
+    });
+  }, []);
+
+  const toggleCampus = useCallback((campus: string) => {
+    setEnabledCampuses(prev => {
+      const next = new Set(prev);
+      if (next.has(campus)) {
+        // Don't allow disabling all campuses
+        if (next.size > 1) next.delete(campus);
+      } else {
+        next.add(campus);
+      }
+      AsyncStorage.setItem('enabled_campuses', JSON.stringify([...next]));
+      return next;
+    });
+  }, []);
 
   /** Apply parsed permit state from a raw DB string. */
   const applyPermitRaw = useCallback((raw: string | null) => {
@@ -150,6 +188,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       noPermitMode,
       customLotFilter,
       setPermitPreference,
+      enabledCampuses,
+      toggleCampus,
     }}>
       {children}
     </AuthContext.Provider>

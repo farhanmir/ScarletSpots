@@ -15,11 +15,11 @@ import { useRouter } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { authApiCall } from '@/lib/supabase';
 import { useFocusEffect } from '@react-navigation/native';
-import { getLotById, type RutgersLot } from '@/data/lots';
+import { getLotById, type RutgersLot, NB_CAMPUS_NAMES } from '@/data/lots';
 import { fetchWithOfflineFallback, cacheFavorites } from '../../services/OfflineCache';
 
 export default function ProfileScreen() {
-  const { session, user, loading, signOut, permitType, noPermitMode } = useAuth();
+  const { session, user, loading, signOut, permitType, noPermitMode, enabledCampuses, toggleCampus } = useAuth();
   const router = useRouter();
   const [favorites, setFavorites] = useState<RutgersLot[]>([]);
 
@@ -126,6 +126,34 @@ export default function ProfileScreen() {
           </View>
           <IconSymbol name="chevron.right" size={14} color="#3f3f46" />
         </TouchableOpacity>
+
+        {/* ── Campus filter ── */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <IconSymbol name="building.2.fill" size={15} color="#71717a" />
+            <Text style={styles.sectionTitle}>Campuses</Text>
+            <Text style={styles.sectionCount}>{enabledCampuses.size}/{NB_CAMPUS_NAMES.length}</Text>
+          </View>
+          {NB_CAMPUS_NAMES.map((campus, i) => {
+            const enabled = enabledCampuses.has(campus);
+            return (
+              <TouchableOpacity
+                key={campus}
+                style={[styles.campusRow, i === NB_CAMPUS_NAMES.length - 1 && { borderBottomWidth: 0 }]}
+                onPress={() => toggleCampus(campus)}
+                activeOpacity={0.75}
+              >
+                <View style={styles.campusLeft}>
+                  <View style={[styles.campusDot, { backgroundColor: enabled ? '#4ade80' : '#27272a' }]} />
+                  <Text style={[styles.campusName, !enabled && { color: '#52525b' }]}>{campus}</Text>
+                </View>
+                <View style={[styles.campusToggle, enabled && styles.campusToggleActive]}>
+                  <View style={[styles.campusToggleThumb, enabled && styles.campusToggleThumbActive]} />
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
         {/* ── Favorites ── */}
         <View style={styles.section}>
@@ -384,4 +412,36 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   signOutText: { color: '#dc2626', fontSize: 15, fontWeight: '600' },
+
+  // Campus filter
+  campusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 11,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1a1a1e',
+  },
+  campusLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  campusDot: { width: 8, height: 8, borderRadius: 4 },
+  campusName: { color: '#e4e4e7', fontSize: 14, fontWeight: '500' },
+  campusToggle: {
+    width: 40,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#27272a',
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+  },
+  campusToggleActive: { backgroundColor: 'rgba(34,197,94,0.3)' },
+  campusToggleThumb: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#52525b',
+  },
+  campusToggleThumbActive: {
+    backgroundColor: '#4ade80',
+    alignSelf: 'flex-end',
+  },
 });

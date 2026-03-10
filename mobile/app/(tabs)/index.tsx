@@ -70,7 +70,7 @@ const STATIC_LOTS = getAllLots(ENABLE_ALL_CAMPUSES);
 
 export default function MapScreen() {
   const router = useRouter();
-  const { user, permitType, noPermitMode } = useAuth();
+  const { user, permitType, noPermitMode, enabledCampuses } = useAuth();
   const queryClient = useQueryClient();
   const mapRef = useRef<MapView>(null);
   const params = useLocalSearchParams();
@@ -225,7 +225,7 @@ export default function MapScreen() {
 
   const displayedLots = React.useMemo(() => {
     // noPermitMode === 'all'  → show every lot, no filter
-    if (noPermitMode === 'all') return lots;
+    if (noPermitMode === 'all') return lots.filter(lot => enabledCampuses.has(lot.campus));
     // 1. Apply permit-aware filter
     let filtered = lots;
     if (noPermitMode === 'commuter_all') {
@@ -234,8 +234,10 @@ export default function MapScreen() {
       const permitIds = getPermitLotIds(permitType);
       filtered = lots.filter(lot => permitIds.has(lot.id));
     }
+    // 2. Apply campus filter
+    filtered = filtered.filter(lot => enabledCampuses.has(lot.campus));
     return filtered;
-  }, [lots, permitType, noPermitMode]);
+  }, [lots, permitType, noPermitMode, enabledCampuses]);
 
   // ── Derived: visibleLots (viewport-filtered for lot zoom) ────────────────────
   // Only lots whose centre coordinate falls within the visible map region
