@@ -270,15 +270,15 @@ export default function MapScreen() {
         name: 'Rutgers University',
         latitude: 40.5008,
         longitude: -74.4474,
-        occupancyRate: lots.length > 0
-          ? lots.reduce((acc, l) => acc + l.occupancyRate, 0) / lots.length
+        occupancyRate: displayedLots.length > 0
+          ? displayedLots.reduce((acc, l) => acc + l.occupancyRate, 0) / displayedLots.length
           : 0,
-        count: lots.length,
+        count: displayedLots.length,
       }];
     }
 
     const campuses: Record<string, { lat: number; lng: number; count: number; occupancySum: number }> = {};
-    lots.forEach(lot => {
+    displayedLots.forEach(lot => {
       if (!campuses[lot.campus]) {
         campuses[lot.campus] = { lat: 0, lng: 0, count: 0, occupancySum: 0 };
       }
@@ -297,7 +297,7 @@ export default function MapScreen() {
       occupancyRate: data.occupancySum / data.count,
       count: data.count,
     }));
-  }, [lots, zoomLevel]);
+  }, [displayedLots, zoomLevel]);
 
   const regionRef = useRef<any>(null);
   const savedRegionRef = useRef<any>(null);

@@ -22,6 +22,7 @@ export default function ProfileScreen() {
   const { session, user, loading, signOut, permitType, noPermitMode, enabledCampuses, toggleCampus } = useAuth();
   const router = useRouter();
   const [favorites, setFavorites] = useState<RutgersLot[]>([]);
+  const [showCampuses, setShowCampuses] = useState(false);
 
   const fetchFavorites = React.useCallback(async () => {
     if (!session) return;
@@ -127,34 +128,6 @@ export default function ProfileScreen() {
           <IconSymbol name="chevron.right" size={14} color="#3f3f46" />
         </TouchableOpacity>
 
-        {/* ── Campus filter ── */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <IconSymbol name="building.2.fill" size={15} color="#71717a" />
-            <Text style={styles.sectionTitle}>Campuses</Text>
-            <Text style={styles.sectionCount}>{enabledCampuses.size}/{NB_CAMPUS_NAMES.length}</Text>
-          </View>
-          {NB_CAMPUS_NAMES.map((campus, i) => {
-            const enabled = enabledCampuses.has(campus);
-            return (
-              <TouchableOpacity
-                key={campus}
-                style={[styles.campusRow, i === NB_CAMPUS_NAMES.length - 1 && { borderBottomWidth: 0 }]}
-                onPress={() => toggleCampus(campus)}
-                activeOpacity={0.75}
-              >
-                <View style={styles.campusLeft}>
-                  <View style={[styles.campusDot, { backgroundColor: enabled ? '#4ade80' : '#27272a' }]} />
-                  <Text style={[styles.campusName, !enabled && { color: '#52525b' }]}>{campus}</Text>
-                </View>
-                <View style={[styles.campusToggle, enabled && styles.campusToggleActive]}>
-                  <View style={[styles.campusToggleThumb, enabled && styles.campusToggleThumbActive]} />
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
         {/* ── Favorites ── */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -196,6 +169,40 @@ export default function ProfileScreen() {
             <IconSymbol name="gearshape.fill" size={15} color="#71717a" />
             <Text style={styles.sectionTitle}>Settings</Text>
           </View>
+
+          {/* Campus filter (collapsible) */}
+          <TouchableOpacity style={styles.settingRow} onPress={() => setShowCampuses(prev => !prev)} activeOpacity={0.75}>
+            <View style={styles.settingLeft}>
+              <View style={[styles.settingIconWrap, { backgroundColor: 'rgba(34,197,94,0.12)' }]}>
+                <IconSymbol name="building.2.fill" size={14} color="#4ade80" />
+              </View>
+              <View>
+                <Text style={styles.settingLabel}>Campus Filter</Text>
+                <Text style={styles.settingSubtext}>{enabledCampuses.size} of {NB_CAMPUS_NAMES.length} campuses</Text>
+              </View>
+            </View>
+            <IconSymbol name={showCampuses ? 'chevron.down' : 'chevron.right'} size={13} color="#3f3f46" />
+          </TouchableOpacity>
+
+          {showCampuses && NB_CAMPUS_NAMES.map((campus) => {
+            const enabled = enabledCampuses.has(campus);
+            return (
+              <TouchableOpacity
+                key={campus}
+                style={styles.campusRow}
+                onPress={() => toggleCampus(campus)}
+                activeOpacity={0.75}
+              >
+                <View style={styles.campusLeft}>
+                  <View style={[styles.campusDot, { backgroundColor: enabled ? '#4ade80' : '#27272a' }]} />
+                  <Text style={[styles.campusName, !enabled && { color: '#52525b' }]}>{campus}</Text>
+                </View>
+                <View style={[styles.campusToggle, enabled && styles.campusToggleActive]}>
+                  <View style={[styles.campusToggleThumb, enabled && styles.campusToggleThumbActive]} />
+                </View>
+              </TouchableOpacity>
+            );
+          })}
 
           <TouchableOpacity style={styles.settingRow} activeOpacity={0.75}>
             <View style={styles.settingLeft}>
