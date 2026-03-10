@@ -3,8 +3,8 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "_compat": {
-    "newArchNote": "New Architecture (newArchEnabled) is intentionally disabled in app.json. The combination of Expo 54 + react-native-maps 1.20.1 + New Arch is a known-fragile profile on iOS physical devices. Re-enable only after validating a development build on a physical iPhone with react-native-maps rendering correctly at all zoom levels. Track upstream: https://github.com/react-native-maps/react-native-maps/issues",
-    "testedStableMatrix": "expo@54, react-native@0.81, react-native-maps@1.20.1, newArchEnabled: false"
+    "note": "react-native-maps pinned to 1.20.1 (Expo Go SDK 54 bundled version). Newer versions (e.g. 1.27.x) require a development build due to TurboModule dependencies. newArchEnabled is set to true in app.json but has no effect in Expo Go.",
+    "testedMatrix": "expo@54, react-native@0.81, react-native-maps@1.20.1, Expo Go"
   },
   "scripts": {
     "start": "expo start",
@@ -15,7 +15,6 @@
     "lint": "expo lint"
   },
   "dependencies": {
-    "@bottom-tabs/react-navigation": "^1.1.0",
     "@expo/vector-icons": "^15.0.3",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/netinfo": "11.4.1",
@@ -49,7 +48,6 @@
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
-    "react-native-bottom-tabs": "^1.1.0",
     "react-native-gesture-handler": "~2.28.0",
     "react-native-maps": "1.20.1",
     "react-native-reanimated": "~4.1.1",
