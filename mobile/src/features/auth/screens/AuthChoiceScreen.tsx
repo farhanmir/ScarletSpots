@@ -20,8 +20,8 @@ export default function AuthChoiceScreen() {
       <View style={styles.content}>
         {/* Logo Area */}
         <View style={styles.logoContainer}>
-          <Image 
-            source={require('@/assets/images/scarletspots_logo.png')} 
+          <Image
+            source={require('../../../../assets/images/scarletspots_logo.png')}
             style={styles.logoImage}
             resizeMode="contain"
           />

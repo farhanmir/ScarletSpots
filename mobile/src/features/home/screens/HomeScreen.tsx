@@ -507,7 +507,7 @@ export default function MapScreen() {
         e?.message?.toLowerCase().includes('timeout') ||
         e?.code === 'ECONNABORTED'
       ) {
-          await queueParkAction('PARK', {
+        await queueParkAction('PARK', {
           lotId: lot.id,
           latitude: location?.coords.latitude,
           longitude: location?.coords.longitude,
@@ -534,13 +534,13 @@ export default function MapScreen() {
         const lotIdToRemove = activeSession.lotId;
         queryClient.setQueryData(['session', 'active'], { session: null });
         updateOptimisticOccupancy(lotIdToRemove, -1);
-        clearCachedSession().catch(() => {});
+        clearCachedSession().catch(() => { });
         setSelectedLotId(null);
         setSelectedPlace(null);
         clearRouteSelectionParams();
       } else if (!data) {
         queryClient.setQueryData(['session', 'active'], { session: null });
-        clearCachedSession().catch(() => {});
+        clearCachedSession().catch(() => { });
       }
     } catch {
       Alert.alert('Error', 'Failed to end session');
@@ -792,7 +792,7 @@ export default function MapScreen() {
             key={candidate.lotId}
             candidate={candidate}
             horizontalAccuracy={location?.coords.accuracy}
-            onPress={() => {}}
+            onPress={() => { }}
           />
         ))}
       </MapView>
@@ -801,10 +801,10 @@ export default function MapScreen() {
       <View style={styles.centerButtonContainer}>
         <GlassBackground
           style={StyleSheet.absoluteFill}
-          glassStyle="clear"
+          glassStyle="regular"
           blurIntensity={70}
           blurTint="systemChromeMaterialDark"
-          fallbackColor={Platform.OS === 'android' ? '#111113' : 'rgba(10,10,12,0.18)'}
+          fallbackColor={Platform.OS === 'android' ? '#111113' : 'rgba(10,10,12,0.85)'}
         />
         <TouchableOpacity
           style={[styles.centerButton, Platform.OS === 'android' && styles.centerButtonAndroid]}
@@ -996,7 +996,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(10,10,12,0.25)',
+    backgroundColor: 'rgba(10,10,12,0.0)',
   },
   centerButtonAndroid: { backgroundColor: '#111113' },
 

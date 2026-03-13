@@ -15,10 +15,10 @@ const TAB_BAR_WIDTH = width - 32;
 const TAB_BAR_HEIGHT = 62;
 
 const TAB_CONFIG: Record<string, { icon: string; label: string }> = {
-  index:    { icon: 'map.fill',            label: 'Map' },
-  search:   { icon: 'magnifyingglass',     label: 'Search' },
-  friends:  { icon: 'person.2.fill',       label: 'Friends' },
-  profile:  { icon: 'person.fill',         label: 'Profile' },
+  index: { icon: 'map.fill', label: 'Map' },
+  search: { icon: 'magnifyingglass', label: 'Search' },
+  friends: { icon: 'person.2.fill', label: 'Friends' },
+  profile: { icon: 'person.fill', label: 'Profile' },
 };
 
 export default function LiquidGlassTabBar({
@@ -53,10 +53,10 @@ export default function LiquidGlassTabBar({
         {/* Liquid Glass / frosted background */}
         <GlassBackground
           style={StyleSheet.absoluteFill}
-          glassStyle="clear"
+          glassStyle="regular"
           blurIntensity={80}
           blurTint="systemChromeMaterialDark"
-          fallbackColor={Platform.OS === 'android' ? 'rgba(8, 8, 10, 0.95)' : 'rgba(10, 10, 12, 0.25)'}
+          fallbackColor={Platform.OS === 'android' ? 'rgba(8, 8, 10, 0.95)' : 'rgba(10, 10, 12, 0.85)'}
         />
 
         {/* Animated Pill — frosted capsule behind active tab */}
