@@ -10,6 +10,7 @@ import {
   Keyboard,
   TouchableWithoutFeedback,
   StatusBar,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -18,13 +19,14 @@ import * as Location from 'expo-location';
 import { RUTGERS_BUILDINGS } from '@/data/buildings';
 import { getAllLots, type RutgersLot } from '../../data/lots';
 import { ENABLE_ALL_CAMPUSES } from '../../constants/featureFlags';
+import locationsData from '../../data/locations.json';
 
 interface PlaceResult {
   id: string;
   name: string;
   address?: string;
-  latitude: number;
-  longitude: number;
+  latitude?: number;
+  longitude?: number;
   type: 'lot' | 'place';
   data?: RutgersLot;
 }
@@ -92,7 +94,23 @@ export default function SearchScreen() {
         type: 'place' as const,
       }));
 
-    setResults([...lotResults, ...buildingResults]);
+    const locationResults: PlaceResult[] = locationsData
+      .filter((loc: any) => 
+        loc.name.toLowerCase().includes(lowerQuery) || 
+        (loc.aliases && loc.aliases.toLowerCase().includes(lowerQuery))
+      )
+      .map((loc: any) => ({
+        id: loc.id,
+        name: loc.name,
+        address: loc.address,
+        type: 'place' as const,
+      }));
+
+    // Combine and limit results
+    const combinedPlaces = [...buildingResults, ...locationResults];
+    const uniquePlaces = Array.from(new Map(combinedPlaces.map(item => [item.name, item])).values());
+
+    setResults([...lotResults, ...uniquePlaces].slice(0, 50));
 
     if (query.length > 3) {
       setSearching(true);
@@ -123,12 +141,35 @@ export default function SearchScreen() {
     }
   }, [query]);
 
-  const handleSelect = (item: PlaceResult) => {
+  const handleSelect = async (item: PlaceResult) => {
     Keyboard.dismiss();
     if (item.type === 'lot') {
       router.push({ pathname: '/(tabs)', params: { selectedLotId: item.id } });
     } else {
-      router.push({ pathname: '/(tabs)', params: { placeLat: item.latitude, placeLng: item.longitude, placeName: item.name } });
+      let lat = item.latitude;
+      let lng = item.longitude;
+
+      if (!lat || !lng) {
+        setSearching(true);
+        try {
+          const searchTerm = item.address ? item.address : `${item.name} New Brunswick, NJ`;
+          const geocodeResults = await Location.geocodeAsync(searchTerm);
+          if (geocodeResults && geocodeResults.length > 0) {
+            lat = geocodeResults[0].latitude;
+            lng = geocodeResults[0].longitude;
+          }
+        } catch (error) {
+          // Ignore
+        } finally {
+          setSearching(false);
+        }
+      }
+
+      if (lat && lng) {
+        router.push({ pathname: '/(tabs)', params: { placeLat: lat, placeLng: lng, placeName: item.name } });
+      } else {
+        Alert.alert('Location Not Found', 'Could not determine the coordinates for this location.');
+      }
     }
   };
 
@@ -230,7 +271,7 @@ export default function SearchScreen() {
         ) : (
           <FlatList
             data={results}
-            keyExtractor={item => item.id}
+            keyExtractor={(item, index) => `${item.type}-${item.id}-${index}`}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.resultsList}
