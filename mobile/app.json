@@ -5,7 +5,7 @@
     "description": "Find and track Rutgers parking in real time.",
     "version": "1.0.0",
     "orientation": "portrait",
-    "scheme": "ScarletSpots",
+    "scheme": "scarletspots",
     "userInterfaceStyle": "automatic",
     "icon": "./assets/images/scarletspots_logo.png",
     "splash": {
@@ -47,7 +47,6 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png",
         "backgroundColor": "#E6F4FE"
       },
-      "edgeToEdgeEnabled": true,
       "permissions": [
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION",
@@ -88,7 +87,7 @@
       "expo-web-browser"
     ],
     "experiments": {
-      "typedRoutes": true,
+      "typedRoutes": false,
       "reactCompiler": true
     },
     "extra": {

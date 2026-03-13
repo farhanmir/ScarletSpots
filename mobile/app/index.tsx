@@ -1,5 +1,5 @@
 import { Redirect } from 'expo-router';
-import { useAuth } from '@/context/AuthProvider';
+import { useAuth } from '@/providers/AuthProvider';
 import { useEffect, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import * as Location from 'expo-location';
@@ -25,5 +25,5 @@ export default function Index() {
   }
 
   // 3. Go to Map
-  return <Redirect href="/(tabs)" />;
+  return <Redirect href={('/(tabs)' as any)} />;
 }

@@ -5,21 +5,21 @@ import { View, Text, TouchableOpacity } from 'react-native';
 import 'react-native-reanimated';
 import { useEffect } from 'react';
 import { QueryClient } from '@tanstack/react-query';
-import '../services/BackgroundTasks'; // Register background tasks globally
-import '../services/GeofenceManager';
+import '@/shared/services/BackgroundTasks'; // Register background tasks globally
+import '@/shared/services/GeofenceManager';
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { AuthProvider, useAuth } from '@/context/AuthProvider';
-import { isSupabaseConfigValid } from '@/lib/supabase-client';
-import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useColorScheme } from '@/shared/hooks/use-color-scheme';
+import { AuthProvider, useAuth } from '@/providers/AuthProvider';
+import { isSupabaseConfigValid } from '@/shared/api/supabase-client';
+import { IconSymbol } from '@/shared/components/ui/icon-symbol';
 
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import OfflineBanner from '@/components/ui/OfflineBanner';
-import { initOfflineQueue, teardownOfflineQueue } from '../services/OfflineQueue';
-import { installGlobalCrashHandlers } from '@/services/CrashLogger'; // Register geofence tasks globally
+import OfflineBanner from '@/shared/components/ui/OfflineBanner';
+import { initOfflineQueue, teardownOfflineQueue } from '@/shared/services/OfflineQueue';
+import { installGlobalCrashHandlers } from '@/shared/services/CrashLogger'; // Register geofence tasks globally
 
 // Global Error Boundary
 export { ErrorBoundary } from 'expo-router';
@@ -61,10 +61,10 @@ function InitialLayout() {
 
     if (!session && !inAuthGroup) {
       // Redirect to choice if not signed in and not trying to login
-      router.replace('/auth/choice');
+      router.replace('/auth/choice' as any);
     } else if (session && inAuthGroup) {
       // Redirect to app if signed in and trying to access login
-      router.replace('/(tabs)');
+      router.replace('/(tabs)' as any);
     }
   }, [session, loading, segments, router]);
 

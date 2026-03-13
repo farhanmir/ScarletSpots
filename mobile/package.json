@@ -2,10 +2,6 @@
   "name": "mobile",
   "main": "expo-router/entry",
   "version": "1.0.0",
-  "_compat": {
-    "note": "react-native-maps pinned to 1.20.1 (Expo Go SDK 54 bundled version). Newer versions (e.g. 1.27.x) require a development build due to TurboModule dependencies. newArchEnabled is set to true in app.json but has no effect in Expo Go.",
-    "testedMatrix": "expo@54, react-native@0.81, react-native-maps@1.20.1, Expo Go"
-  },
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
@@ -15,19 +11,20 @@
     "lint": "expo lint"
   },
   "dependencies": {
-    "@expo/vector-icons": "^15.0.3",
+    "@expo/vector-icons": "^15.1.1",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/netinfo": "11.5.2",
-    "@react-navigation/bottom-tabs": "^7.1.33",
-    "@react-navigation/elements": "^7.1.33",
+    "@react-navigation/bottom-tabs": "^7.10.1",
+    "@react-navigation/elements": "^2.9.10",
     "@react-navigation/native": "^7.1.28",
     "@supabase/supabase-js": "^2.99.1",
-    "@tanstack/query-async-storage-persister": "^5.90.22",
+    "@tanstack/query-async-storage-persister": "^5.90.24",
     "@tanstack/react-query": "^5.90.21",
-    "@tanstack/react-query-persist-client": "^5.90.22",
+    "@tanstack/react-query-persist-client": "^5.90.24",
     "axios": "^1.13.6",
-    "expo": "~55.0.5",
+    "expo": "~55.0.6",
     "expo-blur": "~55.0.9",
+    "expo-glass-effect": "^55.0.8",
     "expo-constants": "~55.0.7",
     "expo-font": "~55.0.4",
     "expo-haptics": "~55.0.8",
@@ -49,19 +46,20 @@
     "react-dom": "19.2.0",
     "react-native": "0.83.2",
     "react-native-gesture-handler": "~2.30.0",
-    "react-native-maps": "1.27.2",
-    "react-native-reanimated": "4.2.2",
-    "react-native-safe-area-context": "~5.6.0",
+    "react-native-maps": "1.26.20",
+    "react-native-reanimated": "4.2.1",
+    "react-native-safe-area-context": "~5.6.2",
     "react-native-screens": "~4.23.0",
     "react-native-url-polyfill": "^3.0.0",
-    "react-native-web": "~0.21.0",
+    "react-native-web": "~0.21.2",
     "react-native-worklets": "0.7.2"
   },
   "devDependencies": {
-    "@types/react": "~19.2.10",
-    "eslint": "^9.25.0",
+    "@types/react": "~19.2.14",
+    "eslint": "^9.39.4",
     "eslint-config-expo": "~55.0.0",
-    "typescript": "~5.9.2"
+    "eslint-import-resolver-typescript": "^4.4.4",
+    "typescript": "~5.9.3"
   },
   "private": true
 }
