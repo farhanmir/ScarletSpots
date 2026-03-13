@@ -66,13 +66,12 @@ export default function LoginScreen() {
       {/* Gradient background */}
       <View style={StyleSheet.absoluteFill}>
         <LinearGradient
-          colors={['#000000', '#0a0a0c', '#1a0505']}
-          start={{ x: 0.5, y: 0 }}
-          end={{ x: 0.5, y: 1 }}
+          colors={['#000000', '#050505', '#0a0a0a']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
           style={StyleSheet.absoluteFill}
         />
-        {/* Subtle decorative glow */}
-        <View style={styles.glowOrb} />
+        <View style={styles.glowBackdrop} />
       </View>
 
       <KeyboardAvoidingView
@@ -102,16 +101,9 @@ export default function LoginScreen() {
             </View>
           </View>
 
-          {/* Form Card */}
-          <View style={styles.cardContainer}>
-            <GlassBackground
-              style={StyleSheet.absoluteFill}
-              glassStyle="regular"
-              blurIntensity={30}
-              blurTint="dark"
-              fallbackColor="rgba(24,24,27,0.8)"
-            />
-            <View style={styles.cardInner}>
+          {/* Form */}
+          <View style={styles.formContainer}>
+            <View style={styles.formInner}>
               {/* Email */}
               <View style={styles.fieldGroup}>
                 <Text style={styles.label}>Rutgers Email</Text>
@@ -183,45 +175,48 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
   },
-  glowOrb: {
+  glowBackdrop: {
     position: 'absolute',
-    top: '-10%',
-    right: '-20%',
+    top: '-15%',
+    right: '-10%',
     width: 400,
     height: 400,
     borderRadius: 200,
-    backgroundColor: '#dc2626',
-    opacity: 0.12,
+    backgroundColor: '#ffffff',
+    opacity: 0.03, // Barely visible white glow
+    shadowColor: '#ffffff',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 100,
   },
   keyboardView: {
     flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 24,
+    paddingHorizontal: 28,
     paddingTop: Platform.OS === 'ios' ? 80 : 60,
     paddingBottom: 40,
   },
 
-  // --- Header ---
   header: {
-    marginBottom: 40,
+    marginBottom: 44,
     marginTop: 20,
   },
   backButton: {
     alignSelf: 'flex-start',
-    marginBottom: 24,
+    marginBottom: 32,
   },
   backButtonInner: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'transparent',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingRight: 2, // optical center for chevron
+    paddingRight: 2,
   },
   headerTextWrap: {
     marginLeft: 4,
@@ -230,55 +225,52 @@ const styles = StyleSheet.create({
     fontSize: 34,
     fontWeight: '800',
     color: '#ffffff',
-    letterSpacing: -0.5,
+    letterSpacing: -0.8,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: '#a1a1aa',
+    color: '#71717a',
     fontWeight: '500',
+    letterSpacing: -0.2,
   },
 
-  // --- Card ---
-  cardContainer: {
+  // --- Form ---
+  formContainer: {
     width: '100%',
-    borderRadius: 32,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
-    elevation: 8,
   },
-  cardInner: {
-    padding: 32,
+  formInner: {
+    padding: 0,
+  },
+  fieldGroup: {
+    marginBottom: 24,
   },
 
-  // --- Fields ---
-  fieldGroup: {
-    marginBottom: 20,
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
   },
   label: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#d4d4d8', // zinc-300
-    marginBottom: 8,
+    color: '#a1a1aa',
+    marginBottom: 10,
   },
   input: {
-    height: 54,
-    backgroundColor: 'rgba(0,0,0,0.2)', // Darker input field inside the glass card
+    height: 56,
+    backgroundColor: '#0a0a0a',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: 'rgba(255,255,255,0.12)',
     paddingHorizontal: 16,
     color: '#ffffff',
     fontSize: 16,
   },
   hint: {
     fontSize: 12,
-    color: '#71717a', // zinc-500
+    color: '#52525b',
     marginTop: 6,
   },
 
@@ -290,29 +282,23 @@ const styles = StyleSheet.create({
   },
   forgotText: {
     fontSize: 13,
-    color: '#ef4444',
+    color: '#a1a1aa',
     fontWeight: '500',
   },
 
-  // --- Button ---
   button: {
     height: 56,
-    backgroundColor: '#dc2626',
-    borderRadius: 16,
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 8,
-    shadowColor: '#dc2626',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 6,
+    marginTop: 12,
   },
   buttonText: {
-    color: 'white',
-    fontSize: 17,
-    fontWeight: '700',
-    letterSpacing: 0.3,
+    color: '#000000',
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: -0.1,
   },
 
   // --- Switch ---
@@ -333,21 +319,21 @@ const styles = StyleSheet.create({
 
   // --- Demo ---
   demoBox: {
-    marginTop: 24,
-    backgroundColor: 'rgba(0,0,0,0.25)',
+    marginTop: 32,
+    backgroundColor: 'rgba(255,255,255,0.02)',
     borderRadius: 12,
-    padding: 14,
+    padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.04)',
+    borderColor: 'rgba(255,255,255,0.05)',
   },
   demoText: {
     fontSize: 13,
-    color: '#a1a1aa',
+    color: '#71717a',
     textAlign: 'center',
     lineHeight: 18,
   },
   demoBold: {
-    fontWeight: '700',
-    color: '#e4e4e7',
+    fontWeight: '600',
+    color: '#a1a1aa',
   },
 });

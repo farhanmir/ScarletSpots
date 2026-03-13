@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Image, Dimensions } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Image, Dimensions, StatusBar } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInDown, FadeIn, SlideInDown } from 'react-native-reanimated';
@@ -14,24 +14,24 @@ export default function AuthChoiceScreen() {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
+      <StatusBar barStyle="light-content" />
 
-      {/* Rich dark background */}
+      {/* Pure black background with extremely subtle gradient fade up */}
       <View style={StyleSheet.absoluteFill}>
         <LinearGradient
-          colors={['#000000', '#0a0a0c', '#1a0505']}
-          start={{ x: 0.5, y: 0 }}
-          end={{ x: 0.5, y: 1 }}
+          colors={['#000000', '#050505', '#0a0a0a']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
           style={StyleSheet.absoluteFill}
         />
-        {/* Subtle decorative glow */}
-        <View style={styles.glowOrb} />
+        {/* Elegant mesh glow behind logo */}
+        <Animated.View entering={FadeIn.duration(1200)} style={styles.glowBackdrop} />
       </View>
 
       <View style={styles.content}>
         {/* Top / Hero Section */}
         <View style={styles.heroSection}>
-          <Animated.View entering={FadeInDown.duration(800).delay(100)} style={styles.logoContainer}>
-            {/* The image itself has a built-in background, so we just add a soft shadow */}
+          <Animated.View entering={FadeInDown.duration(800).delay(100).springify().damping(20)} style={styles.logoContainer}>
             <View style={styles.logoShadow}>
               <Image
                 source={require('../../../../assets/images/scarletspots_logo.png')}
@@ -41,22 +41,14 @@ export default function AuthChoiceScreen() {
             </View>
           </Animated.View>
 
-          <Animated.View entering={FadeInDown.duration(800).delay(200)} style={styles.textContainer}>
+          <Animated.View entering={FadeInDown.duration(800).delay(200).springify().damping(20)} style={styles.textContainer}>
             <Text style={styles.appName}>ScarletSpots</Text>
-            <Text style={styles.tagline}>Parking at Rutgers, solved.</Text>
+            <Text style={styles.tagline}>Parking at Rutgers, perfected.</Text>
           </Animated.View>
         </View>
 
         {/* Bottom / Actions Section */}
-        <Animated.View entering={SlideInDown.duration(800).delay(400).springify().damping(20)} style={styles.actionsContainer}>
-          <GlassBackground
-            style={StyleSheet.absoluteFill}
-            glassStyle="regular"
-            blurIntensity={30}
-            blurTint="dark"
-            fallbackColor="rgba(10,10,12,0.8)"
-          />
-
+        <Animated.View entering={FadeInDown.duration(800).delay(350).springify().damping(20)} style={styles.actionsContainer}>
           <View style={styles.actionsInner}>
             <TouchableOpacity
               style={styles.primaryButton}
@@ -64,7 +56,7 @@ export default function AuthChoiceScreen() {
               activeOpacity={0.8}
             >
               <Text style={styles.primaryButtonText}>Create Account</Text>
-              <IconSymbol name="arrow.right" size={18} color="#fff" />
+              <IconSymbol name="arrow.right" size={16} color="#000" />
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -76,8 +68,8 @@ export default function AuthChoiceScreen() {
             </TouchableOpacity>
 
             <Text style={styles.termsText}>
-              By continuing, you agree to our <Text style={styles.termsLink}>Terms</Text> & <Text style={styles.termsLink}>Privacy Policy</Text>.{'\n'}
-              <Text style={{ color: '#71717a' }}>Rutgers students & staff only.</Text>
+              By continuing, you agree to our <Text style={styles.termsLink}>Terms</Text> & <Text style={styles.termsLink}>Privacy</Text>.{'\n'}
+              <Text style={{ color: '#52525b' }}>Rutgers students & staff only.</Text>
             </Text>
           </View>
         </Animated.View>
@@ -91,18 +83,21 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
   },
-  glowOrb: {
+  glowBackdrop: {
     position: 'absolute',
-    top: '15%',
-    left: '10%',
+    top: height * 0.15,
+    left: width * 0.1,
     width: width * 0.8,
     height: width * 0.8,
     borderRadius: width * 0.4,
-    backgroundColor: '#dc2626',
-    opacity: 0.15,
-    transform: [{ scale: 1.5 }],
-    // A trick in native for "blur" on a shape is not easy without external libs,
-    // so we just use low opacity. We rely on LinearGradient for the rest.
+    backgroundColor: '#ffffff',
+    opacity: 0.03, // Barely visible white glow
+    transform: [{ scale: 1.2 }],
+    shadowColor: '#ffffff',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 100,
+    elevation: 0,
   },
   content: {
     flex: 1,
@@ -114,94 +109,90 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingTop: 40,
+    paddingHorizontal: 28,
+    paddingTop: 80,
   },
   logoContainer: {
-    marginBottom: 32,
+    marginBottom: 36,
   },
   logoShadow: {
-    width: 140,
-    height: 140,
-    borderRadius: 32,
-    shadowColor: '#dc2626',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.25,
-    shadowRadius: 24,
+    width: 84,
+    height: 84,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
     elevation: 8,
-    backgroundColor: 'transparent',
+    backgroundColor: '#000', // ensure it doesn't bleed transparently if image misses pixels
   },
   logoImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 32,
+    borderRadius: 20,
   },
   textContainer: {
     alignItems: 'center',
   },
   appName: {
-    fontSize: 40,
+    fontSize: 34,
     fontWeight: '800',
     color: '#ffffff',
-    letterSpacing: -1,
-    marginBottom: 10,
+    letterSpacing: -0.8,
+    marginBottom: 8,
   },
   tagline: {
-    fontSize: 18,
-    color: '#a1a1aa',
+    fontSize: 16,
+    color: '#71717a',
     fontWeight: '500',
+    letterSpacing: -0.2,
   },
 
   // Actions
   actionsContainer: {
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
-    overflow: 'hidden',
     borderTopWidth: 1,
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
+    borderColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(255,255,255,0.02)', // ultra slight fill
   },
   actionsInner: {
-    paddingHorizontal: 24,
-    paddingTop: 32,
-    paddingBottom: 48, // ample bottom padding for modern notch devices
-    gap: 16,
+    paddingHorizontal: 28,
+    paddingTop: 40,
+    paddingBottom: 56, // ample bottom padding
+    gap: 14,
   },
   primaryButton: {
-    height: 58,
-    backgroundColor: '#dc2626',
-    borderRadius: 18,
+    height: 56,
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
-    shadowColor: '#dc2626',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 6,
   },
   primaryButtonText: {
-    color: '#ffffff',
-    fontSize: 17,
-    fontWeight: '700',
-    letterSpacing: 0.3,
+    color: '#000000',
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: -0.1,
   },
   secondaryButton: {
-    height: 58,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 18,
+    height: 56,
+    backgroundColor: 'transparent',
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.12)',
   },
   secondaryButtonText: {
-    color: '#e4e4e7',
-    fontSize: 17,
+    color: '#ffffff',
+    fontSize: 16,
     fontWeight: '600',
-    letterSpacing: 0.3,
+    letterSpacing: -0.1,
   },
   termsText: {
     textAlign: 'center',
@@ -212,6 +203,6 @@ const styles = StyleSheet.create({
   },
   termsLink: {
     color: '#a1a1aa',
-    textDecorationLine: 'underline',
+    fontWeight: '500',
   },
 });
