@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Image, Dimensions, StatusBar } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Image, Dimensions } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInDown, FadeIn, SlideInDown } from 'react-native-reanimated';
@@ -14,24 +14,22 @@ export default function AuthChoiceScreen() {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
-      <StatusBar barStyle="light-content" />
 
-      {/* Pure black background with extremely subtle gradient fade up */}
+      {/* Sweeping background gradient from top-center */}
       <View style={StyleSheet.absoluteFill}>
         <LinearGradient
-          colors={['#000000', '#050505', '#0a0a0a']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
+          colors={['#450a0a', '#18181b', '#000000']}
+          start={{ x: 0.5, y: 0.1 }}
+          end={{ x: 0.5, y: 0.8 }}
           style={StyleSheet.absoluteFill}
         />
-        {/* Elegant mesh glow behind logo */}
-        <Animated.View entering={FadeIn.duration(1200)} style={styles.glowBackdrop} />
       </View>
 
       <View style={styles.content}>
         {/* Top / Hero Section */}
         <View style={styles.heroSection}>
-          <Animated.View entering={FadeInDown.duration(800).delay(100).springify().damping(20)} style={styles.logoContainer}>
+          <Animated.View entering={FadeInDown.duration(800).delay(100)} style={styles.logoContainer}>
+            {/* The image itself has a built-in background, so we just add a soft shadow */}
             <View style={styles.logoShadow}>
               <Image
                 source={require('../../../../assets/images/scarletspots_logo.png')}
@@ -41,14 +39,22 @@ export default function AuthChoiceScreen() {
             </View>
           </Animated.View>
 
-          <Animated.View entering={FadeInDown.duration(800).delay(200).springify().damping(20)} style={styles.textContainer}>
+          <Animated.View entering={FadeInDown.duration(800).delay(200)} style={styles.textContainer}>
             <Text style={styles.appName}>ScarletSpots</Text>
-            <Text style={styles.tagline}>Parking at Rutgers, perfected.</Text>
+            <Text style={styles.tagline}>Parking at Rutgers, solved.</Text>
           </Animated.View>
         </View>
 
         {/* Bottom / Actions Section */}
-        <Animated.View entering={FadeInDown.duration(800).delay(350).springify().damping(20)} style={styles.actionsContainer}>
+        <Animated.View entering={SlideInDown.duration(800).delay(400)} style={styles.actionsContainer}>
+          <GlassBackground
+            style={StyleSheet.absoluteFill}
+            glassStyle="regular"
+            blurIntensity={30}
+            blurTint="dark"
+            fallbackColor="rgba(10,10,12,0.8)"
+          />
+
           <View style={styles.actionsInner}>
             <TouchableOpacity
               style={styles.primaryButton}
@@ -56,7 +62,7 @@ export default function AuthChoiceScreen() {
               activeOpacity={0.8}
             >
               <Text style={styles.primaryButtonText}>Create Account</Text>
-              <IconSymbol name="arrow.right" size={16} color="#000" />
+              <IconSymbol name="arrow.right" size={18} color="#fff" />
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -68,8 +74,8 @@ export default function AuthChoiceScreen() {
             </TouchableOpacity>
 
             <Text style={styles.termsText}>
-              By continuing, you agree to our <Text style={styles.termsLink}>Terms</Text> & <Text style={styles.termsLink}>Privacy</Text>.{'\n'}
-              <Text style={{ color: '#52525b' }}>Rutgers students & staff only.</Text>
+              By continuing, you agree to our <Text style={styles.termsLink}>Terms</Text> & <Text style={styles.termsLink}>Privacy Policy</Text>.{'\n'}
+              <Text style={{ color: '#71717a' }}>Rutgers students & staff only.</Text>
             </Text>
           </View>
         </Animated.View>
@@ -83,22 +89,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
   },
-  glowBackdrop: {
-    position: 'absolute',
-    top: height * 0.15,
-    left: width * 0.1,
-    width: width * 0.8,
-    height: width * 0.8,
-    borderRadius: width * 0.4,
-    backgroundColor: '#ffffff',
-    opacity: 0.03, // Barely visible white glow
-    transform: [{ scale: 1.2 }],
-    shadowColor: '#ffffff',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 100,
-    elevation: 0,
-  },
   content: {
     flex: 1,
     justifyContent: 'space-between',
@@ -109,90 +99,94 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 28,
-    paddingTop: 80,
+    paddingHorizontal: 24,
+    paddingTop: 40,
   },
   logoContainer: {
-    marginBottom: 36,
+    marginBottom: 32,
   },
   logoShadow: {
-    width: 84,
-    height: 84,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.5,
-    shadowRadius: 16,
+    width: 140,
+    height: 140,
+    borderRadius: 32,
+    shadowColor: '#dc2626',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.25,
+    shadowRadius: 24,
     elevation: 8,
-    backgroundColor: '#000', // ensure it doesn't bleed transparently if image misses pixels
+    backgroundColor: 'transparent',
   },
   logoImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 20,
+    borderRadius: 32,
   },
   textContainer: {
     alignItems: 'center',
   },
   appName: {
-    fontSize: 34,
+    fontSize: 40,
     fontWeight: '800',
     color: '#ffffff',
-    letterSpacing: -0.8,
-    marginBottom: 8,
+    letterSpacing: -1,
+    marginBottom: 10,
   },
   tagline: {
-    fontSize: 16,
-    color: '#71717a',
+    fontSize: 18,
+    color: '#a1a1aa',
     fontWeight: '500',
-    letterSpacing: -0.2,
   },
 
   // Actions
   actionsContainer: {
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
+    overflow: 'hidden',
     borderTopWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    backgroundColor: 'rgba(255,255,255,0.02)', // ultra slight fill
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
   },
   actionsInner: {
-    paddingHorizontal: 28,
-    paddingTop: 40,
-    paddingBottom: 56, // ample bottom padding
-    gap: 14,
+    paddingHorizontal: 24,
+    paddingTop: 32,
+    paddingBottom: 48, // ample bottom padding for modern notch devices
+    gap: 16,
   },
   primaryButton: {
-    height: 56,
-    backgroundColor: '#ffffff',
-    borderRadius: 14,
+    height: 58,
+    backgroundColor: '#dc2626',
+    borderRadius: 18,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
+    shadowColor: '#dc2626',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 6,
   },
   primaryButtonText: {
-    color: '#000000',
-    fontSize: 16,
-    fontWeight: '600',
-    letterSpacing: -0.1,
+    color: '#ffffff',
+    fontSize: 17,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   secondaryButton: {
-    height: 56,
-    backgroundColor: 'transparent',
-    borderRadius: 14,
+    height: 58,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   secondaryButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
+    color: '#e4e4e7',
+    fontSize: 17,
     fontWeight: '600',
-    letterSpacing: -0.1,
+    letterSpacing: 0.3,
   },
   termsText: {
     textAlign: 'center',
@@ -203,6 +197,6 @@ const styles = StyleSheet.create({
   },
   termsLink: {
     color: '#a1a1aa',
-    fontWeight: '500',
+    textDecorationLine: 'underline',
   },
 });

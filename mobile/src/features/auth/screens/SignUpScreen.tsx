@@ -78,14 +78,14 @@ export default function SignUpScreen() {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
+      {/* Sweeping background gradient from top-center */}
       <View style={StyleSheet.absoluteFill}>
         <LinearGradient
-          colors={['#000000', '#050505', '#0a0a0a']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
+          colors={['#450a0a', '#18181b', '#000000']}
+          start={{ x: 0.5, y: 0.1 }}
+          end={{ x: 0.5, y: 0.8 }}
           style={StyleSheet.absoluteFill}
         />
-        <View style={styles.glowBackdrop} />
       </View>
 
       <KeyboardAvoidingView
@@ -111,8 +111,15 @@ export default function SignUpScreen() {
             </View>
           </View>
 
-          <View style={styles.formContainer}>
-            <View style={styles.formInner}>
+          <View style={styles.cardContainer}>
+            <GlassBackground
+              style={StyleSheet.absoluteFill}
+              glassStyle="regular"
+              blurIntensity={30}
+              blurTint="dark"
+              fallbackColor="rgba(24,24,27,0.8)"
+            />
+            <View style={styles.cardInner}>
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Full Name</Text>
                 <TextInput
@@ -167,7 +174,7 @@ export default function SignUpScreen() {
                 disabled={loading}
               >
                 {loading ? (
-                  <ActivityIndicator color="#000" />
+                  <ActivityIndicator color="white" />
                 ) : (
                   <Text style={styles.submitButtonText}>Create Account</Text>
                 )}
@@ -185,43 +192,30 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
   },
-  glowBackdrop: {
-    position: 'absolute',
-    top: '-15%',
-    right: '-10%',
-    width: 400,
-    height: 400,
-    borderRadius: 200,
-    backgroundColor: '#ffffff',
-    opacity: 0.03, // Barely visible white glow
-    shadowColor: '#ffffff',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 100,
-  },
   keyboardView: {
     flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 28,
+    paddingHorizontal: 24,
     paddingTop: Platform.OS === 'ios' ? 80 : 60,
     paddingBottom: 40,
   },
 
+  // --- Header ---
   header: {
-    marginBottom: 44,
+    marginBottom: 40,
     marginTop: 20,
   },
   backButton: {
     alignSelf: 'flex-start',
-    marginBottom: 32,
+    marginBottom: 24,
   },
   backButtonInner: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
     justifyContent: 'center',
@@ -235,47 +229,61 @@ const styles = StyleSheet.create({
     fontSize: 34,
     fontWeight: '800',
     color: '#ffffff',
-    letterSpacing: -0.8,
+    letterSpacing: -0.5,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: '#71717a',
+    color: '#a1a1aa',
     fontWeight: '500',
-    letterSpacing: -0.2,
   },
 
-  // --- Form ---
-  formContainer: {
+  // --- Card ---
+  cardContainer: {
     width: '100%',
+    borderRadius: 32,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 8,
   },
-  formInner: {
-    padding: 0,
+  cardInner: {
+    padding: 32,
+    gap: 20,
   },
-  inputGroup: { gap: 10, marginBottom: 24 },
-  label: { color: '#a1a1aa', fontSize: 14, fontWeight: '500' },
+  inputGroup: { gap: 8 },
+  label: { color: '#d4d4d8', fontSize: 14, fontWeight: '500' },
   input: {
-    height: 56,
-    backgroundColor: '#0a0a0a',
+    height: 54,
+    backgroundColor: 'rgba(0,0,0,0.2)',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
+    borderColor: 'rgba(255,255,255,0.08)',
     paddingHorizontal: 16,
     color: '#ffffff',
     fontSize: 16,
   },
   submitButton: {
     height: 56,
-    backgroundColor: '#ffffff',
-    borderRadius: 14,
+    backgroundColor: '#dc2626',
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 12,
+    marginTop: 8,
+    shadowColor: '#dc2626',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 6,
   },
   submitButtonText: {
-    color: '#000000',
-    fontSize: 16,
-    fontWeight: '600',
-    letterSpacing: -0.1,
+    color: 'white',
+    fontSize: 17,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
 });
