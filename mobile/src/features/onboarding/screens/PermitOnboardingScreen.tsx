@@ -165,12 +165,15 @@ export default function PermitScreen() {
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={['#0f0f12', '#09090b']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-        style={StyleSheet.absoluteFill}
-      />
+      {/* Sweeping background gradient from top-center */}
+      <View style={StyleSheet.absoluteFill}>
+        <LinearGradient
+          colors={['#450a0a', '#18181b', '#000000']}
+          start={{ x: 0.5, y: 0.1 }}
+          end={{ x: 0.5, y: 0.8 }}
+          style={StyleSheet.absoluteFill}
+        />
+      </View>
 
       {/* Header */}
       <View style={styles.header}>
