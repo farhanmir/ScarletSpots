@@ -47,13 +47,7 @@ export default function ProfileScreen() {
   if (!loading && !session) {
     return (
       <View style={styles.container}>
-        {/* Sweeping background gradient from top-center */}
-        <LinearGradient
-          colors={['#450a0a', '#18181b', '#000000']}
-          start={{ x: 0.5, y: 0.1 }}
-          end={{ x: 0.5, y: 0.8 }}
-          style={StyleSheet.absoluteFill}
-        />
+        <LinearGradient colors={['#0f0f12', '#09090b']} style={StyleSheet.absoluteFill} />
         <View style={styles.centerContent}>
           <View style={styles.notSignedInIcon}>
             <IconSymbol name="person.fill" size={36} color="#3f3f46" />
@@ -83,13 +77,7 @@ export default function ProfileScreen() {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
-      {/* Sweeping background gradient from top-center */}
-      <LinearGradient
-        colors={['#450a0a', '#18181b', '#000000']}
-        start={{ x: 0.5, y: 0.1 }}
-        end={{ x: 0.5, y: 0.8 }}
-        style={StyleSheet.absoluteFill}
-      />
+      <LinearGradient colors={['#0f0f12', '#09090b']} style={StyleSheet.absoluteFill} />
 
       <ScrollView
         style={styles.scrollView}

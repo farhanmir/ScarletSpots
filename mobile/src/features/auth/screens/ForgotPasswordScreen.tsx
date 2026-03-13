@@ -75,15 +75,12 @@ export default function ForgotPasswordScreen() {
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* Sweeping background gradient from top-center */}
-      <View style={StyleSheet.absoluteFill}>
-        <LinearGradient
-          colors={['#450a0a', '#18181b', '#000000']}
-          start={{ x: 0.5, y: 0.1 }}
-          end={{ x: 0.5, y: 0.8 }}
-          style={StyleSheet.absoluteFill}
-        />
-      </View>
+      <LinearGradient
+        colors={['#09090b', '#18181b', '#450a0a']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
 
       <View style={styles.content}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
