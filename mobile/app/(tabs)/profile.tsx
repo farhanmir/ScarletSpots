@@ -92,9 +92,7 @@ export default function ProfileScreen() {
       >
         {/* ── Hero Card ── */}
         <View style={styles.heroCard}>
-          {Platform.OS === 'ios' && (
-            <BlurView intensity={18} tint="dark" style={StyleSheet.absoluteFill} />
-          )}
+          <BlurView intensity={18} tint="dark" style={StyleSheet.absoluteFill} />
           <View style={styles.heroInner}>
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>{initials}</Text>
@@ -115,9 +113,7 @@ export default function ProfileScreen() {
           onPress={() => router.push('/onboarding/permit?fromProfile=true')}
           activeOpacity={0.75}
         >
-          {Platform.OS === 'ios' && (
             <BlurView intensity={12} tint="dark" style={StyleSheet.absoluteFill} />
-          )}
           <View style={styles.permitIconWrap}>
             <IconSymbol name="parkingsign.circle.fill" size={22} color="#dc2626" />
           </View>

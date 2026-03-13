@@ -159,9 +159,7 @@ export default function ParkingConfirmationSheet({
   return (
     <GestureDetector gesture={pan}>
       <Animated.View style={[styles.container, sheetStyle]}>
-        {Platform.OS === 'ios' && (
-          <BlurView intensity={90} tint="systemThickMaterialDark" style={StyleSheet.absoluteFill} />
-        )}
+        <BlurView intensity={90} tint="systemThickMaterialDark" style={StyleSheet.absoluteFill} />
         <View style={styles.content}>
           {/* Drag handle */}
           <View style={styles.header}>
@@ -258,7 +256,7 @@ const styles = StyleSheet.create({
   content: {
     padding: 20,
     paddingBottom: 40,
-    backgroundColor: Platform.OS === 'android' ? '#18181b' : 'rgba(24, 24, 27, 0.7)',
+    backgroundColor: 'rgba(24, 24, 27, 0.7)',
   },
   header: {
     alignItems: 'center',

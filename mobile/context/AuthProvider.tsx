@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { Session, User } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
-import { authApiCall } from '../lib/supabase';
+import { supabase, authApiCall } from '../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NB_CAMPUS_NAMES } from '../data/lots';
 

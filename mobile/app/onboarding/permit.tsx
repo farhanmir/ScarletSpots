@@ -166,7 +166,7 @@ export default function PermitScreen() {
           <View style={styles.noPermitLeft}>
             <Text style={styles.noPermitIcon}>🚫</Text>
             <View>
-              <Text style={styles.noPermitTitle}>I don't have a permit</Text>
+              <Text style={styles.noPermitTitle}>I don&apos;t have a permit</Text>
               <Text style={styles.noPermitSub}>Choose what to show on the map</Text>
             </View>
           </View>
@@ -259,7 +259,7 @@ export default function PermitScreen() {
           );
         }}
         ListEmptyComponent={
-          <Text style={styles.emptyText}>No permits match "{query}"</Text>
+          <Text style={styles.emptyText}>No permits match &quot;{query}&quot;</Text>
         }
       />
 

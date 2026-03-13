@@ -58,13 +58,11 @@ export default function LiquidGlassTabBar({
     <View style={styles.wrapper}>
       <View style={styles.container}>
         {/* Frosted Glass Background */}
-        {Platform.OS === 'ios' ? (
-          <BlurView
-            intensity={80}
-            tint="systemChromeMaterialDark"
-            style={StyleSheet.absoluteFill}
-          />
-        ) : null}
+        <BlurView
+          intensity={80}
+          tint="systemChromeMaterialDark"
+          style={StyleSheet.absoluteFill}
+        />
         <View
           style={[
             styles.glassOverlay,

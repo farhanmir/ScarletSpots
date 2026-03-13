@@ -115,7 +115,6 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, acti
     if (url) Linking.openURL(url);
   };
 
-  const openSpots = Math.max(0, lot.capacity - lot.occupiedCount);
   const occColor = getOccupancyColor(lot.occupancyRate);
   const isDisabled = !user || lot.occupancyRate >= 100;
 
@@ -134,9 +133,7 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, acti
       </TouchableWithoutFeedback>
 
       <Animated.View entering={SlideInDown.duration(280)} style={styles.container}>
-        {Platform.OS === 'ios' && (
-          <BlurView intensity={95} tint="systemUltraThinMaterialDark" style={StyleSheet.absoluteFill} />
-        )}
+        <BlurView intensity={95} tint="systemUltraThinMaterialDark" style={StyleSheet.absoluteFill} />
 
         {/* Handle */}
         <View style={styles.handleWrap}>
@@ -315,7 +312,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: Platform.OS === 'android' ? '#111113' : 'transparent',
+    backgroundColor: 'transparent',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     overflow: 'hidden',

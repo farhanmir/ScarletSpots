@@ -85,13 +85,6 @@ export default function MapScreen() {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [isOnline, setIsOnline] = useState(true);
-  // Tracks the last completed map region — drives viewport-culled rendering.
-  const [visibleRegion, setVisibleRegion] = useState<{
-    latitude: number;
-    longitude: number;
-    latitudeDelta: number;
-    longitudeDelta: number;
-  } | null>(null);
 
   const isFocused = useIsFocused();
 
@@ -676,7 +669,6 @@ export default function MapScreen() {
         initialRegion={{ latitude: 40.5008, longitude: -74.4474, latitudeDelta: 0.0922, longitudeDelta: 0.0421 }}
         onRegionChangeComplete={(region) => {
           regionRef.current = region;
-          setVisibleRegion(region);
           let newZoom: ZoomLevel = 'hidden';
           if (region.latitudeDelta < 0.05) newZoom = 'lot';
           else if (region.latitudeDelta < 0.6) newZoom = 'campus';
@@ -842,7 +834,7 @@ export default function MapScreen() {
             </Text>
             <View style={styles.sessionChipDivider} />
             <TouchableOpacity
-              onPress={() => router.push('/(tabs)/navigate')}
+              onPress={() => router.push('/(tabs)')}
               style={styles.sessionChipAction}
               hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
             >

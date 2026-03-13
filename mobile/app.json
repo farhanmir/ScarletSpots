@@ -7,37 +7,36 @@
     "orientation": "portrait",
     "scheme": "ScarletSpots",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
-
     "icon": "./assets/images/scarletspots_logo.png",
     "splash": {
       "image": "./assets/images/scarletspots_logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#000000"
     },
-
-    "assetBundlePatterns": ["**/*"],
-
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "runtimeVersion": {
       "policy": "appVersion"
     },
     "updates": {
       "url": "https://u.expo.dev/2ccf168c-0add-449f-ad64-c0ad2a0088a0"
     },
-
     "ios": {
       "bundleIdentifier": "com.scarletspots.app",
       "buildNumber": "1",
       "supportsTablet": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "UIBackgroundModes": ["location", "fetch"],
+        "UIBackgroundModes": [
+          "location",
+          "fetch"
+        ],
         "NSLocationAlwaysAndWhenInUseUsageDescription": "ScarletSpots needs background location to detect when you park your car.",
         "NSLocationAlwaysUsageDescription": "ScarletSpots needs background location to detect when you park your car.",
         "NSMotionUsageDescription": "ScarletSpots needs motion access to detect when you stop driving and start walking."
       }
     },
-
     "android": {
       "package": "com.scarletspots.app",
       "versionCode": 1,
@@ -57,12 +56,10 @@
         "com.google.android.gms.permission.ACTIVITY_RECOGNITION"
       ]
     },
-
     "web": {
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
-
     "plugins": [
       "expo-router",
       [
@@ -85,14 +82,15 @@
           "isIosBackgroundLocationEnabled": true,
           "isAndroidBackgroundLocationEnabled": true
         }
-      ]
+      ],
+      "expo-font",
+      "expo-image",
+      "expo-web-browser"
     ],
-
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
     },
-
     "extra": {
       "router": {},
       "eas": {
