@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Image,
 } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { Stack, useRouter } from 'expo-router';
@@ -87,8 +88,12 @@ export default function LoginScreen() {
               <IconSymbol name="arrow.left" size={24} color="#a1a1aa" />
             </TouchableOpacity>
 
-            <View style={styles.logoBox}>
-              <IconSymbol name="car.fill" size={40} color="#fff" />
+            <View style={styles.logoContainer}>
+              <Image 
+                source={require('@/assets/images/scarletspots_logo.png')} 
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
             </View>
             <Text style={styles.title}>
               Welcome Back
@@ -184,21 +189,19 @@ const styles = StyleSheet.create({
   // --- Logo ---
   header: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 24,
+    width: '100%',
   },
-  logoBox: {
-    width: 80,
-    height: 80,
-    borderRadius: 20,
-    backgroundColor: '#dc2626',
+  logoContainer: {
+    width: 120,
+    height: 120,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
-    shadowColor: '#dc2626',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 10,
+    marginBottom: 12,
+  },
+  logoImage: {
+    width: '100%',
+    height: '100%',
   },
   logoIcon: {
     fontSize: 36,

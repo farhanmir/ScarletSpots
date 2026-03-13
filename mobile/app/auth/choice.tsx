@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Image } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -21,12 +21,14 @@ export default function AuthChoiceScreen() {
       <View style={styles.content}>
         {/* Logo Area */}
         <View style={styles.logoContainer}>
-          <View style={styles.logoBox}>
-            <IconSymbol name="car.fill" size={40} color="#fff" />
-          </View>
-          <Text style={styles.appName}>ScarletSpots</Text>
-          <Text style={styles.tagline}>Parking at Rutgers, solved.</Text>
+          <Image 
+            source={require('@/assets/images/scarletspots_logo.png')} 
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
         </View>
+        <Text style={styles.appName}>ScarletSpots</Text>
+        <Text style={styles.tagline}>Parking at Rutgers, solved.</Text>
 
         {/* Buttons Area */}
         <View style={styles.buttonContainer}>
@@ -70,20 +72,14 @@ const styles = StyleSheet.create({
   logoContainer: {
     alignItems: 'center',
     marginTop: 60,
-  },
-  logoBox: {
-    width: 80,
-    height: 80,
-    borderRadius: 20,
-    backgroundColor: '#dc2626',
+    width: 150,
+    height: 150,
     justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-    shadowColor: '#dc2626',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.5,
-    shadowRadius: 16,
-    elevation: 10,
+    alignSelf: 'center',
+  },
+  logoImage: {
+    width: '100%',
+    height: '100%',
   },
   appName: {
     fontSize: 36,
