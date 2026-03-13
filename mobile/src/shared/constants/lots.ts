@@ -13,7 +13,7 @@
  * app release when needed.
  */
 
- 
+
 const RAW_DATA: RawLot[] = require('./rutgers_parking_data.json');
 const PERMIT_MAPPING: Record<string, { id: string; name: string }[]> = require('./permit_mapping.json');
 
@@ -196,10 +196,10 @@ function rawToLot(raw: RawLot): RutgersLot {
     parsedPolygons.push({ outer: [], holes: [] });
   }
 
-  const coordinates: [number, number][][] = parsedPolygons.map(p => 
+  const coordinates: [number, number][][] = parsedPolygons.map(p =>
     p.outer.map(([lng, lat]) => [lat, lng] as [number, number])
   );
-  
+
   const holes: [number, number][][][] = parsedPolygons.map(p =>
     p.holes.map(ring => ring.map(([lng, lat]) => [lat, lng] as [number, number]))
   );
@@ -310,6 +310,20 @@ export function getPermitLotIds(permitType: string | null | undefined): Set<stri
   if (!permitType) return new Set();
   const entries = PERMIT_MAPPING[permitType] ?? [];
   return new Set(entries.map(e => e.id));
+}
+
+/**
+ * Returns the set of lot mapIds accessible with the primary permit AND secondary permit combined.
+ */
+export function getPermitLotIdsUnion(
+  primary: string | null | undefined,
+  secondary: string | null | undefined
+): Set<string> {
+  const primaryIds = getPermitLotIds(primary);
+  const secondaryIds = getPermitLotIds(secondary);
+  if (secondaryIds.size === 0) return primaryIds;
+  if (primaryIds.size === 0) return secondaryIds;
+  return new Set([...primaryIds, ...secondaryIds]);
 }
 
 /**

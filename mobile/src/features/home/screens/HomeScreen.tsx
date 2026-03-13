@@ -23,7 +23,7 @@ import {
   addQueueListener,
   getPendingCount,
 } from '@/shared/services/OfflineQueue';
-import { getAllLots, applyOccupancy, getPermitLotIds, ALL_COMMUTER_LOT_IDS, isLotAvailableNow, type RutgersLot } from '@/shared/constants/lots';
+import { getAllLots, applyOccupancy, getPermitLotIdsUnion, ALL_COMMUTER_LOT_IDS, isLotAvailableNow, type RutgersLot } from '@/shared/constants/lots';
 import { ENABLE_ALL_CAMPUSES } from '@/shared/constants/featureFlags';
 import { GlassBackground } from '@/shared/components/ui/GlassBackground';
 
@@ -70,7 +70,7 @@ const STATIC_LOTS = getAllLots(ENABLE_ALL_CAMPUSES);
 
 export default function MapScreen() {
   const router = useRouter();
-  const { user, permitType, noPermitMode, enabledCampuses } = useAuth();
+  const { user, permitType, secondaryPermitType, noPermitMode, enabledCampuses } = useAuth();
   const queryClient = useQueryClient();
   const mapRef = useRef<MapView>(null);
   const params = useLocalSearchParams();
@@ -223,8 +223,8 @@ export default function MapScreen() {
     let filtered = lots;
     if (noPermitMode === 'commuter_all') {
       filtered = lots.filter(lot => ALL_COMMUTER_LOT_IDS.has(lot.id));
-    } else if (permitType && !permitType.startsWith('__')) {
-      const permitIds = getPermitLotIds(permitType);
+    } else if ((permitType && !permitType.startsWith('__')) || secondaryPermitType) {
+      const permitIds = getPermitLotIdsUnion(permitType, secondaryPermitType);
       filtered = lots.filter(lot => permitIds.has(lot.id));
     }
     // 2. Apply campus filter
@@ -682,7 +682,7 @@ export default function MapScreen() {
         {/* Lot polygons at zoom level 'lot' */}
         {zoomLevel === 'lot' && visibleLots.flatMap((lot) => {
           const isSelected = selectedLot?.id === lot.id;
-          const available = isLotAvailableNow(permitType, lot.id);
+          const available = isLotAvailableNow(permitType, lot.id) || isLotAvailableNow(secondaryPermitType, lot.id);
           const isDimmed = available === false;
           const colors = isDimmed
             ? { full: '#52525b', bg: 'rgba(82, 82, 91, 0.25)' }
@@ -721,7 +721,7 @@ export default function MapScreen() {
         {zoomLevel === 'lot' && visibleLots.map((lot) => {
           const isSelected = selectedLot?.id === lot.id;
           const isFavorite = favorites.includes(lot.id);
-          const available = isLotAvailableNow(permitType, lot.id);
+          const available = isLotAvailableNow(permitType, lot.id) || isLotAvailableNow(secondaryPermitType, lot.id);
           const isDimmed = available === false;
           const colors = isDimmed
             ? { full: '#52525b', bg: 'rgba(82, 82, 91, 0.25)' }

@@ -3,7 +3,7 @@ import { StyleSheet, View, Text, TouchableOpacity, Dimensions, Platform, Linking
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import { IconSymbol } from '@/shared/components/ui/icon-symbol';
 import { GlassBackground } from '@/shared/components/ui/GlassBackground';
-import { type RutgersLot, getPermitLotIds, ALL_COMMUTER_LOT_IDS, getLotScheduleInfo, isLotAvailableNow } from '@/shared/constants/lots';
+import { type RutgersLot, getPermitLotIdsUnion, ALL_COMMUTER_LOT_IDS, getLotScheduleInfo, isLotAvailableNow } from '@/shared/constants/lots';
 
 import { useQuery } from '@tanstack/react-query';
 import { publicApiCall } from '@/shared/api/supabase';
@@ -25,9 +25,10 @@ interface LotDetailsProps {
   isFavorite?: boolean;
   onToggleFavorite?: () => void;
   permitType?: string | null;
+  secondaryPermitType?: string | null;
 }
 
-export default function LotDetails({ lot, onClose, onPark, isParking, user, activeSession, isFavorite, onToggleFavorite, permitType }: LotDetailsProps) {
+export default function LotDetails({ lot, onClose, onPark, isParking, user, activeSession, isFavorite, onToggleFavorite, permitType, secondaryPermitType }: LotDetailsProps) {
   const mountedRef = useRef(true);
   useEffect(() => {
     mountedRef.current = true;
@@ -61,23 +62,23 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, acti
     if (permitType.startsWith('__custom:')) {
       const flags = permitType.slice('__custom:'.length).split(',');
       return flags.some(flag => {
-        if (flag === 'student')  return lot.student;
+        if (flag === 'student') return lot.student;
         if (flag === 'employee') return lot.employee;
-        if (flag === 'gated')    return lot.regularGate || lot.smartGate;
-        if (flag === 'ev')       return lot.evCharging > 0;
+        if (flag === 'gated') return lot.regularGate || lot.smartGate;
+        if (flag === 'ev') return lot.evCharging > 0;
         return false;
       });
     }
-    return getPermitLotIds(permitType).has(lot.id);
-  }, [permitType, lot]);
+    return getPermitLotIdsUnion(permitType, secondaryPermitType).has(lot.id);
+  }, [permitType, secondaryPermitType, lot]);
 
   const scheduleInfo = React.useMemo(() => {
     return getLotScheduleInfo(permitType, lot.id);
   }, [permitType, lot.id]);
 
   const lotAvailable = React.useMemo(() => {
-    return isLotAvailableNow(permitType, lot.id);
-  }, [permitType, lot.id]);
+    return isLotAvailableNow(permitType, lot.id) || isLotAvailableNow(secondaryPermitType, lot.id);
+  }, [permitType, secondaryPermitType, lot.id]);
 
   const handleClose = useCallback(() => {
     if (mountedRef.current) onClose();
@@ -107,11 +108,11 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, acti
   const isDisabled = !user || lot.occupancyRate >= 100;
 
   const features = [
-    lot.student         && { icon: 'graduationcap.fill', label: 'Student',    color: '#818cf8', bg: 'rgba(99,102,241,0.15)',   border: 'rgba(99,102,241,0.35)' },
-    lot.employee        && { icon: 'briefcase.fill',      label: 'Employee',   color: '#34d399', bg: 'rgba(16,185,129,0.12)',   border: 'rgba(16,185,129,0.3)' },
-    (lot.regularGate || lot.smartGate) && { icon: 'lock.fill', label: 'Gated', color: '#fbbf24', bg: 'rgba(245,158,11,0.12)',  border: 'rgba(245,158,11,0.3)' },
-    lot.evCharging > 0  && { icon: 'bolt.car.fill',       label: 'EV Charging',color: '#60a5fa', bg: 'rgba(59,130,246,0.12)',  border: 'rgba(59,130,246,0.3)' },
-    lot.handicapped > 0 && { icon: 'figure.roll',         label: 'Accessible', color: '#c084fc', bg: 'rgba(168,85,247,0.12)', border: 'rgba(168,85,247,0.3)' },
+    lot.student && { icon: 'graduationcap.fill', label: 'Student', color: '#818cf8', bg: 'rgba(99,102,241,0.15)', border: 'rgba(99,102,241,0.35)' },
+    lot.employee && { icon: 'briefcase.fill', label: 'Employee', color: '#34d399', bg: 'rgba(16,185,129,0.12)', border: 'rgba(16,185,129,0.3)' },
+    (lot.regularGate || lot.smartGate) && { icon: 'lock.fill', label: 'Gated', color: '#fbbf24', bg: 'rgba(245,158,11,0.12)', border: 'rgba(245,158,11,0.3)' },
+    lot.evCharging > 0 && { icon: 'bolt.car.fill', label: 'EV Charging', color: '#60a5fa', bg: 'rgba(59,130,246,0.12)', border: 'rgba(59,130,246,0.3)' },
+    lot.handicapped > 0 && { icon: 'figure.roll', label: 'Accessible', color: '#c084fc', bg: 'rgba(168,85,247,0.12)', border: 'rgba(168,85,247,0.3)' },
   ].filter(Boolean) as { icon: string; label: string; color: string; bg: string; border: string }[];
 
   return (

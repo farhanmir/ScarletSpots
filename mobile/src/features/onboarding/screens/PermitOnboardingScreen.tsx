@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -13,6 +13,7 @@ import { IconSymbol } from '@/shared/components/ui/icon-symbol';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/providers/AuthProvider';
 import { ALL_PERMIT_TYPES } from '@/shared/constants/lots';
+import Animated, { FadeInRight, FadeOutLeft, SlideInRight, SlideOutLeft, Layout } from 'react-native-reanimated';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -60,29 +61,47 @@ export default function PermitScreen() {
   const { fromProfile } = useLocalSearchParams<{ fromProfile?: string }>();
   const isFromProfile = fromProfile === 'true';
 
-  const { permitType, setPermitPreference } = useAuth();
+  const { permitType, secondaryPermitType, setPermitPreference, setSecondaryPermitPreference } = useAuth();
 
   // Selection state
   const [selected, setSelected] = useState<string | null>(permitType);
+  const [secondarySelected, setSecondarySelected] = useState<string | null>(secondaryPermitType);
+
   const [noPermitExpanded, setNoPermitExpanded] = useState(
     permitType === '__commuter_all' || permitType === '__all'
   );
   const [noPermitSubMode, setNoPermitSubMode] = useState<NoPermitSubMode>(
     permitType === '__commuter_all' ? 'commuter_all'
-    : permitType === '__all' ? 'all'
-    : null
+      : permitType === '__all' ? 'all'
+        : null
   );
 
   const [query, setQuery] = useState('');
+  const [step, setStep] = useState<1 | 2>(1);
 
   const sections = useMemo(() => groupPermits(ALL_PERMIT_TYPES, query), [query]);
+
+  // Secondary permits should only be Commuter, and not on the same campus as primary
+  const secondarySections = useMemo(() => {
+    if (!selected) return [];
+    const primaryCampus = selected.split(' ')[0]; // e.g. "Busch" from "Busch Commuter"
+    const validSecondaries = ALL_PERMIT_TYPES.filter(
+      p => p.includes('Commuter') && !p.startsWith(primaryCampus)
+    );
+    return groupPermits(validSecondaries, query);
+  }, [selected, query]);
 
   // ── Helpers ────────────────────────────────────────────────────────────
 
   const selectRealPermit = (p: string) => {
-    setSelected(p);
-    setNoPermitExpanded(false);
-    setNoPermitSubMode(null);
+    if (step === 1) {
+      setSelected(p);
+      setNoPermitExpanded(false);
+      setNoPermitSubMode(null);
+      setSecondarySelected(null); // Reset secondary if primary changes
+    } else {
+      setSecondarySelected(p);
+    }
   };
 
   const buildRawValue = (): string | null => {
@@ -91,9 +110,24 @@ export default function PermitScreen() {
     return selected;
   };
 
-  const confirm = async () => {
+  const isCommuter = selected && selected.includes('Commuter');
+  const showStep2 = step === 2;
+
+  const handleNext = async () => {
+    if (step === 1 && isCommuter) {
+      setQuery('');
+      setStep(2);
+    } else {
+      await saveAndExit();
+    }
+  };
+
+  const saveAndExit = async () => {
     const raw = buildRawValue();
     await setPermitPreference(raw);
+    await setSecondaryPermitPreference(
+      (step === 2 || isCommuter) && !noPermitSubMode ? secondarySelected : null
+    );
     if (isFromProfile) {
       router.back();
     } else {
@@ -102,19 +136,32 @@ export default function PermitScreen() {
   };
 
   const skip = () => {
-    if (isFromProfile) {
-      router.back();
+    if (step === 2) {
+      // User skips secondary permit
+      setSecondarySelected(null);
+      saveAndExit();
     } else {
-      router.replace('/(tabs)' as any);
+      if (isFromProfile) {
+        router.back();
+      } else {
+        router.replace('/(tabs)' as any);
+      }
     }
+  };
+
+  const goBackStep = () => {
+    setQuery('');
+    setStep(1);
   };
 
   // ── Render ─────────────────────────────────────────────────────────────
 
   const isNoPermitSelected = noPermitSubMode !== null;
-  const canConfirm =
-    (isNoPermitSelected && (noPermitSubMode === 'commuter_all' || noPermitSubMode === 'all')) ||
-    (!isNoPermitSelected && selected !== null);
+  const canConfirm = step === 1
+    ? ((isNoPermitSelected && (noPermitSubMode === 'commuter_all' || noPermitSubMode === 'all')) || (!isNoPermitSelected && selected !== null))
+    : (secondarySelected !== null);
+
+  const activeSections = step === 1 ? sections : secondarySections;
 
   return (
     <View style={styles.container}>
@@ -127,96 +174,100 @@ export default function PermitScreen() {
 
       {/* Header */}
       <View style={styles.header}>
-        {isFromProfile && (
-          <TouchableOpacity onPress={skip} style={styles.backButton}>
+        {(isFromProfile || step === 2) && (
+          <TouchableOpacity onPress={step === 2 ? goBackStep : skip} style={styles.backButton}>
             <IconSymbol name="chevron.left" size={22} color="#a1a1aa" />
           </TouchableOpacity>
         )}
-        <View style={styles.headerCenter}>
-          {!isFromProfile && <View style={styles.iconCircle}>
+        <Animated.View style={styles.headerCenter} key={`header-${step}`} entering={FadeInRight} exiting={FadeOutLeft}>
+          {!isFromProfile && step === 1 && <View style={styles.iconCircle}>
             <IconSymbol name="parkingsign.circle.fill" size={40} color="#dc2626" />
           </View>}
-          <Text style={styles.title}>Your Parking Permit</Text>
+          <Text style={styles.title}>{step === 1 ? 'Your Parking Permit' : 'Secondary Permit'}</Text>
           <Text style={styles.subtitle}>
-            {isFromProfile
-              ? 'Update your permit to filter lots on the map.'
-              : "Tell us your permit so we only show relevant lots."}
+            {step === 1
+              ? (isFromProfile ? 'Update your permit to filter lots on the map.' : "Tell us your permit so we only show relevant lots.")
+              : "Commuters can select an optional secondary campus permit."}
           </Text>
-        </View>
+        </Animated.View>
       </View>
 
-      {/* No Permit option */}
-      <View style={styles.noPermitCard}>
-        <TouchableOpacity
-          style={[styles.noPermitRow, noPermitExpanded && styles.noPermitRowActive]}
-          onPress={() => {
-            const expanding = !noPermitExpanded;
-            setNoPermitExpanded(expanding);
-            if (!expanding) {
-              setNoPermitSubMode(null);
-              // Only deselect if currently in no-permit mode
-              if (isNoPermitSelected) setSelected(null);
-            } else {
-              setSelected(null);
-            }
-          }}
-          activeOpacity={0.8}
-        >
-          <View style={styles.noPermitLeft}>
-            <Text style={styles.noPermitIcon}>🚫</Text>
-            <View>
-              <Text style={styles.noPermitTitle}>I don&apos;t have a permit</Text>
-              <Text style={styles.noPermitSub}>Choose what to show on the map</Text>
+      {/* No Permit option (Step 1 only) */}
+      {step === 1 && (
+        <View style={styles.noPermitCard}>
+          <TouchableOpacity
+            style={[styles.noPermitRow, noPermitExpanded && styles.noPermitRowActive]}
+            onPress={() => {
+              const expanding = !noPermitExpanded;
+              setNoPermitExpanded(expanding);
+              if (!expanding) {
+                setNoPermitSubMode(null);
+                // Only deselect if currently in no-permit mode
+                if (isNoPermitSelected) setSelected(null);
+              } else {
+                setSelected(null);
+              }
+            }}
+            activeOpacity={0.8}
+          >
+            <View style={styles.noPermitLeft}>
+              <Text style={styles.noPermitIcon}>🚫</Text>
+              <View>
+                <Text style={styles.noPermitTitle}>I don&apos;t have a permit</Text>
+                <Text style={styles.noPermitSub}>Choose what to show on the map</Text>
+              </View>
             </View>
-          </View>
-          <IconSymbol
-            name={noPermitExpanded ? 'chevron.up' : 'chevron.down'}
-            size={16}
-            color="#71717a"
-          />
-        </TouchableOpacity>
+            <IconSymbol
+              name={noPermitExpanded ? 'chevron.up' : 'chevron.down'}
+              size={16}
+              color="#71717a"
+            />
+          </TouchableOpacity>
 
-        {noPermitExpanded && (
-          <View style={styles.noPermitOptions}>
-            {/* Show All Lots */}
-            <TouchableOpacity
-              style={[styles.subOption, noPermitSubMode === 'all' && styles.subOptionActive]}
-              onPress={() => setNoPermitSubMode(prev => prev === 'all' ? null : 'all')}
-              activeOpacity={0.8}
-            >
-              <View style={styles.subOptionLeft}>
-                <Text style={styles.subOptionTitle}>🗺️  Show all lots</Text>
-                <Text style={styles.subOptionSub}>Display every parking lot on the map with no filter</Text>
-              </View>
-              {noPermitSubMode === 'all' && (
-                <IconSymbol name="checkmark.circle.fill" size={20} color="#22c55e" />
-              )}
-            </TouchableOpacity>
+          {noPermitExpanded && (
+            <View style={styles.noPermitOptions}>
+              {/* Show All Lots */}
+              <TouchableOpacity
+                style={[styles.subOption, noPermitSubMode === 'all' && styles.subOptionActive]}
+                onPress={() => setNoPermitSubMode(prev => prev === 'all' ? null : 'all')}
+                activeOpacity={0.8}
+              >
+                <View style={styles.subOptionLeft}>
+                  <Text style={styles.subOptionTitle}>🗺️  Show all lots</Text>
+                  <Text style={styles.subOptionSub}>Display every parking lot on the map with no filter</Text>
+                </View>
+                {noPermitSubMode === 'all' && (
+                  <IconSymbol name="checkmark.circle.fill" size={20} color="#22c55e" />
+                )}
+              </TouchableOpacity>
 
-            {/* Commuter All */}
-            <TouchableOpacity
-              style={[styles.subOption, styles.subOptionLast, noPermitSubMode === 'commuter_all' && styles.subOptionActive]}
-              onPress={() => setNoPermitSubMode(prev => prev === 'commuter_all' ? null : 'commuter_all')}
-              activeOpacity={0.8}
-            >
-              <View style={styles.subOptionLeft}>
-                <Text style={styles.subOptionTitle}>🚗  All commuter lots</Text>
-                <Text style={styles.subOptionSub}>Every lot accessible with any commuter permit across all campuses</Text>
-              </View>
-              {noPermitSubMode === 'commuter_all' && (
-                <IconSymbol name="checkmark.circle.fill" size={20} color="#22c55e" />
-              )}
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
+              {/* Commuter All */}
+              <TouchableOpacity
+                style={[styles.subOption, styles.subOptionLast, noPermitSubMode === 'commuter_all' && styles.subOptionActive]}
+                onPress={() => setNoPermitSubMode(prev => prev === 'commuter_all' ? null : 'commuter_all')}
+                activeOpacity={0.8}
+              >
+                <View style={styles.subOptionLeft}>
+                  <Text style={styles.subOptionTitle}>🚗  All commuter lots</Text>
+                  <Text style={styles.subOptionSub}>Every lot accessible with any commuter permit across all campuses</Text>
+                </View>
+                {noPermitSubMode === 'commuter_all' && (
+                  <IconSymbol name="checkmark.circle.fill" size={20} color="#22c55e" />
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      )}
 
       {/* Divider */}
-      <View style={styles.dividerRow}>
-        <View style={styles.dividerLine} />
-        <Text style={styles.dividerText}>or choose a permit</Text>
-        <View style={styles.dividerLine} />
-      </View>
+      {step === 1 && (
+        <View style={styles.dividerRow}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>or choose a permit</Text>
+          <View style={styles.dividerLine} />
+        </View>
+      )}
 
       {/* Search */}
       <View style={styles.searchRow}>
@@ -233,49 +284,56 @@ export default function PermitScreen() {
       </View>
 
       {/* Permit list */}
-      <SectionList
-        sections={sections}
-        keyExtractor={item => item}
-        stickySectionHeadersEnabled={false}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        renderSectionHeader={({ section: { title } }) => (
-          <Text style={styles.sectionHeader}>{title}</Text>
-        )}
-        renderItem={({ item }) => {
-          const isActive = selected === item && !isNoPermitSelected;
-          return (
-            <TouchableOpacity
-              style={[styles.permitRow, isActive && styles.permitRowActive]}
-              onPress={() => selectRealPermit(item)}
-              activeOpacity={0.75}
-            >
-              <Text style={[styles.permitLabel, isActive && styles.permitLabelActive]} numberOfLines={1}>
-                {item}
-              </Text>
-              {isActive && <IconSymbol name="checkmark" size={14} color="#dc2626" />}
-            </TouchableOpacity>
-          );
-        }}
-        ListEmptyComponent={
-          <Text style={styles.emptyText}>No permits match &quot;{query}&quot;</Text>
-        }
-      />
+      <Animated.ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled">
+        <SectionList
+          scrollEnabled={false}
+          sections={activeSections}
+          keyExtractor={item => item}
+          stickySectionHeadersEnabled={false}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          renderSectionHeader={({ section: { title } }) => (
+            <Text style={styles.sectionHeader}>{title}</Text>
+          )}
+          renderItem={({ item }) => {
+            const isActive = step === 1
+              ? (selected === item && !isNoPermitSelected)
+              : (secondarySelected === item);
+            return (
+              <TouchableOpacity
+                style={[styles.permitRow, isActive && styles.permitRowActive]}
+                onPress={() => selectRealPermit(item)}
+                activeOpacity={0.75}
+              >
+                <Text style={[styles.permitLabel, isActive && styles.permitLabelActive]} numberOfLines={1}>
+                  {item}
+                </Text>
+                {isActive && <IconSymbol name="checkmark" size={14} color="#dc2626" />}
+              </TouchableOpacity>
+            );
+          }}
+          ListEmptyComponent={
+            <Text style={styles.emptyText}>No permits match &quot;{query}&quot;</Text>
+          }
+        />
+      </Animated.ScrollView>
 
       {/* Footer actions */}
       <View style={styles.footer}>
         <TouchableOpacity
           style={[styles.confirmButton, !canConfirm && styles.confirmButtonDisabled]}
-          onPress={confirm}
+          onPress={handleNext}
           disabled={!canConfirm}
           activeOpacity={0.85}
         >
           <Text style={styles.confirmButtonText}>
-            {isFromProfile ? 'Save Permit' : 'Continue'}
+            {step === 1 && isCommuter ? 'Next' : (isFromProfile ? 'Save Permit' : 'Continue')}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={skip} style={styles.skipButton}>
-          <Text style={styles.skipText}>{isFromProfile ? 'Cancel' : 'Skip for now'}</Text>
+          <Text style={styles.skipText}>
+            {step === 2 ? 'Skip (No secondary set)' : (isFromProfile ? 'Cancel' : 'Skip for now')}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>

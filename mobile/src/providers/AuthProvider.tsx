@@ -37,6 +37,8 @@ type AuthContextType = {
 
   /** Raw permit_type string as stored in the DB (or null if not set). */
   permitType: string | null;
+  /** Secondary commuter permit type (stored locally). */
+  secondaryPermitType: string | null;
   /**
    * 'commuter_all' → show union of all commuter lots.
    * 'custom'       → show lots matching customLotFilter attributes.
@@ -50,6 +52,8 @@ type AuthContextType = {
    * Pass null to clear the preference.
    */
   setPermitPreference: (raw: string | null) => Promise<void>;
+  /** Save a secondary permit preference (local only). */
+  setSecondaryPermitPreference: (raw: string | null) => Promise<void>;
 
   /** Set of campus names that are enabled for display. */
   enabledCampuses: Set<string>;
@@ -61,13 +65,15 @@ const AuthContext = createContext<AuthContextType>({
   session: null,
   user: null,
   loading: true,
-  signOut: async () => {},
+  signOut: async () => { },
   permitType: null,
+  secondaryPermitType: null,
   noPermitMode: null,
   customLotFilter: new Set(),
-  setPermitPreference: async () => {},
+  setPermitPreference: async () => { },
+  setSecondaryPermitPreference: async () => { },
   enabledCampuses: new Set(NB_CAMPUS_NAMES),
-  toggleCampus: () => {},
+  toggleCampus: () => { },
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -78,21 +84,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const [permitType, setPermitType] = useState<string | null>(null);
+  const [secondaryPermitType, setSecondaryPermitType] = useState<string | null>(null);
   const [noPermitMode, setNoPermitMode] = useState<NoPermitMode>(null);
   const [customLotFilter, setCustomLotFilter] = useState<CustomLotFilter>(new Set());
 
   // ── Campus filter ──
   const [enabledCampuses, setEnabledCampuses] = useState<Set<string>>(new Set(NB_CAMPUS_NAMES));
 
-  // Load saved campus preferences from AsyncStorage
+  // Load saved campus and secondary permit preferences from AsyncStorage
   useEffect(() => {
     AsyncStorage.getItem('enabled_campuses').then(raw => {
       if (raw) {
         try {
           const arr = JSON.parse(raw);
           if (Array.isArray(arr)) setEnabledCampuses(new Set(arr));
-        } catch {}
+        } catch { }
       }
+    });
+    AsyncStorage.getItem('secondary_permit_type').then(raw => {
+      if (raw) setSecondaryPermitType(raw);
     });
   }, []);
 
@@ -177,6 +187,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [applyPermitRaw]);
 
+  const setSecondaryPermitPreference = useCallback(async (raw: string | null) => {
+    setSecondaryPermitType(raw);
+    if (raw === null) {
+      await AsyncStorage.removeItem('secondary_permit_type');
+    } else {
+      await AsyncStorage.setItem('secondary_permit_type', raw);
+    }
+  }, []);
+
   return (
     <AuthContext.Provider value={{
       session,
@@ -184,9 +203,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       loading,
       signOut,
       permitType,
+      secondaryPermitType,
       noPermitMode,
       customLotFilter,
       setPermitPreference,
+      setSecondaryPermitPreference,
       enabledCampuses,
       toggleCampus,
     }}>

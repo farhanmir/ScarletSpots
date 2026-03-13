@@ -11,7 +11,7 @@ import { fetchWithOfflineFallback, cacheFavorites } from '@/shared/services/Offl
 import { GlassBackground } from '@/shared/components/ui/GlassBackground';
 
 export default function ProfileScreen() {
-  const { session, user, loading, signOut, permitType, noPermitMode, enabledCampuses, toggleCampus } = useAuth();
+  const { session, user, loading, signOut, permitType, secondaryPermitType, noPermitMode, enabledCampuses, toggleCampus } = useAuth();
   const router = useRouter();
   const [favorites, setFavorites] = useState<RutgersLot[]>([]);
   const [showCampuses, setShowCampuses] = useState(false);
@@ -72,6 +72,8 @@ export default function ProfileScreen() {
         ? 'All commuter lots'
         : permitType;
 
+  const secondaryLabel = secondaryPermitType ? `+ ${secondaryPermitType}` : null;
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
@@ -124,6 +126,9 @@ export default function ProfileScreen() {
           <View style={styles.permitText}>
             <Text style={styles.permitRowLabel}>Parking Permit</Text>
             <Text style={styles.permitRowValue} numberOfLines={1}>{permitLabel}</Text>
+            {secondaryLabel && (
+              <Text style={styles.permitRowSecondary} numberOfLines={1}>{secondaryLabel}</Text>
+            )}
           </View>
           <IconSymbol name="chevron.right" size={14} color="#3f3f46" />
         </TouchableOpacity>
@@ -333,9 +338,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  permitText: { flex: 1 },
+  permitText: { flex: 1, justifyContent: 'center' },
   permitRowLabel: { color: '#a1a1aa', fontSize: 11, fontWeight: '600', letterSpacing: 0.5, textTransform: 'uppercase' },
   permitRowValue: { color: '#f4f4f5', fontSize: 14, fontWeight: '600', marginTop: 2 },
+  permitRowSecondary: { color: '#a1a1aa', fontSize: 12, marginTop: 2 },
 
   // Section
   section: {

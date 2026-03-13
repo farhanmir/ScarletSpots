@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -15,7 +15,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { IconSymbol } from '@/shared/components/ui/icon-symbol';
-import * as Location from 'expo-location';
+import * as Location from 'expo-location'; // still used in handleSelect
 import { RUTGERS_BUILDINGS } from '@/shared/constants/buildings';
 import { getAllLots, type RutgersLot } from '@/shared/constants/lots';
 import { ENABLE_ALL_CAMPUSES } from '@/shared/constants/featureFlags';
@@ -60,11 +60,7 @@ export default function SearchScreen() {
   const [results, setResults] = useState<PlaceResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
-  const mountedRef = useRef(true);
 
-  useEffect(() => {
-    return () => { mountedRef.current = false; };
-  }, []);
 
   useEffect(() => {
     if (!query) {
@@ -117,34 +113,7 @@ export default function SearchScreen() {
     const uniquePlaces = Array.from(new Map(combinedPlaces.map(item => [item.name, item])).values());
 
     setResults([...lotResults, ...uniquePlaces].slice(0, 50));
-
-    if (query.length > 3) {
-      setSearching(true);
-      const searchTimeout = setTimeout(async () => {
-        try {
-          const contextualQuery = `${query} New Brunswick, NJ`;
-          const geocodeResults = await Location.geocodeAsync(contextualQuery);
-          if (geocodeResults?.length > 0 && mountedRef.current) {
-            const firstResult = geocodeResults[0];
-            setResults(prev => [...prev, {
-              id: `native-${Date.now()}`,
-              name: query,
-              address: 'Custom Location (New Brunswick Area)',
-              latitude: firstResult.latitude,
-              longitude: firstResult.longitude,
-              type: 'place' as const,
-            }]);
-          }
-        } catch {
-          // ignore geocoding errors
-        } finally {
-          if (mountedRef.current) setSearching(false);
-        }
-      }, 500);
-      return () => clearTimeout(searchTimeout);
-    } else {
-      setSearching(false);
-    }
+    setSearching(false);
   }, [query]);
 
   const handleSelect = async (item: PlaceResult) => {
