@@ -16,6 +16,7 @@ import { supabase } from '@/shared/api/supabase';
 import { Stack, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { IconSymbol } from '@/shared/components/ui/icon-symbol';
+import { GlassBackground } from '@/shared/components/ui/GlassBackground';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -63,12 +64,16 @@ export default function LoginScreen() {
       <Stack.Screen options={{ headerShown: false }} />
 
       {/* Gradient background */}
-      <LinearGradient
-        colors={['#09090b', '#18181b', '#450a0a']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFill}
-      />
+      <View style={StyleSheet.absoluteFill}>
+        <LinearGradient
+          colors={['#000000', '#0a0a0c', '#1a0505']}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+        {/* Subtle decorative glow */}
+        <View style={styles.glowOrb} />
+      </View>
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -79,89 +84,92 @@ export default function LoginScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Logo / Header */}
+          {/* Header */}
           <View style={styles.header}>
-            <TouchableOpacity 
-              style={{ position: 'absolute', left: 0, top: 0, padding: 8 }}
+            <TouchableOpacity
+              style={styles.backButton}
               onPress={() => router.back()}
+              hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
             >
-              <IconSymbol name="arrow.left" size={24} color="#a1a1aa" />
+              <View style={styles.backButtonInner}>
+                <IconSymbol name="chevron.left" size={20} color="#e4e4e7" />
+              </View>
             </TouchableOpacity>
 
-            <View style={styles.logoContainer}>
-              <Image 
-                source={require('../../../../assets/images/scarletspots_logo.png')} 
-                style={styles.logoImage}
-                resizeMode="contain"
-              />
+            <View style={styles.headerTextWrap}>
+              <Text style={styles.title}>Welcome Back</Text>
+              <Text style={styles.subtitle}>Sign in to continue</Text>
             </View>
-            <Text style={styles.title}>
-              Welcome Back
-            </Text>
-            <Text style={styles.subtitle}>
-              Sign in to continue
-            </Text>
           </View>
 
           {/* Form Card */}
-          <View style={styles.card}>
-            {/* Email */}
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Rutgers Email</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="netid@rutgers.edu"
-                placeholderTextColor="#71717a"
-                autoCapitalize="none"
-                keyboardType="email-address"
-                value={email}
-                onChangeText={setEmail}
-              />
-            </View>
+          <View style={styles.cardContainer}>
+            <GlassBackground
+              style={StyleSheet.absoluteFill}
+              glassStyle="regular"
+              blurIntensity={30}
+              blurTint="dark"
+              fallbackColor="rgba(24,24,27,0.8)"
+            />
+            <View style={styles.cardInner}>
+              {/* Email */}
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Rutgers Email</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="netid@rutgers.edu"
+                  placeholderTextColor="#71717a"
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  value={email}
+                  onChangeText={setEmail}
+                />
+              </View>
 
-            {/* Password */}
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Password</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="••••••••"
-                placeholderTextColor="#71717a"
-                secureTextEntry={true}
-                value={password}
-                onChangeText={setPassword}
-              />
-            </View>
+              {/* Password */}
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Password</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="••••••••"
+                  placeholderTextColor="#71717a"
+                  secureTextEntry={true}
+                  value={password}
+                  onChangeText={setPassword}
+                />
+              </View>
 
-            {/* Forgot Password */}
-            <TouchableOpacity
-              style={styles.forgotButton}
-              onPress={() => router.push('/auth/forgot-password' as any)}
-            >
-              <Text style={styles.forgotText}>Forgot Password?</Text>
-            </TouchableOpacity>
+              {/* Forgot Password */}
+              <TouchableOpacity
+                style={styles.forgotButton}
+                onPress={() => router.push('/auth/forgot-password' as any)}
+              >
+                <Text style={styles.forgotText}>Forgot Password?</Text>
+              </TouchableOpacity>
 
-            {/* Submit */}
-            <TouchableOpacity
-              style={styles.button}
-              onPress={handleAuth}
-              disabled={loading}
-              activeOpacity={0.85}
-            >
-              {loading ? (
-                <ActivityIndicator color="white" />
-              ) : (
-                <Text style={styles.buttonText}>
-                  Sign In
+              {/* Submit */}
+              <TouchableOpacity
+                style={styles.button}
+                onPress={handleAuth}
+                disabled={loading}
+                activeOpacity={0.85}
+              >
+                {loading ? (
+                  <ActivityIndicator color="white" />
+                ) : (
+                  <Text style={styles.buttonText}>
+                    Sign In
+                  </Text>
+                )}
+              </TouchableOpacity>
+
+              {/* Demo hint */}
+              <View style={styles.demoBox}>
+                <Text style={styles.demoText}>
+                  <Text style={styles.demoBold}>Tip: </Text>
+                  Use your NetID or ScarletMail credentials.
                 </Text>
-              )}
-            </TouchableOpacity>
-
-            {/* Demo hint */}
-            <View style={styles.demoBox}>
-              <Text style={styles.demoText}>
-                <Text style={styles.demoBold}>Tip: </Text>
-                Use your NetID or ScarletMail credentials.
-              </Text>
+              </View>
             </View>
           </View>
         </ScrollView>
@@ -173,60 +181,79 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#09090b',
+    backgroundColor: '#000',
+  },
+  glowOrb: {
+    position: 'absolute',
+    top: '-10%',
+    right: '-20%',
+    width: 400,
+    height: 400,
+    borderRadius: 200,
+    backgroundColor: '#dc2626',
+    opacity: 0.12,
   },
   keyboardView: {
     flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 40,
+    paddingHorizontal: 24,
+    paddingTop: Platform.OS === 'ios' ? 80 : 60,
+    paddingBottom: 40,
   },
 
-  // --- Logo ---
+  // --- Header ---
   header: {
-    alignItems: 'center',
-    marginBottom: 24,
-    width: '100%',
+    marginBottom: 40,
+    marginTop: 20,
   },
-  logoContainer: {
-    width: 120,
-    height: 120,
+  backButton: {
+    alignSelf: 'flex-start',
+    marginBottom: 24,
+  },
+  backButtonInner: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+    paddingRight: 2, // optical center for chevron
   },
-  logoImage: {
-    width: '100%',
-    height: '100%',
-  },
-  logoIcon: {
-    fontSize: 36,
-    fontWeight: '900',
-    color: 'white',
+  headerTextWrap: {
+    marginLeft: 4,
   },
   title: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: 'white',
-    marginBottom: 6,
+    fontSize: 34,
+    fontWeight: '800',
+    color: '#ffffff',
+    letterSpacing: -0.5,
+    marginBottom: 8,
   },
   subtitle: {
-    fontSize: 15,
-    color: '#a1a1aa', // zinc-400
+    fontSize: 16,
+    color: '#a1a1aa',
+    fontWeight: '500',
   },
 
   // --- Card ---
-  card: {
+  cardContainer: {
     width: '100%',
-    backgroundColor: 'rgba(24, 24, 27, 0.5)', // zinc-900/50
-    borderRadius: 20,
-    padding: 28,
+    borderRadius: 32,
     borderWidth: 1,
-    borderColor: 'rgba(39, 39, 42, 1)', // zinc-800
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  cardInner: {
+    padding: 32,
   },
 
   // --- Fields ---
@@ -240,13 +267,13 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   input: {
-    height: 48,
-    backgroundColor: '#27272a', // zinc-800
-    borderRadius: 10,
+    height: 54,
+    backgroundColor: 'rgba(0,0,0,0.2)', // Darker input field inside the glass card
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#3f3f46', // zinc-700
-    paddingHorizontal: 14,
-    color: 'white',
+    borderColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 16,
+    color: '#ffffff',
     fontSize: 16,
   },
   hint: {
@@ -269,22 +296,23 @@ const styles = StyleSheet.create({
 
   // --- Button ---
   button: {
-    height: 50,
+    height: 56,
     backgroundColor: '#dc2626',
-    borderRadius: 10,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 4,
+    marginTop: 8,
     shadowColor: '#dc2626',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 6,
   },
   buttonText: {
     color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
 
   // --- Switch ---
@@ -305,20 +333,21 @@ const styles = StyleSheet.create({
 
   // --- Demo ---
   demoBox: {
-    marginTop: 20,
-    backgroundColor: 'rgba(39, 39, 42, 0.5)', // zinc-800/50
-    borderRadius: 10,
-    padding: 12,
+    marginTop: 24,
+    backgroundColor: 'rgba(0,0,0,0.25)',
+    borderRadius: 12,
+    padding: 14,
     borderWidth: 1,
-    borderColor: '#3f3f46', // zinc-700
+    borderColor: 'rgba(255,255,255,0.04)',
   },
   demoText: {
-    fontSize: 12,
-    color: '#a1a1aa', // zinc-400
+    fontSize: 13,
+    color: '#a1a1aa',
     textAlign: 'center',
+    lineHeight: 18,
   },
   demoBold: {
-    fontWeight: '600',
-    color: '#d4d4d8', // zinc-300
+    fontWeight: '700',
+    color: '#e4e4e7',
   },
 });

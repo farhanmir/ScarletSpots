@@ -15,6 +15,7 @@ import { publicApiCall, supabase } from '@/shared/api/supabase';
 import { Stack, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { IconSymbol } from '@/shared/components/ui/icon-symbol';
+import { GlassBackground } from '@/shared/components/ui/GlassBackground';
 
 export default function SignUpScreen() {
   const router = useRouter();
@@ -60,7 +61,7 @@ export default function SignUpScreen() {
           password,
         });
         if (error) throw error;
-        
+
         // Success -> Go to permissions or tabs
         router.replace('/onboarding/permissions' as any); // Blueprint says Success -> Permissions Intro
       } else {
@@ -77,12 +78,15 @@ export default function SignUpScreen() {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
-      <LinearGradient
-        colors={['#09090b', '#18181b', '#450a0a']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFill}
-      />
+      <View style={StyleSheet.absoluteFill}>
+        <LinearGradient
+          colors={['#000000', '#0a0a0c', '#1a0505']}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+        <View style={styles.glowOrb} />
+      </View>
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -90,73 +94,92 @@ export default function SignUpScreen() {
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {/* Header */}
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <IconSymbol name="arrow.left" size={24} color="#a1a1aa" />
-          </TouchableOpacity>
-
-          <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Join the ScarletSpots community.</Text>
-
-          <View style={styles.form}>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Full Name</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Scarlet Knight"
-                placeholderTextColor="#52525b"
-                value={name}
-                onChangeText={setName}
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Rutgers Email</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="netid@rutgers.edu"
-                placeholderTextColor="#52525b"
-                autoCapitalize="none"
-                keyboardType="email-address"
-                value={email}
-                onChangeText={setEmail}
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Password</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Min 6 characters"
-                placeholderTextColor="#52525b"
-                secureTextEntry
-                value={password}
-                onChangeText={setPassword}
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Confirm Password</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Re-enter password"
-                placeholderTextColor="#52525b"
-                secureTextEntry
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-              />
-            </View>
-
+          <View style={styles.header}>
             <TouchableOpacity
-              style={styles.submitButton}
-              onPress={handleSignUp}
-              disabled={loading}
+              style={styles.backButton}
+              onPress={() => router.back()}
+              hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
             >
-              {loading ? (
-                <ActivityIndicator color="white" />
-              ) : (
-                <Text style={styles.submitButtonText}>Create Account</Text>
-              )}
+              <View style={styles.backButtonInner}>
+                <IconSymbol name="chevron.left" size={20} color="#e4e4e7" />
+              </View>
             </TouchableOpacity>
+
+            <View style={styles.headerTextWrap}>
+              <Text style={styles.title}>Create Account</Text>
+              <Text style={styles.subtitle}>Join the ScarletSpots community</Text>
+            </View>
+          </View>
+
+          <View style={styles.cardContainer}>
+            <GlassBackground
+              style={StyleSheet.absoluteFill}
+              glassStyle="regular"
+              blurIntensity={30}
+              blurTint="dark"
+              fallbackColor="rgba(24,24,27,0.8)"
+            />
+            <View style={styles.cardInner}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Full Name</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Scarlet Knight"
+                  placeholderTextColor="#52525b"
+                  value={name}
+                  onChangeText={setName}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Rutgers Email</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="netid@rutgers.edu"
+                  placeholderTextColor="#52525b"
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  value={email}
+                  onChangeText={setEmail}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Password</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Min 6 characters"
+                  placeholderTextColor="#52525b"
+                  secureTextEntry
+                  value={password}
+                  onChangeText={setPassword}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Confirm Password</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Re-enter password"
+                  placeholderTextColor="#52525b"
+                  secureTextEntry
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                />
+              </View>
+
+              <TouchableOpacity
+                style={styles.submitButton}
+                onPress={handleSignUp}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="white" />
+                ) : (
+                  <Text style={styles.submitButtonText}>Create Account</Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -165,23 +188,93 @@ export default function SignUpScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#09090b' },
-  keyboardView: { flex: 1 },
-  scrollContent: { padding: 24, paddingTop: 60 },
-  backButton: { marginBottom: 20 },
-  title: { fontSize: 32, fontWeight: 'bold', color: 'white', marginBottom: 8 },
-  subtitle: { fontSize: 16, color: '#a1a1aa', marginBottom: 32 },
-  form: { gap: 20 },
+  container: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  glowOrb: {
+    position: 'absolute',
+    top: '-10%',
+    left: '-20%',
+    width: 400,
+    height: 400,
+    borderRadius: 200,
+    backgroundColor: '#dc2626',
+    opacity: 0.12,
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 24,
+    paddingTop: Platform.OS === 'ios' ? 80 : 60,
+    paddingBottom: 40,
+  },
+
+  // --- Header ---
+  header: {
+    marginBottom: 40,
+    marginTop: 20,
+  },
+  backButton: {
+    alignSelf: 'flex-start',
+    marginBottom: 24,
+  },
+  backButtonInner: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingRight: 2,
+  },
+  headerTextWrap: {
+    marginLeft: 4,
+  },
+  title: {
+    fontSize: 34,
+    fontWeight: '800',
+    color: '#ffffff',
+    letterSpacing: -0.5,
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#a1a1aa',
+    fontWeight: '500',
+  },
+
+  // --- Card ---
+  cardContainer: {
+    width: '100%',
+    borderRadius: 32,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  cardInner: {
+    padding: 32,
+    gap: 20,
+  },
   inputGroup: { gap: 8 },
   label: { color: '#d4d4d8', fontSize: 14, fontWeight: '500' },
   input: {
-    height: 50,
-    backgroundColor: '#27272a',
-    borderRadius: 12,
+    height: 54,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#3f3f46',
+    borderColor: 'rgba(255,255,255,0.08)',
     paddingHorizontal: 16,
-    color: 'white',
+    color: '#ffffff',
     fontSize: 16,
   },
   submitButton: {
@@ -190,12 +283,17 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 16,
+    marginTop: 8,
     shadowColor: '#dc2626',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 6,
   },
-  submitButtonText: { color: 'white', fontSize: 18, fontWeight: '600' },
+  submitButtonText: {
+    color: 'white',
+    fontSize: 17,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
 });
