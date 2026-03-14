@@ -153,11 +153,7 @@ def start_parking_session(
     confirmed_occupancy: Optional[int] = None
     try:
         occ_res = (
-            admin_db.table("lot_occupancy")
-            .select("count")
-            .eq("lot_id", lot_id)
-            .single()
-            .execute()
+            admin_db.table("lot_occupancy").select("count").eq("lot_id", lot_id).single().execute()
         )
         if isinstance(occ_res.data, dict):
             confirmed_occupancy = occ_res.data.get("count")

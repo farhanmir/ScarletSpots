@@ -46,16 +46,12 @@ class HeuristicForecastProvider(ForecastProvider):
             # Blend current occupancy (momentum) with profile occupancy
             # Momentum fades the further out we go
             minutes_ahead = max(0, (target_time - now).total_seconds() / 60)
-            momentum_weight = max(
-                0, 1.0 - (minutes_ahead / 120.0)
-            )  # fades over 2 hours
+            momentum_weight = max(0, 1.0 - (minutes_ahead / 120.0))  # fades over 2 hours
 
             profile_val = get_profile_occupancy(target_time)
 
             # Weighted average
-            expected = (base_rate * momentum_weight) + (
-                profile_val * (1.0 - momentum_weight)
-            )
+            expected = (base_rate * momentum_weight) + (profile_val * (1.0 - momentum_weight))
 
             # Add some "noise"
             variance = random.uniform(-5, 5)  # nosec B311
