@@ -200,12 +200,12 @@ export default function ProfileScreen() {
           <View style={styles.avatarGlow} />
 
           <View style={styles.avatarRing}>
-          <LinearGradient
-            colors={["rgba(220,38,38,0.45)", "rgba(220,38,38,0.08)"]}
-            style={StyleSheet.absoluteFill}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          />
+            <LinearGradient
+              colors={["rgba(220,38,38,0.45)", "rgba(220,38,38,0.08)"]}
+              style={StyleSheet.absoluteFill}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            />
             <View style={styles.avatarInner}>
               <Text style={styles.avatarText}>{initials}</Text>
             </View>
@@ -225,11 +225,11 @@ export default function ProfileScreen() {
             }
             activeOpacity={0.75}
           >
-          <IconSymbol
-            name="parkingsign.circle.fill"
-            size={14}
-            color={GLASS.accent}
-          />
+            <IconSymbol
+              name="parkingsign.circle.fill"
+              size={14}
+              color={GLASS.accent}
+            />
             <Text style={styles.permitBadgeText}>{getPermitLabel()}</Text>
             {secondaryPermitType ? (
               <Text style={styles.permitBadgeSecondary}>

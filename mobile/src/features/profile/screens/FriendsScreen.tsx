@@ -212,9 +212,8 @@ export default function FriendsScreen() {
       : opt,
   );
 
-  const friendCountLabel = data === undefined
-    ? "—"
-    : `${friends.length} in your crew`;
+  const friendCountLabel =
+    data === undefined ? "—" : `${friends.length} in your crew`;
 
   const renderFriend = ({ item }: { item: any }) => (
     <GlassCard
@@ -247,7 +246,11 @@ export default function FriendsScreen() {
       <View style={styles.cardActions}>
         {item.sharing_enabled === false && (
           <View style={styles.hiddenBadge}>
-            <IconSymbol name="eye.slash.fill" size={12} color={GLASS.textMuted} />
+            <IconSymbol
+              name="eye.slash.fill"
+              size={12}
+              color={GLASS.textMuted}
+            />
           </View>
         )}
         {item.parked && item.lot_id && (
@@ -312,7 +315,7 @@ export default function FriendsScreen() {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
-        <ScarletSpotsBackground />
+      <ScarletSpotsBackground />
 
       {/* ── List (rendered before glass header so blur works) ── */}
       <FlatList
@@ -364,7 +367,11 @@ export default function FriendsScreen() {
               onPress={() => setIsAddModalVisible(true)}
               activeOpacity={0.8}
             >
-              <IconSymbol name="person.badge.plus" size={20} color={GLASS.accent} />
+              <IconSymbol
+                name="person.badge.plus"
+                size={20}
+                color={GLASS.accent}
+              />
             </TouchableOpacity>
           </View>
 

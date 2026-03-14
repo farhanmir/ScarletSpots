@@ -28,6 +28,7 @@ import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import NetInfo from "@react-native-community/netinfo";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { TrueSheet } from "@lodev09/react-native-true-sheet";
 import { authApiCall, supabase } from "@/shared/api/supabase";
 import { useAuth } from "@/providers/AuthProvider";
 import ParkingConfirmationSheet from "../components/ParkingConfirmationSheet";
@@ -209,6 +210,8 @@ export default function MapScreen() {
 
   // Keep track of the last selected lot for smooth exit animations
   const lastSelectedLotRef = useRef<RutgersLot | null>(null);
+  const lotSheetRef = useRef<TrueSheet>(null);
+  const [isLotSheetVisible, setIsLotSheetVisible] = useState(false);
 
   const isFocused = useIsFocused();
 
@@ -359,6 +362,22 @@ export default function MapScreen() {
     return lot;
   }, [lots, selectedLotId]);
 
+  const lotSheetData = selectedLot ?? lastSelectedLotRef.current;
+
+  useEffect(() => {
+    const syncSheetVisibility = async () => {
+      if (selectedLotId && !isLotSheetVisible) {
+        await lotSheetRef.current?.present(0, true);
+      } else if (!selectedLotId && isLotSheetVisible) {
+        await lotSheetRef.current?.dismiss(true);
+      }
+    };
+
+    syncSheetVisibility().catch(() => {
+      // no-op: sheet can reject present/dismiss during rapid transitions
+    });
+  }, [selectedLotId, isLotSheetVisible]);
+
   // ── Derived: displayedLots (filtered for map) ──────────────────────────
 
   const displayedLots = React.useMemo(() => {
@@ -449,7 +468,6 @@ export default function MapScreen() {
   }, [displayedLots, zoomLevel]);
 
   const regionRef = useRef<any>(null);
-  const savedRegionRef = useRef<any>(null);
   const lotCooldownRef = useRef(false);
 
   // ── Favorites ─────────────────────────────────────────────────────────
@@ -813,7 +831,6 @@ export default function MapScreen() {
     };
   }, [activeSession?.latitude, activeSession?.longitude]);
 
-
   // ── Park Handler ───────────────────────────────────────────────────────
 
   const handlePark = async (lotId: string) => {
@@ -966,8 +983,12 @@ export default function MapScreen() {
       return;
     }
 
-    const label = carLat != null ? "My Car" : lot?.shortName || "Parked Location";
-    const scheme = Platform.select({ ios: "maps:0,0?q=", android: "geo:0,0?q=" });
+    const label =
+      carLat != null ? "My Car" : lot?.shortName || "Parked Location";
+    const scheme = Platform.select({
+      ios: "maps:0,0?q=",
+      android: "geo:0,0?q=",
+    });
     const latLng = `${targetLat},${targetLng}`;
     const url = Platform.select({
       ios: `${scheme}${label}@${latLng}`,
@@ -1047,30 +1068,28 @@ export default function MapScreen() {
 
   // ── Lot Press ─────────────────────────────────────────────────────────
 
-  const handleLotPress = useCallback(
-    (lot: RutgersLot) => {
-      if (lotCooldownRef.current) return;
-      lotCooldownRef.current = true;
-      setTimeout(() => {
-        lotCooldownRef.current = false;
-      }, 650);
-      
-      router.navigate(`/lot/${lot.id}` as any);
-      
-      if (AppState.currentState === "active") {
-        mapRef.current?.animateToRegion(
-          {
-            latitude: lot.latitude - 0.002,
-            longitude: lot.longitude,
-            latitudeDelta: 0.005,
-            longitudeDelta: 0.005,
-          },
-          500,
-        );
-      }
-    },
-    [router],
-  );
+  const handleLotPress = useCallback((lot: RutgersLot) => {
+    if (lotCooldownRef.current) return;
+    lotCooldownRef.current = true;
+    setTimeout(() => {
+      lotCooldownRef.current = false;
+    }, 650);
+
+    setSelectedLotId(lot.id);
+    setSelectedPlace(null);
+
+    if (AppState.currentState === "active") {
+      mapRef.current?.animateToRegion(
+        {
+          latitude: lot.latitude - 0.002,
+          longitude: lot.longitude,
+          latitudeDelta: 0.005,
+          longitudeDelta: 0.005,
+        },
+        500,
+      );
+    }
+  }, []);
 
   // ── Active session lot name (for the floating chip) ───────────────────
 
@@ -1229,7 +1248,9 @@ export default function MapScreen() {
         onRegionChangeComplete={(region) => {
           regionRef.current = region;
           setIsCenteredOnUser(
-            location ? isRegionCenteredOnLocation(region, location.coords) : false,
+            location
+              ? isRegionCenteredOnLocation(region, location.coords)
+              : false,
           );
           let newZoom: ZoomLevel = "hidden";
           if (region.latitudeDelta < 0.05) newZoom = "lot";
@@ -1505,13 +1526,118 @@ export default function MapScreen() {
           accessibilityState={{ selected: isCenteredOnUser }}
           activeOpacity={1}
         >
-          <IconSymbol
-            name="location.north.fill"
-            size={20}
-            color="#ffffff"
-          />
+          <IconSymbol name="location.north.fill" size={20} color="#ffffff" />
         </TouchableOpacity>
       </Animated.View>
+
+      <TrueSheet
+        ref={lotSheetRef}
+        detents={["auto", 0.5, 0.84]}
+        onDidPresent={() => setIsLotSheetVisible(true)}
+        onDidDismiss={() => {
+          setIsLotSheetVisible(false);
+          setSelectedLotId(null);
+        }}
+      >
+        <View style={styles.lotSheetContent}>
+          {lotSheetData ? (
+            <>
+              <View style={styles.lotSheetHeader}>
+                <View style={styles.lotSheetTitleWrap}>
+                  <Text style={styles.lotSheetTitle} numberOfLines={1}>
+                    {lotSheetData.shortName}
+                  </Text>
+                  <Text style={styles.lotSheetSubtitle} numberOfLines={1}>
+                    {lotSheetData.name}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.lotSheetFavoriteButton}
+                  onPress={() => void toggleFavorite(lotSheetData)}
+                  activeOpacity={0.75}
+                >
+                  <IconSymbol
+                    name={
+                      favorites.includes(lotSheetData.id) ? "star.fill" : "star"
+                    }
+                    size={18}
+                    color="#f59e0b"
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.lotSheetStatsRow}>
+                <View style={styles.lotStatCard}>
+                  <Text style={styles.lotStatLabel}>Occupancy</Text>
+                  <Text style={styles.lotStatValue}>
+                    {Math.round(lotSheetData.occupancyRate)}%
+                  </Text>
+                </View>
+                <View style={styles.lotStatCard}>
+                  <Text style={styles.lotStatLabel}>Spots</Text>
+                  <Text style={styles.lotStatValue}>
+                    {lotSheetData.occupiedCount ?? 0} / {lotSheetData.capacity}
+                  </Text>
+                </View>
+                <View style={styles.lotStatCard}>
+                  <Text style={styles.lotStatLabel}>Campus</Text>
+                  <Text style={styles.lotStatValue}>{lotSheetData.campus}</Text>
+                </View>
+              </View>
+
+              <Text style={styles.lotSheetAvailability}>
+                {isLotAvailableNow(permitType, lotSheetData.id) ||
+                isSecondaryPermitAvailableNow(
+                  secondaryPermitType,
+                  lotSheetData.id,
+                )
+                  ? "Available for your permit right now"
+                  : "Not currently available for your permit"}
+              </Text>
+
+              <View style={styles.lotSheetActionsRow}>
+                <TouchableOpacity
+                  style={styles.lotSheetPrimaryAction}
+                  onPress={() => void handlePark(lotSheetData.id)}
+                  activeOpacity={0.85}
+                >
+                  {loading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <IconSymbol name="car.fill" size={14} color="#fff" />
+                      <Text style={styles.lotSheetPrimaryActionText}>
+                        Park Here
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.lotSheetSecondaryAction}
+                  onPress={() =>
+                    router.navigate(`/lot/${lotSheetData.id}` as any)
+                  }
+                  activeOpacity={0.8}
+                >
+                  <IconSymbol
+                    name="info.circle.fill"
+                    size={14}
+                    color="#a1a1aa"
+                  />
+                  <Text style={styles.lotSheetSecondaryActionText}>
+                    Full Details
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          ) : (
+            <View style={styles.lotSheetEmptyState}>
+              <Text style={styles.lotSheetEmptyText}>No lot selected.</Text>
+            </View>
+          )}
+        </View>
+      </TrueSheet>
 
       {/* ── Active Session Floating Chip ── */}
       {activeSession && (
@@ -1541,7 +1667,7 @@ export default function MapScreen() {
             </View>
             <View style={styles.sessionChipDivider} />
             {chipFindCarState != null ? (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.sessionChipFindCar}
                 onPress={handleFindCar}
                 activeOpacity={0.7}
@@ -1755,6 +1881,121 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.2)",
   },
   centerButtonAndroid: { backgroundColor: "rgba(255,255,255,0.12)" },
+
+  // ── Lot detail sheet ──────────────────────────────────────────────────
+  lotSheetContent: {
+    paddingHorizontal: 16,
+    paddingTop: 6,
+    paddingBottom: 24,
+    gap: 12,
+  },
+  lotSheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  lotSheetTitleWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  lotSheetTitle: {
+    color: "#fff",
+    fontSize: 20,
+    fontWeight: "800",
+    letterSpacing: 0.2,
+  },
+  lotSheetSubtitle: {
+    color: "#a1a1aa",
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  lotSheetFavoriteButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(245,158,11,0.35)",
+    backgroundColor: "rgba(245,158,11,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  lotSheetStatsRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  lotStatCard: {
+    flex: 1,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "rgba(12, 12, 14, 0.75)",
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    gap: 2,
+  },
+  lotStatLabel: {
+    color: "#71717a",
+    fontSize: 11,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  lotStatValue: {
+    color: "#f4f4f5",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  lotSheetAvailability: {
+    color: "#d4d4d8",
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  lotSheetActionsRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  lotSheetPrimaryAction: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 12,
+    backgroundColor: "#dc2626",
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 6,
+  },
+  lotSheetPrimaryActionText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  lotSheetSecondaryAction: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    backgroundColor: "rgba(255,255,255,0.04)",
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 6,
+  },
+  lotSheetSecondaryActionText: {
+    color: "#d4d4d8",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  lotSheetEmptyState: {
+    paddingVertical: 8,
+    alignItems: "center",
+  },
+  lotSheetEmptyText: {
+    color: "#a1a1aa",
+    fontSize: 13,
+    fontWeight: "500",
+  },
 
   // ── Offline badge ──────────────────────────────────────────────────────
   offlineBadge: {

@@ -55,11 +55,7 @@ export function GlassCard({
   exiting = FadeOut.duration(150),
   borderColor = GLASS.borderColor,
 }: Readonly<GlassCardProps>) {
-  const containerStyle = [
-    styles.card,
-    { borderRadius, borderColor },
-    style,
-  ];
+  const containerStyle = [styles.card, { borderRadius, borderColor }, style];
 
   const inner = (
     <>
@@ -76,7 +72,11 @@ export function GlassCard({
 
   if (animated) {
     return (
-      <Animated.View style={containerStyle} entering={entering} exiting={exiting}>
+      <Animated.View
+        style={containerStyle}
+        entering={entering}
+        exiting={exiting}
+      >
         {inner}
       </Animated.View>
     );

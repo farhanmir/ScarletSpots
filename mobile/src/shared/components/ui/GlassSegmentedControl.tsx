@@ -68,7 +68,13 @@ export function GlassSegmentedControl<T extends string = string>({
   }));
 
   return (
-    <View style={[styles.container, variant === "flat" && styles.containerFlat, style]}>
+    <View
+      style={[
+        styles.container,
+        variant === "flat" && styles.containerFlat,
+        style,
+      ]}
+    >
       {/* Track background */}
       {variant === "glass" ? (
         <GlassBackground
@@ -84,7 +90,9 @@ export function GlassSegmentedControl<T extends string = string>({
 
       {/* Sliding pill */}
       <Animated.View style={[styles.pill, pillStyle]}>
-        <View style={[styles.pillInner, variant === "flat" && styles.pillInnerFlat]} />
+        <View
+          style={[styles.pillInner, variant === "flat" && styles.pillInnerFlat]}
+        />
       </Animated.View>
 
       {/* Segment buttons */}
@@ -99,9 +107,7 @@ export function GlassSegmentedControl<T extends string = string>({
               activeOpacity={0.7}
             >
               <View style={styles.segmentContent}>
-                <Text
-                  style={[styles.label, isActive && styles.labelActive]}
-                >
+                <Text style={[styles.label, isActive && styles.labelActive]}>
                   {option.label}
                 </Text>
                 {option.badge !== undefined && option.badge > 0 && (

@@ -87,7 +87,6 @@ function InitialLayout() {
           <Stack.Screen
             name="lot/[id]"
             options={{
-              getId: () => "lot-sheet",
               presentation: "formSheet",
               headerShown: false,
               sheetAllowedDetents: [0.35, 0.95],
@@ -100,7 +99,11 @@ function InitialLayout() {
           />
           <Stack.Screen
             name="modal"
-            options={{ presentation: "modal", title: "Modal", headerShown: true }}
+            options={{
+              presentation: "modal",
+              title: "Modal",
+              headerShown: true,
+            }}
           />
         </Stack>
       </TabBarProvider>

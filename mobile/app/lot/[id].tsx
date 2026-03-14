@@ -1,10 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useMemo } from "react";
 import {
   StyleSheet,
   View,
   Text,
   TouchableOpacity,
-  Dimensions,
   Platform,
   Linking,
   Alert,
@@ -34,10 +33,13 @@ import { getOccupancyColor } from "@/features/home/services/utils";
 import ForecastChart from "@/features/home/components/lots/ForecastChart";
 import { ForecastResponse, ForecastPoint } from "@/features/home/types/types";
 import { ENABLE_ALL_CAMPUSES } from "@/shared/constants/featureFlags";
-import { cacheSession, fetchWithOfflineFallback, cacheFavorites, getCachedFavorites } from "@/shared/services/OfflineCache";
+import {
+  cacheSession,
+  fetchWithOfflineFallback,
+  cacheFavorites,
+  getCachedFavorites,
+} from "@/shared/services/OfflineCache";
 import { queueParkAction } from "@/shared/services/OfflineQueue";
-
-const { height: SCREEN_H } = Dimensions.get("window");
 
 export default function LotDetailsScreen() {
   const router = useRouter();
@@ -50,7 +52,7 @@ export default function LotDetailsScreen() {
     useCallback(() => {
       setIsTabBarHidden(true);
       return () => setIsTabBarHidden(false);
-    }, [setIsTabBarHidden])
+    }, [setIsTabBarHidden]),
   );
 
   const lotBase = useMemo(() => (id ? getLotById(id) : null), [id]);
@@ -83,7 +85,7 @@ export default function LotDetailsScreen() {
     queryKey: ["favorites"],
     queryFn: async () => {
       if (!user) return [];
-       try {
+      try {
         const { data } = await fetchWithOfflineFallback(
           async () => {
             const resp = await authApiCall("/favorites");
@@ -104,25 +106,32 @@ export default function LotDetailsScreen() {
     enabled: !!user,
   });
 
-  const isFavorite = useMemo(() => lot && favorites.includes(lot.id), [lot, favorites]);
+  const isFavorite = useMemo(
+    () => lot && favorites.includes(lot.id),
+    [lot, favorites],
+  );
 
   // Forecast
-  const { data: forecastData, isLoading: isLoadingForecast } = useQuery<ForecastResponse>({
-    queryKey: ["forecast", id, lot?.capacity],
-    queryFn: async () => {
-      const data = await publicApiCall(
-        `/lots/${id}/forecast?capacity=${lot?.capacity}&current_occupancy=${lot?.occupiedCount}`,
-      );
-      return data || {};
-    },
-    enabled: !!id && !!lot && !id.startsWith("custom:") && (lot.capacity ?? 0) > 0,
-    staleTime: 60000 * 15,
-  });
+  const { data: forecastData, isLoading: isLoadingForecast } =
+    useQuery<ForecastResponse>({
+      queryKey: ["forecast", id, lot?.capacity],
+      queryFn: async () => {
+        const data = await publicApiCall(
+          `/lots/${id}/forecast?capacity=${lot?.capacity}&current_occupancy=${lot?.occupiedCount}`,
+        );
+        return data || {};
+      },
+      enabled:
+        !!id && !!lot && !id.startsWith("custom:") && (lot.capacity ?? 0) > 0,
+      staleTime: 60000 * 15,
+    });
 
   const forecast: ForecastPoint[] = useMemo(() => {
     if (!forecastData) return [];
-    if (forecastData.curve && Array.isArray(forecastData.curve)) return forecastData.curve;
-    if (Array.isArray(forecastData)) return forecastData as unknown as ForecastPoint[];
+    if (forecastData.curve && Array.isArray(forecastData.curve))
+      return forecastData.curve;
+    if (Array.isArray(forecastData))
+      return forecastData as unknown as ForecastPoint[];
     return [];
   }, [forecastData]);
 
@@ -194,11 +203,11 @@ export default function LotDetailsScreen() {
 
   const handlePark = async () => {
     if (!user || !lot) return;
-    
-    // Get location? 
+
+    // Get location?
     // For now we'll just try to park without precise coords if not available,
     // though HomeScreen passes location.
-    
+
     try {
       const payload = {
         lotId: lot.id,
@@ -213,7 +222,9 @@ export default function LotDetailsScreen() {
           lotId: lot.id,
           startTime: new Date().toISOString(),
         };
-        queryClient.setQueryData(["session", "active"], { session: optimisticSession });
+        queryClient.setQueryData(["session", "active"], {
+          session: optimisticSession,
+        });
         cacheSession({ session: optimisticSession }).catch(() => {});
         updateOptimisticOccupancy(lot.id, 1);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -240,13 +251,16 @@ export default function LotDetailsScreen() {
         router.dismiss();
       }
     } catch (e: any) {
-       Alert.alert("Error", e.message || "Failed to start parking session");
+      Alert.alert("Error", e.message || "Failed to start parking session");
     }
   };
 
   const openDirections = () => {
     if (!lot) return;
-    const scheme = Platform.select({ ios: "maps:0,0?q=", android: "geo:0,0?q=" });
+    const scheme = Platform.select({
+      ios: "maps:0,0?q=",
+      android: "geo:0,0?q=",
+    });
     const latLng = `${lot.latitude},${lot.longitude}`;
     const url = Platform.select({
       ios: `${scheme}${lot.name}@${latLng}`,
@@ -257,23 +271,59 @@ export default function LotDetailsScreen() {
 
   if (!lot) return null;
 
-  const permitValidity = permitType ? (permitType === "__commuter_all" ? ALL_COMMUTER_LOT_IDS.has(lot.id) : getPermitLotIdsUnion(permitType, secondaryPermitType).has(lot.id)) : null;
+  const permitValidity = permitType
+    ? permitType === "__commuter_all"
+      ? ALL_COMMUTER_LOT_IDS.has(lot.id)
+      : getPermitLotIdsUnion(permitType, secondaryPermitType).has(lot.id)
+    : null;
   const scheduleInfo = getLotScheduleInfo(permitType, lot.id);
-  const lotAvailable = isLotAvailableNow(permitType, lot.id) || isSecondaryPermitAvailableNow(secondaryPermitType, lot.id);
+  const lotAvailable =
+    isLotAvailableNow(permitType, lot.id) ||
+    isSecondaryPermitAvailableNow(secondaryPermitType, lot.id);
   const occColor = getOccupancyColor(lot.occupancyRate);
 
   const features = [
-    lot.student && { icon: "graduationcap.fill", label: "Student", color: "#818cf8", bg: "rgba(99,102,241,0.15)", border: "rgba(99,102,241,0.35)" },
-    lot.employee && { icon: "briefcase.fill", label: "Employee", color: "#34d399", bg: "rgba(16,185,129,0.12)", border: "rgba(16,185,129,0.3)" },
-    (lot.regularGate || lot.smartGate) && { icon: "lock.fill", label: "Gated", color: "#fbbf24", bg: "rgba(245,158,11,0.12)", border: "rgba(245,158,11,0.3)" },
-    lot.evCharging > 0 && { icon: "bolt.car.fill", label: "EV Charging", color: "#60a5fa", bg: "rgba(59,130,246,0.12)", border: "rgba(59,130,246,0.3)" },
-    lot.handicapped > 0 && { icon: "figure.roll", label: "Accessible", color: "#c084fc", bg: "rgba(168,85,247,0.12)", border: "rgba(168,85,247,0.3)" },
+    lot.student && {
+      icon: "graduationcap.fill",
+      label: "Student",
+      color: "#818cf8",
+      bg: "rgba(99,102,241,0.15)",
+      border: "rgba(99,102,241,0.35)",
+    },
+    lot.employee && {
+      icon: "briefcase.fill",
+      label: "Employee",
+      color: "#34d399",
+      bg: "rgba(16,185,129,0.12)",
+      border: "rgba(16,185,129,0.3)",
+    },
+    (lot.regularGate || lot.smartGate) && {
+      icon: "lock.fill",
+      label: "Gated",
+      color: "#fbbf24",
+      bg: "rgba(245,158,11,0.12)",
+      border: "rgba(245,158,11,0.3)",
+    },
+    lot.evCharging > 0 && {
+      icon: "bolt.car.fill",
+      label: "EV Charging",
+      color: "#60a5fa",
+      bg: "rgba(59,130,246,0.12)",
+      border: "rgba(59,130,246,0.3)",
+    },
+    lot.handicapped > 0 && {
+      icon: "figure.roll",
+      label: "Accessible",
+      color: "#c084fc",
+      bg: "rgba(168,85,247,0.12)",
+      border: "rgba(168,85,247,0.3)",
+    },
   ].filter(Boolean) as any[];
 
   return (
     <View style={styles.outerContainer}>
-      <ScrollView 
-        style={styles.scroll} 
+      <ScrollView
+        style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
@@ -284,14 +334,29 @@ export default function LotDetailsScreen() {
                 <Text style={styles.campusPillText}>{lot.campus} Campus</Text>
               </View>
             ) : null}
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+            >
               <Text style={styles.lotName}>{lot.name}</Text>
               {permitValidity !== null && (
-                <View style={[styles.permitBadge, { 
-                  backgroundColor: permitValidity ? "rgba(34,197,94,0.12)" : "rgba(113,113,122,0.08)",
-                  borderColor: permitValidity ? "rgba(34,197,94,0.3)" : "rgba(113,113,122,0.15)",
-                }]}>
-                  <IconSymbol name={permitValidity ? "checkmark" : "xmark"} size={10} color={permitValidity ? "#4ade80" : "#52525b"} />
+                <View
+                  style={[
+                    styles.permitBadge,
+                    {
+                      backgroundColor: permitValidity
+                        ? "rgba(34,197,94,0.12)"
+                        : "rgba(113,113,122,0.08)",
+                      borderColor: permitValidity
+                        ? "rgba(34,197,94,0.3)"
+                        : "rgba(113,113,122,0.15)",
+                    },
+                  ]}
+                >
+                  <IconSymbol
+                    name={permitValidity ? "checkmark" : "xmark"}
+                    size={10}
+                    color={permitValidity ? "#4ade80" : "#52525b"}
+                  />
                 </View>
               )}
             </View>
@@ -299,31 +364,65 @@ export default function LotDetailsScreen() {
           <View style={styles.headerRight}>
             {user && (
               <TouchableOpacity onPress={toggleFavorite} style={styles.iconBtn}>
-                <IconSymbol name={isFavorite ? "star.fill" : "star"} size={20} color={isFavorite ? "#f59e0b" : "#71717a"} />
+                <IconSymbol
+                  name={isFavorite ? "star.fill" : "star"}
+                  size={20}
+                  color={isFavorite ? "#f59e0b" : "#71717a"}
+                />
               </TouchableOpacity>
             )}
-            <TouchableOpacity onPress={() => router.dismiss()} style={styles.iconBtn}>
+            <TouchableOpacity
+              onPress={() => router.dismiss()}
+              style={styles.iconBtn}
+            >
               <IconSymbol name="xmark" size={14} color="#71717a" />
             </TouchableOpacity>
           </View>
         </View>
 
         <View style={styles.statsRow}>
-          <View style={styles.statCard}><Text style={[styles.statVal, { color: occColor }]}>{Math.round(lot.occupancyRate)}%</Text><Text style={styles.statLab}>Full</Text></View>
-          <View style={styles.statCard}><Text style={styles.statVal}>{lot.occupiedCount}</Text><Text style={styles.statLab}>Sessions</Text></View>
-          <View style={styles.statCard}><Text style={styles.statVal}>{lot.capacity}</Text><Text style={styles.statLab}>Capacity</Text></View>
+          <View style={styles.statCard}>
+            <Text style={[styles.statVal, { color: occColor }]}>
+              {Math.round(lot.occupancyRate)}%
+            </Text>
+            <Text style={styles.statLab}>Full</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statVal}>{lot.occupiedCount}</Text>
+            <Text style={styles.statLab}>Sessions</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statVal}>{lot.capacity}</Text>
+            <Text style={styles.statLab}>Capacity</Text>
+          </View>
         </View>
 
         <View style={styles.barTrack}>
-          <View style={[styles.barFill, { width: `${Math.min(100, lot.occupancyRate)}%` as any, backgroundColor: occColor }]} />
+          <View
+            style={[
+              styles.barFill,
+              {
+                width: `${Math.min(100, lot.occupancyRate)}%` as any,
+                backgroundColor: occColor,
+              },
+            ]}
+          />
         </View>
 
         {features.length > 0 && (
           <View style={styles.featureRow}>
             {features.map((f) => (
-              <View key={f.label} style={[styles.featurePill, { backgroundColor: f.bg, borderColor: f.border }]}>
+              <View
+                key={f.label}
+                style={[
+                  styles.featurePill,
+                  { backgroundColor: f.bg, borderColor: f.border },
+                ]}
+              >
                 <IconSymbol name={f.icon as any} size={11} color={f.color} />
-                <Text style={[styles.featurePillText, { color: f.color }]}>{f.label}</Text>
+                <Text style={[styles.featurePillText, { color: f.color }]}>
+                  {f.label}
+                </Text>
               </View>
             ))}
           </View>
@@ -335,20 +434,50 @@ export default function LotDetailsScreen() {
               <IconSymbol name="clock.fill" size={13} color="#71717a" />
               <Text style={styles.scheduleTitle}>SCHEDULE</Text>
               {lotAvailable !== null && (
-                <View style={[styles.availBadge, lotAvailable ? styles.availBadgeOpen : styles.availBadgeClosed]}>
-                  <View style={[styles.availDot, { backgroundColor: lotAvailable ? "#4ade80" : "#ef4444" }]} />
-                  <Text style={[styles.availText, { color: lotAvailable ? "#4ade80" : "#ef4444" }]}>{lotAvailable ? "OPEN" : "CLOSED"}</Text>
+                <View
+                  style={[
+                    styles.availBadge,
+                    lotAvailable
+                      ? styles.availBadgeOpen
+                      : styles.availBadgeClosed,
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.availDot,
+                      { backgroundColor: lotAvailable ? "#4ade80" : "#ef4444" },
+                    ]}
+                  />
+                  <Text
+                    style={[
+                      styles.availText,
+                      { color: lotAvailable ? "#4ade80" : "#ef4444" },
+                    ]}
+                  >
+                    {lotAvailable ? "OPEN" : "CLOSED"}
+                  </Text>
                 </View>
               )}
             </View>
-            {scheduleInfo.time_text_1 ? <Text style={styles.scheduleText}>{scheduleInfo.time_text_1}</Text> : null}
-            {scheduleInfo.time_text_2 ? <Text style={styles.scheduleText}>{scheduleInfo.time_text_2}</Text> : null}
+            {scheduleInfo.time_text_1 ? (
+              <Text style={styles.scheduleText}>
+                {scheduleInfo.time_text_1}
+              </Text>
+            ) : null}
+            {scheduleInfo.time_text_2 ? (
+              <Text style={styles.scheduleText}>
+                {scheduleInfo.time_text_2}
+              </Text>
+            ) : null}
           </View>
         )}
 
         {lot.note ? (
           <View style={styles.notesSection}>
-            <View style={styles.notesHeader}><IconSymbol name="info.circle.fill" size={13} color="#71717a" /><Text style={styles.notesTitle}>NOTES</Text></View>
+            <View style={styles.notesHeader}>
+              <IconSymbol name="info.circle.fill" size={13} color="#71717a" />
+              <Text style={styles.notesTitle}>NOTES</Text>
+            </View>
             <Text style={styles.notesText}>{lot.note}</Text>
           </View>
         ) : null}
@@ -356,31 +485,55 @@ export default function LotDetailsScreen() {
         <ForecastChart curve={forecast} isLoading={isLoadingForecast} />
 
         <View style={styles.actionsRow}>
-           {!activeSession && (
-            <TouchableOpacity 
-              style={[styles.parkBtn, (!user || lot.occupancyRate >= 100) && styles.parkBtnDisabled]}
+          {!activeSession && (
+            <TouchableOpacity
+              style={[
+                styles.parkBtn,
+                (!user || lot.occupancyRate >= 100) && styles.parkBtnDisabled,
+              ]}
               onPress={() => {
                 if (user && lot.occupancyRate < 100) {
-                  Alert.alert("Confirm Parking", `Start a session at ${lot.name}?`, [
-                    { text: "Cancel", style: "cancel" },
-                    { text: "Park Here", onPress: handlePark }
-                  ]);
+                  Alert.alert(
+                    "Confirm Parking",
+                    `Start a session at ${lot.name}?`,
+                    [
+                      { text: "Cancel", style: "cancel" },
+                      { text: "Park Here", onPress: handlePark },
+                    ],
+                  );
                 }
               }}
               activeOpacity={0.8}
             >
               <IconSymbol name="p.circle.fill" size={20} color="#fff" />
-              <Text style={styles.parkBtnText}>{!user ? "Sign in to Park" : activeSession ? "Parked Here" : lot.occupancyRate >= 100 ? "Lot Full" : "Park Here"}</Text>
+              <Text style={styles.parkBtnText}>
+                {!user
+                  ? "Sign in to Park"
+                  : activeSession
+                    ? "Parked Here"
+                    : lot.occupancyRate >= 100
+                      ? "Lot Full"
+                      : "Park Here"}
+              </Text>
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity 
-            style={[styles.dirBtn, !activeSession && { flex: 0, paddingHorizontal: 20 }]}
+          <TouchableOpacity
+            style={[
+              styles.dirBtn,
+              !activeSession && { flex: 0, paddingHorizontal: 20 },
+            ]}
             onPress={openDirections}
             activeOpacity={0.8}
           >
-            <IconSymbol name="arrow.triangle.turn.up.right.diamond.fill" size={18} color="#60a5fa" />
-            {!!activeSession && <Text style={styles.dirBtnText}>Directions</Text>}
+            <IconSymbol
+              name="arrow.triangle.turn.up.right.diamond.fill"
+              size={18}
+              color="#60a5fa"
+            />
+            {!!activeSession && (
+              <Text style={styles.dirBtnText}>Directions</Text>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -397,40 +550,198 @@ const styles = StyleSheet.create({
   },
   scroll: { flex: 1 },
   scrollContent: { padding: 20, paddingTop: 30 },
-  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20, gap: 12 },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 20,
+    gap: 12,
+  },
   headerLeft: { flex: 1, gap: 6 },
-  headerRight: { flexDirection: "row", alignItems: "center", gap: 6, paddingTop: 2 },
-  campusPill: { alignSelf: "flex-start", backgroundColor: "rgba(220,38,38,0.12)", borderWidth: 1, borderColor: "rgba(220,38,38,0.25)", paddingHorizontal: 9, paddingVertical: 3, borderRadius: 8 },
-  campusPillText: { color: "#f87171", fontSize: 11, fontWeight: "700", letterSpacing: 0.4 },
-  lotName: { fontSize: 24, fontWeight: "700", color: "#fafafa", letterSpacing: -0.3, lineHeight: 30 },
-  iconBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: "rgba(255,255,255,0.06)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", justifyContent: "center", alignItems: "center" },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingTop: 2,
+  },
+  campusPill: {
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(220,38,38,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(220,38,38,0.25)",
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  campusPillText: {
+    color: "#f87171",
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.4,
+  },
+  lotName: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#fafafa",
+    letterSpacing: -0.3,
+    lineHeight: 30,
+  },
+  iconBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   statsRow: { flexDirection: "row", gap: 10, marginBottom: 14 },
-  statCard: { flex: 1, backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 16, paddingVertical: 14, alignItems: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.12)", gap: 4 },
-  statVal: { fontSize: 22, fontWeight: "800", color: "#f4f4f5", fontVariant: ["tabular-nums"] },
+  statCard: {
+    flex: 1,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    gap: 4,
+  },
+  statVal: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#f4f4f5",
+    fontVariant: ["tabular-nums"],
+  },
   statLab: { fontSize: 12, color: "#71717a", fontWeight: "500" },
-  barTrack: { height: 4, backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 2, marginBottom: 20, overflow: "hidden" },
+  barTrack: {
+    height: 4,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: 2,
+    marginBottom: 20,
+    overflow: "hidden",
+  },
   barFill: { height: 4, borderRadius: 2 },
-  featureRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 },
-  featurePill: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, borderWidth: 1 },
+  featureRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 16,
+  },
+  featurePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
   featurePillText: { fontSize: 12, fontWeight: "700" },
-  permitBadge: { width: 22, height: 22, borderRadius: 11, borderWidth: 1, justifyContent: "center", alignItems: "center" },
-  scheduleSection: { marginBottom: 16, backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
-  scheduleHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
-  scheduleTitle: { color: "#71717a", fontSize: 11, fontWeight: "700", letterSpacing: 1, flex: 1 },
-  availBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1 },
-  availBadgeOpen: { backgroundColor: "rgba(34,197,94,0.08)", borderColor: "rgba(34,197,94,0.25)" },
-  availBadgeClosed: { backgroundColor: "rgba(239,68,68,0.08)", borderColor: "rgba(239,68,68,0.25)" },
+  permitBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  scheduleSection: {
+    marginBottom: 16,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+  },
+  scheduleHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 8,
+  },
+  scheduleTitle: {
+    color: "#71717a",
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 1,
+    flex: 1,
+  },
+  availBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  availBadgeOpen: {
+    backgroundColor: "rgba(34,197,94,0.08)",
+    borderColor: "rgba(34,197,94,0.25)",
+  },
+  availBadgeClosed: {
+    backgroundColor: "rgba(239,68,68,0.08)",
+    borderColor: "rgba(239,68,68,0.25)",
+  },
   availDot: { width: 5, height: 5, borderRadius: 2.5 },
   availText: { fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
-  scheduleText: { color: "#a1a1aa", fontSize: 13, fontWeight: "500", lineHeight: 20 },
-  notesSection: { marginBottom: 16, backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
-  notesHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
-  notesTitle: { color: "#71717a", fontSize: 11, fontWeight: "700", letterSpacing: 1 },
-  notesText: { color: "#a1a1aa", fontSize: 13, fontWeight: "500", lineHeight: 20 },
+  scheduleText: {
+    color: "#a1a1aa",
+    fontSize: 13,
+    fontWeight: "500",
+    lineHeight: 20,
+  },
+  notesSection: {
+    marginBottom: 16,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+  },
+  notesHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 8,
+  },
+  notesTitle: {
+    color: "#71717a",
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 1,
+  },
+  notesText: {
+    color: "#a1a1aa",
+    fontSize: 13,
+    fontWeight: "500",
+    lineHeight: 20,
+  },
   actionsRow: { flexDirection: "row", gap: 10, marginTop: 8, marginBottom: 12 },
-  parkBtn: { flex: 1, height: 54, borderRadius: 17, backgroundColor: "#dc2626", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  parkBtn: {
+    flex: 1,
+    height: 54,
+    borderRadius: 17,
+    backgroundColor: "#dc2626",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
   parkBtnDisabled: { backgroundColor: "#3f3f46", opacity: 0.6 },
   parkBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
-  dirBtn: { height: 54, borderRadius: 17, backgroundColor: "rgba(255,255,255,0.1)", borderWidth: 1, borderColor: "rgba(255,255,255,0.16)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, flex: 1 },
+  dirBtn: {
+    height: 54,
+    borderRadius: 17,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.16)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    flex: 1,
+  },
   dirBtnText: { color: "#fff", fontSize: 16, fontWeight: "600" },
 });

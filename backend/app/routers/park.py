@@ -15,11 +15,12 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Optional
 
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
+
 from app.core.limiter import limiter
 from app.core.logger import get_logger
 from app.core.security import get_admin_supabase, get_auth_db, get_current_user
-from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
 
 log = get_logger(__name__)
 
@@ -165,11 +166,7 @@ def start_parking_session(
     confirmed_occupancy: Optional[int] = None
     try:
         occ_res = (
-            admin_db.table("lot_occupancy")
-            .select("count")
-            .eq("lot_id", lot_id)
-            .single()
-            .execute()
+            admin_db.table("lot_occupancy").select("count").eq("lot_id", lot_id).single().execute()
         )
         if isinstance(occ_res.data, dict):
             confirmed_occupancy = occ_res.data.get("count")

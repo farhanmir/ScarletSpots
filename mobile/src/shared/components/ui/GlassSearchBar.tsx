@@ -68,8 +68,7 @@ export function GlassSearchBar({
       focusProgress.value === 1
         ? "rgba(220, 38, 38, 0.45)"
         : "rgba(255,255,255,0.12)",
-    backgroundColor:
-      focusProgress.value === 1 ? "#222429" : "#1b1d22",
+    backgroundColor: focusProgress.value === 1 ? "#222429" : "#1b1d22",
   }));
 
   const iconColor = focusProgress.value === 1 ? GLASS.accent : GLASS.textMuted;
@@ -126,7 +125,11 @@ export function GlassSearchBar({
           }}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <IconSymbol name="xmark.circle.fill" size={17} color={GLASS.textMuted} />
+          <IconSymbol
+            name="xmark.circle.fill"
+            size={17}
+            color={GLASS.textMuted}
+          />
         </TouchableOpacity>
       )}
 

@@ -142,7 +142,9 @@ export default function SearchScreen() {
     setSearching(false);
   }, [query]);
 
-  const resolveCoordinates = async (item: PlaceResult): Promise<{ lat: number; lng: number } | null> => {
+  const resolveCoordinates = async (
+    item: PlaceResult,
+  ): Promise<{ lat: number; lng: number } | null> => {
     if (item.latitude && item.longitude) {
       return { lat: item.latitude, lng: item.longitude };
     }
@@ -151,7 +153,10 @@ export default function SearchScreen() {
       const searchTerm = item.address ?? `${item.name} New Brunswick, NJ`;
       const geocodeResults = await Location.geocodeAsync(searchTerm);
       if (geocodeResults.length > 0) {
-        return { lat: geocodeResults[0].latitude, lng: geocodeResults[0].longitude };
+        return {
+          lat: geocodeResults[0].latitude,
+          lng: geocodeResults[0].longitude,
+        };
       }
     } catch {
       // ignore geocoding errors
@@ -175,7 +180,11 @@ export default function SearchScreen() {
     if (coords) {
       router.push({
         pathname: "/(tabs)" as any,
-        params: { placeLat: coords.lat, placeLng: coords.lng, placeName: item.name },
+        params: {
+          placeLat: coords.lat,
+          placeLng: coords.lng,
+          placeName: item.name,
+        },
       });
     } else {
       Alert.alert(
@@ -253,7 +262,11 @@ export default function SearchScreen() {
                 borderColor={FLAT_CARD_BORDER}
               >
                 <View style={styles.popularIcon}>
-                  <IconSymbol name="car.fill" size={15} color={GLASS.iconColor} />
+                  <IconSymbol
+                    name="car.fill"
+                    size={15}
+                    color={GLASS.iconColor}
+                  />
                 </View>
                 <View style={styles.popularText}>
                   <Text style={styles.popularName}>{lot.name}</Text>
@@ -280,7 +293,13 @@ export default function SearchScreen() {
     </View>
   );
 
-  const renderResultItem = ({ item, index }: { item: PlaceResult; index: number }) => {
+  const renderResultItem = ({
+    item,
+    index,
+  }: {
+    item: PlaceResult;
+    index: number;
+  }) => {
     const prevItem = results[index - 1];
     const showLotHeader =
       item.type === "lot" && (index === 0 || prevItem?.type !== "lot");
@@ -333,7 +352,11 @@ export default function SearchScreen() {
               <OccupancyPill rate={item.data.occupancyRate} />
             )}
             {item.type === "place" && (
-              <IconSymbol name="chevron.right" size={14} color={GLASS.textDim} />
+              <IconSymbol
+                name="chevron.right"
+                size={14}
+                color={GLASS.textDim}
+              />
             )}
           </GlassCard>
         </TouchableOpacity>
@@ -360,13 +383,22 @@ export default function SearchScreen() {
 
         {/* ── Main content (rendered before the glass header so blur works) ── */}
         {query.length === 0 && renderDefaultContent()}
-        {query.length > 0 && results.length === 0 && !searching && renderNoResults()}
-        {query.length > 0 && (results.length > 0 || searching) && renderResultsList()}
+        {query.length > 0 &&
+          results.length === 0 &&
+          !searching &&
+          renderNoResults()}
+        {query.length > 0 &&
+          (results.length > 0 || searching) &&
+          renderResultsList()}
 
         {/* ── Glass header (rendered AFTER content so blur updates correctly) ── */}
         <View style={styles.headerContainer} pointerEvents="box-none">
           <LinearGradient
-            colors={["rgba(15,15,18,0.98)", "rgba(15,15,18,0.85)", "transparent"]}
+            colors={[
+              "rgba(15,15,18,0.98)",
+              "rgba(15,15,18,0.85)",
+              "transparent",
+            ]}
             style={StyleSheet.absoluteFill}
             pointerEvents="none"
           />
@@ -392,9 +424,7 @@ function OccupancyPill({ rate }: Readonly<{ rate: number }>) {
   return (
     <View style={[occupancyStyles.pill, { borderColor: color + "40" }]}>
       <View style={[occupancyStyles.dot, { backgroundColor: color }]} />
-      <Text style={[occupancyStyles.text, { color }]}>
-        {Math.round(rate)}%
-      </Text>
+      <Text style={[occupancyStyles.text, { color }]}>{Math.round(rate)}%</Text>
     </View>
   );
 }
