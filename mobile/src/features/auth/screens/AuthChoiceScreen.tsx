@@ -1,13 +1,37 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { StyleSheet, View, Text, TouchableOpacity, Image } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
-import Animated, { FadeInDown, SlideInDown } from "react-native-reanimated";
+import Animated, {
+  Easing,
+  FadeInDown,
+  SlideInDown,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from "react-native-reanimated";
 import { GlassBackground } from "@/shared/components/ui/GlassBackground";
 import { IconSymbol } from "@/shared/components/ui/icon-symbol";
 
 export default function AuthChoiceScreen() {
   const router = useRouter();
+  const breathScale = useSharedValue(1);
+
+  useEffect(() => {
+    breathScale.value = withRepeat(
+      withTiming(1.04, {
+        duration: 1400,
+        easing: Easing.inOut(Easing.sin),
+      }),
+      -1,
+      true,
+    );
+  }, [breathScale]);
+
+  const breathStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: breathScale.value }],
+  }));
 
   return (
     <View style={styles.container}>
@@ -42,7 +66,7 @@ export default function AuthChoiceScreen() {
 
           <Animated.View
             entering={FadeInDown.duration(800).delay(200)}
-            style={styles.textContainer}
+            style={[styles.textContainer, breathStyle]}
           >
             <Text style={styles.appName}>ScarletSpots</Text>
             <Text style={styles.tagline}>Parking at Rutgers, solved.</Text>

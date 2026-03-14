@@ -1253,13 +1253,18 @@ export default function MapScreen() {
             tracksViewChanges={false}
             zIndex={100}
           >
-            <View
-              style={[
-                styles.userConeWrap,
-                { transform: [{ rotate: `${userHeading ?? 0}deg` }] },
-              ]}
-            >
-              <View style={styles.userCone} />
+            <View style={styles.userMarkerWrap}>
+              <View
+                style={[
+                  styles.userHeadingConeWrap,
+                  { transform: [{ rotate: `${userHeading ?? 0}deg` }] },
+                ]}
+              >
+                <View style={styles.userHeadingCone} />
+              </View>
+              <View style={styles.userDotOuter}>
+                <View style={styles.userDotInner} />
+              </View>
             </View>
           </Marker>
         )}
@@ -1462,7 +1467,7 @@ export default function MapScreen() {
         <TouchableOpacity
           style={[
             styles.centerButton,
-            isCenteredOnUser && styles.centerButtonActive,
+            styles.centerButtonActive,
             isCenterButtonPressed && styles.centerButtonPressed,
             Platform.OS === "android" && styles.centerButtonAndroid,
           ]}
@@ -1497,12 +1502,13 @@ export default function MapScreen() {
               500,
             );
           }}
+          accessibilityState={{ selected: isCenteredOnUser }}
           activeOpacity={1}
         >
           <IconSymbol
-            name={isCenteredOnUser ? "location.north.fill" : "location.north"}
+            name="location.north.fill"
             size={20}
-            color={isCenteredOnUser ? "#ffffff" : "#e4e4e7"}
+            color="#ffffff"
           />
         </TouchableOpacity>
       </Animated.View>
@@ -1628,24 +1634,6 @@ export default function MapScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   map: { width: "100%", height: "100%" },
-
-  userConeWrap: {
-    width: 28,
-    height: 28,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  userCone: {
-    width: 0,
-    height: 0,
-    borderLeftWidth: 10,
-    borderRightWidth: 10,
-    borderBottomWidth: 22,
-    borderLeftColor: "transparent",
-    borderRightColor: "transparent",
-    borderBottomColor: "#3b82f6",
-    marginBottom: -18,
-  },
 
   // ── Session chip ──────────────────────────────────────────────────────
   sessionChipContainer: {
@@ -1874,34 +1862,48 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.2)",
   },
   clusterText: { color: "#fff", fontSize: 13, fontWeight: "bold" },
-  userMarkerWrap: { width: 38, height: 56, alignItems: "center" },
+  userMarkerWrap: {
+    width: 60,
+    height: 60,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  userHeadingConeWrap: {
+    position: "absolute",
+    width: 60,
+    height: 60,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   userHeadingCone: {
     position: "absolute",
-    top: 0,
+    top: -20,
     width: 0,
     height: 0,
-    borderLeftWidth: 10,
-    borderRightWidth: 10,
-    borderBottomWidth: 24,
+    borderLeftWidth: 18,
+    borderRightWidth: 18,
+    borderBottomWidth: 50,
     borderLeftColor: "transparent",
     borderRightColor: "transparent",
-    borderBottomColor: "rgba(59, 130, 246, 0.4)",
+    borderBottomColor: "rgba(0, 122, 255, 0.22)",
   },
   userDotOuter: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: "rgba(59, 130, 246, 0.25)",
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "#ffffff",
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 2,
   },
   userDotInner: {
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: "#3b82f6",
-    borderWidth: 2,
-    borderColor: "#fff",
+    backgroundColor: "#007AFF",
   },
 });
