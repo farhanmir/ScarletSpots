@@ -15,19 +15,29 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { IconSymbol } from "@/shared/components/ui/icon-symbol";
+import { GlassCard } from "@/shared/components/ui/GlassCard";
+import { GlassSegmentedControl } from "@/shared/components/ui/GlassSegmentedControl";
+import { GlassBackground } from "@/shared/components/ui/GlassBackground";
+import { GLASS } from "@/shared/components/ui/glassTheme";
 import { useRouter } from "expo-router";
 import { useIsFocused } from "@react-navigation/native";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { authApiCall, supabase } from "@/shared/api/supabase";
 import { useAuth } from "@/providers/AuthProvider";
 import { getLotById } from "@/shared/constants/lots";
-import { GlassBackground } from "@/shared/components/ui/GlassBackground";
+
+type TabKey = "friends" | "requests";
+
+const TAB_OPTIONS: { key: TabKey; label: string }[] = [
+  { key: "friends", label: "My Crew" },
+  { key: "requests", label: "Requests" },
+];
 
 export default function FriendsScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const isFocused = useIsFocused();
-  const [activeTab, setActiveTab] = useState<"friends" | "requests">("friends");
+  const [activeTab, setActiveTab] = useState<TabKey>("friends");
   const [isAddModalVisible, setIsAddModalVisible] = useState(false);
   const [friendEmail, setFriendEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -154,7 +164,7 @@ export default function FriendsScreen() {
   });
 
   const handleAddFriend = () => {
-    if (!friendEmail || !friendEmail.includes("@")) {
+    if (!friendEmail?.includes("@")) {
       Alert.alert("Error", "Please enter a valid email address.");
       return;
     }
@@ -192,11 +202,21 @@ export default function FriendsScreen() {
 
   const getInitial = (name: string) => name.charAt(0).toUpperCase();
 
+  const tabOptions = TAB_OPTIONS.map((opt) =>
+    opt.key === "requests"
+      ? { ...opt, badge: requests.length > 0 ? requests.length : undefined }
+      : opt,
+  );
+
+  const friendCountLabel = data === undefined
+    ? "—"
+    : `${friends.length} in your crew`;
+
   const renderFriend = ({ item }: { item: any }) => (
-    <TouchableOpacity
+    <GlassCard
       style={styles.card}
-      activeOpacity={0.75}
-      onLongPress={() => handleFriendActions(item)}
+      contentStyle={styles.cardContent}
+      blurIntensity={GLASS.blurMedium}
     >
       <View style={[styles.avatarWrap, item.parked && styles.avatarWrapParked]}>
         <Text style={styles.avatarText}>{getInitial(item.name)}</Text>
@@ -209,7 +229,7 @@ export default function FriendsScreen() {
           {item.parked ? (
             <IconSymbol name="car.fill" size={11} color="#10b981" />
           ) : (
-            <IconSymbol name="moon.fill" size={11} color="#52525b" />
+            <IconSymbol name="moon.fill" size={11} color={GLASS.textMuted} />
           )}
           <Text
             style={[styles.cardStatus, item.parked && styles.cardStatusParked]}
@@ -222,7 +242,7 @@ export default function FriendsScreen() {
       <View style={styles.cardActions}>
         {item.sharing_enabled === false && (
           <View style={styles.hiddenBadge}>
-            <IconSymbol name="eye.slash.fill" size={12} color="#52525b" />
+            <IconSymbol name="eye.slash.fill" size={12} color={GLASS.textMuted} />
           </View>
         )}
         {item.parked && item.lot_id && (
@@ -230,22 +250,35 @@ export default function FriendsScreen() {
             style={styles.locateBtn}
             onPress={() => {
               const lot = getLotById(item.lot_id);
-              if (lot)
+              if (lot) {
                 router.push({
                   pathname: "/(tabs)" as any,
                   params: { selectedLotId: lot.id },
                 });
+              }
             }}
           >
             <IconSymbol name="location.fill" size={14} color="#fff" />
           </TouchableOpacity>
         )}
+        {/* Visible menu button so long-press actions are discoverable */}
+        <TouchableOpacity
+          style={styles.menuBtn}
+          onPress={() => handleFriendActions(item)}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <IconSymbol name="ellipsis" size={16} color={GLASS.textMuted} />
+        </TouchableOpacity>
       </View>
-    </TouchableOpacity>
+    </GlassCard>
   );
 
   const renderRequest = ({ item }: { item: any }) => (
-    <View style={styles.card}>
+    <GlassCard
+      style={styles.card}
+      contentStyle={styles.cardContent}
+      blurIntensity={GLASS.blurMedium}
+    >
       <View style={styles.avatarWrap}>
         <Text style={styles.avatarText}>{getInitial(item.name)}</Text>
       </View>
@@ -264,10 +297,10 @@ export default function FriendsScreen() {
           style={styles.declineBtn}
           onPress={() => declineMutation.mutate(item.id)}
         >
-          <IconSymbol name="xmark" size={15} color="#a1a1aa" />
+          <IconSymbol name="xmark" size={15} color={GLASS.textSecondary} />
         </TouchableOpacity>
       </View>
-    </View>
+    </GlassCard>
   );
 
   return (
@@ -278,48 +311,7 @@ export default function FriendsScreen() {
         style={StyleSheet.absoluteFill}
       />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Friends</Text>
-          <Text style={styles.headerSub}>{friends.length} in your crew</Text>
-        </View>
-        <TouchableOpacity
-          style={styles.addBtn}
-          onPress={() => setIsAddModalVisible(true)}
-          activeOpacity={0.8}
-        >
-          <IconSymbol name="person.badge.plus" size={20} color="#dc2626" />
-        </TouchableOpacity>
-      </View>
-
-      {/* Tab bar */}
-      <View style={styles.tabBar}>
-        {(["friends", "requests"] as const).map((tab) => (
-          <TouchableOpacity
-            key={tab}
-            style={[styles.tabItem, activeTab === tab && styles.tabItemActive]}
-            onPress={() => setActiveTab(tab)}
-            activeOpacity={0.8}
-          >
-            <Text
-              style={[
-                styles.tabLabel,
-                activeTab === tab && styles.tabLabelActive,
-              ]}
-            >
-              {tab === "friends" ? "My Crew" : "Requests"}
-            </Text>
-            {tab === "requests" && requests.length > 0 && (
-              <View style={styles.tabBadge}>
-                <Text style={styles.tabBadgeText}>{requests.length}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* List */}
+      {/* ── List (rendered before glass header so blur works) ── */}
       <FlatList
         data={activeTab === "friends" ? friends : requests}
         renderItem={activeTab === "friends" ? renderFriend : renderRequest}
@@ -351,7 +343,46 @@ export default function FriendsScreen() {
         }
       />
 
-      {/* Add Friend Modal */}
+      {/* ── Glass header (after content so blur reads list below) ── */}
+      <View style={styles.headerContainer} pointerEvents="box-none">
+        <LinearGradient
+          colors={["rgba(15,15,18,0.98)", "rgba(15,15,18,0.85)", "transparent"]}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        />
+        <View style={styles.headerInner} pointerEvents="box-none">
+          <View style={styles.headerRow} pointerEvents="box-none">
+            <View pointerEvents="none">
+              <Text style={styles.headerTitle}>Friends</Text>
+              <Text style={styles.headerSub}>{friendCountLabel}</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.addBtn}
+              onPress={() => setIsAddModalVisible(true)}
+              activeOpacity={0.8}
+              pointerEvents="auto"
+            >
+              <GlassBackground
+                style={StyleSheet.absoluteFill}
+                glassStyle="clear"
+                blurIntensity={GLASS.blurLight}
+                blurTint={GLASS.tintDark}
+                fallbackColor="rgba(255,255,255,0.05)"
+              />
+              <IconSymbol name="person.badge.plus" size={20} color={GLASS.accent} />
+            </TouchableOpacity>
+          </View>
+
+          <GlassSegmentedControl
+            options={tabOptions}
+            value={activeTab}
+            onChange={setActiveTab}
+            style={styles.segmentedControl}
+          />
+        </View>
+      </View>
+
+      {/* ── Add Friend Modal ── */}
       <Modal
         visible={isAddModalVisible}
         transparent
@@ -371,13 +402,18 @@ export default function FriendsScreen() {
               blurTint="dark"
               fallbackColor="rgba(0,0,0,0.65)"
             />
-            <View style={styles.modalCard}>
+            <GlassCard
+              style={styles.modalCard}
+              contentStyle={styles.modalCardContent}
+              blurIntensity={GLASS.blurMedium}
+              borderColor="rgba(255,255,255,0.1)"
+            >
               <View style={styles.modalIconRow}>
                 <View style={styles.modalIcon}>
                   <IconSymbol
                     name="person.badge.plus"
                     size={22}
-                    color="#dc2626"
+                    color={GLASS.accent}
                   />
                 </View>
               </View>
@@ -389,7 +425,7 @@ export default function FriendsScreen() {
               <TextInput
                 style={styles.modalInput}
                 placeholder="friend@scarletmail.rutgers.edu"
-                placeholderTextColor="#3f3f46"
+                placeholderTextColor={GLASS.textDim}
                 autoCapitalize="none"
                 keyboardType="email-address"
                 value={friendEmail}
@@ -424,7 +460,7 @@ export default function FriendsScreen() {
                   )}
                 </TouchableOpacity>
               </View>
-            </View>
+            </GlassCard>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -432,84 +468,66 @@ export default function FriendsScreen() {
   );
 }
 
+const HEADER_HEIGHT = Platform.OS === "ios" ? 150 : 130;
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
 
-  header: {
+  // Glass header overlay
+  headerContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: HEADER_HEIGHT,
+    zIndex: 10,
+  },
+  headerInner: {
+    paddingTop: Platform.OS === "ios" ? 64 : 44,
+    paddingHorizontal: 20,
+    paddingBottom: 14,
+  },
+  headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingTop: Platform.OS === "ios" ? 64 : 44,
-    paddingHorizontal: 20,
-    paddingBottom: 16,
+    marginBottom: 16,
   },
   headerTitle: {
     fontSize: 32,
     fontWeight: "800",
-    color: "#fafafa",
+    color: GLASS.textPrimary,
     letterSpacing: -0.5,
   },
-  headerSub: { fontSize: 13, color: "#52525b", marginTop: 2 },
+  headerSub: { fontSize: 13, color: GLASS.textMuted, marginTop: 2 },
   addBtn: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "rgba(220,38,38,0.1)",
+    overflow: "hidden",
     borderWidth: 1,
-    borderColor: "rgba(220,38,38,0.2)",
+    borderColor: GLASS.borderColor,
     justifyContent: "center",
     alignItems: "center",
   },
 
-  // Tab bar
-  tabBar: {
-    flexDirection: "row",
-    marginHorizontal: 20,
-    marginBottom: 16,
-    backgroundColor: "#111113",
-    borderRadius: 14,
-    padding: 4,
-    borderWidth: 1,
-    borderColor: "#1f1f23",
-  },
-  tabItem: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 9,
-    borderRadius: 11,
-    gap: 6,
-  },
-  tabItemActive: { backgroundColor: "#1c1c1f" },
-  tabLabel: { fontSize: 14, fontWeight: "600", color: "#52525b" },
-  tabLabelActive: { color: "#f4f4f5" },
-  tabBadge: {
-    backgroundColor: "#dc2626",
-    borderRadius: 9,
-    minWidth: 18,
-    height: 18,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 4,
-  },
-  tabBadgeText: { color: "#fff", fontSize: 10, fontWeight: "700" },
+  // Segmented control
+  segmentedControl: {},
 
+  // List
   listContent: {
+    paddingTop: HEADER_HEIGHT + 8,
     paddingHorizontal: 16,
     paddingBottom: 120,
   },
 
-  // Card
-  card: {
+  // Cards
+  card: { marginBottom: 10 },
+  cardContent: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#111113",
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: "#1f1f23",
+    paddingHorizontal: 14,
+    paddingVertical: 14,
     gap: 12,
   },
   avatarWrap: {
@@ -523,7 +541,7 @@ const styles = StyleSheet.create({
     borderColor: "#2a2a2e",
   },
   avatarWrapParked: { borderColor: "rgba(16,185,129,0.5)" },
-  avatarText: { color: "#a1a1aa", fontSize: 18, fontWeight: "700" },
+  avatarText: { color: GLASS.textSecondary, fontSize: 18, fontWeight: "700" },
   parkedBadge: {
     position: "absolute",
     bottom: 1,
@@ -543,7 +561,7 @@ const styles = StyleSheet.create({
     gap: 4,
     marginTop: 3,
   },
-  cardStatus: { color: "#52525b", fontSize: 12 },
+  cardStatus: { color: GLASS.textMuted, fontSize: 12 },
   cardStatusParked: { color: "#10b981" },
   cardActions: { flexDirection: "row", alignItems: "center", gap: 8 },
   hiddenBadge: {
@@ -558,7 +576,14 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: "#dc2626",
+    backgroundColor: "rgba(59,130,246,0.85)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  menuBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -584,7 +609,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
-  // Empty
+  // Empty state
   emptyState: { alignItems: "center", marginTop: 64, gap: 10 },
   emptyTitle: { color: "#3f3f46", fontSize: 17, fontWeight: "700" },
   emptySub: { color: "#27272a", fontSize: 13 },
@@ -596,42 +621,37 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 24,
     paddingBottom: 60,
-    backgroundColor: "rgba(0,0,0,0.55)",
   },
   modalCard: {
     width: "100%",
     maxWidth: 400,
-    backgroundColor: "#111113",
-    borderRadius: 24,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: "#1f1f23",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 16 },
     shadowOpacity: 0.6,
     shadowRadius: 24,
     elevation: 12,
   },
+  modalCardContent: { padding: 24 },
   modalIconRow: { alignItems: "center", marginBottom: 14 },
   modalIcon: {
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: "rgba(220,38,38,0.12)",
+    backgroundColor: GLASS.accentSubtle,
     borderWidth: 1,
-    borderColor: "rgba(220,38,38,0.2)",
+    borderColor: GLASS.accentBorder,
     justifyContent: "center",
     alignItems: "center",
   },
   modalTitle: {
-    color: "#fafafa",
+    color: GLASS.textPrimary,
     fontSize: 20,
     fontWeight: "800",
     textAlign: "center",
     marginBottom: 6,
   },
   modalSub: {
-    color: "#52525b",
+    color: GLASS.textMuted,
     fontSize: 13,
     textAlign: "center",
     marginBottom: 20,
@@ -660,7 +680,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 48,
     borderRadius: 13,
-    backgroundColor: "#dc2626",
+    backgroundColor: GLASS.accent,
     justifyContent: "center",
     alignItems: "center",
   },

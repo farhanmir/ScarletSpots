@@ -16,7 +16,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import NetInfo from "@react-native-community/netinfo";
 
 import { IconSymbol } from "@/shared/components/ui/icon-symbol";
-import { GlassBackground } from "@/shared/components/ui/GlassBackground";
 import { useAuth } from "@/providers/AuthProvider";
 import { useTabBar } from "@/providers/TabBarProvider";
 import { authApiCall, publicApiCall, supabase } from "@/shared/api/supabase";
@@ -273,14 +272,6 @@ export default function LotDetailsScreen() {
 
   return (
     <View style={styles.outerContainer}>
-      <GlassBackground
-        style={StyleSheet.absoluteFill}
-        glassStyle="regular"
-        blurIntensity={100}
-        blurTint="systemThickMaterialDark"
-        fallbackColor="rgba(12,12,15,0.95)"
-      />
-      
       <ScrollView 
         style={styles.scroll} 
         contentContainerStyle={styles.scrollContent}
@@ -402,7 +393,6 @@ export default function LotDetailsScreen() {
 const styles = StyleSheet.create({
   outerContainer: {
     flex: 1,
-    backgroundColor: "transparent",
   },
   scroll: { flex: 1 },
   scrollContent: { padding: 20, paddingTop: 30 },
@@ -442,6 +432,4 @@ const styles = StyleSheet.create({
   parkBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
   dirBtn: { height: 54, borderRadius: 17, backgroundColor: "rgba(255,255,255,0.06)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, flex: 1 },
   dirBtnText: { color: "#fff", fontSize: 16, fontWeight: "600" },
-  userConeWrap: { width: 40, height: 40, justifyContent: "center", alignItems: "center" },
-  userCone: { width: 0, height: 0, backgroundColor: "transparent", borderStyle: "solid", borderLeftWidth: 10, borderRightWidth: 10, borderBottomWidth: 20, borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomColor: "#3b82f6", opacity: 0.4 },
 });

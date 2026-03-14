@@ -1211,7 +1211,7 @@ export default function MapScreen() {
           setSelectedPlace(null);
         }}
       >
-        {/* User location: rotating blue cone (direction of travel) */}
+        {/* User location: Apple Maps-style blue dot + heading cone */}
         {location && (
           <Marker
             coordinate={{
@@ -1219,17 +1219,19 @@ export default function MapScreen() {
               longitude: location.coords.longitude,
             }}
             flat
-            anchor={{ x: 0.5, y: 0.5 }}
+            anchor={{ x: 0.5, y: 0.82 }}
+            rotation={userHeading ?? 0}
             tracksViewChanges={false}
             zIndex={100}
           >
-            <View
-              style={[
-                styles.userConeWrap,
-                { transform: [{ rotate: `${userHeading ?? 0}deg` }] },
-              ]}
-            >
-              <View style={styles.userCone} />
+            <View style={styles.userMarkerWrap}>
+              {/* Heading cone — tip points up (= heading dir when marker rotated) */}
+              <View style={styles.userHeadingCone} />
+              {/* Dot — outer glow ring */}
+              <View style={styles.userDotOuter}>
+                {/* Inner blue dot with white border */}
+                <View style={styles.userDotInner} />
+              </View>
             </View>
           </Marker>
         )}
@@ -1593,22 +1595,40 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   map: { width: "100%", height: "100%" },
 
-  userConeWrap: {
-    width: 28,
-    height: 28,
+  userMarkerWrap: {
+    width: 38,
+    height: 56,
     alignItems: "center",
-    justifyContent: "center",
   },
-  userCone: {
+  userHeadingCone: {
+    position: "absolute",
+    top: 0,
     width: 0,
     height: 0,
-    borderLeftWidth: 10,
-    borderRightWidth: 10,
-    borderBottomWidth: 22,
+    borderLeftWidth: 12,
+    borderRightWidth: 12,
+    borderBottomWidth: 38,
     borderLeftColor: "transparent",
     borderRightColor: "transparent",
-    borderBottomColor: "#3b82f6",
-    marginBottom: -18,
+    borderBottomColor: "rgba(59, 130, 246, 0.30)",
+  },
+  userDotOuter: {
+    position: "absolute",
+    bottom: 0,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "rgba(59, 130, 246, 0.18)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  userDotInner: {
+    width: 15,
+    height: 15,
+    borderRadius: 7.5,
+    backgroundColor: "#3b82f6",
+    borderWidth: 2.5,
+    borderColor: "#ffffff",
   },
 
   // ── Session chip ──────────────────────────────────────────────────────

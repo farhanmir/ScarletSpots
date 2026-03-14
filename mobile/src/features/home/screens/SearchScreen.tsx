@@ -3,7 +3,6 @@ import {
   StyleSheet,
   View,
   Text,
-  TextInput,
   FlatList,
   TouchableOpacity,
   Platform,
@@ -15,7 +14,10 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { IconSymbol } from "@/shared/components/ui/icon-symbol";
-import * as Location from "expo-location"; // still used in handleSelect
+import { GlassCard } from "@/shared/components/ui/GlassCard";
+import { GlassSearchBar } from "@/shared/components/ui/GlassSearchBar";
+import { GLASS } from "@/shared/components/ui/glassTheme";
+import * as Location from "expo-location";
 import { RUTGERS_BUILDINGS } from "@/shared/constants/buildings";
 import { getAllLots, type RutgersLot } from "@/shared/constants/lots";
 import { ENABLE_ALL_CAMPUSES } from "@/shared/constants/featureFlags";
@@ -79,7 +81,6 @@ export default function SearchScreen() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PlaceResult[]>([]);
   const [searching, setSearching] = useState(false);
-  const [isFocused, setIsFocused] = useState(false);
 
   useEffect(() => {
     if (!query) {
@@ -119,7 +120,7 @@ export default function SearchScreen() {
       .filter(
         (loc) =>
           loc.name.toLowerCase().includes(lowerQuery) ||
-          (loc.aliases && loc.aliases.toLowerCase().includes(lowerQuery)),
+          loc.aliases?.toLowerCase().includes(lowerQuery),
       )
       .map((loc) => ({
         id: `loc-${loc.id}`,
@@ -137,6 +138,25 @@ export default function SearchScreen() {
     setSearching(false);
   }, [query]);
 
+  const resolveCoordinates = async (item: PlaceResult): Promise<{ lat: number; lng: number } | null> => {
+    if (item.latitude && item.longitude) {
+      return { lat: item.latitude, lng: item.longitude };
+    }
+    setSearching(true);
+    try {
+      const searchTerm = item.address ?? `${item.name} New Brunswick, NJ`;
+      const geocodeResults = await Location.geocodeAsync(searchTerm);
+      if (geocodeResults.length > 0) {
+        return { lat: geocodeResults[0].latitude, lng: geocodeResults[0].longitude };
+      }
+    } catch {
+      // ignore geocoding errors
+    } finally {
+      setSearching(false);
+    }
+    return null;
+  };
+
   const handleSelect = async (item: PlaceResult) => {
     Keyboard.dismiss();
     if (item.type === "lot") {
@@ -144,44 +164,186 @@ export default function SearchScreen() {
         pathname: "/(tabs)" as any,
         params: { selectedLotId: item.id },
       });
+      return;
+    }
+
+    const coords = await resolveCoordinates(item);
+    if (coords) {
+      router.push({
+        pathname: "/(tabs)" as any,
+        params: { placeLat: coords.lat, placeLng: coords.lng, placeName: item.name },
+      });
     } else {
-      let lat = item.latitude;
-      let lng = item.longitude;
-
-      if (!lat || !lng) {
-        setSearching(true);
-        try {
-          const searchTerm = item.address
-            ? item.address
-            : `${item.name} New Brunswick, NJ`;
-          const geocodeResults = await Location.geocodeAsync(searchTerm);
-          if (geocodeResults && geocodeResults.length > 0) {
-            lat = geocodeResults[0].latitude;
-            lng = geocodeResults[0].longitude;
-          }
-        } catch {
-          // ignore geocoding errors
-        } finally {
-          setSearching(false);
-        }
-      }
-
-      if (lat && lng) {
-        router.push({
-          pathname: "/(tabs)" as any,
-          params: { placeLat: lat, placeLng: lng, placeName: item.name },
-        });
-      } else {
-        Alert.alert(
-          "Location Not Found",
-          "Could not determine the coordinates for this location.",
-        );
-      }
+      Alert.alert(
+        "Location Not Found",
+        "Could not determine the coordinates for this location.",
+      );
     }
   };
 
   const lotResults = results.filter((r) => r.type === "lot");
   const placeResults = results.filter((r) => r.type === "place");
+
+  const renderDefaultContent = () => (
+    <FlatList
+      data={[]}
+      keyExtractor={() => ""}
+      renderItem={null}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={styles.emptyBody}
+      ListHeaderComponent={
+        <>
+          <Text style={styles.sectionLabel}>CAMPUSES</Text>
+          <View style={styles.campusRow}>
+            {CAMPUSES.map((c) => (
+              <TouchableOpacity
+                key={c.name}
+                onPress={() =>
+                  handleSelect({
+                    id: `c-${c.name}`,
+                    name: c.name,
+                    latitude: c.lat,
+                    longitude: c.lng,
+                    type: "place",
+                  })
+                }
+                activeOpacity={0.75}
+              >
+                <GlassCard
+                  style={styles.campusPill}
+                  contentStyle={styles.campusPillContent}
+                  blurIntensity={12}
+                >
+                  <IconSymbol name={c.icon} size={15} color={GLASS.iconColor} />
+                  <Text style={styles.campusPillText}>{c.name}</Text>
+                </GlassCard>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={[styles.sectionLabel, { marginTop: 28 }]}>
+            POPULAR LOTS
+          </Text>
+          {STATIC_LOTS.slice(0, 6).map((lot) => (
+            <TouchableOpacity
+              key={lot.id}
+              onPress={() =>
+                handleSelect({
+                  id: lot.id,
+                  name: lot.name,
+                  latitude: lot.latitude,
+                  longitude: lot.longitude,
+                  type: "lot",
+                  address: `${lot.campus} Campus`,
+                  data: lot,
+                })
+              }
+              activeOpacity={0.75}
+            >
+              <GlassCard
+                style={styles.popularCard}
+                contentStyle={styles.popularCardContent}
+                blurIntensity={GLASS.blurMedium}
+              >
+                <View style={styles.popularIcon}>
+                  <IconSymbol name="car.fill" size={15} color={GLASS.iconColor} />
+                </View>
+                <View style={styles.popularText}>
+                  <Text style={styles.popularName}>{lot.name}</Text>
+                  <Text style={styles.popularSub}>
+                    {lot.campus} · {lot.capacity} spots
+                  </Text>
+                </View>
+                <OccupancyPill rate={lot.occupancyRate} />
+              </GlassCard>
+            </TouchableOpacity>
+          ))}
+        </>
+      }
+    />
+  );
+
+  const renderNoResults = () => (
+    <View style={styles.noResultsWrap}>
+      <IconSymbol name="magnifyingglass" size={40} color="#27272a" />
+      <Text style={styles.noResultsTitle}>No results</Text>
+      <Text style={styles.noResultsSub}>
+        Try a lot name, campus, or building
+      </Text>
+    </View>
+  );
+
+  const renderResultItem = ({ item, index }: { item: PlaceResult; index: number }) => {
+    const prevItem = results[index - 1];
+    const showLotHeader =
+      item.type === "lot" && (index === 0 || prevItem?.type !== "lot");
+    const showPlaceHeader =
+      item.type === "place" && (index === 0 || prevItem?.type !== "place");
+    const iconName = item.type === "lot" ? "car.fill" : "mappin.and.ellipse";
+    const iconColor = item.type === "lot" ? GLASS.iconColor : "#3b82f6";
+    return (
+      <>
+        {showLotHeader && lotResults.length > 0 && (
+          <Text style={styles.sectionLabel}>PARKING LOTS</Text>
+        )}
+        {showPlaceHeader && placeResults.length > 0 && (
+          <Text
+            style={[
+              styles.sectionLabel,
+              lotResults.length > 0 && { marginTop: 24 },
+            ]}
+          >
+            PLACES
+          </Text>
+        )}
+        <TouchableOpacity
+          onPress={() => handleSelect(item)}
+          activeOpacity={0.75}
+        >
+          <GlassCard
+            style={styles.resultCard}
+            contentStyle={styles.resultCardContent}
+            blurIntensity={GLASS.blurMedium}
+          >
+            <View
+              style={[
+                styles.resultIcon,
+                item.type === "place" && styles.resultIconPlace,
+              ]}
+            >
+              <IconSymbol name={iconName} size={18} color={iconColor} />
+            </View>
+            <View style={styles.resultText}>
+              <Text style={styles.resultName} numberOfLines={1}>
+                {item.name}
+              </Text>
+              <Text style={styles.resultAddr} numberOfLines={1}>
+                {item.address ?? "Unknown Location"}
+              </Text>
+            </View>
+            {item.type === "lot" && item.data && (
+              <OccupancyPill rate={item.data.occupancyRate} />
+            )}
+            {item.type === "place" && (
+              <IconSymbol name="chevron.right" size={14} color={GLASS.textDim} />
+            )}
+          </GlassCard>
+        </TouchableOpacity>
+      </>
+    );
+  };
+
+  const renderResultsList = () => (
+    <FlatList
+      data={results}
+      keyExtractor={(item) => item.id}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={styles.resultsList}
+      renderItem={renderResultItem}
+    />
+  );
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
@@ -192,336 +354,131 @@ export default function SearchScreen() {
           style={StyleSheet.absoluteFill}
         />
 
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.title}>Search</Text>
-          <Text style={styles.subtitle}>Lots, buildings & places</Text>
+        {/* ── Main content (rendered before the glass header so blur works) ── */}
+        {query.length === 0 && renderDefaultContent()}
+        {query.length > 0 && results.length === 0 && !searching && renderNoResults()}
+        {query.length > 0 && (results.length > 0 || searching) && renderResultsList()}
 
-          <View
-            style={[styles.searchBar, isFocused && styles.searchBarFocused]}
-          >
-            <IconSymbol
-              name="magnifyingglass"
-              size={18}
-              color={isFocused ? "#dc2626" : "#52525b"}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Lots, buildings, addresses…"
-              placeholderTextColor="#3f3f46"
+        {/* ── Glass header (rendered AFTER content so blur updates correctly) ── */}
+        <View style={styles.headerContainer} pointerEvents="box-none">
+          <LinearGradient
+            colors={["rgba(15,15,18,0.98)", "rgba(15,15,18,0.85)", "transparent"]}
+            style={StyleSheet.absoluteFill}
+            pointerEvents="none"
+          />
+          <View style={styles.headerInner}>
+            <Text style={styles.title}>Search</Text>
+            <Text style={styles.subtitle}>Lots, buildings & places</Text>
+            <GlassSearchBar
               value={query}
               onChangeText={setQuery}
-              onFocus={() => setIsFocused(true)}
-              onBlur={() => setIsFocused(false)}
-              autoCapitalize="none"
-              autoCorrect={false}
-              returnKeyType="search"
+              placeholder="Lots, buildings, addresses…"
+              loading={searching}
+              style={styles.searchBar}
             />
-            {query.length > 0 ? (
-              <TouchableOpacity
-                onPress={() => setQuery("")}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <IconSymbol
-                  name="xmark.circle.fill"
-                  size={18}
-                  color="#52525b"
-                />
-              </TouchableOpacity>
-            ) : searching ? (
-              <View style={styles.searchingDot} />
-            ) : null}
           </View>
         </View>
-
-        {query.length === 0 ? (
-          <FlatList
-            data={[]}
-            keyExtractor={() => ""}
-            renderItem={null}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.emptyBody}
-            ListHeaderComponent={
-              <>
-                <Text style={styles.sectionLabel}>CAMPUSES</Text>
-                <View style={styles.campusRow}>
-                  {CAMPUSES.map((c) => (
-                    <TouchableOpacity
-                      key={c.name}
-                      style={styles.campusPill}
-                      onPress={() =>
-                        handleSelect({
-                          id: `c-${c.name}`,
-                          name: c.name,
-                          latitude: c.lat,
-                          longitude: c.lng,
-                          type: "place",
-                        })
-                      }
-                      activeOpacity={0.75}
-                    >
-                      <IconSymbol name={c.icon} size={15} color="#dc2626" />
-                      <Text style={styles.campusPillText}>{c.name}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
-                <Text style={[styles.sectionLabel, { marginTop: 28 }]}>
-                  POPULAR LOTS
-                </Text>
-                {STATIC_LOTS.slice(0, 6).map((lot) => (
-                  <TouchableOpacity
-                    key={lot.id}
-                    style={styles.popularRow}
-                    onPress={() =>
-                      handleSelect({
-                        id: lot.id,
-                        name: lot.name,
-                        latitude: lot.latitude,
-                        longitude: lot.longitude,
-                        type: "lot",
-                        address: `${lot.campus} Campus`,
-                        data: lot,
-                      })
-                    }
-                    activeOpacity={0.75}
-                  >
-                    <View style={styles.popularIcon}>
-                      <IconSymbol name="car.fill" size={15} color="#dc2626" />
-                    </View>
-                    <View style={styles.popularText}>
-                      <Text style={styles.popularName}>{lot.name}</Text>
-                      <Text style={styles.popularSub}>
-                        {lot.campus} · {lot.capacity} spots
-                      </Text>
-                    </View>
-                    <View
-                      style={[
-                        styles.occupancyPill,
-                        {
-                          borderColor:
-                            getOccupancyColor(lot.occupancyRate) + "40",
-                        },
-                      ]}
-                    >
-                      <View
-                        style={[
-                          styles.occupancyDot,
-                          {
-                            backgroundColor: getOccupancyColor(
-                              lot.occupancyRate,
-                            ),
-                          },
-                        ]}
-                      />
-                      <Text
-                        style={[
-                          styles.occupancyText,
-                          { color: getOccupancyColor(lot.occupancyRate) },
-                        ]}
-                      >
-                        {Math.round(lot.occupancyRate)}%
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </>
-            }
-          />
-        ) : results.length === 0 && !searching ? (
-          <View style={styles.noResultsWrap}>
-            <IconSymbol name="magnifyingglass" size={40} color="#27272a" />
-            <Text style={styles.noResultsTitle}>No results</Text>
-            <Text style={styles.noResultsSub}>
-              Try a lot name, campus, or building
-            </Text>
-          </View>
-        ) : (
-          <FlatList
-            data={results}
-            keyExtractor={(item) => item.id}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={styles.resultsList}
-            renderItem={({ item, index }) => {
-              const prevItem = results[index - 1];
-              const showLotHeader =
-                item.type === "lot" &&
-                (index === 0 || prevItem?.type !== "lot");
-              const showPlaceHeader =
-                item.type === "place" &&
-                (index === 0 || prevItem?.type !== "place");
-              return (
-                <>
-                  {showLotHeader && lotResults.length > 0 && (
-                    <Text style={styles.sectionLabel}>PARKING LOTS</Text>
-                  )}
-                  {showPlaceHeader && placeResults.length > 0 && (
-                    <Text
-                      style={[
-                        styles.sectionLabel,
-                        lotResults.length > 0 && { marginTop: 24 },
-                      ]}
-                    >
-                      PLACES
-                    </Text>
-                  )}
-                  <TouchableOpacity
-                    style={styles.resultCard}
-                    onPress={() => handleSelect(item)}
-                    activeOpacity={0.75}
-                  >
-                    <View
-                      style={[
-                        styles.resultIcon,
-                        item.type === "place" && styles.resultIconPlace,
-                      ]}
-                    >
-                      <IconSymbol
-                        name={
-                          item.type === "lot"
-                            ? "car.fill"
-                            : "mappin.and.ellipse"
-                        }
-                        size={18}
-                        color={item.type === "lot" ? "#dc2626" : "#3b82f6"}
-                      />
-                    </View>
-                    <View style={styles.resultText}>
-                      <Text style={styles.resultName} numberOfLines={1}>
-                        {item.name}
-                      </Text>
-                      <Text style={styles.resultAddr} numberOfLines={1}>
-                        {item.address ?? "Unknown Location"}
-                      </Text>
-                    </View>
-                    {item.type === "lot" && item.data && (
-                      <View
-                        style={[
-                          styles.occupancyPill,
-                          {
-                            borderColor:
-                              getOccupancyColor(item.data.occupancyRate) + "40",
-                          },
-                        ]}
-                      >
-                        <View
-                          style={[
-                            styles.occupancyDot,
-                            {
-                              backgroundColor: getOccupancyColor(
-                                item.data.occupancyRate,
-                              ),
-                            },
-                          ]}
-                        />
-                        <Text
-                          style={[
-                            styles.occupancyText,
-                            {
-                              color: getOccupancyColor(item.data.occupancyRate),
-                            },
-                          ]}
-                        >
-                          {Math.round(item.data.occupancyRate)}%
-                        </Text>
-                      </View>
-                    )}
-                    {item.type === "place" && (
-                      <IconSymbol
-                        name="chevron.right"
-                        size={14}
-                        color="#3f3f46"
-                      />
-                    )}
-                  </TouchableOpacity>
-                </>
-              );
-            }}
-          />
-        )}
       </View>
     </TouchableWithoutFeedback>
   );
 }
 
+/** Small reusable occupancy badge */
+function OccupancyPill({ rate }: Readonly<{ rate: number }>) {
+  const color = getOccupancyColor(rate);
+  return (
+    <View style={[occupancyStyles.pill, { borderColor: color + "40" }]}>
+      <View style={[occupancyStyles.dot, { backgroundColor: color }]} />
+      <Text style={[occupancyStyles.text, { color }]}>
+        {Math.round(rate)}%
+      </Text>
+    </View>
+  );
+}
+
+const occupancyStyles = StyleSheet.create({
+  pill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  dot: { width: 6, height: 6, borderRadius: 3 },
+  text: { fontSize: 12, fontWeight: "700" },
+});
+
+const HEADER_HEIGHT = Platform.OS === "ios" ? 158 : 148;
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
 
-  header: {
+  // Glass header overlay
+  headerContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: HEADER_HEIGHT,
+    zIndex: 10,
+  },
+  headerInner: {
     paddingTop: Platform.OS === "ios" ? 60 : 44,
     paddingHorizontal: 20,
-    paddingBottom: 16,
+    paddingBottom: 14,
   },
   title: {
     fontSize: 32,
     fontWeight: "800",
-    color: "#fafafa",
+    color: GLASS.textPrimary,
     letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 14,
-    color: "#52525b",
+    color: GLASS.textMuted,
     marginTop: 2,
-    marginBottom: 18,
+    marginBottom: 14,
   },
-  searchBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#111113",
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: Platform.OS === "ios" ? 13 : 10,
-    borderWidth: 1.5,
-    borderColor: "#27272a",
-    gap: 10,
-  },
-  searchBarFocused: {
-    borderColor: "#dc2626",
-    backgroundColor: "#130d0d",
-  },
-  input: {
-    flex: 1,
-    color: "#f4f4f5",
-    fontSize: 16,
-    padding: 0,
-  },
-  searchingDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: "#dc2626",
-    opacity: 0.7,
-  },
+  searchBar: {},
 
+  // List containers
   emptyBody: {
+    paddingTop: HEADER_HEIGHT + 8,
     paddingHorizontal: 20,
     paddingBottom: 120,
   },
+  resultsList: {
+    paddingTop: HEADER_HEIGHT + 4,
+    paddingHorizontal: 20,
+    paddingBottom: 120,
+  },
+
   sectionLabel: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#52525b",
+    color: GLASS.textMuted,
     letterSpacing: 1,
     marginBottom: 12,
     marginTop: 4,
   },
+
+  // Campus pills row
   campusRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
   },
   campusPill: {
+    borderRadius: 20,
+  },
+  campusPillContent: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "rgba(220, 38, 38, 0.08)",
-    borderRadius: 20,
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: "rgba(220, 38, 38, 0.18)",
   },
   campusPillText: {
     color: "#e4e4e7",
@@ -529,19 +486,22 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
-  popularRow: {
+  // Popular lots
+  popularCard: {
+    marginBottom: 8,
+  },
+  popularCardContent: {
     flexDirection: "row",
     alignItems: "center",
+    paddingHorizontal: 12,
     paddingVertical: 11,
-    borderBottomWidth: 1,
-    borderBottomColor: "#18181b",
     gap: 12,
   },
   popularIcon: {
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: "rgba(220, 38, 38, 0.1)",
+    backgroundColor: GLASS.iconBg,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -552,51 +512,27 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   popularSub: {
-    color: "#52525b",
+    color: GLASS.textMuted,
     fontSize: 12,
     marginTop: 2,
   },
 
-  occupancyPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  occupancyDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  occupancyText: {
-    fontSize: 12,
-    fontWeight: "700",
-  },
-
-  resultsList: {
-    paddingHorizontal: 20,
-    paddingBottom: 120,
-    paddingTop: 4,
-  },
+  // Result cards
   resultCard: {
+    marginBottom: 8,
+  },
+  resultCardContent: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#111113",
-    borderRadius: 14,
-    padding: 12,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: "#1f1f23",
+    paddingHorizontal: 12,
+    paddingVertical: 11,
     gap: 12,
   },
   resultIcon: {
     width: 38,
     height: 38,
     borderRadius: 10,
-    backgroundColor: "rgba(220, 38, 38, 0.1)",
+    backgroundColor: GLASS.iconBg,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -610,11 +546,12 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   resultAddr: {
-    color: "#52525b",
+    color: GLASS.textMuted,
     fontSize: 12,
     marginTop: 2,
   },
 
+  // Empty state
   noResultsWrap: {
     flex: 1,
     alignItems: "center",
@@ -623,12 +560,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   noResultsTitle: {
-    color: "#52525b",
+    color: GLASS.textMuted,
     fontSize: 17,
     fontWeight: "600",
   },
   noResultsSub: {
-    color: "#3f3f46",
+    color: GLASS.textDim,
     fontSize: 13,
   },
 });

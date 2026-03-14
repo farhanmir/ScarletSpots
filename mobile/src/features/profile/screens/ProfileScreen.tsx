@@ -12,6 +12,9 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "@/providers/AuthProvider";
 import { useRouter } from "expo-router";
 import { IconSymbol } from "@/shared/components/ui/icon-symbol";
+import { GlassCard } from "@/shared/components/ui/GlassCard";
+import { GlassBackground } from "@/shared/components/ui/GlassBackground";
+import { GLASS } from "@/shared/components/ui/glassTheme";
 import { authApiCall } from "@/shared/api/supabase";
 import { useFocusEffect } from "@react-navigation/native";
 import {
@@ -23,7 +26,57 @@ import {
   fetchWithOfflineFallback,
   cacheFavorites,
 } from "@/shared/services/OfflineCache";
-import { GlassBackground } from "@/shared/components/ui/GlassBackground";
+
+// ─── Sub-components ──────────────────────────────────────────────────────────
+
+function SettingRow({
+  icon,
+  iconBg,
+  iconColor,
+  label,
+  sublabel,
+  onPress,
+  destructive = false,
+  last = false,
+  right,
+}: Readonly<{
+  icon: string;
+  iconBg: string;
+  iconColor: string;
+  label: string;
+  sublabel?: string;
+  onPress?: () => void;
+  destructive?: boolean;
+  last?: boolean;
+  right?: React.ReactNode;
+}>) {
+  return (
+    <TouchableOpacity
+      style={[styles.settingRow, last && styles.settingRowLast]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <View style={[styles.settingIconWrap, { backgroundColor: iconBg }]}>
+        <IconSymbol name={icon as any} size={15} color={iconColor} />
+      </View>
+      <View style={styles.settingText}>
+        <Text
+          style={[styles.settingLabel, destructive && { color: "#ef4444" }]}
+        >
+          {label}
+        </Text>
+        {sublabel ? (
+          <Text style={styles.settingSubtext}>{sublabel}</Text>
+        ) : null}
+      </View>
+      {right ?? (
+        <IconSymbol name="chevron.right" size={13} color={GLASS.textDim} />
+      )}
+    </TouchableOpacity>
+  );
+}
+
+// ─── Main screen ─────────────────────────────────────────────────────────────
 
 export default function ProfileScreen() {
   const {
@@ -71,6 +124,7 @@ export default function ProfileScreen() {
     }, [session, fetchFavorites]),
   );
 
+  // ── Not signed in ──────────────────────────────────────────────────────────
   if (!loading && !session) {
     return (
       <View style={styles.container}>
@@ -79,38 +133,46 @@ export default function ProfileScreen() {
           style={StyleSheet.absoluteFill}
         />
         <View style={styles.centerContent}>
-          <View style={styles.notSignedInIcon}>
-            <IconSymbol name="person.fill" size={36} color="#3f3f46" />
-          </View>
-          <Text style={styles.notLoggedInText}>Not signed in</Text>
-          <Text style={styles.notLoggedInSub}>
-            Sign in to view your profile
-          </Text>
-          <TouchableOpacity
-            style={styles.loginButton}
-            onPress={() => router.replace("/auth/login" as any)}
+          <GlassCard
+            style={styles.notSignedInCard}
+            contentStyle={styles.notSignedInCardContent}
+            borderRadius={GLASS.radiusLarge}
           >
-            <Text style={styles.loginButtonText}>Sign In</Text>
-          </TouchableOpacity>
+            <View style={styles.notSignedInAvatar}>
+              <IconSymbol name="person.fill" size={40} color={GLASS.textDim} />
+            </View>
+            <Text style={styles.notLoggedInText}>Not signed in</Text>
+            <Text style={styles.notLoggedInSub}>
+              Sign in to view your profile and parking history
+            </Text>
+            <TouchableOpacity
+              style={styles.loginButton}
+              onPress={() => router.replace("/auth/login" as any)}
+            >
+              <Text style={styles.loginButtonText}>Sign In</Text>
+            </TouchableOpacity>
+          </GlassCard>
         </View>
       </View>
     );
   }
 
-  const initials = user?.email?.charAt(0).toUpperCase() || "?";
+  // ── Derived values ─────────────────────────────────────────────────────────
+  const initials = user?.email?.charAt(0).toUpperCase() ?? "?";
+  const emailName = user?.email?.split("@")[0] ?? "";
+  const memberSince = new Date(user?.created_at ?? "").toLocaleDateString(
+    "en-US",
+    { month: "long", year: "numeric" },
+  );
 
-  const permitLabel = !permitType
-    ? "Not configured"
-    : noPermitMode === "all"
-      ? "Show all lots"
-      : noPermitMode === "commuter_all"
-        ? "All commuter lots"
-        : permitType;
+  const getPermitLabel = (): string => {
+    if (!permitType) return "No permit set";
+    if (noPermitMode === "all") return "Show all lots";
+    if (noPermitMode === "commuter_all") return "All commuter lots";
+    return permitType;
+  };
 
-  const secondaryLabel = secondaryPermitType
-    ? `+ ${secondaryPermitType}`
-    : null;
-
+  // ── Main profile ───────────────────────────────────────────────────────────
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
@@ -124,84 +186,116 @@ export default function ProfileScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Hero Card ── */}
-        <View style={styles.heroCard}>
-          <GlassBackground
+        {/* ── Page title ─────────────────────────────────────────────────── */}
+        <Text style={styles.pageTitle}>Profile</Text>
+
+        {/* ── Identity hero ──────────────────────────────────────────────── */}
+        <GlassCard
+          style={styles.heroCard}
+          contentStyle={styles.heroContent}
+          blurIntensity={GLASS.blurMedium}
+          borderRadius={GLASS.radiusLarge}
+        >
+          {/* Subtle scarlet glow behind avatar */}
+          <View style={styles.avatarGlow} />
+
+          <View style={styles.avatarRing}>
+          <LinearGradient
+            colors={["rgba(220,38,38,0.45)", "rgba(220,38,38,0.08)"]}
             style={StyleSheet.absoluteFill}
-            glassStyle="regular"
-            blurIntensity={22}
-            blurTint="dark"
-            fallbackColor="rgba(9,9,11,0.9)"
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
           />
-          <View style={styles.heroInner}>
-            <View style={styles.avatar}>
+            <View style={styles.avatarInner}>
               <Text style={styles.avatarText}>{initials}</Text>
-              <View style={styles.avatarRing} />
-            </View>
-            <View style={styles.heroText}>
-              <Text style={styles.heroEmail} numberOfLines={1}>
-                {user?.email}
-              </Text>
-              <Text style={styles.heroSince}>
-                Member since{" "}
-                {new Date(user?.created_at || "").toLocaleDateString("en-US", {
-                  month: "short",
-                  year: "numeric",
-                })}
-              </Text>
             </View>
           </View>
+
+          <Text style={styles.heroName}>{emailName}</Text>
+          <Text style={styles.heroEmail} numberOfLines={1}>
+            {user?.email}
+          </Text>
+          <Text style={styles.heroSince}>Member since {memberSince}</Text>
+
+          {/* Permit badge row */}
+          <TouchableOpacity
+            style={styles.permitBadge}
+            onPress={() =>
+              router.push("/onboarding/permit?fromProfile=true" as any)
+            }
+            activeOpacity={0.75}
+          >
+            <GlassBackground
+              style={StyleSheet.absoluteFill}
+              glassStyle="clear"
+              blurIntensity={10}
+              blurTint={GLASS.tintDark}
+            fallbackColor="rgba(255,255,255,0.05)"
+          />
+          <IconSymbol
+            name="parkingsign.circle.fill"
+            size={14}
+            color={GLASS.accent}
+          />
+            <Text style={styles.permitBadgeText}>{getPermitLabel()}</Text>
+            {secondaryPermitType ? (
+              <Text style={styles.permitBadgeSecondary}>
+                + {secondaryPermitType}
+              </Text>
+            ) : null}
+            <IconSymbol
+              name="chevron.right"
+              size={11}
+              color={GLASS.textMuted}
+            />
+          </TouchableOpacity>
+        </GlassCard>
+
+        {/* ── Stats strip ────────────────────────────────────────────────── */}
+        <View style={styles.statsRow}>
+          <GlassCard
+            style={styles.statCard}
+            contentStyle={styles.statContent}
+            blurIntensity={GLASS.blurLight}
+          >
+            <Text style={styles.statValue}>{favorites.length}</Text>
+            <Text style={styles.statLabel}>Saved Lots</Text>
+          </GlassCard>
+          <GlassCard
+            style={styles.statCard}
+            contentStyle={styles.statContent}
+            blurIntensity={GLASS.blurLight}
+          >
+            <Text style={styles.statValue}>
+              {enabledCampuses.size}/{NB_CAMPUS_NAMES.length}
+            </Text>
+            <Text style={styles.statLabel}>Campuses</Text>
+          </GlassCard>
+          <GlassCard
+            style={styles.statCard}
+            contentStyle={styles.statContent}
+            blurIntensity={GLASS.blurLight}
+          >
+            <Text style={styles.statValue}>NB</Text>
+            <Text style={styles.statLabel}>Campus</Text>
+          </GlassCard>
         </View>
 
-        {/* ── Permit row ── */}
-        <TouchableOpacity
-          style={styles.permitRow}
-          onPress={() =>
-            router.push("/onboarding/permit?fromProfile=true" as any)
-          }
-          activeOpacity={0.75}
+        {/* ── Saved Lots ─────────────────────────────────────────────────── */}
+        <Text style={styles.sectionLabel}>SAVED LOTS</Text>
+        <GlassCard
+          style={styles.listCard}
+          contentStyle={styles.listCardContent}
+          blurIntensity={GLASS.blurMedium}
+          borderRadius={GLASS.radiusLarge}
         >
-          <GlassBackground
-            style={StyleSheet.absoluteFill}
-            glassStyle="regular"
-            blurIntensity={18}
-            blurTint="dark"
-            fallbackColor="rgba(9,9,11,0.9)"
-          />
-          <View style={styles.permitIconWrap}>
-            <IconSymbol
-              name="parkingsign.circle.fill"
-              size={22}
-              color="#dc2626"
-            />
-          </View>
-          <View style={styles.permitText}>
-            <Text style={styles.permitRowLabel}>Parking Permit</Text>
-            <Text style={styles.permitRowValue} numberOfLines={1}>
-              {permitLabel}
-            </Text>
-            {secondaryLabel && (
-              <Text style={styles.permitRowSecondary} numberOfLines={1}>
-                {secondaryLabel}
-              </Text>
-            )}
-          </View>
-          <IconSymbol name="chevron.right" size={14} color="#3f3f46" />
-        </TouchableOpacity>
-
-        {/* ── Favorites ── */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <IconSymbol name="star.fill" size={15} color="#f59e0b" />
-            <Text style={styles.sectionTitle}>Saved Lots</Text>
-            <Text style={styles.sectionCount}>{favorites.length}</Text>
-          </View>
-
           {favorites.length === 0 ? (
             <View style={styles.emptyState}>
-              <IconSymbol name="star" size={28} color="#27272a" />
-              <Text style={styles.emptyText}>No saved lots yet</Text>
-              <Text style={styles.emptySubtext}>
+              <View style={styles.emptyIconWrap}>
+                <IconSymbol name="star" size={24} color={GLASS.textDim} />
+              </View>
+              <Text style={styles.emptyTitle}>No saved lots</Text>
+              <Text style={styles.emptySub}>
                 Long-press any lot on the map to save it
               </Text>
             </View>
@@ -211,7 +305,7 @@ export default function ProfileScreen() {
                 key={lot.id}
                 style={[
                   styles.favRow,
-                  i === favorites.length - 1 && { borderBottomWidth: 0 },
+                  i === favorites.length - 1 && styles.favRowLast,
                 ]}
                 onPress={() =>
                   router.push({
@@ -221,157 +315,151 @@ export default function ProfileScreen() {
                 }
                 activeOpacity={0.75}
               >
-                <View style={styles.favIcon}>
+                <View style={styles.favIconWrap}>
                   <IconSymbol name="car.fill" size={14} color="#f59e0b" />
                 </View>
-                <View style={styles.favText}>
+                <View style={styles.favTextGroup}>
                   <Text style={styles.favName}>{lot.name}</Text>
                   <Text style={styles.favSub}>{lot.campus} Campus</Text>
                 </View>
-                <IconSymbol name="chevron.right" size={13} color="#3f3f46" />
+                <IconSymbol
+                  name="chevron.right"
+                  size={13}
+                  color={GLASS.textDim}
+                />
               </TouchableOpacity>
             ))
           )}
-        </View>
+        </GlassCard>
 
-        {/* ── Settings ── */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <IconSymbol name="gearshape.fill" size={15} color="#71717a" />
-            <Text style={styles.sectionTitle}>Settings</Text>
-          </View>
+        {/* ── Preferences ────────────────────────────────────────────────── */}
+        <Text style={styles.sectionLabel}>PREFERENCES</Text>
+        <GlassCard
+          style={styles.listCard}
+          contentStyle={styles.listCardContent}
+          blurIntensity={GLASS.blurMedium}
+          borderRadius={GLASS.radiusLarge}
+        >
+          <SettingRow
+            icon="building.2.fill"
+            iconBg="rgba(34,197,94,0.12)"
+            iconColor="#4ade80"
+            label="Campus Filter"
+            sublabel={`${enabledCampuses.size} of ${NB_CAMPUS_NAMES.length} active`}
+            onPress={() => setShowCampuses((p) => !p)}
+            right={
+              <IconSymbol
+                name={showCampuses ? "chevron.up" : "chevron.down"}
+                size={13}
+                color={GLASS.textDim}
+              />
+            }
+          />
 
-          {/* Campus filter (collapsible) */}
-          <TouchableOpacity
-            style={styles.settingRow}
-            onPress={() => setShowCampuses((prev) => !prev)}
-            activeOpacity={0.75}
-          >
-            <View style={styles.settingLeft}>
-              <View
-                style={[
-                  styles.settingIconWrap,
-                  { backgroundColor: "rgba(34,197,94,0.12)" },
-                ]}
-              >
-                <IconSymbol name="building.2.fill" size={14} color="#4ade80" />
-              </View>
-              <View>
-                <Text style={styles.settingLabel}>Campus Filter</Text>
-                <Text style={styles.settingSubtext}>
-                  {enabledCampuses.size} of {NB_CAMPUS_NAMES.length} campuses
-                </Text>
-              </View>
-            </View>
-            <IconSymbol
-              name={showCampuses ? "chevron.down" : "chevron.right"}
-              size={13}
-              color="#3f3f46"
-            />
-          </TouchableOpacity>
-
-          {showCampuses &&
-            NB_CAMPUS_NAMES.map((campus) => {
-              const enabled = enabledCampuses.has(campus);
-              return (
-                <TouchableOpacity
-                  key={campus}
-                  style={styles.campusRow}
-                  onPress={() => toggleCampus(campus)}
-                  activeOpacity={0.75}
-                >
-                  <View style={styles.campusLeft}>
-                    <View
-                      style={[
-                        styles.campusDot,
-                        { backgroundColor: enabled ? "#4ade80" : "#27272a" },
-                      ]}
-                    />
+          {showCampuses && (
+            <View style={styles.campusPanel}>
+              {NB_CAMPUS_NAMES.map((campus) => {
+                const enabled = enabledCampuses.has(campus);
+                return (
+                  <TouchableOpacity
+                    key={campus}
+                    style={styles.campusRow}
+                    onPress={() => toggleCampus(campus)}
+                    activeOpacity={0.75}
+                  >
                     <Text
                       style={[
                         styles.campusName,
-                        !enabled && { color: "#52525b" },
+                        !enabled && styles.campusNameOff,
                       ]}
                     >
                       {campus}
                     </Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.campusToggle,
-                      enabled && styles.campusToggleActive,
-                    ]}
-                  >
                     <View
                       style={[
-                        styles.campusToggleThumb,
-                        enabled && styles.campusToggleThumbActive,
+                        styles.campusToggle,
+                        enabled && styles.campusToggleOn,
                       ]}
-                    />
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-
-          <TouchableOpacity style={styles.settingRow} activeOpacity={0.75}>
-            <View style={styles.settingLeft}>
-              <View
-                style={[
-                  styles.settingIconWrap,
-                  { backgroundColor: "rgba(59,130,246,0.12)" },
-                ]}
-              >
-                <IconSymbol name="bell.fill" size={14} color="#3b82f6" />
-              </View>
-              <View>
-                <Text style={styles.settingLabel}>Notifications</Text>
-                <Text style={styles.settingSubtext}>
-                  Session alerts & reminders
-                </Text>
-              </View>
+                    >
+                      <View
+                        style={[
+                          styles.campusThumb,
+                          enabled && styles.campusThumbOn,
+                        ]}
+                      />
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
-            <IconSymbol name="chevron.right" size={13} color="#3f3f46" />
-          </TouchableOpacity>
+          )}
 
-          <TouchableOpacity
-            style={[styles.settingRow, { borderBottomWidth: 0 }]}
-            activeOpacity={0.75}
-          >
-            <View style={styles.settingLeft}>
-              <View
-                style={[
-                  styles.settingIconWrap,
-                  { backgroundColor: "rgba(239,68,68,0.12)" },
-                ]}
-              >
-                <IconSymbol name="trash.fill" size={14} color="#ef4444" />
-              </View>
-              <View>
-                <Text style={[styles.settingLabel, { color: "#ef4444" }]}>
-                  Delete Account
-                </Text>
-                <Text style={styles.settingSubtext}>
-                  Permanently remove all data
-                </Text>
-              </View>
-            </View>
-            <IconSymbol name="chevron.right" size={13} color="#3f3f46" />
-          </TouchableOpacity>
-        </View>
+          <SettingRow
+            icon="bell.fill"
+            iconBg="rgba(59,130,246,0.12)"
+            iconColor="#3b82f6"
+            label="Notifications"
+            sublabel="Session alerts & reminders"
+            last
+          />
+        </GlassCard>
 
-        {/* ── Sign out ── */}
+        {/* ── Account ────────────────────────────────────────────────────── */}
+        <Text style={styles.sectionLabel}>ACCOUNT</Text>
+        <GlassCard
+          style={styles.listCard}
+          contentStyle={styles.listCardContent}
+          blurIntensity={GLASS.blurMedium}
+          borderRadius={GLASS.radiusLarge}
+        >
+          <SettingRow
+            icon="lock.fill"
+            iconBg="rgba(161,161,170,0.12)"
+            iconColor="#a1a1aa"
+            label="Change Password"
+            last
+          />
+        </GlassCard>
+
+        {/* ── Sign out ───────────────────────────────────────────────────── */}
         <TouchableOpacity
-          style={styles.signOutButton}
+          style={styles.signOutBtn}
           onPress={signOut}
           activeOpacity={0.8}
         >
+          <GlassBackground
+            style={StyleSheet.absoluteFill}
+            glassStyle="clear"
+            blurIntensity={GLASS.blurLight}
+            blurTint={GLASS.tintDark}
+            fallbackColor="rgba(12,12,14,0.6)"
+          />
           <IconSymbol
             name="rectangle.portrait.and.arrow.right"
-            size={17}
-            color="#dc2626"
+            size={16}
+            color={GLASS.accent}
           />
           <Text style={styles.signOutText}>Sign Out</Text>
         </TouchableOpacity>
+
+        {/* ── Danger zone ────────────────────────────────────────────────── */}
+        <GlassCard
+          style={styles.dangerCard}
+          contentStyle={styles.listCardContent}
+          blurIntensity={8}
+          borderColor="rgba(239,68,68,0.18)"
+          borderRadius={GLASS.radiusLarge}
+        >
+          <SettingRow
+            icon="trash.fill"
+            iconBg="rgba(239,68,68,0.12)"
+            iconColor="#ef4444"
+            label="Delete Account"
+            sublabel="Permanently remove all your data"
+            destructive
+            last
+          />
+        </GlassCard>
 
         <View style={{ height: 120 }} />
       </ScrollView>
@@ -379,224 +467,323 @@ export default function ProfileScreen() {
   );
 }
 
+// ─── Styles ──────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollView: { flex: 1 },
   scrollContent: {
-    paddingTop: Platform.OS === "ios" ? 72 : 52,
+    paddingTop: Platform.OS === "ios" ? 64 : 48,
     paddingHorizontal: 16,
   },
 
+  // ── Page title ──
+  pageTitle: {
+    fontSize: 32,
+    fontWeight: "800",
+    color: GLASS.textPrimary,
+    letterSpacing: -0.5,
+    marginBottom: 20,
+  },
+
+  // ── Section labels ──
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: GLASS.textMuted,
+    letterSpacing: 1,
+    marginBottom: 10,
+    marginTop: 20,
+    marginLeft: 4,
+  },
+
+  // ── Not signed in ──
   centerContent: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    gap: 12,
+    paddingHorizontal: 24,
   },
-  notSignedInIcon: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+  notSignedInCard: { width: "100%" },
+  notSignedInCardContent: {
+    alignItems: "center",
+    paddingVertical: 36,
+    gap: 10,
+    padding: 24,
+  },
+  notSignedInAvatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: "#18181b",
+    borderWidth: 1,
+    borderColor: "#27272a",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 4,
+    marginBottom: 6,
   },
-  notLoggedInText: { color: "#e4e4e7", fontSize: 18, fontWeight: "700" },
-  notLoggedInSub: { color: "#52525b", fontSize: 14 },
+  notLoggedInText: {
+    color: GLASS.textPrimary,
+    fontSize: 20,
+    fontWeight: "700",
+  },
+  notLoggedInSub: {
+    color: GLASS.textMuted,
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 20,
+  },
   loginButton: {
-    marginTop: 8,
-    backgroundColor: "#dc2626",
-    paddingVertical: 13,
-    paddingHorizontal: 40,
+    marginTop: 10,
+    backgroundColor: GLASS.accent,
+    paddingVertical: 14,
+    paddingHorizontal: 48,
     borderRadius: 14,
   },
   loginButtonText: { color: "#fff", fontWeight: "700", fontSize: 15 },
 
-  // Hero card
-  heroCard: {
-    borderRadius: 20,
-    overflow: "hidden",
-    backgroundColor: "#111113",
-    borderWidth: 1,
-    borderColor: "#1f1f23",
-    marginBottom: 12,
-  },
-  heroInner: {
-    flexDirection: "row",
+  // ── Hero ──
+  heroCard: { marginBottom: 0 },
+  heroContent: {
     alignItems: "center",
-    padding: 18,
-    gap: 16,
+    paddingVertical: 32,
+    paddingHorizontal: 20,
   },
-  avatar: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: "rgba(220,38,38,0.12)",
-    justifyContent: "center",
-    alignItems: "center",
+  avatarGlow: {
+    position: "absolute",
+    top: 16,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: "rgba(220,38,38,0.07)",
   },
   avatarRing: {
-    position: "absolute",
-    inset: 0,
-    borderRadius: 29,
-    borderWidth: 2,
-    borderColor: "rgba(220,38,38,0.35)",
-  },
-  avatarText: { fontSize: 24, fontWeight: "700", color: "#dc2626" },
-  heroText: { flex: 1 },
-  heroEmail: { color: "#f4f4f5", fontSize: 15, fontWeight: "600" },
-  heroSince: { color: "#52525b", fontSize: 12, marginTop: 3 },
-
-  // Permit row
-  permitRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 16,
+    width: 88,
+    height: 88,
+    borderRadius: 44,
     overflow: "hidden",
-    backgroundColor: "#111113",
-    borderWidth: 1,
-    borderColor: "#1f1f23",
-    padding: 14,
-    gap: 12,
-    marginBottom: 12,
+    padding: 2,
+    marginBottom: 16,
   },
-  permitIconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 11,
-    backgroundColor: "rgba(220,38,38,0.1)",
+  avatarInner: {
+    flex: 1,
+    borderRadius: 42,
+    backgroundColor: "#0f0f12",
     justifyContent: "center",
     alignItems: "center",
   },
-  permitText: { flex: 1, justifyContent: "center" },
-  permitRowLabel: {
-    color: "#a1a1aa",
-    fontSize: 11,
-    fontWeight: "600",
-    letterSpacing: 0.5,
-    textTransform: "uppercase",
+  avatarText: {
+    fontSize: 34,
+    fontWeight: "800",
+    color: GLASS.accent,
+    letterSpacing: -1,
   },
-  permitRowValue: {
-    color: "#f4f4f5",
-    fontSize: 14,
-    fontWeight: "600",
-    marginTop: 2,
+  heroName: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: GLASS.textPrimary,
+    letterSpacing: -0.3,
   },
-  permitRowSecondary: { color: "#a1a1aa", fontSize: 12, marginTop: 2 },
-
-  // Section
-  section: {
-    backgroundColor: "#111113",
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "#1f1f23",
-    padding: 16,
-    marginBottom: 12,
+  heroEmail: {
+    fontSize: 13,
+    color: GLASS.textMuted,
+    marginTop: 3,
+    marginBottom: 4,
   },
-  sectionHeader: {
+  heroSince: {
+    fontSize: 12,
+    color: GLASS.textDim,
+    marginBottom: 20,
+  },
+  // Permit badge inside hero
+  permitBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    marginBottom: 14,
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 20,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: GLASS.borderColor,
   },
-  sectionTitle: { color: "#d4d4d8", fontSize: 14, fontWeight: "700", flex: 1 },
-  sectionCount: {
-    color: "#52525b",
+  permitBadgeText: {
+    color: GLASS.textPrimary,
     fontSize: 13,
     fontWeight: "600",
   },
+  permitBadgeSecondary: {
+    color: GLASS.textMuted,
+    fontSize: 12,
+  },
 
-  // Empty state
-  emptyState: { alignItems: "center", paddingVertical: 20, gap: 8 },
-  emptyText: { color: "#52525b", fontSize: 14, fontWeight: "600" },
-  emptySubtext: { color: "#3f3f46", fontSize: 12, textAlign: "center" },
+  // ── Stats strip ──
+  statsRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 8,
+  },
+  statCard: { flex: 1 },
+  statContent: {
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    gap: 3,
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: GLASS.textPrimary,
+    letterSpacing: -0.5,
+  },
+  statLabel: {
+    fontSize: 11,
+    color: GLASS.textMuted,
+    fontWeight: "500",
+  },
 
-  // Favorites
+  // ── List card (shared by Saved Lots, Preferences, Account) ──
+  listCard: {},
+  listCardContent: { padding: 6 },
+
+  // ── Setting row ──
+  settingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 13,
+    paddingHorizontal: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255,255,255,0.05)",
+    gap: 12,
+  },
+  settingRowLast: { borderBottomWidth: 0 },
+  settingIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 9,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  settingText: { flex: 1 },
+  settingLabel: {
+    color: "#d4d4d8",
+    fontSize: 15,
+    fontWeight: "500",
+  },
+  settingSubtext: {
+    color: GLASS.textMuted,
+    fontSize: 12,
+    marginTop: 1,
+  },
+
+  // ── Campus expand panel ──
+  campusPanel: {
+    marginHorizontal: 10,
+    marginBottom: 4,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.06)",
+    overflow: "hidden",
+  },
+  campusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255,255,255,0.04)",
+  },
+  campusName: {
+    color: "#e4e4e7",
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  campusNameOff: { color: GLASS.textMuted },
+  campusToggle: {
+    width: 42,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "#27272a",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+  },
+  campusToggleOn: { backgroundColor: "rgba(34,197,94,0.3)" },
+  campusThumb: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: GLASS.textMuted,
+  },
+  campusThumbOn: {
+    backgroundColor: "#4ade80",
+    alignSelf: "flex-end",
+  },
+
+  // ── Favorites ──
   favRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 11,
-    borderBottomWidth: 1,
-    borderBottomColor: "#1a1a1e",
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255,255,255,0.05)",
     gap: 12,
   },
-  favIcon: {
-    width: 32,
-    height: 32,
+  favRowLast: { borderBottomWidth: 0 },
+  favIconWrap: {
+    width: 34,
+    height: 34,
     borderRadius: 9,
     backgroundColor: "rgba(245,158,11,0.1)",
     justifyContent: "center",
     alignItems: "center",
   },
-  favText: { flex: 1 },
+  favTextGroup: { flex: 1 },
   favName: { color: "#e4e4e7", fontSize: 14, fontWeight: "500" },
-  favSub: { color: "#52525b", fontSize: 12, marginTop: 1 },
+  favSub: { color: GLASS.textMuted, fontSize: 12, marginTop: 1 },
 
-  // Settings
-  settingRow: {
-    flexDirection: "row",
+  // ── Empty state ──
+  emptyState: {
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 11,
-    borderBottomWidth: 1,
-    borderBottomColor: "#1a1a1e",
+    paddingVertical: 28,
+    paddingHorizontal: 10,
+    gap: 8,
   },
-  settingLeft: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1 },
-  settingIconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 9,
+  emptyIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.04)",
     justifyContent: "center",
     alignItems: "center",
+    marginBottom: 4,
   },
-  settingLabel: { color: "#d4d4d8", fontSize: 14, fontWeight: "500" },
-  settingSubtext: { color: "#52525b", fontSize: 12, marginTop: 1 },
+  emptyTitle: { color: GLASS.textMuted, fontSize: 15, fontWeight: "600" },
+  emptySub: {
+    color: GLASS.textDim,
+    fontSize: 13,
+    textAlign: "center",
+    lineHeight: 18,
+  },
 
-  // Sign out
-  signOutButton: {
+  // ── Sign out ──
+  signOutBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    paddingVertical: 14,
+    marginTop: 20,
+    marginBottom: 0,
+    paddingVertical: 15,
     borderRadius: 14,
+    overflow: "hidden",
     borderWidth: 1,
-    borderColor: "rgba(220,38,38,0.25)",
-    backgroundColor: "rgba(220,38,38,0.06)",
-    marginBottom: 8,
+    borderColor: "rgba(255,255,255,0.07)",
   },
-  signOutText: { color: "#dc2626", fontSize: 15, fontWeight: "600" },
+  signOutText: { color: GLASS.accent, fontSize: 15, fontWeight: "600" },
 
-  // Campus filter
-  campusRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 11,
-    borderBottomWidth: 1,
-    borderBottomColor: "#1a1a1e",
-  },
-  campusLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
-  campusDot: { width: 8, height: 8, borderRadius: 4 },
-  campusName: { color: "#e4e4e7", fontSize: 14, fontWeight: "500" },
-  campusToggle: {
-    width: 40,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "#27272a",
-    justifyContent: "center",
-    paddingHorizontal: 2,
-  },
-  campusToggleActive: { backgroundColor: "rgba(34,197,94,0.3)" },
-  campusToggleThumb: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: "#52525b",
-  },
-  campusToggleThumbActive: {
-    backgroundColor: "#4ade80",
-    alignSelf: "flex-end",
-  },
+  // ── Danger card ──
+  dangerCard: { marginTop: 12 },
 });

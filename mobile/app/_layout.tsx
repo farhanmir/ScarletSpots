@@ -94,7 +94,7 @@ function InitialLayout() {
               sheetCornerRadius: 30,
               sheetLargestUndimmedDetentIndex: 1,
               sheetExpandsWhenScrolledToEdge: true,
-              contentStyle: { backgroundColor: "transparent" },
+              contentStyle: { backgroundColor: "#0f0f12" },
             }}
           />
           <Stack.Screen
