@@ -1,11 +1,11 @@
-name: iOS Build (AltStore)
+name: iOS Build (Sideloading)
 
 on:
   workflow_dispatch:
 
 jobs:
   ios-build:
-    name: iOS Build
+    name: iOS Build (Sideloading)
     runs-on: macos-15
     permissions:
       contents: write
@@ -120,7 +120,7 @@ jobs:
         id: release_info
         run: |
           TAG="ios-build-${{ github.run_number }}"
-          NAME="iOS Build ${{ github.run_number }}"
+          NAME="iOS Sideloading Build ${{ github.run_number }}"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
 
