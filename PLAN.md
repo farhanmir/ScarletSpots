@@ -75,9 +75,6 @@ Database (Supabase, 5 tables)
 - **Map**: All NB lots from bundled JSON with live occupancy overlay. Other campuses behind `ENABLE_ALL_CAMPUSES` feature flag. Includes map redesign with better occupancy color encoding and multi-polygon rendering.
 - **Parking session**: Start (confirmation sheet), active state, end session
 - **Session chip**: Subtle floating pill above tab bar showing "Lot X • Find Car | End" — not an intrusive full-width banner
-- **Compass (Navigate tab)**: Bearing + distance to parked lot's coordinates from JSON. No proximity state machine, no haptic lock-on. Simple and reliable.
-- **Friends**: Send/accept/block. See which lot a friend is parked at in the Friends tab. Includes richer friend cards with lot info. No friend markers on the map.
-- **Favorites**: Save/remove lots (lot_id references JSON mapId)
 - **Profile**: Full settings, data export, account deletion flow
 - **Offline**: Map always loads (data is local). Session actions queue to OfflineQueue and replay on reconnect.
 - **Forecasting**: Heuristic model for launch, ML model once session data accumulates (2–4 weeks)
@@ -95,7 +92,6 @@ Database (Supabase, 5 tables)
 - Bluetooth-assisted parking detection
 - Common Commuter Spots database (pre-mapped Rutgers buildings for destination suggestions)
 - Navigation hand-off to Google Maps / Apple Maps
-- Knight Mode / Campus Mode theme toggle (retro dark skin vs default)
 - ScarletSpots Premium: ticket reporting + enforcement analytics (post-launch, monetization)
 
 ### Changed from original

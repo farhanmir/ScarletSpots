@@ -55,11 +55,8 @@
 
 - [x] Map redesign: richer lot cards, better occupancy color encoding, color-coded markers (green/yellow/red)
 - [ ] Parking confirmation sheet: polish candidate flow, snap-to-spot with drag-to-adjust for GPS drift
-- [ ] Compass redesign: make the needle beautiful — "Knight Needle" vision (center red lance, haptic thud on lock-on)
 - [x] Friends tab: richer friend cards with lot info, campus indicator
 - [x] Profile: full settings, data export, account deletion flow
-- [ ] Auto-switch to compass mode when user is within 500 ft of parked lot (Virtual Grid "Find Flow")
-- [ ] Knight Mode theme: dark map style, retro 8-bit pixel needle, JetBrains Mono font, Pip-Boy vibe (vs default Campus Mode)
 
 **Exit criteria:** App looks beautiful. UX is delightful. Ship.
 
@@ -93,7 +90,6 @@ These are real ideas, just not for v1:
 - **Navigation hand-off**: Deep-link to Google Maps / Apple Maps for turn-by-turn directions to a parking lot
 - **Heat map overlays**: Visualize per-lot density by zone (red = near-full sub-areas), updated in real-time from active sessions
 - **Virtual Grid — Park Flow**: Geofence triggers session, accelerometer detects driving→walking transition, app highlights 3 closest plausible spots for confirmation
-- **Bluetooth-assisted detection**: Use car Bluetooth disconnect as a parking confirmation signal
 - **ScarletSpots Premium** (post-launch, monetization):
   - Ticket reporting system: report tickets with lot/time/date/agency
   - Real-time enforcement alerts for users currently parked in flagged lots
