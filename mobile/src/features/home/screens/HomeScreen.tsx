@@ -1028,7 +1028,7 @@ export default function MapScreen() {
         lotCooldownRef.current = false;
       }, 650);
       
-      router.push(`/lot/${lot.id}` as any);
+      router.navigate(`/lot/${lot.id}` as any);
       
       if (AppState.currentState === "active") {
         mapRef.current?.animateToRegion(
@@ -1211,7 +1211,7 @@ export default function MapScreen() {
           setSelectedPlace(null);
         }}
       >
-        {/* User location: Apple Maps-style blue dot + heading cone */}
+        {/* User location: rotating blue cone (direction of travel) */}
         {location && (
           <Marker
             coordinate={{
@@ -1429,9 +1429,7 @@ export default function MapScreen() {
           glassStyle="regular"
           blurIntensity={80}
           blurTint="systemChromeMaterialDark"
-          fallbackColor={
-            Platform.OS === "android" ? "#111113" : "rgba(10,10,12,0.85)"
-          }
+          fallbackColor="rgba(10, 10, 12, 0.4)"
         />
         <TouchableOpacity
           style={[
@@ -1595,40 +1593,22 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   map: { width: "100%", height: "100%" },
 
-  userMarkerWrap: {
-    width: 38,
-    height: 56,
+  userConeWrap: {
+    width: 28,
+    height: 28,
     alignItems: "center",
+    justifyContent: "center",
   },
-  userHeadingCone: {
-    position: "absolute",
-    top: 0,
+  userCone: {
     width: 0,
     height: 0,
-    borderLeftWidth: 12,
-    borderRightWidth: 12,
-    borderBottomWidth: 38,
+    borderLeftWidth: 10,
+    borderRightWidth: 10,
+    borderBottomWidth: 22,
     borderLeftColor: "transparent",
     borderRightColor: "transparent",
-    borderBottomColor: "rgba(59, 130, 246, 0.30)",
-  },
-  userDotOuter: {
-    position: "absolute",
-    bottom: 0,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: "rgba(59, 130, 246, 0.18)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  userDotInner: {
-    width: 15,
-    height: 15,
-    borderRadius: 7.5,
-    backgroundColor: "#3b82f6",
-    borderWidth: 2.5,
-    borderColor: "#ffffff",
+    borderBottomColor: "#3b82f6",
+    marginBottom: -18,
   },
 
   // ── Session chip ──────────────────────────────────────────────────────
@@ -1723,14 +1703,14 @@ const styles = StyleSheet.create({
   // ── Center button ──────────────────────────────────────────────────────
   centerButtonContainer: {
     position: "absolute",
-    bottom: 110,
-    right: 16,
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    bottom: Platform.OS === "ios" ? 110 : 100,
+    right: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.15)",
+    borderWidth: (StyleSheet.hairlineWidth * 2) as any,
+    borderColor: "rgba(255,255,255,0.08)",
     backgroundColor:
       Platform.OS === "android" ? "rgba(18,18,20,0.95)" : "transparent",
     shadowColor: "#000",
@@ -1853,4 +1833,34 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.2)",
   },
   clusterText: { color: "#fff", fontSize: 13, fontWeight: "bold" },
+  userMarkerWrap: { width: 38, height: 56, alignItems: "center" },
+  userHeadingCone: {
+    position: "absolute",
+    top: 0,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 10,
+    borderRightWidth: 10,
+    borderBottomWidth: 24,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    borderBottomColor: "rgba(59, 130, 246, 0.4)",
+  },
+  userDotOuter: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "rgba(59, 130, 246, 0.25)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 20,
+  },
+  userDotInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#3b82f6",
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
 });
