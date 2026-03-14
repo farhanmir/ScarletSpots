@@ -28,6 +28,9 @@ import {
   cacheFavorites,
 } from "@/shared/services/OfflineCache";
 
+const FLAT_CARD_BG = "#1c1d21";
+const FLAT_CARD_BORDER = "rgba(255,255,255,0.11)";
+
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
 function SettingRow({
@@ -135,6 +138,7 @@ export default function ProfileScreen() {
             style={styles.notSignedInCard}
             contentStyle={styles.notSignedInCardContent}
             borderRadius={GLASS.radiusLarge}
+            borderColor={FLAT_CARD_BORDER}
           >
             <View style={styles.notSignedInAvatar}>
               <IconSymbol name="person.fill" size={40} color={GLASS.textDim} />
@@ -190,6 +194,7 @@ export default function ProfileScreen() {
           contentStyle={styles.heroContent}
           blurIntensity={GLASS.blurMedium}
           borderRadius={GLASS.radiusLarge}
+          borderColor={FLAT_CARD_BORDER}
         >
           {/* Subtle scarlet glow behind avatar */}
           <View style={styles.avatarGlow} />
@@ -220,13 +225,6 @@ export default function ProfileScreen() {
             }
             activeOpacity={0.75}
           >
-            <GlassBackground
-              style={StyleSheet.absoluteFill}
-              glassStyle="clear"
-              blurIntensity={10}
-              blurTint={GLASS.tintDark}
-            fallbackColor="rgba(255,255,255,0.05)"
-          />
           <IconSymbol
             name="parkingsign.circle.fill"
             size={14}
@@ -252,6 +250,7 @@ export default function ProfileScreen() {
             style={styles.statCard}
             contentStyle={styles.statContent}
             blurIntensity={GLASS.blurLight}
+            borderColor={FLAT_CARD_BORDER}
           >
             <Text style={styles.statValue}>{favorites.length}</Text>
             <Text style={styles.statLabel}>Saved Lots</Text>
@@ -260,6 +259,7 @@ export default function ProfileScreen() {
             style={styles.statCard}
             contentStyle={styles.statContent}
             blurIntensity={GLASS.blurLight}
+            borderColor={FLAT_CARD_BORDER}
           >
             <Text style={styles.statValue}>
               {enabledCampuses.size}/{NB_CAMPUS_NAMES.length}
@@ -270,6 +270,7 @@ export default function ProfileScreen() {
             style={styles.statCard}
             contentStyle={styles.statContent}
             blurIntensity={GLASS.blurLight}
+            borderColor={FLAT_CARD_BORDER}
           >
             <Text style={styles.statValue}>NB</Text>
             <Text style={styles.statLabel}>Campus</Text>
@@ -283,6 +284,7 @@ export default function ProfileScreen() {
           contentStyle={styles.listCardContent}
           blurIntensity={GLASS.blurMedium}
           borderRadius={GLASS.radiusLarge}
+          borderColor={FLAT_CARD_BORDER}
         >
           {favorites.length === 0 ? (
             <View style={styles.emptyState}>
@@ -334,6 +336,7 @@ export default function ProfileScreen() {
           contentStyle={styles.listCardContent}
           blurIntensity={GLASS.blurMedium}
           borderRadius={GLASS.radiusLarge}
+          borderColor={FLAT_CARD_BORDER}
         >
           <SettingRow
             icon="building.2.fill"
@@ -406,6 +409,7 @@ export default function ProfileScreen() {
           contentStyle={styles.listCardContent}
           blurIntensity={GLASS.blurMedium}
           borderRadius={GLASS.radiusLarge}
+          borderColor={FLAT_CARD_BORDER}
         >
           <SettingRow
             icon="lock.fill"
@@ -505,6 +509,7 @@ const styles = StyleSheet.create({
     paddingVertical: 36,
     gap: 10,
     padding: 24,
+    backgroundColor: FLAT_CARD_BG,
   },
   notSignedInAvatar: {
     width: 80,
@@ -543,6 +548,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 32,
     paddingHorizontal: 20,
+    backgroundColor: FLAT_CARD_BG,
   },
   avatarGlow: {
     position: "absolute",
@@ -600,7 +606,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: "hidden",
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: GLASS.borderColor,
+    borderColor: FLAT_CARD_BORDER,
+    backgroundColor: "#24262c",
   },
   permitBadgeText: {
     color: GLASS.textPrimary,
@@ -624,6 +631,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 8,
     gap: 3,
+    backgroundColor: FLAT_CARD_BG,
   },
   statValue: {
     fontSize: 20,
@@ -639,7 +647,7 @@ const styles = StyleSheet.create({
 
   // ── List card (shared by Saved Lots, Preferences, Account) ──
   listCard: {},
-  listCardContent: { padding: 6 },
+  listCardContent: { padding: 6, backgroundColor: FLAT_CARD_BG },
 
   // ── Setting row ──
   settingRow: {
@@ -775,7 +783,8 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     overflow: "hidden",
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: GLASS.borderColor,
+    borderColor: FLAT_CARD_BORDER,
+    backgroundColor: FLAT_CARD_BG,
   },
   signOutText: { color: GLASS.accent, fontSize: 15, fontWeight: "600" },
 

@@ -176,6 +176,7 @@ export default function MapScreen() {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [isOnline, setIsOnline] = useState(true);
+  const [isCenterPressed, setIsCenterPressed] = useState(false);
   const [chipUserPosition, setChipUserPosition] = useState<{
     latitude: number;
     longitude: number;
@@ -1219,19 +1220,17 @@ export default function MapScreen() {
               longitude: location.coords.longitude,
             }}
             flat
-            anchor={{ x: 0.5, y: 0.82 }}
-            rotation={userHeading ?? 0}
+            anchor={{ x: 0.5, y: 0.5 }}
             tracksViewChanges={false}
             zIndex={100}
           >
-            <View style={styles.userMarkerWrap}>
-              {/* Heading cone — tip points up (= heading dir when marker rotated) */}
-              <View style={styles.userHeadingCone} />
-              {/* Dot — outer glow ring */}
-              <View style={styles.userDotOuter}>
-                {/* Inner blue dot with white border */}
-                <View style={styles.userDotInner} />
-              </View>
+            <View
+              style={[
+                styles.userConeWrap,
+                { transform: [{ rotate: `${userHeading ?? 0}deg` }] },
+              ]}
+            >
+              <View style={styles.userCone} />
             </View>
           </Marker>
         )}
@@ -1427,22 +1426,25 @@ export default function MapScreen() {
         <GlassBackground
           style={StyleSheet.absoluteFill}
           glassStyle="regular"
-          blurIntensity={80}
-          blurTint="systemChromeMaterialDark"
-          fallbackColor="rgba(10, 10, 12, 0.4)"
+          blurIntensity={72}
+          blurTint="systemMaterialDark"
+          fallbackColor="rgba(38, 40, 46, 0.45)"
         />
         <TouchableOpacity
           style={[
             styles.centerButton,
+            isCenterPressed && styles.centerButtonPressed,
             Platform.OS === "android" && styles.centerButtonAndroid,
           ]}
           onPressIn={() => {
+            setIsCenterPressed(true);
             centerButtonScale.value = withSpring(0.9, {
               damping: 10,
               stiffness: 200,
             });
           }}
           onPressOut={() => {
+            setIsCenterPressed(false);
             centerButtonScale.value = withSpring(1, {
               damping: 15,
               stiffness: 200,
@@ -1467,7 +1469,11 @@ export default function MapScreen() {
           }}
           activeOpacity={1}
         >
-          <IconSymbol name="location.north.fill" size={20} color="#ffffff" />
+          <IconSymbol
+            name={isCenterPressed ? "location.north.fill" : "location.north"}
+            size={20}
+            color={isCenterPressed ? "#ffffff" : "#e4e4e7"}
+          />
         </TouchableOpacity>
       </Animated.View>
 
@@ -1710,22 +1716,28 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     overflow: "hidden",
     borderWidth: (StyleSheet.hairlineWidth * 2) as any,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(255,255,255,0.2)",
     backgroundColor:
-      Platform.OS === "android" ? "rgba(18,18,20,0.95)" : "transparent",
+      Platform.OS === "android" ? "rgba(30,32,38,0.45)" : "transparent",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.65,
-    shadowRadius: 28,
+    shadowOpacity: 0.45,
+    shadowRadius: 18,
     elevation: 18,
   },
   centerButton: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.16)",
   },
-  centerButtonAndroid: { backgroundColor: "transparent" },
+  centerButtonPressed: {
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderColor: "rgba(255,255,255,0.28)",
+  },
+  centerButtonAndroid: { backgroundColor: "rgba(255,255,255,0.12)" },
 
   // ── Offline badge ──────────────────────────────────────────────────────
   offlineBadge: {

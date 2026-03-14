@@ -76,6 +76,9 @@ const getOccupancyColor = (rate: number) => {
   return "#10b981";
 };
 
+const FLAT_CARD_BG = "#1c1d21";
+const FLAT_CARD_BORDER = "rgba(255,255,255,0.11)";
+
 export default function SearchScreen() {
   const router = useRouter();
 
@@ -215,6 +218,7 @@ export default function SearchScreen() {
                   style={styles.campusPill}
                   contentStyle={styles.campusPillContent}
                   blurIntensity={12}
+                  borderColor={FLAT_CARD_BORDER}
                 >
                   <IconSymbol name={c.icon} size={15} color={GLASS.iconColor} />
                   <Text style={styles.campusPillText}>{c.name}</Text>
@@ -246,6 +250,7 @@ export default function SearchScreen() {
                 style={styles.popularCard}
                 contentStyle={styles.popularCardContent}
                 blurIntensity={GLASS.blurMedium}
+                borderColor={FLAT_CARD_BORDER}
               >
                 <View style={styles.popularIcon}>
                   <IconSymbol name="car.fill" size={15} color={GLASS.iconColor} />
@@ -306,6 +311,7 @@ export default function SearchScreen() {
             style={styles.resultCard}
             contentStyle={styles.resultCardContent}
             blurIntensity={GLASS.blurMedium}
+            borderColor={FLAT_CARD_BORDER}
           >
             <View
               style={[
@@ -438,7 +444,9 @@ const styles = StyleSheet.create({
     marginTop: 2,
     marginBottom: 14,
   },
-  searchBar: {},
+  searchBar: {
+    marginTop: 8,
+  },
 
   // List containers
   emptyBody: {
@@ -476,6 +484,7 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 14,
     paddingVertical: 8,
+    backgroundColor: FLAT_CARD_BG,
   },
   campusPillText: {
     color: "#e4e4e7",
@@ -493,12 +502,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 11,
     gap: 12,
+    backgroundColor: FLAT_CARD_BG,
   },
   popularIcon: {
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: GLASS.iconBg,
+    backgroundColor: "#24262c",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -524,17 +534,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 11,
     gap: 12,
+    backgroundColor: FLAT_CARD_BG,
   },
   resultIcon: {
     width: 38,
     height: 38,
     borderRadius: 10,
-    backgroundColor: GLASS.iconBg,
+    backgroundColor: "#24262c",
     justifyContent: "center",
     alignItems: "center",
   },
   resultIconPlace: {
-    backgroundColor: "rgba(59, 130, 246, 0.1)",
+    backgroundColor: "rgba(59, 130, 246, 0.15)",
   },
   resultText: { flex: 1 },
   resultName: {

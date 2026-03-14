@@ -27,6 +27,7 @@ export interface GlassSegmentedControlProps<T extends string = string> {
   value: T;
   onChange: (key: T) => void;
   style?: StyleProp<ViewStyle>;
+  variant?: "glass" | "flat";
 }
 
 /**
@@ -46,6 +47,7 @@ export function GlassSegmentedControl<T extends string = string>({
   value,
   onChange,
   style,
+  variant = "glass",
 }: Readonly<GlassSegmentedControlProps<T>>) {
   const segmentCount = options.length;
   const activeIndex = options.findIndex((o) => o.key === value);
@@ -66,19 +68,23 @@ export function GlassSegmentedControl<T extends string = string>({
   }));
 
   return (
-    <View style={[styles.container, style]}>
-      {/* Track glass background */}
-      <GlassBackground
-        style={StyleSheet.absoluteFill}
-        glassStyle="regular"
-        blurIntensity={GLASS.blurLight}
-        blurTint={GLASS.tintDark}
-        fallbackColor="rgba(14, 14, 16, 0.9)"
-      />
+    <View style={[styles.container, variant === "flat" && styles.containerFlat, style]}>
+      {/* Track background */}
+      {variant === "glass" ? (
+        <GlassBackground
+          style={StyleSheet.absoluteFill}
+          glassStyle="regular"
+          blurIntensity={GLASS.blurLight}
+          blurTint={GLASS.tintDark}
+          fallbackColor="rgba(14, 14, 16, 0.9)"
+        />
+      ) : (
+        <View style={styles.flatBackground} />
+      )}
 
       {/* Sliding pill */}
       <Animated.View style={[styles.pill, pillStyle]}>
-        <View style={styles.pillInner} />
+        <View style={[styles.pillInner, variant === "flat" && styles.pillInnerFlat]} />
       </Animated.View>
 
       {/* Segment buttons */}
@@ -121,6 +127,18 @@ const styles = StyleSheet.create({
     borderColor: GLASS.borderColor,
     position: "relative",
   },
+  containerFlat: {
+    borderColor: "rgba(255,255,255,0.11)",
+    backgroundColor: "#1c1d21",
+  },
+  flatBackground: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: "#1c1d21",
+  },
   pill: {
     position: "absolute",
     top: 4,
@@ -134,6 +152,10 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.07)",
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.12)",
+  },
+  pillInnerFlat: {
+    backgroundColor: "#2b2d33",
+    borderColor: "rgba(255,255,255,0.14)",
   },
   segmentsRow: {
     position: "absolute",

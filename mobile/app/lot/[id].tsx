@@ -393,6 +393,7 @@ export default function LotDetailsScreen() {
 const styles = StyleSheet.create({
   outerContainer: {
     flex: 1,
+    backgroundColor: "#111317",
   },
   scroll: { flex: 1 },
   scrollContent: { padding: 20, paddingTop: 30 },
@@ -404,7 +405,7 @@ const styles = StyleSheet.create({
   lotName: { fontSize: 24, fontWeight: "700", color: "#fafafa", letterSpacing: -0.3, lineHeight: 30 },
   iconBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: "rgba(255,255,255,0.06)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", justifyContent: "center", alignItems: "center" },
   statsRow: { flexDirection: "row", gap: 10, marginBottom: 14 },
-  statCard: { flex: 1, backgroundColor: "rgba(0,0,0,0.3)", borderRadius: 16, paddingVertical: 14, alignItems: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", gap: 4 },
+  statCard: { flex: 1, backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 16, paddingVertical: 14, alignItems: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.12)", gap: 4 },
   statVal: { fontSize: 22, fontWeight: "800", color: "#f4f4f5", fontVariant: ["tabular-nums"] },
   statLab: { fontSize: 12, color: "#71717a", fontWeight: "500" },
   barTrack: { height: 4, backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 2, marginBottom: 20, overflow: "hidden" },
@@ -413,7 +414,7 @@ const styles = StyleSheet.create({
   featurePill: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, borderWidth: 1 },
   featurePillText: { fontSize: 12, fontWeight: "700" },
   permitBadge: { width: 22, height: 22, borderRadius: 11, borderWidth: 1, justifyContent: "center", alignItems: "center" },
-  scheduleSection: { marginBottom: 16, backgroundColor: "rgba(0,0,0,0.3)", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.06)" },
+  scheduleSection: { marginBottom: 16, backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
   scheduleHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
   scheduleTitle: { color: "#71717a", fontSize: 11, fontWeight: "700", letterSpacing: 1, flex: 1 },
   availBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1 },
@@ -422,7 +423,7 @@ const styles = StyleSheet.create({
   availDot: { width: 5, height: 5, borderRadius: 2.5 },
   availText: { fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
   scheduleText: { color: "#a1a1aa", fontSize: 13, fontWeight: "500", lineHeight: 20 },
-  notesSection: { marginBottom: 16, backgroundColor: "rgba(0,0,0,0.3)", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.06)" },
+  notesSection: { marginBottom: 16, backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
   notesHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
   notesTitle: { color: "#71717a", fontSize: 11, fontWeight: "700", letterSpacing: 1 },
   notesText: { color: "#a1a1aa", fontSize: 13, fontWeight: "500", lineHeight: 20 },
@@ -430,6 +431,6 @@ const styles = StyleSheet.create({
   parkBtn: { flex: 1, height: 54, borderRadius: 17, backgroundColor: "#dc2626", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   parkBtnDisabled: { backgroundColor: "#3f3f46", opacity: 0.6 },
   parkBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
-  dirBtn: { height: 54, borderRadius: 17, backgroundColor: "rgba(255,255,255,0.06)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, flex: 1 },
+  dirBtn: { height: 54, borderRadius: 17, backgroundColor: "rgba(255,255,255,0.1)", borderWidth: 1, borderColor: "rgba(255,255,255,0.16)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, flex: 1 },
   dirBtnText: { color: "#fff", fontSize: 16, fontWeight: "600" },
 });

@@ -34,6 +34,9 @@ const TAB_OPTIONS: { key: TabKey; label: string }[] = [
   { key: "requests", label: "Requests" },
 ];
 
+const FLAT_CARD_BG = "#1c1d21";
+const FLAT_CARD_BORDER = "rgba(255,255,255,0.11)";
+
 export default function FriendsScreen() {
   const router = useRouter();
   const { user } = useAuth();
@@ -218,6 +221,7 @@ export default function FriendsScreen() {
       style={styles.card}
       contentStyle={styles.cardContent}
       blurIntensity={GLASS.blurMedium}
+      borderColor={FLAT_CARD_BORDER}
     >
       <View style={[styles.avatarWrap, item.parked && styles.avatarWrapParked]}>
         <Text style={styles.avatarText}>{getInitial(item.name)}</Text>
@@ -279,6 +283,7 @@ export default function FriendsScreen() {
       style={styles.card}
       contentStyle={styles.cardContent}
       blurIntensity={GLASS.blurMedium}
+      borderColor={FLAT_CARD_BORDER}
     >
       <View style={styles.avatarWrap}>
         <Text style={styles.avatarText}>{getInitial(item.name)}</Text>
@@ -359,13 +364,6 @@ export default function FriendsScreen() {
               onPress={() => setIsAddModalVisible(true)}
               activeOpacity={0.8}
             >
-              <GlassBackground
-                style={StyleSheet.absoluteFill}
-                glassStyle="clear"
-                blurIntensity={GLASS.blurLight}
-                blurTint={GLASS.tintDark}
-                fallbackColor="rgba(255,255,255,0.05)"
-              />
               <IconSymbol name="person.badge.plus" size={20} color={GLASS.accent} />
             </TouchableOpacity>
           </View>
@@ -374,6 +372,7 @@ export default function FriendsScreen() {
             options={tabOptions}
             value={activeTab}
             onChange={setActiveTab}
+            variant="flat"
             style={styles.segmentedControl}
           />
         </View>
@@ -488,7 +487,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 20,
   },
   headerTitle: {
     fontSize: 32,
@@ -503,7 +502,8 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: GLASS.borderColor,
+    borderColor: FLAT_CARD_BORDER,
+    backgroundColor: FLAT_CARD_BG,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -526,6 +526,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 14,
     gap: 12,
+    backgroundColor: FLAT_CARD_BG,
   },
   avatarWrap: {
     width: 46,
@@ -565,7 +566,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: "#1c1c1f",
+    backgroundColor: "#24262c",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -573,7 +574,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: "rgba(59,130,246,0.85)",
+    backgroundColor: "rgba(59,130,246,0.7)",
     justifyContent: "center",
     alignItems: "center",
   },

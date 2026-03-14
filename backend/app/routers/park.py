@@ -15,12 +15,11 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
-
 from app.core.limiter import limiter
 from app.core.logger import get_logger
 from app.core.security import get_admin_supabase, get_auth_db, get_current_user
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
 
 log = get_logger(__name__)
 
@@ -121,12 +120,25 @@ def start_parking_session(
             },
         ).execute()
     except Exception as exc:
+        exc_text = str(exc)
         log.error(
             "Atomic start session RPC failed for user %s lot %s: %s",
             user_id,
             lot_id,
             exc,
         )
+        if (
+            "'code': '23502'" in exc_text
+            and 'relation "parking_sessions"' in exc_text
+            and ('column "latitude"' in exc_text or 'column "longitude"' in exc_text)
+        ):
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    "Parking session schema mismatch: coordinates columns are non-null in "
+                    "the database. Apply latest backend migrations."
+                ),
+            )
         raise HTTPException(status_code=500, detail="Failed to start parking session")
 
     if not isinstance(rpc_res.data, list) or not rpc_res.data:
@@ -153,7 +165,11 @@ def start_parking_session(
     confirmed_occupancy: Optional[int] = None
     try:
         occ_res = (
-            admin_db.table("lot_occupancy").select("count").eq("lot_id", lot_id).single().execute()
+            admin_db.table("lot_occupancy")
+            .select("count")
+            .eq("lot_id", lot_id)
+            .single()
+            .execute()
         )
         if isinstance(occ_res.data, dict):
             confirmed_occupancy = occ_res.data.get("count")

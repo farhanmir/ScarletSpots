@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { StyleSheet, View, Dimensions } from "react-native";
+import { StyleSheet, View } from "react-native";
 
 interface Spot {
   id: number;
@@ -22,7 +22,7 @@ export function ScarletSpotsBackground() {
         id: i,
         top: `${Math.random() * 100}%`,
         left: `${Math.random() * 100}%`,
-        size: Math.random() * 2 + 1, // 1px to 3px
+        size: Math.random() * 3 + 3, // 3px to 6px
         opacity: Math.random() * 0.15 + 0.05, // 0.05 to 0.20
       });
     }
@@ -53,7 +53,11 @@ export function ScarletSpotsBackground() {
 
 const styles = StyleSheet.create({
   container: {
-    ...StyleSheet.absoluteFillObject,
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
     backgroundColor: "#000000",
   },
   spot: {

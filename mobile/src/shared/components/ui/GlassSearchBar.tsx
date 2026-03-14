@@ -64,8 +64,12 @@ export function GlassSearchBar({
   const focusProgress = useSharedValue(0);
 
   const borderStyle = useAnimatedStyle(() => ({
-    borderColor: focusProgress.value === 1 ? GLASS.borderColorFocused : GLASS.borderColor,
-    backgroundColor: focusProgress.value === 1 ? "rgba(19, 8, 8, 0.55)" : "transparent",
+    borderColor:
+      focusProgress.value === 1
+        ? "rgba(220, 38, 38, 0.45)"
+        : "rgba(255,255,255,0.12)",
+    backgroundColor:
+      focusProgress.value === 1 ? "#222429" : "#1b1d22",
   }));
 
   const iconColor = focusProgress.value === 1 ? GLASS.accent : GLASS.textMuted;
@@ -85,9 +89,9 @@ export function GlassSearchBar({
       <GlassBackground
         style={StyleSheet.absoluteFill}
         glassStyle="clear"
-        blurIntensity={GLASS.blurLight}
+        blurIntensity={8}
         blurTint={GLASS.tintDark}
-        fallbackColor={GLASS.fallbackCard}
+        fallbackColor="#1b1d22"
       />
 
       <IconSymbol
@@ -135,7 +139,7 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 14,
+    borderRadius: 15,
     overflow: "hidden",
     borderWidth: 1,
     paddingHorizontal: 14,
