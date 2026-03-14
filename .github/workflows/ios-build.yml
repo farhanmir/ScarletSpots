@@ -1,0 +1,87 @@
+name: iOS Build (AltStore)
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  ios-build:
+    name: iOS Build
+    runs-on: macos-15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install Node dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: Expo prebuild (generate native iOS project)
+        working-directory: mobile
+        run: npx expo prebuild --platform ios
+
+      - name: Identify workspace and scheme
+        id: xcode_info
+        run: |
+          WORKSPACE=$(find mobile/ios -maxdepth 1 -name "*.xcworkspace" | head -1)
+          if [ -z "$WORKSPACE" ]; then
+            echo "Error: No .xcworkspace found in mobile/ios" >&2
+            exit 1
+          fi
+          SCHEME=$(basename "$WORKSPACE" .xcworkspace)
+          echo "workspace=$WORKSPACE" >> "$GITHUB_OUTPUT"
+          echo "scheme=$SCHEME" >> "$GITHUB_OUTPUT"
+          echo "Workspace: $WORKSPACE"
+          echo "Scheme:    $SCHEME"
+
+      - name: Auto-increment build number
+        run: |
+          INFO_PLIST="mobile/ios/${{ steps.xcode_info.outputs.scheme }}/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ github.run_number }}" "$INFO_PLIST"
+          echo "Build number set to ${{ github.run_number }}"
+
+      - name: Build with xcodebuild (Debug, no code signing)
+        run: |
+          xcodebuild \
+            -workspace "${{ steps.xcode_info.outputs.workspace }}" \
+            -scheme "${{ steps.xcode_info.outputs.scheme }}" \
+            -configuration Debug \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            PROVISIONING_PROFILE_SPECIFIER=""
+
+      - name: Package app as IPA
+        run: |
+          SCHEME="${{ steps.xcode_info.outputs.scheme }}"
+          APP_PATH=$(find build/Build/Products/Debug-iphoneos -maxdepth 1 -name "*.app" | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: No .app bundle found in build/Build/Products/Debug-iphoneos" >&2
+            exit 1
+          fi
+          mkdir -p Payload
+          cp -r "$APP_PATH" Payload/
+          zip -r "${SCHEME}.ipa" Payload/
+          echo "Created ${SCHEME}.ipa"
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.xcode_info.outputs.scheme }}-${{ github.run_number }}
+          path: ${{ steps.xcode_info.outputs.scheme }}.ipa
+          retention-days: 30
