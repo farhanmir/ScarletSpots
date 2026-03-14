@@ -1,6 +1,16 @@
-import React, { useRef, useEffect, useCallback } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Dimensions, Platform, Linking, Modal, TouchableWithoutFeedback, Alert, ScrollView } from 'react-native';
-import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
+import { StyleSheet, View, Text, TouchableOpacity, Dimensions, Platform, Linking, TouchableWithoutFeedback, Alert, ScrollView } from 'react-native';
+import Animated, { 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withSpring, 
+  withTiming,
+  runOnJS,
+  interpolate,
+  Extrapolation,
+  useAnimatedScrollHandler
+} from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import * as Haptics from 'expo-haptics';
 import { IconSymbol } from '@/shared/components/ui/icon-symbol';
 import { GlassBackground } from '@/shared/components/ui/GlassBackground';
 import { type RutgersLot, getPermitLotIdsUnion, ALL_COMMUTER_LOT_IDS, getLotScheduleInfo, isLotAvailableNow } from '@/shared/constants/lots';
@@ -11,12 +21,18 @@ import { ForecastResponse, ForecastPoint } from '@/features/home/types/types';
 import { getOccupancyColor } from '@/features/home/services/utils';
 import ForecastChart from './lots/ForecastChart';
 
-const { height } = Dimensions.get('window');
+const { height: SCREEN_H } = Dimensions.get('window');
+
+// Snap points relative to the top of the screen
+const SNAP_HIDDEN = SCREEN_H;
+const SNAP_PEEK = SCREEN_H * 0.65;
+const SNAP_EXPANDED = Platform.OS === 'ios' ? 80 : 60;
 
 type Lot = RutgersLot;
 
 interface LotDetailsProps {
   lot: Lot;
+  visible: boolean;
   onClose: () => void;
   onPark: (lotId: string) => void;
   isParking: boolean;
@@ -28,12 +44,78 @@ interface LotDetailsProps {
   secondaryPermitType?: string | null;
 }
 
-export default function LotDetails({ lot, onClose, onPark, isParking, user, activeSession, isFavorite, onToggleFavorite, permitType, secondaryPermitType }: LotDetailsProps) {
+export default function LotDetails({ lot, visible, onClose, onPark, isParking, user, activeSession, isFavorite, onToggleFavorite, permitType, secondaryPermitType }: LotDetailsProps) {
+  const translateY = useSharedValue(SNAP_HIDDEN);
+  const scrollY = useSharedValue(0);
+  const isScrollable = useSharedValue(false);
+  
   const mountedRef = useRef(true);
   useEffect(() => {
     mountedRef.current = true;
+    if (visible) {
+      translateY.value = withSpring(SNAP_PEEK, { damping: 20, stiffness: 150 });
+    } else {
+      translateY.value = withTiming(SNAP_HIDDEN, { duration: 250 });
+    }
     return () => { mountedRef.current = false; };
-  }, []);
+  }, [visible]);
+
+  const scrollToSnap = useCallback((snapPoint: number) => {
+    'worklet';
+    translateY.value = withSpring(snapPoint, { damping: 22, stiffness: 180 });
+    if (snapPoint === SNAP_HIDDEN) {
+      runOnJS(onClose)();
+    }
+    runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
+  }, [onClose]);
+
+  const panGesture = Gesture.Pan()
+    .onUpdate((e) => {
+      const nextY = translateY.value + e.changeY;
+      if (nextY >= SNAP_EXPANDED) {
+        translateY.value = nextY;
+      }
+    })
+    .onEnd((e) => {
+      const velocity = e.velocityY;
+      const target = translateY.value + velocity * 0.1;
+      
+      // Snapping logic
+      if (target > SNAP_PEEK + 100 || (velocity > 500 && target > SNAP_PEEK)) {
+        scrollToSnap(SNAP_HIDDEN);
+      } else if (target < (SNAP_PEEK + SNAP_EXPANDED) / 2) {
+        scrollToSnap(SNAP_EXPANDED);
+        isScrollable.value = true;
+      } else {
+        scrollToSnap(SNAP_PEEK);
+        isScrollable.value = false;
+      }
+    });
+
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (e) => {
+      scrollY.value = e.contentOffset.y;
+    },
+    onBeginDrag: (e) => {
+      if (translateY.value > SNAP_EXPANDED + 10) {
+        // Prevent scroll if not fully expanded
+      }
+    }
+  });
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }));
+
+  const backdropStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(
+      translateY.value,
+      [SNAP_HIDDEN, SNAP_PEEK, SNAP_EXPANDED],
+      [0, 0.2, 0.4],
+      Extrapolation.CLAMP
+    ),
+    pointerEvents: translateY.value < SNAP_HIDDEN ? 'auto' : 'none',
+  }));
 
   const { data: forecastData, isLoading: isLoadingForecast } = useQuery<ForecastResponse>({
     queryKey: ['forecast', lot.id, lot.capacity],
@@ -116,212 +198,214 @@ export default function LotDetails({ lot, onClose, onPark, isParking, user, acti
   ].filter(Boolean) as { icon: string; label: string; color: string; bg: string; border: string }[];
 
   return (
-    <Modal visible={true} transparent={true} animationType="none" onRequestClose={handleClose}>
-      <TouchableWithoutFeedback onPress={handleClose}>
-        <Animated.View entering={FadeIn.duration(200)} style={[styles.overlay, StyleSheet.absoluteFill]} />
+    <>
+      <TouchableWithoutFeedback onPress={() => scrollToSnap(SNAP_HIDDEN)}>
+        <Animated.View style={[styles.overlay, StyleSheet.absoluteFill, backdropStyle]} />
       </TouchableWithoutFeedback>
 
-      <Animated.View entering={SlideInDown.duration(280)} style={styles.container}>
-        <GlassBackground
-          style={StyleSheet.absoluteFill}
-          glassStyle="regular"
-          blurIntensity={90}
-          blurTint="systemChromeMaterialDark"
-          fallbackColor="rgba(4,4,6,0.9)"
-        />
+      <GestureDetector gesture={panGesture}>
+        <Animated.View style={[styles.container, animatedStyle]}>
+          <GlassBackground
+            style={StyleSheet.absoluteFill}
+            glassStyle="regular"
+            blurIntensity={100}
+            blurTint="systemThickMaterialDark"
+            fallbackColor="rgba(12,12,15,0.95)"
+          />
 
-        {/* Handle */}
-        <View style={styles.handleWrap}>
-          <View style={styles.handle} />
-        </View>
+          {/* Handle */}
+          <View style={styles.handleWrap}>
+            <View style={styles.handle} />
+          </View>
 
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          bounces={false}
-        >
-          {/* ── Header ── */}
-          <View style={styles.headerRow}>
-            <View style={styles.headerLeft}>
-              {lot.campus ? (
-                <View style={styles.campusPill}>
-                  <Text style={styles.campusPillText}>{lot.campus} Campus</Text>
-                </View>
-              ) : null}
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Text style={styles.lotName}>{lot.name}</Text>
-                {permitValidity !== null && (
-                  <View style={[styles.permitBadge, { backgroundColor: permitValidity ? 'rgba(34,197,94,0.12)' : 'rgba(113,113,122,0.08)', borderColor: permitValidity ? 'rgba(34,197,94,0.3)' : 'rgba(113,113,122,0.15)' }]}>
-                    <IconSymbol name={permitValidity ? 'checkmark' : 'xmark'} size={10} color={permitValidity ? '#4ade80' : '#52525b'} />
+          <Animated.ScrollView
+            onScroll={scrollHandler}
+            scrollEventThrottle={16}
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            bounces={true}
+          >
+            {/* ── Header ── */}
+            <View style={styles.headerRow}>
+              <View style={styles.headerLeft}>
+                {lot.campus ? (
+                  <View style={styles.campusPill}>
+                    <Text style={styles.campusPillText}>{lot.campus} Campus</Text>
                   </View>
-                )}
+                ) : null}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={styles.lotName}>{lot.name}</Text>
+                  {permitValidity !== null && (
+                    <View style={[styles.permitBadge, { backgroundColor: permitValidity ? 'rgba(34,197,94,0.12)' : 'rgba(113,113,122,0.08)', borderColor: permitValidity ? 'rgba(34,197,94,0.3)' : 'rgba(113,113,122,0.15)' }]}>
+                      <IconSymbol name={permitValidity ? 'checkmark' : 'xmark'} size={10} color={permitValidity ? '#4ade80' : '#52525b'} />
+                    </View>
+                  )}
+                </View>
               </View>
-            </View>
-            <View style={styles.headerRight}>
-              {user && onToggleFavorite && (
+              <View style={styles.headerRight}>
+                {user && onToggleFavorite && (
+                  <TouchableOpacity
+                    onPress={(e) => { e.stopPropagation(); onToggleFavorite(); }}
+                    style={styles.iconBtn}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  >
+                    <IconSymbol name={isFavorite ? 'star.fill' : 'star'} size={20} color={isFavorite ? '#f59e0b' : '#71717a'} />
+                  </TouchableOpacity>
+                )}
                 <TouchableOpacity
-                  onPress={(e) => { e.stopPropagation(); onToggleFavorite(); }}
+                  onPress={(e) => { e.stopPropagation(); scrollToSnap(SNAP_HIDDEN); }}
                   style={styles.iconBtn}
                   hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 >
-                  <IconSymbol name={isFavorite ? 'star.fill' : 'star'} size={20} color={isFavorite ? '#f59e0b' : '#71717a'} />
+                  <IconSymbol name="xmark" size={14} color="#71717a" />
                 </TouchableOpacity>
-              )}
-              <TouchableOpacity
-                onPress={(e) => { e.stopPropagation(); handleClose(); }}
-                style={styles.iconBtn}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              >
-                <IconSymbol name="xmark" size={14} color="#71717a" />
-              </TouchableOpacity>
+              </View>
             </View>
-          </View>
 
-          {/* ── Stats row ── */}
-          <View style={styles.statsRow}>
-            <View style={styles.statCard}>
-              <Text style={[styles.statVal, { color: occColor }]}>{Math.round(lot.occupancyRate)}%</Text>
-              <Text style={styles.statLab}>Full</Text>
+            {/* ── Stats row ── */}
+            <View style={styles.statsRow}>
+              <View style={styles.statCard}>
+                <Text style={[styles.statVal, { color: occColor }]}>{Math.round(lot.occupancyRate)}%</Text>
+                <Text style={styles.statLab}>Full</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statVal}>{lot.occupiedCount}</Text>
+                <Text style={styles.statLab}>Sessions</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statVal}>{lot.capacity}</Text>
+                <Text style={styles.statLab}>Capacity</Text>
+              </View>
             </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statVal}>{lot.occupiedCount}</Text>
-              <Text style={styles.statLab}>Sessions</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statVal}>{lot.capacity}</Text>
-              <Text style={styles.statLab}>Capacity</Text>
-            </View>
-          </View>
 
-          {/* ── Occupancy bar ── */}
-          <View style={styles.barTrack}>
-            <View style={[styles.barFill, { width: `${Math.min(100, lot.occupancyRate)}%` as any, backgroundColor: occColor }]} />
-          </View>
-
-          {/* ── Feature badges ── */}
-          {features.length > 0 && (
-            <View style={styles.featureRow}>
-              {features.map(f => (
-                <View key={f.label} style={[styles.featurePill, { backgroundColor: f.bg, borderColor: f.border }]}>
-                  <IconSymbol name={f.icon as any} size={11} color={f.color} />
-                  <Text style={[styles.featurePillText, { color: f.color }]}>{f.label}</Text>
-                </View>
-              ))}
+            {/* ── Occupancy bar ── */}
+            <View style={styles.barTrack}>
+              <View style={[styles.barFill, { width: `${Math.min(100, lot.occupancyRate)}%` as any, backgroundColor: occColor }]} />
             </View>
-          )}
 
-          {/* ── Schedule info ── */}
-          {scheduleInfo && (
-            <View style={styles.scheduleSection}>
-              <View style={styles.scheduleHeader}>
-                <IconSymbol name="clock.fill" size={13} color="#71717a" />
-                <Text style={styles.scheduleTitle}>SCHEDULE</Text>
-                {lotAvailable !== null && (
-                  <View style={[styles.availBadge, lotAvailable ? styles.availBadgeOpen : styles.availBadgeClosed]}>
-                    <View style={[styles.availDot, { backgroundColor: lotAvailable ? '#4ade80' : '#ef4444' }]} />
-                    <Text style={[styles.availText, { color: lotAvailable ? '#4ade80' : '#ef4444' }]}>
-                      {lotAvailable ? 'OPEN' : 'CLOSED'}
-                    </Text>
+            {/* ── Feature badges ── */}
+            {features.length > 0 && (
+              <View style={styles.featureRow}>
+                {features.map(f => (
+                  <View key={f.label} style={[styles.featurePill, { backgroundColor: f.bg, borderColor: f.border }]}>
+                    <IconSymbol name={f.icon as any} size={11} color={f.color} />
+                    <Text style={[styles.featurePillText, { color: f.color }]}>{f.label}</Text>
                   </View>
-                )}
+                ))}
               </View>
-              {scheduleInfo.time_text_1 ? (
-                <Text style={styles.scheduleText}>{scheduleInfo.time_text_1}</Text>
-              ) : null}
-              {scheduleInfo.time_text_2 ? (
-                <Text style={styles.scheduleText}>{scheduleInfo.time_text_2}</Text>
-              ) : null}
-            </View>
-          )}
-
-          {/* ── Notes ── */}
-          {/* ── Notes ── */}
-          {lot.note ? (
-            <View style={styles.notesSection}>
-              <View style={styles.notesHeader}>
-                <IconSymbol name="info.circle.fill" size={13} color="#71717a" />
-                <Text style={styles.notesTitle}>NOTES</Text>
-              </View>
-              <Text style={styles.notesText}>{lot.note}</Text>
-            </View>
-          ) : null}
-
-          {/* ── Forecast chart ── */}
-          <ForecastChart curve={forecast} isLoading={isLoadingForecast} />
-
-          {/* ── Actions ── */}
-          <View style={styles.actionsRow}>
-            {!activeSession && (
-              <TouchableOpacity
-                style={[styles.parkBtn, isDisabled && styles.parkBtnDisabled]}
-                onPress={(e) => {
-                  e.stopPropagation();
-                  if (user && lot.occupancyRate < 100) {
-                    Alert.alert(
-                      'Confirm Parking',
-                      `Start a session at ${lot.name}?`,
-                      [
-                        { text: 'Cancel', style: 'cancel' },
-                        { text: 'Park Here', style: 'default', onPress: () => onPark(lot.id) },
-                      ]
-                    );
-                  }
-                }}
-                disabled={isParking || isDisabled}
-                activeOpacity={0.8}
-              >
-                <IconSymbol name="p.circle.fill" size={20} color="#fff" />
-                <Text style={styles.parkBtnText}>{renderActionText()}</Text>
-              </TouchableOpacity>
             )}
 
-            <TouchableOpacity
-              style={[styles.dirBtn, !activeSession && { flex: 0, paddingHorizontal: 20 }]}
-              onPress={(e) => { e.stopPropagation(); openDirections(); }}
-              activeOpacity={0.8}
-            >
-              <IconSymbol name="arrow.triangle.turn.up.right.diamond.fill" size={18} color="#60a5fa" />
-              {!!activeSession && <Text style={styles.dirBtnText}>Directions</Text>}
-            </TouchableOpacity>
-          </View>
+            {/* ── Schedule info ── */}
+            {scheduleInfo && (
+              <View style={styles.scheduleSection}>
+                <View style={styles.scheduleHeader}>
+                  <IconSymbol name="clock.fill" size={13} color="#71717a" />
+                  <Text style={styles.scheduleTitle}>SCHEDULE</Text>
+                  {lotAvailable !== null && (
+                    <View style={[styles.availBadge, lotAvailable ? styles.availBadgeOpen : styles.availBadgeClosed]}>
+                      <View style={[styles.availDot, { backgroundColor: lotAvailable ? '#4ade80' : '#ef4444' }]} />
+                      <Text style={[styles.availText, { color: lotAvailable ? '#4ade80' : '#ef4444' }]}>
+                        {lotAvailable ? 'OPEN' : 'CLOSED'}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                {scheduleInfo.time_text_1 ? (
+                  <Text style={styles.scheduleText}>{scheduleInfo.time_text_1}</Text>
+                ) : null}
+                {scheduleInfo.time_text_2 ? (
+                  <Text style={styles.scheduleText}>{scheduleInfo.time_text_2}</Text>
+                ) : null}
+              </View>
+            )}
 
-          {!user && (
-            <Text style={styles.signInNote}>Sign in from the Profile tab to log parking sessions</Text>
-          )}
+            {/* ── Notes ── */}
+            {lot.note ? (
+              <View style={styles.notesSection}>
+                <View style={styles.notesHeader}>
+                  <IconSymbol name="info.circle.fill" size={13} color="#71717a" />
+                  <Text style={styles.notesTitle}>NOTES</Text>
+                </View>
+                <Text style={styles.notesText}>{lot.note}</Text>
+              </View>
+            ) : null}
 
-          <View style={{ height: 36 }} />
-        </ScrollView>
-      </Animated.View>
-    </Modal>
+            {/* ── Forecast chart ── */}
+            <ForecastChart curve={forecast} isLoading={isLoadingForecast} />
+
+            {/* ── Actions ── */}
+            <View style={styles.actionsRow}>
+              {!activeSession && (
+                <TouchableOpacity
+                  style={[styles.parkBtn, isDisabled && styles.parkBtnDisabled]}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    if (user && lot.occupancyRate < 100) {
+                      Alert.alert(
+                        'Confirm Parking',
+                        `Start a session at ${lot.name}?`,
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          { text: 'Park Here', style: 'default', onPress: () => onPark(lot.id) },
+                        ]
+                      );
+                    }
+                  }}
+                  disabled={isParking || isDisabled}
+                  activeOpacity={0.8}
+                >
+                  <IconSymbol name="p.circle.fill" size={20} color="#fff" />
+                  <Text style={styles.parkBtnText}>{renderActionText()}</Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                style={[styles.dirBtn, !activeSession && { flex: 0, paddingHorizontal: 20 }]}
+                onPress={(e) => { e.stopPropagation(); openDirections(); }}
+                activeOpacity={0.8}
+              >
+                <IconSymbol name="arrow.triangle.turn.up.right.diamond.fill" size={18} color="#60a5fa" />
+                {!!activeSession && <Text style={styles.dirBtnText}>Directions</Text>}
+              </TouchableOpacity>
+            </View>
+
+            {!user && (
+              <Text style={styles.signInNote}>Sign in from the Profile tab to log parking sessions</Text>
+            )}
+
+            <View style={{ height: 36 }} />
+          </Animated.ScrollView>
+        </Animated.View>
+      </GestureDetector>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: 'rgba(0,0,0,1)', // Controlled by animated opacity
   },
   container: {
     position: 'absolute',
-    bottom: 0,
+    top: 0,
     left: 0,
     right: 0,
+    height: SCREEN_H,
     backgroundColor: 'transparent',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
     overflow: 'hidden',
     paddingBottom: Platform.OS === 'ios' ? 40 : 24,
-    maxHeight: height * 0.90,
     // thin top border for visual depth
     borderTopWidth: 1,
     borderLeftWidth: 1,
     borderRightWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: 'rgba(255,255,255,0.12)',
   },
 
-  handleWrap: { alignItems: 'center', paddingTop: 10, paddingBottom: 6 },
-  handle: { width: 38, height: 4, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 2 },
+  handleWrap: { alignItems: 'center', paddingTop: 8, paddingBottom: 10 },
+  handle: { width: 36, height: 5, backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 2.5 },
 
   scroll: { width: '100%' },
   scrollContent: { paddingHorizontal: 20, paddingTop: 4 },

@@ -115,6 +115,9 @@ export default function MapScreen() {
   const [chipHeading, setChipHeading] = useState<number | null>(null);
   const [userHeading, setUserHeading] = useState<number | null>(null);
 
+  // Keep track of the last selected lot for smooth exit animations
+  const lastSelectedLotRef = useRef<RutgersLot | null>(null);
+
   const isFocused = useIsFocused();
 
   // ── Offline Queue Init ─────────────────────────────────────────────────
@@ -240,7 +243,9 @@ export default function MapScreen() {
 
   const selectedLot = React.useMemo(() => {
     if (!selectedLotId) return null;
-    return lots.find(l => l.id === selectedLotId) ?? null;
+    const lot = lots.find(l => l.id === selectedLotId) ?? null;
+    if (lot) lastSelectedLotRef.current = lot;
+    return lot;
   }, [lots, selectedLotId]);
 
   // ── Derived: displayedLots (filtered for map) ──────────────────────────
@@ -1130,20 +1135,18 @@ export default function MapScreen() {
 
 
       {/* Lot Details Sheet */}
-      {selectedLot && (
-        <LotDetails
-          key={selectedLot.id}
-          lot={selectedLot}
-          onClose={closeLotDetails}
-          onPark={handlePark}
-          isParking={loading}
-          user={user}
-          activeSession={activeSession}
-          isFavorite={favorites.includes(selectedLot.id)}
-          onToggleFavorite={() => toggleFavorite(selectedLot)}
-          permitType={permitType}
-        />
-      )}
+      <LotDetails
+        lot={selectedLot || lastSelectedLotRef.current || ({} as RutgersLot)}
+        visible={!!selectedLot}
+        onClose={closeLotDetails}
+        onPark={handlePark}
+        isParking={loading}
+        user={user}
+        activeSession={activeSession}
+        isFavorite={selectedLot ? favorites.includes(selectedLot.id) : (lastSelectedLotRef.current ? favorites.includes(lastSelectedLotRef.current.id) : false)}
+        onToggleFavorite={() => selectedLot && toggleFavorite(selectedLot)}
+        permitType={permitType}
+      />
 
       {/* Detection Confirmation Sheet */}
       {pendingCandidates.length > 0 && !selectedLot && (

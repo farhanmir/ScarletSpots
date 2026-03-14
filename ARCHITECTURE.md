@@ -316,3 +316,4 @@ Models land in `backend/app/services/forecast_models/{lot_id}.joblib` and are lo
 - `session_feedback` write-only for the owning user
 - Rutgers-only email validation on signup and password reset
 - Rate limiting via SlowAPI on sensitive endpoints (signup, park, password reset)
+- **Planned**: Migration to Rutgers CAS SSO to eliminate Supabase Auth costs (detailed in [RU_SSO_GUIDE.md](file:///c:/Users/Farhan%20Mir/Desktop/Projects/ScarletSpots/RU_SSO_GUIDE.md)).

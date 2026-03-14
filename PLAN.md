@@ -85,7 +85,9 @@ Database (Supabase, 5 tables)
 - Web admin frontend (completely removed — plan as v2 admin portal with geofence editor, live heatmap, user management)
 - Friend location markers on map (friends tab only for v1)
 - Push notifications ("lot almost full" / "friend parked nearby")
-- Google OAuth
+- Push notifications ("lot almost full" / "friend parked nearby")
+- Google OAuth (Replaced by Rutgers CAS SSO plan)
+- Rutgers CAS SSO Integration (Detailed in [RU_SSO_GUIDE.md](file:///c:/Users/Farhan%20Mir/Desktop/Projects/ScarletSpots/RU_SSO_GUIDE.md))
 - Notification preferences screen
 - Heat map overlays (per-zone density visualization)
 - Virtual Grid Park Flow (accelerometer-based spot suggestion)

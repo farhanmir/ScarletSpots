@@ -155,9 +155,9 @@ export default function ParkingConfirmationSheet({
         <GlassBackground
           style={StyleSheet.absoluteFill}
           glassStyle="regular"
-          blurIntensity={95}
+          blurIntensity={100}
           blurTint="systemThickMaterialDark"
-          fallbackColor="rgba(16,16,20,0.9)"
+          fallbackColor="rgba(12,12,15,0.95)"
         />
         <View style={styles.content}>
           {/* Drag handle */}
@@ -240,22 +240,22 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
     overflow: 'hidden',
     borderWidth: 1,
     borderBottomWidth: 0,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.12)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.45,
+    shadowRadius: 16,
     elevation: 10,
   },
   content: {
     padding: 20,
-    paddingBottom: 40,
-    backgroundColor: 'rgba(24, 24, 27, 0.7)',
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    backgroundColor: 'transparent',
   },
   header: {
     alignItems: 'center',
@@ -263,9 +263,9 @@ const styles = StyleSheet.create({
   },
   handle: {
     width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
     marginBottom: 16,
   },
   headerRow: {
