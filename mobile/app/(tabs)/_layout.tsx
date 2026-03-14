@@ -1,9 +1,15 @@
 import { NativeTabs } from "expo-router/unstable-native-tabs";
 import React from "react";
+import { useTabBar } from "@/providers/TabBarProvider";
 
 export default function TabLayout() {
+  const { isTabBarHidden } = useTabBar();
+
   return (
-    <NativeTabs>
+    <NativeTabs 
+      hidden={isTabBarHidden}
+      backgroundColor="rgba(10, 10, 12, 0.4)"
+    >
       <NativeTabs.Trigger name="search">
         <NativeTabs.Trigger.Icon
           sf={{ default: "magnifyingglass", selected: "magnifyingglass" }}

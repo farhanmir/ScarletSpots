@@ -26,7 +26,8 @@ import {
   initOfflineQueue,
   teardownOfflineQueue,
 } from "@/shared/services/OfflineQueue";
-import { installGlobalCrashHandlers } from "@/shared/services/CrashLogger"; // Register geofence tasks globally
+import { installGlobalCrashHandlers } from "@/shared/services/CrashLogger";
+import { TabBarProvider } from "@/providers/TabBarProvider";
 
 // Global Error Boundary
 export { ErrorBoundary } from "expo-router";
@@ -77,16 +78,31 @@ function InitialLayout() {
 
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="index" />
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="auth/login" />
-        <Stack.Screen name="onboarding/permissions" />
-        <Stack.Screen
-          name="modal"
-          options={{ presentation: "modal", title: "Modal", headerShown: true }}
-        />
-      </Stack>
+      <TabBarProvider>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="auth/login" />
+          <Stack.Screen name="onboarding/permissions" />
+          <Stack.Screen
+            name="lot/[id]"
+            options={{
+              presentation: "formSheet",
+              headerShown: false,
+              sheetAllowedDetents: [0.35, 0.95],
+              sheetGrabberVisible: true,
+              sheetCornerRadius: 30,
+              sheetLargestUndimmedDetentIndex: 1,
+              sheetExpandsWhenScrolledToEdge: true,
+              contentStyle: { backgroundColor: "transparent" },
+            }}
+          />
+          <Stack.Screen
+            name="modal"
+            options={{ presentation: "modal", title: "Modal", headerShown: true }}
+          />
+        </Stack>
+      </TabBarProvider>
       <StatusBar style="auto" />
     </ThemeProvider>
   );

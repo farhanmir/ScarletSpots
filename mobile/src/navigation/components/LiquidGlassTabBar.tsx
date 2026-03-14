@@ -63,6 +63,8 @@ export default function LiquidGlassTabBar({
           glassStyle="regular"
           blurIntensity={80}
           blurTint="systemChromeMaterialDark"
+          tintColor="rgba(0, 0, 0, 0.4)"
+          tintOpacity={0.8}
           fallbackColor={
             Platform.OS === "android"
               ? "rgba(8, 8, 10, 0.95)"

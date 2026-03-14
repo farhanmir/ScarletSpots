@@ -8,7 +8,13 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   AppState,
+  Linking,
 } from "react-native";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+} from "react-native-reanimated";
 import MapView, {
   PROVIDER_GOOGLE,
   PROVIDER_DEFAULT,
@@ -23,7 +29,6 @@ import NetInfo from "@react-native-community/netinfo";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { authApiCall, supabase } from "@/shared/api/supabase";
 import { useAuth } from "@/providers/AuthProvider";
-import LotDetails from "../components/LotDetails";
 import ParkingConfirmationSheet from "../components/ParkingConfirmationSheet";
 import CandidatePin from "../components/Map/CandidatePin";
 import { IconSymbol } from "@/shared/components/ui/icon-symbol";
@@ -177,6 +182,14 @@ export default function MapScreen() {
   } | null>(null);
   const [chipHeading, setChipHeading] = useState<number | null>(null);
   const [userHeading, setUserHeading] = useState<number | null>(null);
+
+  // ── Animations ────────────────────────────────────────────────────────
+
+  const centerButtonScale = useSharedValue(1);
+
+  const centerButtonStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: centerButtonScale.value }],
+  }));
 
   // Keep track of the last selected lot for smooth exit animations
   const lastSelectedLotRef = useRef<RutgersLot | null>(null);
@@ -773,30 +786,6 @@ export default function MapScreen() {
     };
   }, [activeSession?.latitude, activeSession?.longitude]);
 
-  // ── Close Lot Sheet ────────────────────────────────────────────────────
-
-  const clearRouteSelectionParams = useCallback(() => {
-    (router as any).setParams({
-      selectedLotId: undefined,
-      placeLat: undefined,
-      placeLng: undefined,
-      placeName: undefined,
-    });
-  }, [router]);
-
-  const closeLotDetails = useCallback(() => {
-    if (lotCooldownRef.current || !selectedLotId) return;
-    lotCooldownRef.current = true;
-    setTimeout(() => {
-      lotCooldownRef.current = false;
-    }, 650);
-    setSelectedLotId(null);
-    if (savedRegionRef.current && AppState.currentState === "active") {
-      mapRef.current?.animateToRegion(savedRegionRef.current, 500);
-      savedRegionRef.current = null;
-    }
-    clearRouteSelectionParams();
-  }, [selectedLotId, clearRouteSelectionParams]);
 
   // ── Park Handler ───────────────────────────────────────────────────────
 
@@ -923,7 +912,6 @@ export default function MapScreen() {
         clearCachedSession().catch(() => {});
         setSelectedLotId(null);
         setSelectedPlace(null);
-        clearRouteSelectionParams();
       } else if (!data) {
         queryClient.setQueryData(["session", "active"], { session: null });
         clearCachedSession().catch(() => {});
@@ -934,6 +922,36 @@ export default function MapScreen() {
       setLoading(false);
     }
   };
+
+  // ── Find Car Handler ───────────────────────────────────────────────
+
+  const handleFindCar = useCallback(() => {
+    if (!activeSession) return;
+    const carLat = activeSession.latitude;
+    const carLng = activeSession.longitude;
+    const lot = lots.find((l) => l.id === activeSession.lotId);
+
+    const targetLat = carLat ?? lot?.latitude;
+    const targetLng = carLng ?? lot?.longitude;
+
+    if (targetLat == null || targetLng == null) {
+      Alert.alert("Error", "Location coordinates not available");
+      return;
+    }
+
+    const label = carLat != null ? "My Car" : lot?.shortName || "Parked Location";
+    const scheme = Platform.select({ ios: "maps:0,0?q=", android: "geo:0,0?q=" });
+    const latLng = `${targetLat},${targetLng}`;
+    const url = Platform.select({
+      ios: `${scheme}${label}@${latLng}`,
+      android: `${scheme}${latLng}(${label})`,
+    });
+
+    if (url) {
+      Linking.openURL(url);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+  }, [activeSession, lots]);
 
   // ── Confirm Parking (from detection) ──────────────────────────────────
 
@@ -1004,15 +1022,14 @@ export default function MapScreen() {
 
   const handleLotPress = useCallback(
     (lot: RutgersLot) => {
-      if (lotCooldownRef.current || selectedLotId === lot.id) return;
+      if (lotCooldownRef.current) return;
       lotCooldownRef.current = true;
       setTimeout(() => {
         lotCooldownRef.current = false;
       }, 650);
-      if (!selectedLotId && regionRef.current && !savedRegionRef.current) {
-        savedRegionRef.current = regionRef.current;
-      }
-      setSelectedLotId(lot.id);
+      
+      router.push(`/lot/${lot.id}` as any);
+      
       if (AppState.currentState === "active") {
         mapRef.current?.animateToRegion(
           {
@@ -1025,7 +1042,7 @@ export default function MapScreen() {
         );
       }
     },
-    [selectedLotId],
+    [router],
   );
 
   // ── Active session lot name (for the floating chip) ───────────────────
@@ -1190,7 +1207,7 @@ export default function MapScreen() {
           setZoomLevel((prev) => (prev === newZoom ? prev : newZoom));
         }}
         onPress={() => {
-          if (selectedLot) closeLotDetails();
+          setSelectedLotId(null);
           setSelectedPlace(null);
         }}
       >
@@ -1404,11 +1421,11 @@ export default function MapScreen() {
       </MapView>
 
       {/* Center-on-me button */}
-      <View style={styles.centerButtonContainer}>
+      <Animated.View style={[styles.centerButtonContainer, centerButtonStyle]}>
         <GlassBackground
           style={StyleSheet.absoluteFill}
           glassStyle="regular"
-          blurIntensity={70}
+          blurIntensity={80}
           blurTint="systemChromeMaterialDark"
           fallbackColor={
             Platform.OS === "android" ? "#111113" : "rgba(10,10,12,0.85)"
@@ -1419,8 +1436,21 @@ export default function MapScreen() {
             styles.centerButton,
             Platform.OS === "android" && styles.centerButtonAndroid,
           ]}
+          onPressIn={() => {
+            centerButtonScale.value = withSpring(0.9, {
+              damping: 10,
+              stiffness: 200,
+            });
+          }}
+          onPressOut={() => {
+            centerButtonScale.value = withSpring(1, {
+              damping: 15,
+              stiffness: 200,
+            });
+          }}
           onPress={() => {
             if (!location || lotCooldownRef.current) return;
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             lotCooldownRef.current = true;
             setTimeout(() => {
               lotCooldownRef.current = false;
@@ -1435,11 +1465,11 @@ export default function MapScreen() {
               500,
             );
           }}
-          activeOpacity={0.7}
+          activeOpacity={1}
         >
-          <IconSymbol name="location.fill" size={24} color="#ef4444" />
+          <IconSymbol name="location.north.fill" size={20} color="#ffffff" />
         </TouchableOpacity>
-      </View>
+      </Animated.View>
 
       {/* ── Active Session Floating Chip ── */}
       {activeSession && (
@@ -1469,7 +1499,11 @@ export default function MapScreen() {
             </View>
             <View style={styles.sessionChipDivider} />
             {chipFindCarState != null ? (
-              <View style={styles.sessionChipFindCar} pointerEvents="none">
+              <TouchableOpacity 
+                style={styles.sessionChipFindCar}
+                onPress={handleFindCar}
+                activeOpacity={0.7}
+              >
                 <View
                   style={[
                     styles.sessionChipArrowWrap,
@@ -1489,19 +1523,19 @@ export default function MapScreen() {
                 <Text style={styles.sessionChipDistance}>
                   {chipFindCarState.distanceText}
                 </Text>
-              </View>
+              </TouchableOpacity>
             ) : (
               <TouchableOpacity
-                onPress={() => router.push("/(tabs)" as any)}
+                onPress={handleFindCar}
                 style={styles.sessionChipAction}
                 hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
               >
                 <IconSymbol
-                  name="location.north.fill"
-                  size={13}
+                  name="arrow.triangle.turn.up.right.diamond.fill"
+                  size={15}
                   color="#60a5fa"
                 />
-                <Text style={styles.sessionChipActionText}>Find Car</Text>
+                <Text style={styles.sessionChipActionText}>Directions</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity
@@ -1542,29 +1576,8 @@ export default function MapScreen() {
         </View>
       )}
 
-      {/* Lot Details Sheet */}
-      <LotDetails
-        lot={selectedLot || lastSelectedLotRef.current || ({} as RutgersLot)}
-        visible={!!selectedLot}
-        onClose={closeLotDetails}
-        onPark={handlePark}
-        isParking={loading}
-        user={user}
-        activeSession={activeSession}
-        isFavorite={
-          selectedLot
-            ? favorites.includes(selectedLot.id)
-            : lastSelectedLotRef.current
-              ? favorites.includes(lastSelectedLotRef.current.id)
-              : false
-        }
-        onToggleFavorite={() => selectedLot && toggleFavorite(selectedLot)}
-        permitType={permitType}
-        secondaryPermitType={secondaryPermitType}
-      />
-
       {/* Detection Confirmation Sheet */}
-      {pendingCandidates.length > 0 && !selectedLot && (
+      {pendingCandidates.length > 0 && (
         <ParkingConfirmationSheet
           candidates={pendingCandidates}
           onConfirm={handleConfirmParking}
@@ -1692,25 +1705,27 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: 110,
     right: 16,
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
+    borderColor: "rgba(255, 255, 255, 0.15)",
+    backgroundColor:
+      Platform.OS === "android" ? "rgba(18,18,20,0.95)" : "transparent",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.65,
+    shadowRadius: 28,
+    elevation: 18,
   },
   centerButton: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(10,10,12,0.0)",
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
   },
-  centerButtonAndroid: { backgroundColor: "#111113" },
+  centerButtonAndroid: { backgroundColor: "transparent" },
 
   // ── Offline badge ──────────────────────────────────────────────────────
   offlineBadge: {
