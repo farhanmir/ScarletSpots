@@ -20,6 +20,7 @@ import MapView, {
   PROVIDER_DEFAULT,
   Polygon,
   Marker,
+  type Region,
 } from "react-native-maps";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useIsFocused } from "@react-navigation/native";
@@ -139,6 +140,19 @@ function bearingDeg(
   return b % 360;
 }
 
+function isRegionCenteredOnLocation(
+  region: Region,
+  coords: Pick<Location.LocationObjectCoords, "latitude" | "longitude">,
+): boolean {
+  const latitudeTolerance = Math.max(region.latitudeDelta * 0.15, 0.00035);
+  const longitudeTolerance = Math.max(region.longitudeDelta * 0.15, 0.00035);
+
+  return (
+    Math.abs(region.latitude - coords.latitude) <= latitudeTolerance &&
+    Math.abs(region.longitude - coords.longitude) <= longitudeTolerance
+  );
+}
+
 // ── Static lot base (from bundled JSON, no API call) ──────────────────────
 // Computed once at module load — never re-fetched unless the app updates.
 const STATIC_LOTS = getAllLots(ENABLE_ALL_CAMPUSES);
@@ -176,7 +190,8 @@ export default function MapScreen() {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [isOnline, setIsOnline] = useState(true);
-  const [isCenterPressed, setIsCenterPressed] = useState(false);
+  const [isCenterButtonPressed, setIsCenterButtonPressed] = useState(false);
+  const [isCenteredOnUser, setIsCenteredOnUser] = useState(false);
   const [chipUserPosition, setChipUserPosition] = useState<{
     latitude: number;
     longitude: number;
@@ -323,6 +338,17 @@ export default function MapScreen() {
   });
 
   const activeSession = sessionData?.session ?? null;
+
+  useEffect(() => {
+    if (!location || !regionRef.current) {
+      setIsCenteredOnUser(false);
+      return;
+    }
+
+    setIsCenteredOnUser(
+      isRegionCenteredOnLocation(regionRef.current, location.coords),
+    );
+  }, [location]);
 
   // ── Derived: selectedLot ───────────────────────────────────────────────
 
@@ -1202,6 +1228,9 @@ export default function MapScreen() {
         }}
         onRegionChangeComplete={(region) => {
           regionRef.current = region;
+          setIsCenteredOnUser(
+            location ? isRegionCenteredOnLocation(region, location.coords) : false,
+          );
           let newZoom: ZoomLevel = "hidden";
           if (region.latitudeDelta < 0.05) newZoom = "lot";
           else if (region.latitudeDelta < 0.6) newZoom = "campus";
@@ -1433,18 +1462,19 @@ export default function MapScreen() {
         <TouchableOpacity
           style={[
             styles.centerButton,
-            isCenterPressed && styles.centerButtonPressed,
+            isCenteredOnUser && styles.centerButtonActive,
+            isCenterButtonPressed && styles.centerButtonPressed,
             Platform.OS === "android" && styles.centerButtonAndroid,
           ]}
           onPressIn={() => {
-            setIsCenterPressed(true);
+            setIsCenterButtonPressed(true);
             centerButtonScale.value = withSpring(0.9, {
               damping: 10,
               stiffness: 200,
             });
           }}
           onPressOut={() => {
-            setIsCenterPressed(false);
+            setIsCenterButtonPressed(false);
             centerButtonScale.value = withSpring(1, {
               damping: 15,
               stiffness: 200,
@@ -1470,9 +1500,9 @@ export default function MapScreen() {
           activeOpacity={1}
         >
           <IconSymbol
-            name={isCenterPressed ? "location.north.fill" : "location.north"}
+            name={isCenteredOnUser ? "location.north.fill" : "location.north"}
             size={20}
-            color={isCenterPressed ? "#ffffff" : "#e4e4e7"}
+            color={isCenteredOnUser ? "#ffffff" : "#e4e4e7"}
           />
         </TouchableOpacity>
       </Animated.View>
@@ -1715,8 +1745,6 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 24,
     overflow: "hidden",
-    borderWidth: (StyleSheet.hairlineWidth * 2) as any,
-    borderColor: "rgba(255,255,255,0.2)",
     backgroundColor:
       Platform.OS === "android" ? "rgba(30,32,38,0.45)" : "transparent",
     shadowColor: "#000",
@@ -1729,13 +1757,14 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.16)",
+    borderRadius: 24,
+    backgroundColor: "transparent",
+  },
+  centerButtonActive: {
+    backgroundColor: "rgba(255, 255, 255, 0.14)",
   },
   centerButtonPressed: {
     backgroundColor: "rgba(255, 255, 255, 0.2)",
-    borderColor: "rgba(255,255,255,0.28)",
   },
   centerButtonAndroid: { backgroundColor: "rgba(255,255,255,0.12)" },
 

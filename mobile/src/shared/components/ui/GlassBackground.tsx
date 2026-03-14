@@ -31,6 +31,11 @@ export interface GlassBackgroundProps {
    * Opacity of the tint color (0-1).
    */
   tintOpacity?: number;
+  /**
+   * Whether to use Liquid Glass on supported iOS versions.
+   * Set to false to force BlurView fallback for problematic transitions.
+   */
+  preferLiquidGlass?: boolean;
 }
 
 export function GlassBackground({
@@ -41,10 +46,15 @@ export function GlassBackground({
   blurTint = "systemChromeMaterialDark",
   tintColor,
   tintOpacity = 0.5,
+  preferLiquidGlass = true,
 }: Readonly<GlassBackgroundProps>) {
   if (Platform.OS === "ios") {
     // Prefer true Liquid Glass on iOS 26+ when the API is available.
-    if (isGlassEffectAPIAvailable() && isLiquidGlassAvailable()) {
+    if (
+      preferLiquidGlass &&
+      isGlassEffectAPIAvailable() &&
+      isLiquidGlassAvailable()
+    ) {
       return (
         <GlassView
           style={style}
@@ -59,9 +69,18 @@ export function GlassBackground({
     // is disabled by system / accessibility settings.
     return (
       <View style={style}>
-        <BlurView intensity={blurIntensity} tint={blurTint} style={StyleSheet.absoluteFill} />
+        <BlurView
+          intensity={blurIntensity}
+          tint={blurTint}
+          style={StyleSheet.absoluteFill}
+        />
         {tintColor && (
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: tintColor, opacity: tintOpacity }]} />
+          <View
+            style={[
+              StyleSheet.absoluteFill,
+              { backgroundColor: tintColor, opacity: tintOpacity },
+            ]}
+          />
         )}
       </View>
     );
@@ -72,7 +91,12 @@ export function GlassBackground({
   return (
     <View style={[{ backgroundColor: fallbackColor }, style]}>
       {tintColor && (
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: tintColor, opacity: tintOpacity }]} />
+        <View
+          style={[
+            StyleSheet.absoluteFill,
+            { backgroundColor: tintColor, opacity: tintOpacity },
+          ]}
+        />
       )}
     </View>
   );

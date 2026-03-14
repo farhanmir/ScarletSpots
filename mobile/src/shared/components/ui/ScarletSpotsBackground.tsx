@@ -22,8 +22,8 @@ export function ScarletSpotsBackground() {
         id: i,
         top: `${Math.random() * 100}%`,
         left: `${Math.random() * 100}%`,
-        size: Math.random() * 3 + 3, // 3px to 6px
-        opacity: Math.random() * 0.15 + 0.05, // 0.05 to 0.20
+        size: Math.random() * 6 + 6, // 6px to 12px
+        opacity: Math.random() * 0.18 + 0.08, // 0.08 to 0.26
       });
     }
     return newSpots;

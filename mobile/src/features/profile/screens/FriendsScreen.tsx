@@ -394,6 +394,7 @@ export default function FriendsScreen() {
             <GlassBackground
               style={StyleSheet.absoluteFill}
               glassStyle="clear"
+              preferLiquidGlass={false}
               blurIntensity={28}
               blurTint="dark"
               fallbackColor="rgba(0,0,0,0.65)"
@@ -513,7 +514,7 @@ const styles = StyleSheet.create({
 
   // List
   listContent: {
-    paddingTop: HEADER_HEIGHT + 24,
+    paddingTop: HEADER_HEIGHT + 52,
     paddingHorizontal: 16,
     paddingBottom: 120,
   },
