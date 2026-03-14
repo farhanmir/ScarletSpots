@@ -1,8 +1,13 @@
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo';
 import { AppState } from 'react-native';
 import { PARKING_DETECTION_TASK, stopSensorTracking } from './BackgroundTasks';
+import { getCachedSession, clearCachedSession } from './OfflineCache';
+import { queueParkAction } from './OfflineQueue';
+import { supabase } from '@/shared/api/supabase-client';
+import { fetchBackend } from '@/shared/api/api-base';
 
 export const GEOFENCE_TASK_NAME = 'SCARLETSPOTS_GEOFENCE_TASK';
 
@@ -113,9 +118,44 @@ TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }: any) => {
   } else if (eventType === Location.GeofencingEventType.Exit) {
     console.log(`[GeofenceManager] Exited region: ${region.identifier}. Stopping active tracking.`);
     await AsyncStorage.removeItem('current_geofence_lot_id');
-    
+
     // Stop active tracking and sensors to save battery/memory
     stopSensorTracking();
     await Location.stopLocationUpdatesAsync(PARKING_DETECTION_TASK);
+
+    // Auto-end parking session when user leaves the lot (works without opening the app)
+    try {
+      const cached = (await getCachedSession()) as { session?: { lotId?: string } } | null;
+      const sessionLotId = cached?.session?.lotId;
+      if (sessionLotId && String(region.identifier) === String(sessionLotId)) {
+        const { data: { session: authSession } } = await supabase.auth.getSession();
+        const netState = await NetInfo.fetch();
+        if (authSession?.access_token) {
+          if (netState.isConnected) {
+            const response = await fetchBackend('/park/session/end', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authSession.access_token}`,
+                'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
+              },
+              body: '{}',
+            });
+            if (response.ok) {
+              await clearCachedSession();
+              console.log('[GeofenceManager] Auto-ended session for lot', region.identifier);
+            }
+          } else {
+            await queueParkAction('END_PARK', {});
+            await clearCachedSession();
+            console.log('[GeofenceManager] Offline: queued END_PARK and cleared cache');
+          }
+        } else {
+          await clearCachedSession();
+        }
+      }
+    } catch (err) {
+      console.warn('[GeofenceManager] Auto-end session failed:', err);
+    }
   }
 });

@@ -147,7 +147,7 @@ export default function PermissionsScreen() {
           icon: 'location.fill',
           color: '#dc2626',
           title: 'Enable Location',
-          subtitle: 'ScarletSpots needs your location to show nearby parking lots and navigate you to your car.'
+          subtitle: 'ScarletSpots needs your location to show nearby parking lots and navigate you to your car. Allow "Always" so we can detect when you park even when the app is closed.'
         };
       case 'motion':
         return {

@@ -117,7 +117,7 @@ TaskManager.defineTask(PARKING_DETECTION_TASK, async ({ data, error }: any) => {
   await Notifications.scheduleNotificationAsync({
     content: {
       title: '🚗 ScarletSpots',
-      body: `Looks like you parked at ${topCandidate.lotName}. Tap to confirm.`,
+      body: `We recorded your parking at ${topCandidate.lotName}. Open the app to see your spot.`,
       data: {
         lotId: topCandidate.lotId,
         action: 'confirm_park',

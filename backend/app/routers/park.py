@@ -31,6 +31,7 @@ class ParkSessionCreate(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     confirmed: bool = True
+    autoStarted: bool = False
 
 
 class DetectionQuality(str, Enum):
@@ -70,6 +71,7 @@ def get_active_session(current_user=Depends(get_current_user), db=Depends(get_au
                     "longitude": s.get("longitude"),
                     "startTime": s.get("start_time") or s.get("created_at"),
                     "active": True,
+                    "autoStarted": bool(s.get("auto_started", False)),
                 }
             }
         return {"session": None}
@@ -114,6 +116,7 @@ def start_parking_session(
                 "p_lot_id": lot_id,
                 "p_latitude": body.latitude,
                 "p_longitude": body.longitude,
+                "p_auto_started": body.autoStarted,
             },
         ).execute()
     except Exception as exc:
@@ -156,8 +159,11 @@ def start_parking_session(
         "session": {
             "id": str(new_session["id"]),
             "lotId": str(new_session["lot_id"]),
+            "latitude": new_session.get("latitude"),
+            "longitude": new_session.get("longitude"),
             "startTime": new_session.get("start_time") or new_session.get("created_at"),
             "active": True,
+            "autoStarted": bool(new_session.get("auto_started", False)),
         },
         "confirmedOccupancy": confirmed_occupancy,
     }

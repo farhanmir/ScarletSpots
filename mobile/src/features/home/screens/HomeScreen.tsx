@@ -16,7 +16,7 @@ import { IconSymbol } from '@/shared/components/ui/icon-symbol';
 import { getPendingParkingCandidates, clearPendingParkingCandidates } from '@/shared/services/BackgroundTasks';
 import { type ParkingCandidate } from '@/shared/services/ParkingDetectionService';
 import { registerLotGeofences } from '@/shared/services/GeofenceManager';
-import { fetchWithOfflineFallback, clearCachedSession, cacheFavorites, getCachedFavorites } from '@/shared/services/OfflineCache';
+import { fetchWithOfflineFallback, clearCachedSession, cacheSession, cacheFavorites, getCachedFavorites } from '@/shared/services/OfflineCache';
 import {
   initOfflineQueue,
   queueParkAction,
@@ -34,6 +34,9 @@ interface ParkingSession {
   lotId: string;
   startTime: string;
   endTime?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  autoStarted?: boolean;
 }
 
 type ZoomLevel = 'lot' | 'campus' | 'hidden';
@@ -62,6 +65,29 @@ const getClusterColor = (rate: number) => {
   return '#059669';
 };
 
+/** Haversine distance in meters. */
+function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+/** Bearing from (lat1,lon1) to (lat2,lon2) in degrees 0–360. */
+function bearingDeg(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const lat1Rad = (lat1 * Math.PI) / 180;
+  const lat2Rad = (lat2 * Math.PI) / 180;
+  const y = Math.sin(dLon) * Math.cos(lat2Rad);
+  const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) - Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLon);
+  let b = (Math.atan2(y, x) * 180) / Math.PI + 360;
+  return b % 360;
+}
+
 // ── Static lot base (from bundled JSON, no API call) ──────────────────────
 // Computed once at module load — never re-fetched unless the app updates.
 const STATIC_LOTS = getAllLots(ENABLE_ALL_CAMPUSES);
@@ -85,6 +111,9 @@ export default function MapScreen() {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [isOnline, setIsOnline] = useState(true);
+  const [chipUserPosition, setChipUserPosition] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [chipHeading, setChipHeading] = useState<number | null>(null);
+  const [userHeading, setUserHeading] = useState<number | null>(null);
 
   const isFocused = useIsFocused();
 
@@ -372,18 +401,81 @@ export default function MapScreen() {
     }
   }, [selectedLotIdParam, placeLat, placeLng, placeName, lots]);
 
-  // ── Pending Parking Detection ──────────────────────────────────────────
+  // ── Pending Parking Detection: load candidates; auto-start if none active ─
 
+  const hasAutoStartedRef = useRef(false);
   useEffect(() => {
-    if (user) {
-      getPendingParkingCandidates().then(candidates => {
-        if (candidates.length > 0) setPendingCandidates(candidates);
-      });
-    } else {
+    if (!user) {
       queryClient.setQueryData(['session', 'active'], { session: null });
       setPendingCandidates([]);
+      hasAutoStartedRef.current = false;
+      return;
     }
-  }, [user, queryClient]);
+    getPendingParkingCandidates().then(async candidates => {
+      if (candidates.length === 0) {
+        hasAutoStartedRef.current = false;
+        return;
+      }
+      const currentSession = queryClient.getQueryData<{ session: ParkingSession | null }>(['session', 'active'])?.session ?? null;
+      if (currentSession) {
+        await clearPendingParkingCandidates();
+        setPendingCandidates([]);
+        return;
+      }
+      if (hasAutoStartedRef.current) return;
+      hasAutoStartedRef.current = true;
+      const top = candidates[0];
+      const payload = {
+        lotId: top.lotId,
+        latitude: top.latitude,
+        longitude: top.longitude,
+        confirmed: true,
+        autoStarted: true,
+      };
+      setPendingCandidates([]);
+      await clearPendingParkingCandidates();
+      try {
+        const netState = await NetInfo.fetch();
+        if (!netState.isConnected) {
+          await queueParkAction('CONFIRM_DETECTED', payload);
+          const optimisticSession = {
+            id: `offline-${Date.now()}`,
+            lotId: top.lotId,
+            startTime: new Date().toISOString(),
+            latitude: top.latitude,
+            longitude: top.longitude,
+            autoStarted: true,
+          };
+          queryClient.setQueryData(['session', 'active'], { session: optimisticSession });
+          await cacheSession({ session: optimisticSession });
+          updateOptimisticOccupancy(top.lotId, 1);
+          return;
+        }
+        const data = await authApiCall('/park/session', { method: 'POST', body: JSON.stringify(payload) });
+        if (data?.success && data?.session) {
+          queryClient.setQueryData(['session', 'active'], { session: data.session });
+          await cacheSession({ session: data.session });
+          updateOptimisticOccupancy(top.lotId, 1);
+        } else {
+          setPendingCandidates(candidates);
+          hasAutoStartedRef.current = false;
+        }
+      } catch {
+        await queueParkAction('CONFIRM_DETECTED', payload);
+        const offlineSession = {
+          id: `offline-${Date.now()}`,
+          lotId: top.lotId,
+          startTime: new Date().toISOString(),
+          latitude: top.latitude,
+          longitude: top.longitude,
+          autoStarted: true,
+        };
+        queryClient.setQueryData(['session', 'active'], { session: offlineSession });
+        await cacheSession({ session: offlineSession });
+        updateOptimisticOccupancy(top.lotId, 1);
+      }
+    });
+  }, [user, queryClient, updateOptimisticOccupancy]);
 
   // ── Location Permission ────────────────────────────────────────────────
 
@@ -402,6 +494,107 @@ export default function MapScreen() {
       }
     })();
   }, []);
+
+  // ── Map user location + heading for rotating blue cone ───────────────────
+
+  const mapUserWatchRef = useRef<{ position?: { remove: () => void }; heading?: { remove: () => void } }>({});
+  useEffect(() => {
+    if (!isFocused) {
+      mapUserWatchRef.current.position?.remove();
+      mapUserWatchRef.current.heading?.remove();
+      mapUserWatchRef.current = {};
+      setUserHeading(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const posSub = await Location.watchPositionAsync(
+          { accuracy: Location.Accuracy.Balanced, timeInterval: 3000, distanceInterval: 10 },
+          (loc) => {
+            if (!cancelled) setLocation(loc);
+          }
+        );
+        if (cancelled) {
+          posSub.remove();
+          return;
+        }
+        mapUserWatchRef.current.position = posSub;
+        const headSub = await Location.watchHeadingAsync((h) => {
+          if (cancelled) return;
+          const deg = h.trueHeading >= 0 ? h.trueHeading : h.magHeading;
+          if (deg >= 0) setUserHeading(deg);
+        });
+        if (cancelled) {
+          headSub.remove();
+          posSub.remove();
+          return;
+        }
+        mapUserWatchRef.current.heading = headSub;
+      } catch (err) {
+        if (!cancelled) console.warn('[MapScreen] Map user location/heading watch failed:', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      mapUserWatchRef.current.position?.remove();
+      mapUserWatchRef.current.heading?.remove();
+      mapUserWatchRef.current = {};
+      setUserHeading(null);
+    };
+  }, [isFocused]);
+
+  // ── Find Car chip: live position + heading when session has car coords ───
+
+  const chipWatchRef = useRef<{ position?: { remove: () => void }; heading?: { remove: () => void } }>({});
+  useEffect(() => {
+    const hasCarCoords = activeSession?.latitude != null && activeSession?.longitude != null;
+    if (!hasCarCoords) {
+      chipWatchRef.current.position?.remove();
+      chipWatchRef.current.heading?.remove();
+      chipWatchRef.current = {};
+      setChipUserPosition(null);
+      setChipHeading(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const posSub = await Location.watchPositionAsync(
+          { accuracy: Location.Accuracy.Balanced, timeInterval: 2000, distanceInterval: 5 },
+          (loc) => {
+            if (!cancelled) setChipUserPosition({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
+          }
+        );
+        if (cancelled) {
+          posSub.remove();
+          return;
+        }
+        chipWatchRef.current.position = posSub;
+        const headSub = await Location.watchHeadingAsync((h) => {
+          if (cancelled) return;
+          const deg = h.trueHeading >= 0 ? h.trueHeading : h.magHeading;
+          if (deg >= 0) setChipHeading(deg);
+        });
+        if (cancelled) {
+          headSub.remove();
+          posSub.remove();
+          return;
+        }
+        chipWatchRef.current.heading = headSub;
+      } catch (err) {
+        if (!cancelled) console.warn('[MapScreen] Chip location/heading watch failed:', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      chipWatchRef.current.position?.remove();
+      chipWatchRef.current.heading?.remove();
+      chipWatchRef.current = {};
+      setChipUserPosition(null);
+      setChipHeading(null);
+    };
+  }, [activeSession?.latitude, activeSession?.longitude]);
 
   // ── Close Lot Sheet ────────────────────────────────────────────────────
 
@@ -462,6 +655,7 @@ export default function MapScreen() {
           startTime: new Date().toISOString(),
         };
         queryClient.setQueryData(['session', 'active'], { session: optimisticSession });
+        cacheSession({ session: optimisticSession }).catch(() => {});
         updateOptimisticOccupancy(lot.id, 1);
         setSelectedLotId(null);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -480,6 +674,7 @@ export default function MapScreen() {
           startTime: new Date().toISOString(),
         };
         queryClient.setQueryData(['session', 'active'], { session });
+        cacheSession({ session }).catch(() => {});
         if (!data._offline && data.confirmedOccupancy !== undefined) {
           queryClient.setQueryData(['lots_occupancy'], (old: RutgersLot[] | undefined) => {
             if (!old) return old;
@@ -564,9 +759,9 @@ export default function MapScreen() {
       const netState = await NetInfo.fetch();
       if (!netState.isConnected) {
         await queueParkAction('CONFIRM_DETECTED', payload);
-        queryClient.setQueryData(['session', 'active'], {
-          session: { id: `offline-${Date.now()}`, lotId: candidate.lotId, startTime: new Date().toISOString() },
-        });
+        const offlineSession = { id: `offline-${Date.now()}`, lotId: candidate.lotId, startTime: new Date().toISOString() };
+        queryClient.setQueryData(['session', 'active'], { session: offlineSession });
+        cacheSession({ session: offlineSession }).catch(() => {});
         updateOptimisticOccupancy(candidate.lotId, 1);
         await clearPendingParkingCandidates();
         setPendingCandidates([]);
@@ -574,8 +769,9 @@ export default function MapScreen() {
         return;
       }
       const data = await authApiCall('/park/session', { method: 'POST', body: JSON.stringify(payload) });
-      if (data?.success) {
+      if (data?.success && data?.session) {
         queryClient.setQueryData(['session', 'active'], { session: data.session });
+        cacheSession({ session: data.session }).catch(() => {});
         updateOptimisticOccupancy(candidate.lotId, 1);
         await clearPendingParkingCandidates();
         setPendingCandidates([]);
@@ -628,6 +824,23 @@ export default function MapScreen() {
     return lot?.shortName ?? lot?.name ?? activeSession.lotId;
   }, [activeSession, lots]);
 
+  // ── Find Car chip: distance + arrow rotation when we have car coords ────
+
+  const chipFindCarState = React.useMemo(() => {
+    const carLat = activeSession?.latitude;
+    const carLng = activeSession?.longitude;
+    if (carLat == null || carLng == null) return null;
+    const userPos = chipUserPosition ?? (location ? { latitude: location.coords.latitude, longitude: location.coords.longitude } : null);
+    if (!userPos) return { distanceText: '—', arrowRotation: 0 };
+    const meters = haversineMeters(userPos.latitude, userPos.longitude, carLat, carLng);
+    const feet = meters * 3.28084;
+    const distanceText = feet < 500 ? `${Math.round(feet)} ft` : `${Math.round(meters)} m`;
+    const bear = bearingDeg(userPos.latitude, userPos.longitude, carLat, carLng);
+    const heading = chipHeading ?? 0;
+    const arrowRotation = (bear - heading + 360) % 360;
+    return { distanceText, arrowRotation };
+  }, [activeSession?.latitude, activeSession?.longitude, chipUserPosition, location, chipHeading]);
+
   // ── Dark Map Style ────────────────────────────────────────────────────
 
   const darkMapStyle = [
@@ -663,7 +876,7 @@ export default function MapScreen() {
         style={styles.map}
         customMapStyle={darkMapStyle}
         userInterfaceStyle="dark"
-        showsUserLocation={true}
+        showsUserLocation={!location}
         showsMyLocationButton={false}
         showsTraffic={false}
         initialRegion={{ latitude: 40.5008, longitude: -74.4474, latitudeDelta: 0.0922, longitudeDelta: 0.0421 }}
@@ -679,6 +892,24 @@ export default function MapScreen() {
           setSelectedPlace(null);
         }}
       >
+        {/* User location: rotating blue cone (direction of travel) */}
+        {location && (
+          <Marker
+            coordinate={{
+              latitude: location.coords.latitude,
+              longitude: location.coords.longitude,
+            }}
+            flat
+            anchor={{ x: 0.5, y: 0.5 }}
+            tracksViewChanges={false}
+            zIndex={100}
+          >
+            <View style={[styles.userConeWrap, { transform: [{ rotate: `${userHeading ?? 0}deg` }] }]}>
+              <View style={styles.userCone} />
+            </View>
+          </Marker>
+        )}
+
         {/* Lot polygons at zoom level 'lot' */}
         {zoomLevel === 'lot' && visibleLots.flatMap((lot) => {
           const isSelected = selectedLot?.id === lot.id;
@@ -839,18 +1070,34 @@ export default function MapScreen() {
           />
           <View style={styles.sessionChipContent}>
             <View style={styles.sessionChipDot} />
-            <Text style={styles.sessionChipText} numberOfLines={1}>
-              {activeSessionLotName ?? 'Parked'}
-            </Text>
+            <View style={styles.sessionChipTitleRow}>
+              <Text style={styles.sessionChipText} numberOfLines={1}>
+                {activeSessionLotName ?? 'Parked'}
+              </Text>
+              {activeSession?.autoStarted && (
+                <Text style={styles.sessionChipSubtitle} numberOfLines={1}>
+                  We detected you parked here. Wrong? Tap End to remove.
+                </Text>
+              )}
+            </View>
             <View style={styles.sessionChipDivider} />
-            <TouchableOpacity
-              onPress={() => router.push('/(tabs)' as any)}
-              style={styles.sessionChipAction}
-              hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
-            >
-              <IconSymbol name="location.north.fill" size={13} color="#60a5fa" />
-              <Text style={styles.sessionChipActionText}>Find Car</Text>
-            </TouchableOpacity>
+            {chipFindCarState != null ? (
+              <View style={styles.sessionChipFindCar} pointerEvents="none">
+                <View style={[styles.sessionChipArrowWrap, { transform: [{ rotate: `${chipFindCarState.arrowRotation}deg` }] }]}>
+                  <IconSymbol name="location.north.fill" size={14} color="#60a5fa" />
+                </View>
+                <Text style={styles.sessionChipDistance}>{chipFindCarState.distanceText}</Text>
+              </View>
+            ) : (
+              <TouchableOpacity
+                onPress={() => router.push('/(tabs)' as any)}
+                style={styles.sessionChipAction}
+                hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+              >
+                <IconSymbol name="location.north.fill" size={13} color="#60a5fa" />
+                <Text style={styles.sessionChipActionText}>Find Car</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               onPress={() => {
                 Alert.alert('End Session', `End parking at ${activeSessionLotName}?`, [
@@ -915,6 +1162,24 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   map: { width: '100%', height: '100%' },
 
+  userConeWrap: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  userCone: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 10,
+    borderRightWidth: 10,
+    borderBottomWidth: 22,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderBottomColor: '#3b82f6',
+    marginBottom: -18,
+  },
+
   // ── Session chip ──────────────────────────────────────────────────────
   sessionChipContainer: {
     position: 'absolute',
@@ -945,12 +1210,38 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: '#ef4444',
   },
+  sessionChipTitleRow: {
+    flexDirection: 'column',
+    flexShrink: 1,
+    maxWidth: 130,
+    gap: 2,
+  },
   sessionChipText: {
     color: '#f4f4f5',
     fontSize: 14,
     fontWeight: '600',
-    flexShrink: 1,
-    maxWidth: 130,
+  },
+  sessionChipSubtitle: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 11,
+    fontWeight: '400',
+  },
+  sessionChipFindCar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  sessionChipArrowWrap: {
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sessionChipDistance: {
+    color: '#93c5fd',
+    fontSize: 13,
+    fontWeight: '600',
+    minWidth: 44,
   },
   sessionChipDivider: {
     width: 1,

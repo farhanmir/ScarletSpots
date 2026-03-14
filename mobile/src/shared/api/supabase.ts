@@ -97,6 +97,9 @@ export async function authApiCall(endpoint: string, options: RequestInit = {}): 
             lotId: payload.lotId as string,
             startTime: new Date().toISOString(),
             active: true,
+            latitude: payload.latitude,
+            longitude: payload.longitude,
+            autoStarted: !!payload.autoStarted,
           },
         };
       }
