@@ -94,7 +94,7 @@ function InitialLayout() {
               sheetCornerRadius: 30,
               sheetLargestUndimmedDetentIndex: 1,
               sheetExpandsWhenScrolledToEdge: true,
-              contentStyle: { backgroundColor: "#0f0f12" },
+              contentStyle: { backgroundColor: "#000000" },
             }}
           />
           <Stack.Screen
@@ -113,7 +113,7 @@ function ConfigErrorScreen() {
     <View
       style={{
         flex: 1,
-        backgroundColor: "#09090b",
+        backgroundColor: "#000000",
         justifyContent: "center",
         alignItems: "center",
         padding: 40,

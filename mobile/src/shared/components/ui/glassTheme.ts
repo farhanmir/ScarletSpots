@@ -19,7 +19,7 @@ export const GLASS = {
   tintDark: "systemChromeMaterialDark" as BlurTint,
 
   /** Thin edge border that catches light on glass surfaces */
-  borderColor: "rgba(255, 255, 255, 0.08)",
+  borderColor: "rgba(255, 255, 255, 0.04)",
   /** Slightly brighter border for interactive / focused elements */
   borderColorFocused: "rgba(220, 38, 38, 0.55)",
 

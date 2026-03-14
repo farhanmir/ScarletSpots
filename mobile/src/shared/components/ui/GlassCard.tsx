@@ -88,7 +88,7 @@ export function GlassCard({
 const styles = StyleSheet.create({
   card: {
     overflow: "hidden",
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   content: {
     padding: 14,

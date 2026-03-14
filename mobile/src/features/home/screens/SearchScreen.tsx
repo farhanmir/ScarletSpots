@@ -16,6 +16,7 @@ import { useRouter } from "expo-router";
 import { IconSymbol } from "@/shared/components/ui/icon-symbol";
 import { GlassCard } from "@/shared/components/ui/GlassCard";
 import { GlassSearchBar } from "@/shared/components/ui/GlassSearchBar";
+import { ScarletSpotsBackground } from "@/shared/components/ui/ScarletSpotsBackground";
 import { GLASS } from "@/shared/components/ui/glassTheme";
 import * as Location from "expo-location";
 import { RUTGERS_BUILDINGS } from "@/shared/constants/buildings";
@@ -349,10 +350,7 @@ export default function SearchScreen() {
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
       <View style={styles.container}>
         <StatusBar barStyle="light-content" />
-        <LinearGradient
-          colors={["#0f0f12", "#09090b"]}
-          style={StyleSheet.absoluteFill}
-        />
+        <ScarletSpotsBackground />
 
         {/* ── Main content (rendered before the glass header so blur works) ── */}
         {query.length === 0 && renderDefaultContent()}
@@ -368,7 +366,6 @@ export default function SearchScreen() {
           />
           <View style={styles.headerInner}>
             <Text style={styles.title}>Search</Text>
-            <Text style={styles.subtitle}>Lots, buildings & places</Text>
             <GlassSearchBar
               value={query}
               onChangeText={setQuery}
@@ -445,12 +442,12 @@ const styles = StyleSheet.create({
 
   // List containers
   emptyBody: {
-    paddingTop: HEADER_HEIGHT + 8,
+    paddingTop: HEADER_HEIGHT + 24,
     paddingHorizontal: 20,
     paddingBottom: 120,
   },
   resultsList: {
-    paddingTop: HEADER_HEIGHT + 4,
+    paddingTop: HEADER_HEIGHT + 16,
     paddingHorizontal: 20,
     paddingBottom: 120,
   },

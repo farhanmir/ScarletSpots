@@ -14,6 +14,7 @@ import { useRouter } from "expo-router";
 import { IconSymbol } from "@/shared/components/ui/icon-symbol";
 import { GlassCard } from "@/shared/components/ui/GlassCard";
 import { GlassBackground } from "@/shared/components/ui/GlassBackground";
+import { ScarletSpotsBackground } from "@/shared/components/ui/ScarletSpotsBackground";
 import { GLASS } from "@/shared/components/ui/glassTheme";
 import { authApiCall } from "@/shared/api/supabase";
 import { useFocusEffect } from "@react-navigation/native";
@@ -128,10 +129,7 @@ export default function ProfileScreen() {
   if (!loading && !session) {
     return (
       <View style={styles.container}>
-        <LinearGradient
-          colors={["#0f0f12", "#09090b"]}
-          style={StyleSheet.absoluteFill}
-        />
+        <ScarletSpotsBackground />
         <View style={styles.centerContent}>
           <GlassCard
             style={styles.notSignedInCard}
@@ -176,10 +174,7 @@ export default function ProfileScreen() {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
-      <LinearGradient
-        colors={["#0f0f12", "#09090b"]}
-        style={StyleSheet.absoluteFill}
-      />
+      <ScarletSpotsBackground />
 
       <ScrollView
         style={styles.scrollView}
@@ -604,7 +599,7 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     borderRadius: 20,
     overflow: "hidden",
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: GLASS.borderColor,
   },
   permitBadgeText: {
@@ -779,8 +774,8 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     borderRadius: 14,
     overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.07)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: GLASS.borderColor,
   },
   signOutText: { color: GLASS.accent, fontSize: 15, fontWeight: "600" },
 

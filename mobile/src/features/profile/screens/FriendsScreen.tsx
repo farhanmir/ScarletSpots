@@ -18,6 +18,7 @@ import { IconSymbol } from "@/shared/components/ui/icon-symbol";
 import { GlassCard } from "@/shared/components/ui/GlassCard";
 import { GlassSegmentedControl } from "@/shared/components/ui/GlassSegmentedControl";
 import { GlassBackground } from "@/shared/components/ui/GlassBackground";
+import { ScarletSpotsBackground } from "@/shared/components/ui/ScarletSpotsBackground";
 import { GLASS } from "@/shared/components/ui/glassTheme";
 import { useRouter } from "expo-router";
 import { useIsFocused } from "@react-navigation/native";
@@ -306,10 +307,7 @@ export default function FriendsScreen() {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
-      <LinearGradient
-        colors={["#0f0f12", "#09090b"]}
-        style={StyleSheet.absoluteFill}
-      />
+        <ScarletSpotsBackground />
 
       {/* ── List (rendered before glass header so blur works) ── */}
       <FlatList
@@ -360,7 +358,6 @@ export default function FriendsScreen() {
               style={styles.addBtn}
               onPress={() => setIsAddModalVisible(true)}
               activeOpacity={0.8}
-              pointerEvents="auto"
             >
               <GlassBackground
                 style={StyleSheet.absoluteFill}
@@ -516,7 +513,7 @@ const styles = StyleSheet.create({
 
   // List
   listContent: {
-    paddingTop: HEADER_HEIGHT + 8,
+    paddingTop: HEADER_HEIGHT + 24,
     paddingHorizontal: 16,
     paddingBottom: 120,
   },

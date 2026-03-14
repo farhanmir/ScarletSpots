@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderRadius: 14,
     overflow: "hidden",
-    borderWidth: 1.5,
+    borderWidth: 1,
     paddingHorizontal: 14,
     paddingVertical: Platform.OS === "ios" ? 13 : 10,
     gap: 10,
