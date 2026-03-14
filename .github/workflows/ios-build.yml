@@ -6,7 +6,7 @@ on:
 jobs:
   ios-build:
     name: iOS Build (Sideloading)
-    runs-on: macos-15
+    runs-on: macos-26
     permissions:
       contents: write
 
@@ -17,7 +17,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: latest
           cache: npm
           cache-dependency-path: mobile/package-lock.json
 
@@ -139,3 +139,5 @@ jobs:
           generate_release_notes: true
           prerelease: true
           files: ${{ steps.xcode_info.outputs.scheme }}.ipa
+
+
