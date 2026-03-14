@@ -8,8 +8,9 @@ Coverage:
   - Concurrent-start: second start while one is active is handled gracefully
 """
 
-from app.main import app
 from fastapi.testclient import TestClient
+
+from app.main import app
 
 client = TestClient(app)
 
@@ -61,9 +62,7 @@ def test_parking_session_lifecycle():
     mock_db = MagicMock()
 
     # GET /active — no active session initially
-    mock_db.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = (
-        []
-    )
+    mock_db.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = []
 
     # ── Mock admin DB (atomic RPC calls) ───────────────────────────────────────
     mock_admin_db = MagicMock()
@@ -114,10 +113,7 @@ def test_parking_session_lifecycle():
             # Verify atomic start RPC was called (not the old split RPCs)
             start_call_args = mock_admin_db.rpc.call_args_list[0]
             assert start_call_args[0][0] == "start_parking_session_atomic"
-            assert (
-                start_call_args[0][1]["p_lot_id"]
-                == "a0000000-0000-0000-0000-000000000001"
-            )
+            assert start_call_args[0][1]["p_lot_id"] == "a0000000-0000-0000-0000-000000000001"
 
             # End the session
             resp_end = client.post("/api/v1/park/session/end")
@@ -150,9 +146,7 @@ def test_start_session_atomic_rpc_failure():
 
     mock_db = MagicMock()
     # No existing active session
-    mock_db.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = (
-        []
-    )
+    mock_db.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = []
 
     mock_admin_db = MagicMock()
     # Simulate a database / network error inside the atomic RPC
@@ -181,7 +175,7 @@ def test_concurrent_start_ends_previous_session_then_starts_new():
     This exercises the guard path in start_parking_session that calls
     end_parking_session_atomic when an existing session is found.
     """
-    from unittest.mock import MagicMock, call, patch
+    from unittest.mock import MagicMock, patch
 
     from app.core.security import get_auth_db, get_current_user
 
@@ -243,12 +237,12 @@ def test_concurrent_start_ends_previous_session_then_starts_new():
             # end_parking_session_atomic must have been called first to close
             # the pre-existing session, then start_parking_session_atomic.
             rpc_calls = [c[0][0] for c in mock_admin_db.rpc.call_args_list]
-            assert (
-                rpc_calls[0] == "end_parking_session_atomic"
-            ), "Expected end_parking_session_atomic to be called first"
-            assert (
-                rpc_calls[1] == "start_parking_session_atomic"
-            ), "Expected start_parking_session_atomic to be called second"
+            assert rpc_calls[0] == "end_parking_session_atomic", (
+                "Expected end_parking_session_atomic to be called first"
+            )
+            assert rpc_calls[1] == "start_parking_session_atomic", (
+                "Expected start_parking_session_atomic to be called second"
+            )
     finally:
         app.dependency_overrides.pop(get_current_user, None)
         app.dependency_overrides.pop(get_auth_db, None)

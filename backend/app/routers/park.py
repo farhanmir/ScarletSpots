@@ -13,13 +13,14 @@ Lot IDs are the mapId strings from the bundled rutgers_parking_data.json
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
 
 from app.core.limiter import limiter
 from app.core.logger import get_logger
 from app.core.security import get_admin_supabase, get_auth_db, get_current_user
-from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
 
 log = get_logger(__name__)
 
@@ -128,7 +129,7 @@ def start_parking_session(
         )
         raise HTTPException(status_code=500, detail="Failed to start parking session")
 
-    if not rpc_res.data:
+    if not isinstance(rpc_res.data, list) or not rpc_res.data:
         log.error(
             "start_parking_session_atomic returned no data for user %s lot %s",
             user_id,
@@ -136,7 +137,16 @@ def start_parking_session(
         )
         raise HTTPException(status_code=500, detail="Failed to start parking session")
 
-    new_session = rpc_res.data[0]
+    first_row = rpc_res.data[0]
+    if not isinstance(first_row, dict):
+        log.error(
+            "start_parking_session_atomic returned invalid row for user %s lot %s",
+            user_id,
+            lot_id,
+        )
+        raise HTTPException(status_code=500, detail="Failed to start parking session")
+
+    new_session: dict[str, Any] = first_row
 
     # Fetch the confirmed occupancy count so the mobile client can render
     # the exact value without waiting for a realtime event.
@@ -149,7 +159,7 @@ def start_parking_session(
             .single()
             .execute()
         )
-        if occ_res.data:
+        if isinstance(occ_res.data, dict):
             confirmed_occupancy = occ_res.data.get("count")
     except Exception as exc:
         log.warning("Could not fetch confirmed occupancy for lot %s: %s", lot_id, exc)

@@ -9,10 +9,10 @@ MagicMock clients before any test is executed.
 
 from unittest.mock import MagicMock
 
+import pytest
 from fastapi_cache import FastAPICache
 from fastapi_cache.backends.inmemory import InMemoryBackend
 
-import pytest
 from app.main import app
 
 
@@ -31,14 +31,10 @@ def mock_app_state():
     }
 
     # GET /lots (no campus filter)  →  .table().select().range().execute().data
-    mock_db.table.return_value.select.return_value.range.return_value.execute.return_value.data = (
-        []
-    )
+    mock_db.table.return_value.select.return_value.range.return_value.execute.return_value.data = []
 
     # GET /lots?campus=…  →  .table().select().eq().range().execute().data
-    mock_db.table.return_value.select.return_value.eq.return_value.range.return_value.execute.return_value.data = (
-        []
-    )
+    mock_db.table.return_value.select.return_value.eq.return_value.range.return_value.execute.return_value.data = []
 
     app.state.supabase = mock_db
     app.state.admin_supabase = MagicMock()

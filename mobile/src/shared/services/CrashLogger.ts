@@ -1,6 +1,6 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const CRASH_LOG_KEY = 'crash_logs';
+const CRASH_LOG_KEY = "crash_logs";
 const MAX_LOGS = 50;
 
 export interface CrashLogEntry {
@@ -14,7 +14,9 @@ export interface CrashLogEntry {
 /**
  * Append a crash/error entry to the persistent log.
  */
-export async function logCrash(entry: Omit<CrashLogEntry, 'timestamp'>): Promise<void> {
+export async function logCrash(
+  entry: Omit<CrashLogEntry, "timestamp">,
+): Promise<void> {
   try {
     const existing = await getCrashLogs();
     existing.push({ ...entry, timestamp: new Date().toISOString() });
@@ -54,7 +56,7 @@ export function installGlobalCrashHandlers(): void {
   const defaultHandler = (ErrorUtils as any).getGlobalHandler?.();
   (ErrorUtils as any).setGlobalHandler?.((error: Error, isFatal?: boolean) => {
     logCrash({
-      message: `[${isFatal ? 'FATAL' : 'ERROR'}] ${error.message}`,
+      message: `[${isFatal ? "FATAL" : "ERROR"}] ${error.message}`,
       stack: error.stack,
     });
     // Still call the default handler so RN can show the red-box in dev
@@ -65,7 +67,7 @@ export function installGlobalCrashHandlers(): void {
 
   // 2. Unhandled promise rejections
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const rejectionTracking = require('promise/setimmediate/rejection-tracking');
+  const rejectionTracking = require("promise/setimmediate/rejection-tracking");
   rejectionTracking.enable({
     allRejections: true,
     onUnhandled: (_id: number, error: any) => {

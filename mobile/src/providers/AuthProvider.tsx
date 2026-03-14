@@ -1,13 +1,19 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { Session, User } from '@supabase/supabase-js';
-import { supabase, authApiCall } from '@/shared/api/supabase';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { NB_CAMPUS_NAMES } from '@/shared/constants/lots';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+} from "react";
+import { Session, User } from "@supabase/supabase-js";
+import { supabase, authApiCall } from "@/shared/api/supabase";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { NB_CAMPUS_NAMES } from "@/shared/constants/lots";
 
 // ── Permit preference helpers ─────────────────────────────────────────────
 
-export type CustomLotFilter = Set<'student' | 'employee' | 'gated' | 'ev'>;
-export type NoPermitMode = 'commuter_all' | 'all' | null;
+export type CustomLotFilter = Set<"student" | "employee" | "gated" | "ev">;
+export type NoPermitMode = "commuter_all" | "all" | null;
 
 /** Parse the raw `permit_type` string stored in the DB into structured state. */
 function parsePermitPreference(raw: string | null): {
@@ -18,11 +24,15 @@ function parsePermitPreference(raw: string | null): {
   if (!raw) {
     return { permitType: null, noPermitMode: null, customLotFilter: new Set() };
   }
-  if (raw === '__commuter_all') {
-    return { permitType: raw, noPermitMode: 'commuter_all', customLotFilter: new Set() };
+  if (raw === "__commuter_all") {
+    return {
+      permitType: raw,
+      noPermitMode: "commuter_all",
+      customLotFilter: new Set(),
+    };
   }
-  if (raw === '__all') {
-    return { permitType: raw, noPermitMode: 'all', customLotFilter: new Set() };
+  if (raw === "__all") {
+    return { permitType: raw, noPermitMode: "all", customLotFilter: new Set() };
   }
   return { permitType: raw, noPermitMode: null, customLotFilter: new Set() };
 }
@@ -65,15 +75,15 @@ const AuthContext = createContext<AuthContextType>({
   session: null,
   user: null,
   loading: true,
-  signOut: async () => { },
+  signOut: async () => {},
   permitType: null,
   secondaryPermitType: null,
   noPermitMode: null,
   customLotFilter: new Set(),
-  setPermitPreference: async () => { },
-  setSecondaryPermitPreference: async () => { },
+  setPermitPreference: async () => {},
+  setSecondaryPermitPreference: async () => {},
   enabledCampuses: new Set(NB_CAMPUS_NAMES),
-  toggleCampus: () => { },
+  toggleCampus: () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -84,30 +94,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const [permitType, setPermitType] = useState<string | null>(null);
-  const [secondaryPermitType, setSecondaryPermitType] = useState<string | null>(null);
+  const [secondaryPermitType, setSecondaryPermitType] = useState<string | null>(
+    null,
+  );
   const [noPermitMode, setNoPermitMode] = useState<NoPermitMode>(null);
-  const [customLotFilter, setCustomLotFilter] = useState<CustomLotFilter>(new Set());
+  const [customLotFilter, setCustomLotFilter] = useState<CustomLotFilter>(
+    new Set(),
+  );
 
   // ── Campus filter ──
-  const [enabledCampuses, setEnabledCampuses] = useState<Set<string>>(new Set(NB_CAMPUS_NAMES));
+  const [enabledCampuses, setEnabledCampuses] = useState<Set<string>>(
+    new Set(NB_CAMPUS_NAMES),
+  );
 
   // Load saved campus and secondary permit preferences from AsyncStorage
   useEffect(() => {
-    AsyncStorage.getItem('enabled_campuses').then(raw => {
+    AsyncStorage.getItem("enabled_campuses").then((raw) => {
       if (raw) {
         try {
           const arr = JSON.parse(raw);
           if (Array.isArray(arr)) setEnabledCampuses(new Set(arr));
-        } catch { }
+        } catch {}
       }
     });
-    AsyncStorage.getItem('secondary_permit_type').then(raw => {
+    AsyncStorage.getItem("secondary_permit_type").then((raw) => {
       if (raw) setSecondaryPermitType(raw);
     });
   }, []);
 
   const toggleCampus = useCallback((campus: string) => {
-    setEnabledCampuses(prev => {
+    setEnabledCampuses((prev) => {
       const next = new Set(prev);
       if (next.has(campus)) {
         // Don't allow disabling all campuses
@@ -115,7 +131,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         next.add(campus);
       }
-      AsyncStorage.setItem('enabled_campuses', JSON.stringify([...next]));
+      AsyncStorage.setItem("enabled_campuses", JSON.stringify([...next]));
       return next;
     });
   }, []);
@@ -131,7 +147,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   /** Fetch the user's profile and hydrate permit state. */
   const loadProfile = useCallback(async () => {
     try {
-      const profile = await authApiCall('/users/me');
+      const profile = await authApiCall("/users/me");
       if (profile?.permit_type !== undefined) {
         applyPermitRaw(profile.permit_type);
       }
@@ -142,7 +158,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const fetchSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
@@ -150,7 +168,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     fetchSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
@@ -175,44 +195,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut();
   };
 
-  const setPermitPreference = useCallback(async (raw: string | null) => {
-    applyPermitRaw(raw);
-    try {
-      await authApiCall('/users/me', {
-        method: 'PATCH',
-        body: JSON.stringify({ permit_type: raw }),
-      });
-    } catch {
-      console.warn('[AuthProvider] Failed to save permit_type to backend');
-    }
-  }, [applyPermitRaw]);
+  const setPermitPreference = useCallback(
+    async (raw: string | null) => {
+      applyPermitRaw(raw);
+      try {
+        await authApiCall("/users/me", {
+          method: "PATCH",
+          body: JSON.stringify({ permit_type: raw }),
+        });
+      } catch {
+        console.warn("[AuthProvider] Failed to save permit_type to backend");
+      }
+    },
+    [applyPermitRaw],
+  );
 
-  const setSecondaryPermitPreference = useCallback(async (raw: string | null) => {
-    setSecondaryPermitType(raw);
-    if (raw === null) {
-      await AsyncStorage.removeItem('secondary_permit_type');
-    } else {
-      await AsyncStorage.setItem('secondary_permit_type', raw);
-    }
-  }, []);
+  const setSecondaryPermitPreference = useCallback(
+    async (raw: string | null) => {
+      setSecondaryPermitType(raw);
+      if (raw === null) {
+        await AsyncStorage.removeItem("secondary_permit_type");
+      } else {
+        await AsyncStorage.setItem("secondary_permit_type", raw);
+      }
+    },
+    [],
+  );
 
   return (
-    <AuthContext.Provider value={{
-      session,
-      user,
-      loading,
-      signOut,
-      permitType,
-      secondaryPermitType,
-      noPermitMode,
-      customLotFilter,
-      setPermitPreference,
-      setSecondaryPermitPreference,
-      enabledCampuses,
-      toggleCampus,
-    }}>
+    <AuthContext.Provider
+      value={{
+        session,
+        user,
+        loading,
+        signOut,
+        permitType,
+        secondaryPermitType,
+        noPermitMode,
+        customLotFilter,
+        setPermitPreference,
+        setSecondaryPermitPreference,
+        enabledCampuses,
+        toggleCampus,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
 }
-

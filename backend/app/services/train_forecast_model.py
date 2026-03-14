@@ -24,8 +24,8 @@ Training cadence: run once per week (or cron'd via CI) after data accumulates.
 
 import sys
 from collections import defaultdict
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
 # Ensure we can import from the app package
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -36,9 +36,9 @@ MIN_SAMPLES = 50  # Minimum sessions per lot before training
 
 def train():
     try:
+        import joblib
         import numpy as np
         from sklearn.ensemble import GradientBoostingRegressor
-        import joblib
     except ImportError:
         print("ERROR: scikit-learn and joblib are required. Run: pip install scikit-learn joblib")
         sys.exit(1)
@@ -138,7 +138,9 @@ def train():
         joblib.dump(model, out_path)
         trained += 1
 
-    print(f"\nTraining complete: {trained} models saved, {skipped} lots skipped (too few sessions).")
+    print(
+        f"\nTraining complete: {trained} models saved, {skipped} lots skipped (too few sessions)."
+    )
     print(f"Models saved to: {MODELS_DIR}")
 
 

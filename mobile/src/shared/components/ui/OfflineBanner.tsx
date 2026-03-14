@@ -1,8 +1,8 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { useNetInfo } from '@react-native-community/netinfo';
-import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import React from "react";
+import { View, Text, StyleSheet } from "react-native";
+import { useNetInfo } from "@react-native-community/netinfo";
+import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 /**
  * A slim offline indicator banner shown at the top of the screen.
@@ -25,7 +25,9 @@ export default function OfflineBanner() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.banner}>
         <Ionicons name="wifi-outline" size={13} color="rgba(255,255,255,0.8)" />
-        <Text style={styles.text}>Offline — parking actions will sync when reconnected</Text>
+        <Text style={styles.text}>
+          Offline — parking actions will sync when reconnected
+        </Text>
       </View>
     </View>
   );
@@ -33,23 +35,23 @@ export default function OfflineBanner() {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#27272a',
-    width: '100%',
+    backgroundColor: "#27272a",
+    width: "100%",
     zIndex: 999,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#3f3f46',
+    borderBottomColor: "#3f3f46",
   },
   banner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 6,
     paddingHorizontal: 16,
     gap: 6,
   },
   text: {
-    color: 'rgba(255,255,255,0.7)',
+    color: "rgba(255,255,255,0.7)",
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: "500",
   },
 });

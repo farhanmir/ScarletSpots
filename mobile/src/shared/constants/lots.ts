@@ -13,9 +13,11 @@
  * app release when needed.
  */
 
-
-const RAW_DATA: RawLot[] = require('./rutgers_parking_data.json');
-const PERMIT_MAPPING: Record<string, { id: string; name: string }[]> = require('./permit_mapping.json');
+const RAW_DATA: RawLot[] = require("./rutgers_parking_data.json");
+const PERMIT_MAPPING: Record<
+  string,
+  { id: string; name: string }[]
+> = require("./permit_mapping.json");
 
 // ── Raw JSON shape (as received from data source) ──────────────────────────
 
@@ -124,17 +126,17 @@ export interface RutgersLot {
 // ── Campus filter constants ────────────────────────────────────────────────
 
 /** Region codes treated as "New Brunswick" (default enabled campus). */
-export const NB_REGION_CODE = 'NB';
+export const NB_REGION_CODE = "NB";
 
 /** All known campus names for NB region (for UI grouping). */
 export const NB_CAMPUS_NAMES = [
-  'Busch',
-  'College Ave',
-  'Livingston',
-  'Cook',
-  'Douglass',
-  'Health - Piscataway',
-  'Health - New Brunswick',
+  "Busch",
+  "College Ave",
+  "Livingston",
+  "Cook",
+  "Douglass",
+  "Health - Piscataway",
+  "Health - New Brunswick",
 ];
 
 // ── Polygon simplification ────────────────────────────────────────────────
@@ -145,10 +147,7 @@ export const NB_CAMPUS_NAMES = [
  * Guarantees at least 3 points for a valid polygon; returns the original
  * array when it is already too small to benefit from simplification.
  */
-function simplifyRing(
-  ring: [number, number][],
-  step = 3,
-): [number, number][] {
+function simplifyRing(ring: [number, number][], step = 3): [number, number][] {
   if (ring.length <= step * 2) return ring;
   const result: [number, number][] = [];
   for (let i = 0; i < ring.length; i++) {
@@ -165,26 +164,29 @@ function rawToLot(raw: RawLot): RutgersLot {
   // GeoJSON uses [longitude, latitude] — swap to [latitude, longitude] for
   // react-native-maps Polygon / expo-location Geofencing.
   //
-  let parsedPolygons: { outer: [number, number][], holes: [number, number][][] }[] = [];
+  let parsedPolygons: {
+    outer: [number, number][];
+    holes: [number, number][][];
+  }[] = [];
 
   const rings: any[] | undefined = raw.gtfsGeometry?.coordinates;
 
   if (rings && rings.length > 0) {
-    if (raw.gtfsGeometry?.type === 'Polygon') {
+    if (raw.gtfsGeometry?.type === "Polygon") {
       // coordinates[0] = outer boundary, coordinates[1..] = holes
       parsedPolygons.push({
         outer: rings[0],
-        holes: rings.slice(1)
+        holes: rings.slice(1),
       });
-    } else if (raw.gtfsGeometry?.type === 'MultiPolygon') {
+    } else if (raw.gtfsGeometry?.type === "MultiPolygon") {
       // MultiPolygon format for this specific dataset is non-standard.
       // It stores the geometry as a flat array of rings: [number, number][][]
       // Each ring represents an outer boundary of a disconnected part of the lot.
-      rings.forEach(ring => {
+      rings.forEach((ring) => {
         if (ring.length >= 3) {
           parsedPolygons.push({
             outer: ring,
-            holes: []
+            holes: [],
           });
         }
       });
@@ -196,12 +198,14 @@ function rawToLot(raw: RawLot): RutgersLot {
     parsedPolygons.push({ outer: [], holes: [] });
   }
 
-  const coordinates: [number, number][][] = parsedPolygons.map(p =>
-    p.outer.map(([lng, lat]) => [lat, lng] as [number, number])
+  const coordinates: [number, number][][] = parsedPolygons.map((p) =>
+    p.outer.map(([lng, lat]) => [lat, lng] as [number, number]),
   );
 
-  const holes: [number, number][][][] = parsedPolygons.map(p =>
-    p.holes.map(ring => ring.map(([lng, lat]) => [lat, lng] as [number, number]))
+  const holes: [number, number][][][] = parsedPolygons.map((p) =>
+    p.holes.map((ring) =>
+      ring.map(([lng, lat]) => [lat, lng] as [number, number]),
+    ),
   );
 
   return {
@@ -221,11 +225,11 @@ function rawToLot(raw: RawLot): RutgersLot {
     smartGate: raw.smartGate ?? false,
     student: raw.student ?? false,
     employee: raw.employee ?? false,
-    empHours: raw.empHours ?? '',
-    note: raw.note ?? '',
+    empHours: raw.empHours ?? "",
+    note: raw.note ?? "",
     photos: raw.photos ?? [],
     coordinates,
-    simplifiedCoordinates: coordinates.map(ring => simplifyRing(ring)),
+    simplifiedCoordinates: coordinates.map((ring) => simplifyRing(ring)),
     holes,
     occupiedCount: 0,
     occupancyRate: 0,
@@ -235,18 +239,16 @@ function rawToLot(raw: RawLot): RutgersLot {
 // ── Pre-computed collections (parsed once at module load) ──────────────────
 
 /** All NB lots (193 lots, the default campus group). */
-const NB_LOTS: RutgersLot[] = RAW_DATA
-  .filter((r) => r.active && r.address.regionCode === NB_REGION_CODE)
-  .map(rawToLot);
+const NB_LOTS: RutgersLot[] = RAW_DATA.filter(
+  (r) => r.active && r.address.regionCode === NB_REGION_CODE,
+).map(rawToLot);
 
 /** All 245 active lots across every campus. */
-const ALL_LOTS: RutgersLot[] = RAW_DATA
-  .filter((r) => r.active)
-  .map(rawToLot);
+const ALL_LOTS: RutgersLot[] = RAW_DATA.filter((r) => r.active).map(rawToLot);
 
 /** Index by mapId for O(1) lookups. */
 const LOT_INDEX: Map<string, RutgersLot> = new Map(
-  ALL_LOTS.map((l) => [l.id, l])
+  ALL_LOTS.map((l) => [l.id, l]),
 );
 
 // ── Public API ─────────────────────────────────────────────────────────────
@@ -283,7 +285,7 @@ export function getLotById(id: string): RutgersLot | undefined {
  */
 export function applyOccupancy(
   lots: RutgersLot[],
-  occupancyMap: Record<string, number>
+  occupancyMap: Record<string, number>,
 ): RutgersLot[] {
   for (const lot of lots) {
     const count = occupancyMap[lot.id] ?? 0;
@@ -306,10 +308,12 @@ export const ALL_PERMIT_TYPES: string[] = Object.keys(PERMIT_MAPPING).sort();
  * Returns the set of lot mapIds accessible with the given permit type.
  * Returns an empty Set for unknown/null permit types.
  */
-export function getPermitLotIds(permitType: string | null | undefined): Set<string> {
+export function getPermitLotIds(
+  permitType: string | null | undefined,
+): Set<string> {
   if (!permitType) return new Set();
   const entries = PERMIT_MAPPING[permitType] ?? [];
-  return new Set(entries.map(e => e.id));
+  return new Set(entries.map((e) => e.id));
 }
 
 /**
@@ -317,7 +321,7 @@ export function getPermitLotIds(permitType: string | null | undefined): Set<stri
  */
 export function getPermitLotIdsUnion(
   primary: string | null | undefined,
-  secondary: string | null | undefined
+  secondary: string | null | undefined,
 ): Set<string> {
   const primaryIds = getPermitLotIds(primary);
   const secondaryIds = getPermitLotIds(secondary);
@@ -332,26 +336,26 @@ export function getPermitLotIdsUnion(
  */
 export const ALL_COMMUTER_LOT_IDS: Set<string> = new Set(
   Object.entries(PERMIT_MAPPING)
-    .filter(([key]) => key.toLowerCase().includes('commuter'))
-    .flatMap(([, entries]) => entries.map(e => e.id))
+    .filter(([key]) => key.toLowerCase().includes("commuter"))
+    .flatMap(([, entries]) => entries.map((e) => e.id)),
 );
 
 // ── Permit schedule helpers ────────────────────────────────────────────────
 
 interface ScheduleSlot {
   start: string; // "06:00"
-  end: string;   // "24:00"
+  end: string; // "24:00"
 }
 
 interface ScheduleInfo {
   schedule: ScheduleSlot[][]; // 7-element array (Sun=0 … Sat=6)
-  time_text_1: string;        // e.g. "Monday - Friday, 5PM - 12AM"
-  time_text_2: string;        // e.g. "Saturday - Sunday, 6AM - 12AM"
+  time_text_1: string; // e.g. "Monday - Friday, 5PM - 12AM"
+  time_text_2: string; // e.g. "Saturday - Sunday, 6AM - 12AM"
 }
 
 type PermitSchedules = Record<string, Record<string, ScheduleInfo>>;
 
-const PERMIT_SCHEDULES: PermitSchedules = require('./permit_schedules.json');
+const PERMIT_SCHEDULES: PermitSchedules = require("./permit_schedules.json");
 
 /**
  * Returns the schedule info (time text strings + schedule array) for a lot
@@ -393,8 +397,8 @@ export function isLotAvailableNow(
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
   for (const slot of daySlots) {
-    const [startH, startM] = slot.start.split(':').map(Number);
-    const [endH, endM] = slot.end.split(':').map(Number);
+    const [startH, startM] = slot.start.split(":").map(Number);
+    const [endH, endM] = slot.end.split(":").map(Number);
     const startMin = startH * 60 + startM;
     const endMin = endH * 60 + endM;
 
@@ -404,4 +408,38 @@ export function isLotAvailableNow(
   }
 
   return false;
+}
+
+/**
+ * Secondary permit rule override for "main lots":
+ * Monday-Friday, 10:00-24:00 only.
+ *
+ * A lot is treated as a "main lot" when its base permit schedule text is
+ * full-access style:
+ *   - Monday - Friday, 6AM - 12AM
+ *   - Saturday - Sunday, 6AM - 12AM
+ */
+export function isSecondaryPermitAvailableNow(
+  permitType: string | null | undefined,
+  lotId: string,
+  now: Date = new Date(),
+): boolean | null {
+  if (!permitType) return null;
+  const info = PERMIT_SCHEDULES[permitType]?.[lotId];
+  if (!info?.schedule) return null;
+
+  const text1 = (info.time_text_1 ?? "").trim().toLowerCase();
+  const text2 = (info.time_text_2 ?? "").trim().toLowerCase();
+  const isMainLotSchedule =
+    text1 === "monday - friday, 6am - 12am" &&
+    text2 === "saturday - sunday, 6am - 12am";
+
+  if (isMainLotSchedule) {
+    const dayIndex = now.getDay(); // 0=Sun ... 6=Sat
+    if (dayIndex === 0 || dayIndex === 6) return false;
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    return currentMinutes >= 10 * 60 && currentMinutes < 24 * 60;
+  }
+
+  return isLotAvailableNow(permitType, lotId, now);
 }

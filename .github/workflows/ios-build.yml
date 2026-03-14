@@ -1,10 +1,6 @@
 name: iOS Build (AltStore)
 
 on:
-  push:
-    branches: [main, develop]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -12,7 +8,7 @@ jobs:
     name: iOS Build
     runs-on: macos-15
     permissions:
-      contents: read
+      contents: write
 
     steps:
       - name: Checkout repository
@@ -29,8 +25,35 @@ jobs:
         working-directory: mobile
         run: npm ci
 
+      - name: Validate required Expo environment variables
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+          EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
+        run: |
+          MISSING=0
+          for VAR_NAME in EXPO_PUBLIC_SUPABASE_URL EXPO_PUBLIC_SUPABASE_ANON_KEY EXPO_PUBLIC_API_URL; do
+            if [ -z "${!VAR_NAME}" ]; then
+              echo "::error::Missing required GitHub secret: ${VAR_NAME}"
+              MISSING=1
+            fi
+          done
+
+          if [ "$MISSING" -ne 0 ]; then
+            echo "One or more required EXPO_PUBLIC variables are missing."
+            exit 1
+          fi
+
       - name: Expo prebuild (generate native iOS project)
         working-directory: mobile
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+          EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
+          EXPO_PUBLIC_PARKING_CONFIDENCE_THRESHOLD: ${{ vars.EXPO_PUBLIC_PARKING_CONFIDENCE_THRESHOLD }}
+          EXPO_PUBLIC_HEADING_SIGNAL_ENABLED: ${{ vars.EXPO_PUBLIC_HEADING_SIGNAL_ENABLED }}
+          EXPO_PUBLIC_OFFLINE_QUEUE_ENABLED: ${{ vars.EXPO_PUBLIC_OFFLINE_QUEUE_ENABLED }}
+          EXPO_PUBLIC_ENABLE_ALL_CAMPUSES: ${{ vars.EXPO_PUBLIC_ENABLE_ALL_CAMPUSES }}
         run: npx expo prebuild --platform ios
 
       - name: Identify workspace and scheme
@@ -54,12 +77,26 @@ jobs:
           echo "Build number set to ${{ github.run_number }}"
 
       - name: Build with xcodebuild (Debug, no code signing)
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+          EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
+          EXPO_PUBLIC_PARKING_CONFIDENCE_THRESHOLD: ${{ vars.EXPO_PUBLIC_PARKING_CONFIDENCE_THRESHOLD }}
+          EXPO_PUBLIC_HEADING_SIGNAL_ENABLED: ${{ vars.EXPO_PUBLIC_HEADING_SIGNAL_ENABLED }}
+          EXPO_PUBLIC_OFFLINE_QUEUE_ENABLED: ${{ vars.EXPO_PUBLIC_OFFLINE_QUEUE_ENABLED }}
+          EXPO_PUBLIC_ENABLE_ALL_CAMPUSES: ${{ vars.EXPO_PUBLIC_ENABLE_ALL_CAMPUSES }}
         run: |
+          xcodebuild \
+            -resolvePackageDependencies \
+            -workspace "${{ steps.xcode_info.outputs.workspace }}" \
+            -scheme "${{ steps.xcode_info.outputs.scheme }}"
+
           xcodebuild \
             -workspace "${{ steps.xcode_info.outputs.workspace }}" \
             -scheme "${{ steps.xcode_info.outputs.scheme }}" \
             -configuration Debug \
             -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY="" \
@@ -79,9 +116,26 @@ jobs:
           zip -r "${SCHEME}.ipa" Payload/
           echo "Created ${SCHEME}.ipa"
 
+      - name: Prepare release metadata
+        id: release_info
+        run: |
+          TAG="ios-build-${{ github.run_number }}"
+          NAME="iOS Build ${{ github.run_number }}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.xcode_info.outputs.scheme }}-${{ github.run_number }}
           path: ${{ steps.xcode_info.outputs.scheme }}.ipa
           retention-days: 30
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release_info.outputs.tag }}
+          name: ${{ steps.release_info.outputs.name }}
+          generate_release_notes: true
+          prerelease: true
+          files: ${{ steps.xcode_info.outputs.scheme }}.ipa

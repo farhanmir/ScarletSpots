@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   View,
@@ -8,21 +8,21 @@ import {
   Linking,
   ActivityIndicator,
   Alert,
-} from 'react-native';
-import { Stack, useRouter } from 'expo-router';
-import * as Location from 'expo-location';
-import * as Notifications from 'expo-notifications';
-import { Pedometer } from 'expo-sensors';
-import { IconSymbol } from '@/shared/components/ui/icon-symbol';
-import { LinearGradient } from 'expo-linear-gradient';
+} from "react-native";
+import { Stack, useRouter } from "expo-router";
+import * as Location from "expo-location";
+import * as Notifications from "expo-notifications";
+import { Pedometer } from "expo-sensors";
+import { IconSymbol } from "@/shared/components/ui/icon-symbol";
+import { LinearGradient } from "expo-linear-gradient";
 
 // Steps definition
-type PermissionStep = 'location' | 'motion' | 'notifications' | 'completed';
+type PermissionStep = "location" | "motion" | "notifications" | "completed";
 
 export default function PermissionsScreen() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [currentStep, setCurrentStep] = useState<PermissionStep>('location');
+  const [currentStep, setCurrentStep] = useState<PermissionStep>("location");
   const [denied, setDenied] = useState(false);
 
   // Check initial status on mount
@@ -34,52 +34,56 @@ export default function PermissionsScreen() {
   const checkInitialStatus = async () => {
     // Check location first
     const { status: fgStatus } = await Location.getForegroundPermissionsAsync();
-    if (fgStatus === 'granted') {
-      const { status: bgStatus } = await Location.getBackgroundPermissionsAsync();
-      if (bgStatus !== 'granted') {
-        setCurrentStep('location');
+    if (fgStatus === "granted") {
+      const { status: bgStatus } =
+        await Location.getBackgroundPermissionsAsync();
+      if (bgStatus !== "granted") {
+        setCurrentStep("location");
         return;
       }
 
       // Pedometer check
       const { status: motionStatus } = await Pedometer.getPermissionsAsync();
-      if (motionStatus === 'granted') {
+      if (motionStatus === "granted") {
         // Notification check
-        const { status: notifStatus } = await Notifications.getPermissionsAsync();
-        if (notifStatus === 'granted') {
+        const { status: notifStatus } =
+          await Notifications.getPermissionsAsync();
+        if (notifStatus === "granted") {
           // All good, go to tabs
-          router.replace('/(tabs)' as any);
+          router.replace("/(tabs)" as any);
           return;
         } else {
-          setCurrentStep('notifications');
+          setCurrentStep("notifications");
         }
       } else {
-        setCurrentStep('motion');
+        setCurrentStep("motion");
       }
     } else {
-      setCurrentStep('location');
+      setCurrentStep("location");
     }
   };
 
   const nextStep = () => {
-    if (currentStep === 'location') setCurrentStep('motion');
-    else if (currentStep === 'motion') setCurrentStep('notifications');
-    else if (currentStep === 'notifications') finish();
+    if (currentStep === "location") setCurrentStep("motion");
+    else if (currentStep === "motion") setCurrentStep("notifications");
+    else if (currentStep === "notifications") finish();
   };
 
   const finish = () => {
-    router.replace('/onboarding/permit' as any);
+    router.replace("/onboarding/permit" as any);
   };
 
   const requestPermission = async () => {
     setLoading(true);
     setDenied(false);
     try {
-      if (currentStep === 'location') {
-        const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
-        if (fgStatus === 'granted') {
-          const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
-          if (bgStatus === 'granted') {
+      if (currentStep === "location") {
+        const { status: fgStatus } =
+          await Location.requestForegroundPermissionsAsync();
+        if (fgStatus === "granted") {
+          const { status: bgStatus } =
+            await Location.requestBackgroundPermissionsAsync();
+          if (bgStatus === "granted") {
             nextStep();
           } else {
             setDenied(true);
@@ -87,22 +91,22 @@ export default function PermissionsScreen() {
         } else {
           setDenied(true);
         }
-      } else if (currentStep === 'motion') {
+      } else if (currentStep === "motion") {
         // Motion involves Pedometer on iOS/Android often
         const { status } = await Pedometer.requestPermissionsAsync();
-        if (status === 'granted') {
+        if (status === "granted") {
           nextStep();
         } else {
-          // Motion is optional-ish, we can warn and skip or force. 
+          // Motion is optional-ish, we can warn and skip or force.
           // Blueprint says "denied -> app runs with reduced detection confidence"
           // So we allow proceeding even if denied, maybe with an alert?
           Alert.alert(
             "Motion Detection Disabled",
             "Auto-parking detection will be less accurate without motion sensors.",
-            [{ text: "OK", onPress: () => nextStep() }]
+            [{ text: "OK", onPress: () => nextStep() }],
           );
         }
-      } else if (currentStep === 'notifications') {
+      } else if (currentStep === "notifications") {
         await Notifications.requestPermissionsAsync();
         // Always proceed after notifications, granted or not
         finish();
@@ -116,8 +120,8 @@ export default function PermissionsScreen() {
   };
 
   const openSettings = () => {
-    if (Platform.OS === 'ios') {
-      Linking.openURL('app-settings:');
+    if (Platform.OS === "ios") {
+      Linking.openURL("app-settings:");
     } else {
       Linking.openSettings();
     }
@@ -126,9 +130,12 @@ export default function PermissionsScreen() {
   const recheckPermission = async () => {
     // Re-checks current step's permission
     setLoading(true);
-    if (currentStep === 'location') {
-      const { status } = await Location.getForegroundPermissionsAsync();
-      if (status === 'granted') {
+    if (currentStep === "location") {
+      const { status: fgStatus } =
+        await Location.getForegroundPermissionsAsync();
+      const { status: bgStatus } =
+        await Location.getBackgroundPermissionsAsync();
+      if (fgStatus === "granted" && bgStatus === "granted") {
         setDenied(false);
         nextStep();
       } else {
@@ -142,29 +149,37 @@ export default function PermissionsScreen() {
 
   const renderContent = () => {
     switch (currentStep) {
-      case 'location':
+      case "location":
         return {
-          icon: 'location.fill',
-          color: '#dc2626',
-          title: 'Enable Location',
-          subtitle: 'ScarletSpots needs your location to show nearby parking lots and navigate you to your car. Allow "Always" so we can detect when you park even when the app is closed.'
+          icon: "location.fill",
+          color: "#dc2626",
+          title: "Enable Location",
+          subtitle:
+            'ScarletSpots needs your location to show nearby parking lots and navigate you to your car. Allow "Always" so we can detect when you park even when the app is closed.',
         };
-      case 'motion':
+      case "motion":
         return {
-          icon: 'figure.walk',
-          color: '#9333ea', // Purple
-          title: 'Enable Motion',
-          subtitle: 'We use motion sensors to automatically detect when you park your car and start walking.'
+          icon: "figure.walk",
+          color: "#9333ea", // Purple
+          title: "Enable Motion",
+          subtitle:
+            "We use motion sensors to automatically detect when you park your car and start walking.",
         };
-      case 'notifications':
+      case "notifications":
         return {
-          icon: 'bell.fill',
-          color: '#f59e0b', // Amber
-          title: 'Enable Notifications',
-          subtitle: 'Get alerts when your parking session is about to expire or when you enter a lot.'
+          icon: "bell.fill",
+          color: "#f59e0b", // Amber
+          title: "Enable Notifications",
+          subtitle:
+            "Get alerts when your parking session is about to expire or when you enter a lot.",
         };
       default:
-        return { icon: 'checkmark.circle', color: 'green', title: 'All Set', subtitle: '' };
+        return {
+          icon: "checkmark.circle",
+          color: "green",
+          title: "All Set",
+          subtitle: "",
+        };
     }
   };
 
@@ -175,7 +190,7 @@ export default function PermissionsScreen() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <LinearGradient
-        colors={['#09090b', '#18181b', '#450a0a']}
+        colors={["#09090b", "#18181b", "#450a0a"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFill}
@@ -185,22 +200,63 @@ export default function PermissionsScreen() {
         /* ── REQUEST UI ── */
         <View style={styles.content}>
           <View style={styles.stepIndicator}>
-            <View style={[styles.dot, currentStep === 'location' && styles.activeDot, (currentStep === 'motion' || currentStep === 'notifications') && styles.completedDot]} />
-            <View style={[styles.line, (currentStep === 'motion' || currentStep === 'notifications') && styles.completedLine]} />
-            <View style={[styles.dot, currentStep === 'motion' && styles.activeDot, currentStep === 'notifications' && styles.completedDot]} />
-            <View style={[styles.line, currentStep === 'notifications' && styles.completedLine]} />
-            <View style={[styles.dot, currentStep === 'notifications' && styles.activeDot]} />
+            <View
+              style={[
+                styles.dot,
+                currentStep === "location" && styles.activeDot,
+                (currentStep === "motion" || currentStep === "notifications") &&
+                  styles.completedDot,
+              ]}
+            />
+            <View
+              style={[
+                styles.line,
+                (currentStep === "motion" || currentStep === "notifications") &&
+                  styles.completedLine,
+              ]}
+            />
+            <View
+              style={[
+                styles.dot,
+                currentStep === "motion" && styles.activeDot,
+                currentStep === "notifications" && styles.completedDot,
+              ]}
+            />
+            <View
+              style={[
+                styles.line,
+                currentStep === "notifications" && styles.completedLine,
+              ]}
+            />
+            <View
+              style={[
+                styles.dot,
+                currentStep === "notifications" && styles.activeDot,
+              ]}
+            />
           </View>
 
-          <View style={[styles.iconCircle, { backgroundColor: `${content.color}20` }]}>
-            <IconSymbol name={content.icon as any} size={48} color={content.color} />
+          <View
+            style={[
+              styles.iconCircle,
+              { backgroundColor: `${content.color}20` },
+            ]}
+          >
+            <IconSymbol
+              name={content.icon as any}
+              size={48}
+              color={content.color}
+            />
           </View>
 
           <Text style={styles.title}>{content.title}</Text>
           <Text style={styles.subtitle}>{content.subtitle}</Text>
 
           <TouchableOpacity
-            style={[styles.primaryButton, { backgroundColor: content.color, shadowColor: content.color }]}
+            style={[
+              styles.primaryButton,
+              { backgroundColor: content.color, shadowColor: content.color },
+            ]}
             onPress={requestPermission}
             disabled={loading}
             activeOpacity={0.85}
@@ -209,13 +265,20 @@ export default function PermissionsScreen() {
               <ActivityIndicator color="white" />
             ) : (
               <Text style={styles.primaryButtonText}>
-                {currentStep === 'notifications' ? 'Allow & Finish' : 'Allow Access'}
+                {currentStep === "notifications"
+                  ? "Allow & Finish"
+                  : "Allow Access"}
               </Text>
             )}
           </TouchableOpacity>
 
-          {currentStep !== 'location' && (
-            <TouchableOpacity onPress={() => currentStep === 'notifications' ? finish() : nextStep()} style={styles.skipButton}>
+          {currentStep !== "location" && (
+            <TouchableOpacity
+              onPress={() =>
+                currentStep === "notifications" ? finish() : nextStep()
+              }
+              style={styles.skipButton}
+            >
               <Text style={styles.skipText}>Skip for now</Text>
             </TouchableOpacity>
           )}
@@ -229,7 +292,8 @@ export default function PermissionsScreen() {
 
           <Text style={styles.title}>Permission Denied</Text>
           <Text style={styles.subtitle}>
-            ScarletSpots can&apos;t function properly without this permission. Please enable it in settings.
+            ScarletSpots can&apos;t function properly without this permission.
+            Please enable it in settings.
           </Text>
 
           <TouchableOpacity
@@ -249,7 +313,9 @@ export default function PermissionsScreen() {
             {loading ? (
               <ActivityIndicator color="#dc2626" />
             ) : (
-              <Text style={styles.secondaryButtonText}>I&apos;ve Enabled It</Text>
+              <Text style={styles.secondaryButtonText}>
+                I&apos;ve Enabled It
+              </Text>
             )}
           </TouchableOpacity>
         </View>
@@ -261,41 +327,41 @@ export default function PermissionsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#09090b',
+    backgroundColor: "#09090b",
   },
   content: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: 28,
   },
   // Stepper
   stepIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 40,
   },
   dot: {
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#3f3f46',
+    backgroundColor: "#3f3f46",
   },
   activeDot: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     transform: [{ scale: 1.2 }],
   },
   completedDot: {
-    backgroundColor: '#22c55e',
+    backgroundColor: "#22c55e",
   },
   line: {
     width: 40,
     height: 2,
-    backgroundColor: '#3f3f46',
+    backgroundColor: "#3f3f46",
     marginHorizontal: 4,
   },
   completedLine: {
-    backgroundColor: '#22c55e',
+    backgroundColor: "#22c55e",
   },
 
   // Icon
@@ -303,68 +369,68 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: 28,
   },
   iconCircleDenied: {
-    backgroundColor: 'rgba(248, 113, 113, 0.1)',
+    backgroundColor: "rgba(248, 113, 113, 0.1)",
   },
 
   // Text
   title: {
     fontSize: 28,
-    fontWeight: '700',
-    color: 'white',
+    fontWeight: "700",
+    color: "white",
     marginBottom: 12,
-    textAlign: 'center',
+    textAlign: "center",
   },
   subtitle: {
     fontSize: 15,
-    color: '#a1a1aa',
-    textAlign: 'center',
+    color: "#a1a1aa",
+    textAlign: "center",
     lineHeight: 22,
     marginBottom: 32,
   },
 
   // Buttons
   primaryButton: {
-    width: '100%',
+    width: "100%",
     height: 52,
     borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 5,
   },
   primaryButtonText: {
-    color: 'white',
+    color: "white",
     fontSize: 17,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   secondaryButton: {
-    width: '100%',
+    width: "100%",
     height: 52,
     borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginTop: 12,
     borderWidth: 1,
-    borderColor: 'rgba(220, 38, 38, 0.4)',
+    borderColor: "rgba(220, 38, 38, 0.4)",
   },
   secondaryButtonText: {
-    color: '#dc2626',
+    color: "#dc2626",
     fontSize: 17,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   skipButton: {
     marginTop: 20,
     padding: 10,
   },
   skipText: {
-    color: '#71717a',
+    color: "#71717a",
     fontSize: 15,
-  }
+  },
 });

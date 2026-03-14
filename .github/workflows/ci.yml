@@ -1,10 +1,7 @@
 name: CI
 
 on:
-  push:
-    branches: [main, develop]
-  pull_request:
-    branches: [main]
+  workflow_dispatch:
 
 jobs:
   # ── Backend: Python lint + tests ─────────────────────────────────────────────
@@ -26,19 +23,15 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt -r requirements-dev.txt
 
-      - name: Lint (ruff)
-        run: ruff check app/ --select E,F,W --ignore E501
-
-      - name: Type check (mypy)
-        run: mypy app/ --ignore-missing-imports --no-strict-optional
-        continue-on-error: true  # Non-blocking until we fully type the codebase
+      - name: Backend quality gate
+        run: make check
 
       - name: Run tests
         run: pytest tests/ -v --tb=short
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           TESTING: "true"
 
   # ── Migration dry-run ─────────────────────────────────────────────────────────

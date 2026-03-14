@@ -6,11 +6,11 @@
  * backgrounding or a crash without a network round-trip.
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import NetInfo from '@react-native-community/netinfo';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import NetInfo from "@react-native-community/netinfo";
 
-const SESSION_KEY = 'offline_cache_session';
-const FAVORITES_KEY = 'favorites_cache';
+const SESSION_KEY = "offline_cache_session";
+const FAVORITES_KEY = "favorites_cache";
 
 /** Session cache entries older than 5 minutes are considered stale. */
 const STALE_THRESHOLD_MS = 1000 * 60 * 5;
@@ -29,7 +29,9 @@ async function setCache<T>(key: string, data: T): Promise<void> {
   }
 }
 
-async function getCache<T>(key: string): Promise<{ data: T; isStale: boolean } | null> {
+async function getCache<T>(
+  key: string,
+): Promise<{ data: T; isStale: boolean } | null> {
   try {
     const raw = await AsyncStorage.getItem(key);
     if (!raw) return null;
@@ -96,7 +98,7 @@ export async function fetchWithOfflineFallback<T>(
     return { data: cached.data, fromCache: true, isStale: cached.isStale };
   }
 
-  throw new Error('No data available (offline and no cache)');
+  throw new Error("No data available (offline and no cache)");
 }
 
 // ── Favorites Cache ───────────────────────────────────────────────────────

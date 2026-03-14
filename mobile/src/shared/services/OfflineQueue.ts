@@ -15,28 +15,32 @@
  *    (e.g. show "1 action pending sync" banner).
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import NetInfo, { NetInfoSubscription } from '@react-native-community/netinfo';
-import { fetchBackend, safeJson } from '../api/api-base';
-import { supabase } from '@/shared/api/supabase-client';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import NetInfo, { NetInfoSubscription } from "@react-native-community/netinfo";
+import { fetchBackend, safeJson } from "../api/api-base";
+import { supabase } from "@/shared/api/supabase-client";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-export type QueuedActionType = 'PARK' | 'END_PARK' | 'CONFIRM_DETECTED' | 'GENERIC_MUTATION';
+export type QueuedActionType =
+  | "PARK"
+  | "END_PARK"
+  | "CONFIRM_DETECTED"
+  | "GENERIC_MUTATION";
 
 export interface QueuedParkAction {
-  id: string;           // UUID generated at queue time
+  id: string; // UUID generated at queue time
   type: QueuedActionType;
   payload: Record<string, unknown>;
-  endpoint?: string;    // Required for GENERIC_MUTATION
-  method?: string;      // Required for GENERIC_MUTATION
-  queuedAt: string;     // ISO timestamp
-  attempts: number;     // How many times we tried and failed
+  endpoint?: string; // Required for GENERIC_MUTATION
+  method?: string; // Required for GENERIC_MUTATION
+  queuedAt: string; // ISO timestamp
+  attempts: number; // How many times we tried and failed
 }
 
 // ── Storage Key ────────────────────────────────────────────────────────────────
 
-const QUEUE_KEY = 'offline_action_queue_v1';
+const QUEUE_KEY = "offline_action_queue_v1";
 
 // ── Listeners ──────────────────────────────────────────────────────────────────
 
@@ -49,8 +53,12 @@ export function addQueueListener(fn: QueueListener): () => void {
 }
 
 function notifyListeners(count: number) {
-  listeners.forEach(fn => {
-    try { fn(count); } catch { /* swallow */ }
+  listeners.forEach((fn) => {
+    try {
+      fn(count);
+    } catch {
+      /* swallow */
+    }
   });
 }
 
@@ -68,9 +76,11 @@ let isFlushing = false;
 export function initOfflineQueue(): void {
   if (netInfoUnsubscribe) return; // Already initialised
 
-  netInfoUnsubscribe = NetInfo.addEventListener(state => {
+  netInfoUnsubscribe = NetInfo.addEventListener((state) => {
     if (state.isConnected && state.isInternetReachable !== false) {
-      flushQueue().catch(() => {/* best-effort */});
+      flushQueue().catch(() => {
+        /* best-effort */
+      });
     }
   });
 }
@@ -94,7 +104,9 @@ async function readQueue(): Promise<QueuedParkAction[]> {
 async function writeQueue(queue: QueuedParkAction[]): Promise<void> {
   try {
     await AsyncStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
-  } catch { /* swallow — queue failure should never crash the app */ }
+  } catch {
+    /* swallow — queue failure should never crash the app */
+  }
 }
 
 // ── Public API ─────────────────────────────────────────────────────────────────
@@ -120,7 +132,7 @@ export async function queueParkAction(
   type: QueuedActionType,
   payload: Record<string, unknown>,
   endpoint?: string,
-  method?: string
+  method?: string,
 ): Promise<QueuedParkAction> {
   const action: QueuedParkAction = {
     id: generateId(),
@@ -137,7 +149,9 @@ export async function queueParkAction(
   await writeQueue(queue);
   notifyListeners(queue.length);
 
-  console.log(`[OfflineQueue] Queued ${type} action (id: ${action.id}). Queue depth: ${queue.length}`);
+  console.log(
+    `[OfflineQueue] Queued ${type} action (id: ${action.id}). Queue depth: ${queue.length}`,
+  );
   return action;
 }
 
@@ -147,41 +161,46 @@ export async function queueParkAction(
  * - Failed actions have their `attempts` counter incremented and are kept.
  * - Actions that have failed ≥ 5 times are dropped to avoid stale data.
  */
-export async function flushQueue(): Promise<{ flushed: number; failed: number }> {
+export async function flushQueue(): Promise<{
+  flushed: number;
+  failed: number;
+}> {
   if (isFlushing) return { flushed: 0, failed: 0 };
   isFlushing = true;
   try {
-  const queue = await readQueue();
-  if (queue.length === 0) return { flushed: 0, failed: 0 };
+    const queue = await readQueue();
+    if (queue.length === 0) return { flushed: 0, failed: 0 };
 
-  console.log(`[OfflineQueue] Flushing ${queue.length} queued action(s)...`);
+    console.log(`[OfflineQueue] Flushing ${queue.length} queued action(s)...`);
 
-  let flushed = 0;
-  let failed = 0;
-  const remaining: QueuedParkAction[] = [];
+    let flushed = 0;
+    let failed = 0;
+    const remaining: QueuedParkAction[] = [];
 
-  for (const action of queue) {
-    // Drop permanently stale actions (too many failures)
-    if (action.attempts >= 5) {
-      console.warn(`[OfflineQueue] Dropping action ${action.id} after 5 failed attempts.`);
-      continue;
+    for (const action of queue) {
+      // Drop permanently stale actions (too many failures)
+      if (action.attempts >= 5) {
+        console.warn(
+          `[OfflineQueue] Dropping action ${action.id} after 5 failed attempts.`,
+        );
+        continue;
+      }
+
+      try {
+        await dispatchAction(action);
+        flushed++;
+        console.log(`[OfflineQueue] Flushed ${action.type} (id: ${action.id})`);
+      } catch (err) {
+        failed++;
+        remaining.push({ ...action, attempts: action.attempts + 1 });
+        console.warn(`[OfflineQueue] Failed to flush ${action.id}:`, err);
+      }
     }
 
-    try {
-      await dispatchAction(action);
-      flushed++;
-      console.log(`[OfflineQueue] Flushed ${action.type} (id: ${action.id})`);
-    } catch (err) {
-      failed++;
-      remaining.push({ ...action, attempts: action.attempts + 1 });
-      console.warn(`[OfflineQueue] Failed to flush ${action.id}:`, err);
-    }
-  }
+    await writeQueue(remaining);
+    notifyListeners(remaining.length);
 
-  await writeQueue(remaining);
-  notifyListeners(remaining.length);
-
-  return { flushed, failed };
+    return { flushed, failed };
   } finally {
     isFlushing = false;
   }
@@ -192,7 +211,7 @@ export async function flushQueue(): Promise<{ flushed: number; failed: number }>
  */
 export async function removeQueuedAction(id: string): Promise<void> {
   const queue = await readQueue();
-  const updated = queue.filter(a => a.id !== id);
+  const updated = queue.filter((a) => a.id !== id);
   await writeQueue(updated);
   notifyListeners(updated.length);
 }
@@ -213,28 +232,32 @@ export async function clearQueue(): Promise<void> {
  * Implementation follows standard auth pattern with JWT.
  */
 async function dispatchAction(action: QueuedParkAction): Promise<void> {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) throw new Error('No session available to flush queue');
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) throw new Error("No session available to flush queue");
 
   const headers = {
-    'Content-Type': 'application/json',
-    'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
-    'Authorization': `Bearer ${session.access_token}`,
+    "Content-Type": "application/json",
+    apikey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "",
+    Authorization: `Bearer ${session.access_token}`,
   };
 
-  const endpoint = action.endpoint || (
-    action.type === 'END_PARK' ? '/park/session/end' : '/park/session'
-  );
-  
+  const endpoint =
+    action.endpoint ||
+    (action.type === "END_PARK" ? "/park/session/end" : "/park/session");
+
   const response = await fetchBackend(endpoint, {
-    method: action.method || 'POST',
+    method: action.method || "POST",
     headers,
     body: JSON.stringify(action.payload),
   });
 
   const data = await safeJson(response);
   if (!response.ok) {
-    throw new Error(data?.error || data?.message || `API error ${response.status}`);
+    throw new Error(
+      data?.error || data?.message || `API error ${response.status}`,
+    );
   }
 }
 
@@ -242,9 +265,9 @@ async function dispatchAction(action: QueuedParkAction): Promise<void> {
 
 /** Simple pseudo-UUID (no crypto dependency needed). */
 function generateId(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replaceAll(/[xy]/g, c => {
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replaceAll(/[xy]/g, (c) => {
     const r = Math.trunc(Math.random() * 16);
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
 }

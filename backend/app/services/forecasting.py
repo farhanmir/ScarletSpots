@@ -6,7 +6,9 @@ from app.services.forecast_provider import ForecastProvider
 
 
 class HeuristicForecastProvider(ForecastProvider):
-    def get_lot_forecast(self, lot_id: str, current_occupancy: int, capacity: int) -> Dict[str, Any]:
+    def get_lot_forecast(
+        self, lot_id: str, current_occupancy: int, capacity: int
+    ) -> Dict[str, Any]:
         """
         Computes a realistic heuristic forecast for a lot based on:
         - Time of day (Rush hour peaks)
@@ -33,37 +35,41 @@ class HeuristicForecastProvider(ForecastProvider):
                 if 8 <= hour <= 10:
                     return 85.0  # Morning rush
                 if 11 <= hour <= 14:
-                    return 95.0 # Mid-day peak
+                    return 95.0  # Mid-day peak
                 if 15 <= hour <= 17:
-                    return 70.0 # Afternoon
+                    return 70.0  # Afternoon
                 if 18 <= hour <= 21:
-                    return 45.0 # Evening classes
-                return 10.0 # Night
+                    return 45.0  # Evening classes
+                return 10.0  # Night
 
         def compute_point(target_time: datetime.datetime) -> Dict[str, Any]:
             # Blend current occupancy (momentum) with profile occupancy
             # Momentum fades the further out we go
             minutes_ahead = max(0, (target_time - now).total_seconds() / 60)
-            momentum_weight = max(0, 1.0 - (minutes_ahead / 120.0)) # fades over 2 hours
+            momentum_weight = max(
+                0, 1.0 - (minutes_ahead / 120.0)
+            )  # fades over 2 hours
 
             profile_val = get_profile_occupancy(target_time)
 
             # Weighted average
-            expected = (base_rate * momentum_weight) + (profile_val * (1.0 - momentum_weight))
+            expected = (base_rate * momentum_weight) + (
+                profile_val * (1.0 - momentum_weight)
+            )
 
             # Add some "noise"
-            variance = random.uniform(-5, 5)
+            variance = random.uniform(-5, 5)  # nosec B311
             expected = max(2, min(99, expected + variance))
 
             # Confidence band: wider for further-out predictions
-            band_width = 5 + (minutes_ahead * 0.15) # Grows by 9% per hour
+            band_width = 5 + (minutes_ahead * 0.15)  # Grows by 9% per hour
 
             return {
                 "time": target_time.isoformat(),
                 "expected_occupancy": round(expected, 1),
                 "low": round(max(0, expected - band_width), 1),
                 "high": round(min(100, expected + band_width), 1),
-                "label": HeuristicForecastProvider._get_label(expected)
+                "label": HeuristicForecastProvider._get_label(expected),
             }
 
         # Key time slices
@@ -83,10 +89,7 @@ class HeuristicForecastProvider(ForecastProvider):
         return {
             "slices": slices,
             "curve": curve,
-            "metadata": {
-                "is_weekend": is_weekend,
-                "generated_at": now.isoformat()
-            }
+            "metadata": {"is_weekend": is_weekend, "generated_at": now.isoformat()},
         }
 
     @staticmethod

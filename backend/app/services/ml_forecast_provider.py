@@ -20,9 +20,9 @@ import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from app.core.logger import get_logger
 from app.services.forecast_provider import ForecastProvider
 from app.services.forecasting import HeuristicForecastProvider
-from app.core.logger import get_logger
 
 log = get_logger(__name__)
 
@@ -51,6 +51,7 @@ class MLForecastProvider(ForecastProvider):
 
         try:
             import joblib  # type: ignore
+
             model = joblib.load(model_path)
             self._cache[lot_id] = model
             log.info("Loaded ML forecast model for lot %s", lot_id)
@@ -59,7 +60,9 @@ class MLForecastProvider(ForecastProvider):
             log.warning("Failed to load model for lot %s: %s", lot_id, exc)
             return None
 
-    def get_lot_forecast(self, lot_id: str, current_occupancy: int, capacity: int) -> Dict[str, Any]:
+    def get_lot_forecast(
+        self, lot_id: str, current_occupancy: int, capacity: int
+    ) -> Dict[str, Any]:
         model = self._load_model(lot_id)
 
         if model is None:
@@ -71,14 +74,19 @@ class MLForecastProvider(ForecastProvider):
 
         def predict_at(target: datetime.datetime) -> Dict[str, Any]:
             import numpy as np  # type: ignore
-            features = np.array([[
-                target.hour,
-                target.weekday(),
-                target.month,
-                current_occupancy,
-                capacity,
-                max(0, (target - now).total_seconds() / 60),  # minutes_ahead
-            ]])
+
+            features = np.array(
+                [
+                    [
+                        target.hour,
+                        target.weekday(),
+                        target.month,
+                        current_occupancy,
+                        capacity,
+                        max(0, (target - now).total_seconds() / 60),  # minutes_ahead
+                    ]
+                ]
+            )
             try:
                 pred_ratio = float(model.predict(features)[0])
                 pred_pct = max(0.0, min(100.0, pred_ratio * 100))

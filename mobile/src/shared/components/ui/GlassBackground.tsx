@@ -1,11 +1,11 @@
-import React from 'react';
-import { Platform, StyleProp, View, ViewStyle } from 'react-native';
-import { BlurView, BlurTint } from 'expo-blur';
+import React from "react";
+import { Platform, StyleProp, View, ViewStyle } from "react-native";
+import { BlurView, BlurTint } from "expo-blur";
 import {
   GlassView,
   isGlassEffectAPIAvailable,
   isLiquidGlassAvailable,
-} from 'expo-glass-effect';
+} from "expo-glass-effect";
 
 export interface GlassBackgroundProps {
   style?: StyleProp<ViewStyle>;
@@ -13,7 +13,7 @@ export interface GlassBackgroundProps {
    * Glass style to use when Liquid Glass is available on iOS 26+.
    * Falls back to BlurView / solid color elsewhere.
    */
-  glassStyle?: 'regular' | 'clear';
+  glassStyle?: "regular" | "clear";
   /**
    * Background color for Android and other non-glass fallbacks.
    */
@@ -27,12 +27,12 @@ export interface GlassBackgroundProps {
 
 export function GlassBackground({
   style,
-  glassStyle = 'regular',
-  fallbackColor = 'rgba(10,10,12,0.35)',
+  glassStyle = "regular",
+  fallbackColor = "rgba(10,10,12,0.35)",
   blurIntensity = 80,
-  blurTint = 'systemChromeMaterialDark',
+  blurTint = "systemChromeMaterialDark",
 }: Readonly<GlassBackgroundProps>) {
-  if (Platform.OS === 'ios') {
+  if (Platform.OS === "ios") {
     // Prefer true Liquid Glass on iOS 26+ when the API is available.
     if (isGlassEffectAPIAvailable() && isLiquidGlassAvailable()) {
       return (
@@ -46,17 +46,10 @@ export function GlassBackground({
 
     // Fallback to traditional frosted blur on older iOS or when Liquid Glass
     // is disabled by system / accessibility settings.
-    return (
-      <BlurView
-        intensity={blurIntensity}
-        tint={blurTint}
-        style={style}
-      />
-    );
+    return <BlurView intensity={blurIntensity} tint={blurTint} style={style} />;
   }
 
   // Android / other platforms: solid, slightly translucent surface that matches
   // our existing design language.
   return <View style={[{ backgroundColor: fallbackColor }, style]} />;
 }
-

@@ -1,29 +1,33 @@
-import sys
 import os
-import uuid
+import sys
 import traceback
+import uuid
 
 # Add parent directory to path to allow running as script
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
-from starlette.middleware.base import BaseHTTPMiddleware
+from fastapi.responses import JSONResponse, RedirectResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from starlette.middleware.base import BaseHTTPMiddleware
+
 from app.core.config import settings
 from app.core.limiter import limiter
 from app.core.logger import logger
-from app.routers import users, lots, friends, park, favorites
-from contextlib import asynccontextmanager
+from app.routers import favorites, friends, lots, park, users
+
 
 # FastAPI Lifespan for Supabase Client Pooling
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Initialize shared clients once per process
-    from app.core.security import init_supabase_clients, close_supabase_clients
-    from app.core.cache import init_cache, close_cache
+    from app.core.cache import close_cache, init_cache
+    from app.core.security import close_supabase_clients, init_supabase_clients
+
     clients = init_supabase_clients()
     app.state.supabase = clients["supabase"]
     app.state.admin_supabase = clients["admin_supabase"]
@@ -34,15 +38,16 @@ async def lifespan(app: FastAPI):
     await close_cache()
     await close_supabase_clients()
 
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
 
 # Sanitize 500 error responses
@@ -77,6 +82,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 # Correlation ID Middleware
 class CorrelationIdMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -85,11 +91,13 @@ class CorrelationIdMiddleware(BaseHTTPMiddleware):
         msg = f"[{correlation_id}] {request.method} {request.url.path}"
         # Use sys.stderr and flush=True to bypass potential buffering
         import sys
+
         print(f"\n>>>>> REQUEST: {msg} <<<<<", file=sys.stderr, flush=True)
         logger.info(msg)
         response = await call_next(request)
         response.headers["X-Correlation-ID"] = correlation_id
         return response
+
 
 app.add_middleware(CorrelationIdMiddleware)
 
@@ -117,4 +125,5 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)  # nosec B104

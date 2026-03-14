@@ -4,7 +4,10 @@
  * @param polygon Array of Array [[lat, lng], [lat, lng], ...]
  * @returns boolean true if inside, false otherwise
  */
-export function isPointInPolygon(point: number[], polygon: number[][]): boolean {
+export function isPointInPolygon(
+  point: number[],
+  polygon: number[][],
+): boolean {
   const x = point[0]; // latitude
   const y = point[1]; // longitude
 
@@ -16,9 +19,9 @@ export function isPointInPolygon(point: number[], polygon: number[][]): boolean 
     const xj = polygon[j][0];
     const yj = polygon[j][1];
 
-    const intersect = ((yi > y) !== (yj > y)) &&
-        (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
-    
+    const intersect =
+      yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
+
     if (intersect) {
       isInside = !isInside;
     }

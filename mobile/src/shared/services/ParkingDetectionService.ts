@@ -10,7 +10,7 @@
  *   6. Confidence score: weighted combination of all signals (0.0–1.0)
  */
 
-import { isPointInPolygon } from '../utils/geofence';
+import { isPointInPolygon } from "../utils/geofence";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -19,23 +19,27 @@ export interface ParkingCandidate {
   lotName: string;
   latitude: number;
   longitude: number;
-  confidence: number;       // 0.0 – 1.0
+  confidence: number; // 0.0 – 1.0
   signals: SignalBreakdown;
   timestamp: string;
 }
 
 export interface SignalBreakdown {
-  speedTransition: number;  // 0–1  Did speed drop from driving to stopped?
-  stillness: number;        // 0–1  Is accelerometer showing stillness?
-  headingChange: number;    // 0–1  Did we make a sharp turn (into a lot entrance)?
-  insideLot: number;        // 0–1  Is the point inside a known lot polygon?
-  pedometerSignal: number;  // 0–1  Did we detect walking steps?
-  gpsAccuracy: number;      // 0–1  How good is the GPS fix?
+  speedTransition: number; // 0–1  Did speed drop from driving to stopped?
+  stillness: number; // 0–1  Is accelerometer showing stillness?
+  headingChange: number; // 0–1  Did we make a sharp turn (into a lot entrance)?
+  insideLot: number; // 0–1  Is the point inside a known lot polygon?
+  pedometerSignal: number; // 0–1  Did we detect walking steps?
+  gpsAccuracy: number; // 0–1  How good is the GPS fix?
 }
 
 /** Confidence → approximate GPS radius in meters for the candidate pin overlay. */
-export function confidenceToRadius(confidence: number, horizontalAccuracy: number | null): number {
-  const base = horizontalAccuracy && horizontalAccuracy > 0 ? horizontalAccuracy : 30;
+export function confidenceToRadius(
+  confidence: number,
+  horizontalAccuracy: number | null,
+): number {
+  const base =
+    horizontalAccuracy && horizontalAccuracy > 0 ? horizontalAccuracy : 30;
   // High confidence → tighter radius; low confidence → wider uncertainty circle
   return Math.round(base + (1 - confidence) * 80);
 }
@@ -56,11 +60,11 @@ export interface AccelReading {
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const DRIVING_SPEED_THRESHOLD = 5;       // m/s (~11 mph) — considered driving
-const STOPPED_SPEED_THRESHOLD = 1;       // m/s (~2 mph) — considered stopped/walking
+const DRIVING_SPEED_THRESHOLD = 5; // m/s (~11 mph) — considered driving
+const STOPPED_SPEED_THRESHOLD = 1; // m/s (~2 mph) — considered stopped/walking
 const STILLNESS_VARIANCE_THRESHOLD = 0.2; // g² — accelerometer variance threshold
-const GPS_ACCURACY_GOOD = 10;            // meters
-const GPS_ACCURACY_ACCEPTABLE = 30;      // meters
+const GPS_ACCURACY_GOOD = 10; // meters
+const GPS_ACCURACY_ACCEPTABLE = 30; // meters
 
 // Heading change threshold — turns >45° within a short window signal lot entry
 const HEADING_CHANGE_THRESHOLD_DEG = 45;
@@ -96,9 +100,9 @@ export function clearPedometerBuffer(): void {
  */
 export function computePedometerScore(): number {
   if (stepCountBuffer.length < 2) return 0.5; // Neutral
-  
+
   // If steps increased recently, it's a strong signal they are walking (parked)
-  const isWalking = stepCountBuffer.some(s => s > 0);
+  const isWalking = stepCountBuffer.some((s) => s > 0);
   return isWalking ? 1.0 : 0.0;
 }
 
@@ -169,10 +173,12 @@ export function computeSpeedTransitionScore(): number {
   if (speedBuffer.length < 3) return 0;
 
   // Check if any recent speed was "driving"
-  const recentDriving = speedBuffer.slice(0, -2).some(s => s > DRIVING_SPEED_THRESHOLD);
+  const recentDriving = speedBuffer
+    .slice(0, -2)
+    .some((s) => s > DRIVING_SPEED_THRESHOLD);
   // Check if last 2 readings are "stopped"
   const lastTwo = speedBuffer.slice(-2);
-  const nowStopped = lastTwo.every(s => s < STOPPED_SPEED_THRESHOLD);
+  const nowStopped = lastTwo.every((s) => s < STOPPED_SPEED_THRESHOLD);
 
   if (recentDriving && nowStopped) return 1;
   if (nowStopped && !recentDriving) return 0.3; // Stopped but wasn't clearly driving before
@@ -186,13 +192,14 @@ export function computeStillnessScore(): number {
   if (accelBuffer.length < 5) return 0.5; // Unknown, neutral
 
   // Compute variance of magnitude
-  const magnitudes = accelBuffer.map(r => Math.hypot(r.x, r.y, r.z));
+  const magnitudes = accelBuffer.map((r) => Math.hypot(r.x, r.y, r.z));
   const mean = magnitudes.reduce((a, b) => a + b, 0) / magnitudes.length;
-  const variance = magnitudes.reduce((sum, m) => sum + (m - mean) ** 2, 0) / magnitudes.length;
+  const variance =
+    magnitudes.reduce((sum, m) => sum + (m - mean) ** 2, 0) / magnitudes.length;
 
-  if (variance < STILLNESS_VARIANCE_THRESHOLD * 0.5) return 1;  // Very still
-  if (variance < STILLNESS_VARIANCE_THRESHOLD) return 0.7;         // Mostly still
-  if (variance < STILLNESS_VARIANCE_THRESHOLD * 2) return 0.3;     // Somewhat active
+  if (variance < STILLNESS_VARIANCE_THRESHOLD * 0.5) return 1; // Very still
+  if (variance < STILLNESS_VARIANCE_THRESHOLD) return 0.7; // Mostly still
+  if (variance < STILLNESS_VARIANCE_THRESHOLD * 2) return 0.3; // Somewhat active
   return 0; // Active / moving
 }
 
@@ -216,15 +223,17 @@ export function computeHeadingChangeScore(): number {
   }
 
   if (maxDelta >= HEADING_CHANGE_THRESHOLD_DEG * 1.5) return 1; // Very sharp turn
-  if (maxDelta >= HEADING_CHANGE_THRESHOLD_DEG) return 0.75;       // Clear turn
-  if (maxDelta >= HEADING_CHANGE_THRESHOLD_DEG * 0.5) return 0.5;  // Mild curve
+  if (maxDelta >= HEADING_CHANGE_THRESHOLD_DEG) return 0.75; // Clear turn
+  if (maxDelta >= HEADING_CHANGE_THRESHOLD_DEG * 0.5) return 0.5; // Mild curve
   return 0.2; // Straight road — unlikely to be entering a lot
 }
 
 /**
  * GPS accuracy score.
  */
-export function computeGpsAccuracyScore(horizontalAccuracy: number | null): number {
+export function computeGpsAccuracyScore(
+  horizontalAccuracy: number | null,
+): number {
   if (!horizontalAccuracy || horizontalAccuracy <= 0) return 0.5;
   if (horizontalAccuracy <= GPS_ACCURACY_GOOD) return 1;
   if (horizontalAccuracy <= GPS_ACCURACY_ACCEPTABLE) return 0.7;
@@ -238,7 +247,7 @@ export function computeGpsAccuracyScore(horizontalAccuracy: number | null): numb
 export function findContainingLot(
   latitude: number,
   longitude: number,
-  lots: LotForDetection[]
+  lots: LotForDetection[],
 ): LotForDetection | null {
   for (const lot of lots) {
     if (lot.coordinates && lot.coordinates.length >= 3) {
@@ -258,14 +267,19 @@ export function findNearestLots(
   longitude: number,
   lots: LotForDetection[],
   maxResults = 3,
-  maxDistanceMeters = 200
+  maxDistanceMeters = 200,
 ): { lot: LotForDetection; distance: number }[] {
   const results = lots
-    .map(lot => ({
+    .map((lot) => ({
       lot,
-      distance: haversineDistance(latitude, longitude, lot.latitude, lot.longitude),
+      distance: haversineDistance(
+        latitude,
+        longitude,
+        lot.latitude,
+        lot.longitude,
+      ),
     }))
-    .filter(r => r.distance <= maxDistanceMeters)
+    .filter((r) => r.distance <= maxDistanceMeters)
     .sort((a, b) => a.distance - b.distance);
 
   return results.slice(0, maxResults);
@@ -281,7 +295,7 @@ export function detectParking(
   latitude: number,
   longitude: number,
   horizontalAccuracy: number | null,
-  lots: LotForDetection[]
+  lots: LotForDetection[],
 ): ParkingCandidate[] {
   const speedScore = computeSpeedTransitionScore();
   const stillnessScore = computeStillnessScore();
@@ -366,14 +380,21 @@ export function detectParking(
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+function haversineDistance(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+): number {
   const R = 6371000; // Earth radius in meters
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    Math.cos(toRad(lat1)) *
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }

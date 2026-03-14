@@ -7,11 +7,10 @@ Python RAM cache (InMemoryBackend) — no 500 errors, still some performance gai
 
 import logging
 
-from redis import asyncio as aioredis
-
 from fastapi_cache import FastAPICache
 from fastapi_cache.backends.inmemory import InMemoryBackend
 from fastapi_cache.backends.redis import RedisBackend
+from redis import asyncio as aioredis
 
 from app.core.config import settings
 

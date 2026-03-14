@@ -1,8 +1,10 @@
-import * as TaskManager from 'expo-task-manager';
-import * as Location from 'expo-location';
-import * as Notifications from 'expo-notifications';
-import { Accelerometer, Pedometer } from 'expo-sensors';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as TaskManager from "expo-task-manager";
+import * as Location from "expo-location";
+import * as Notifications from "expo-notifications";
+import { Accelerometer, Pedometer } from "expo-sensors";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { supabase } from "@/shared/api/supabase-client";
+import { fetchBackend, safeJson } from "@/shared/api/api-base";
 import {
   pushSpeed,
   pushAccel,
@@ -11,11 +13,12 @@ import {
   detectParking,
   type LotForDetection,
   type ParkingCandidate,
-} from './ParkingDetectionService';
-import { PARKING_CONFIDENCE_THRESHOLD } from '../constants/featureFlags';
+} from "./ParkingDetectionService";
+import { cacheSession } from "./OfflineCache";
+import { PARKING_CONFIDENCE_THRESHOLD } from "../constants/featureFlags";
 
-export const PARKING_DETECTION_TASK = 'SCARLETSPOTS_PARKING_DETECTION';
-const CANDIDATES_STORAGE_KEY = 'parking_candidates';
+export const PARKING_DETECTION_TASK = "SCARLETSPOTS_PARKING_DETECTION";
+const CANDIDATES_STORAGE_KEY = "parking_candidates";
 
 // ── Sensor Tracking Listeners ──────────────────────────────────────────────────
 
@@ -26,7 +29,7 @@ const startSensorTracking = async () => {
   // Accelerometer
   if (!accelSubscription) {
     Accelerometer.setUpdateInterval(500);
-    accelSubscription = Accelerometer.addListener(data => {
+    accelSubscription = Accelerometer.addListener((data) => {
       pushAccel(data);
     });
   }
@@ -36,7 +39,7 @@ const startSensorTracking = async () => {
     const isAvailable = await Pedometer.isAvailableAsync();
     // Re-check after await in case stopSensorTracking was called concurrently
     if (isAvailable && !pedometerSubscription) {
-      pedometerSubscription = Pedometer.watchStepCount(result => {
+      pedometerSubscription = Pedometer.watchStepCount((result) => {
         pushSteps(result.steps);
       });
     }
@@ -58,7 +61,7 @@ export const stopSensorTracking = () => {
 
 TaskManager.defineTask(PARKING_DETECTION_TASK, async ({ data, error }: any) => {
   if (error) {
-    console.error('[BackgroundTask] Error:', error.message);
+    console.error("[BackgroundTask] Error:", error.message);
     return;
   }
   if (!data) return;
@@ -80,7 +83,7 @@ TaskManager.defineTask(PARKING_DETECTION_TASK, async ({ data, error }: any) => {
   // Load cached lots for comparison
   let lots: LotForDetection[] = [];
   try {
-    const cachedLotsStr = await AsyncStorage.getItem('cached_lots');
+    const cachedLotsStr = await AsyncStorage.getItem("cached_lots");
     if (cachedLotsStr) {
       lots = JSON.parse(cachedLotsStr);
     }
@@ -95,7 +98,7 @@ TaskManager.defineTask(PARKING_DETECTION_TASK, async ({ data, error }: any) => {
     latestLocation.coords.latitude,
     latestLocation.coords.longitude,
     latestLocation.coords.accuracy,
-    lots
+    lots,
   );
 
   if (candidates.length === 0) return;
@@ -111,16 +114,57 @@ TaskManager.defineTask(PARKING_DETECTION_TASK, async ({ data, error }: any) => {
   stopSensorTracking();
 
   // Persist candidates so the UI can prompt the user on app foreground
-  await AsyncStorage.setItem(CANDIDATES_STORAGE_KEY, JSON.stringify(candidates));
+  await AsyncStorage.setItem(
+    CANDIDATES_STORAGE_KEY,
+    JSON.stringify(candidates),
+  );
+
+  // Try true background auto-start first so parking can begin even when the
+  // app UI is closed. If this fails, we keep pending candidates for foreground.
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (session?.access_token) {
+      const response = await fetchBackend("/park/session", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "",
+          Authorization: `Bearer ${session.access_token}`,
+          "x-user-token": session.access_token,
+        },
+        body: JSON.stringify({
+          lotId: topCandidate.lotId,
+          latitude: topCandidate.latitude,
+          longitude: topCandidate.longitude,
+          confirmed: true,
+          autoStarted: true,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await safeJson(response);
+        if (data?.session) {
+          await cacheSession({ session: data.session });
+        }
+        await AsyncStorage.removeItem(CANDIDATES_STORAGE_KEY);
+        return;
+      }
+    }
+  } catch {
+    // Keep fallback candidate prompt path if background API attempt fails.
+  }
 
   // Send immediate local notification
   await Notifications.scheduleNotificationAsync({
     content: {
-      title: '🚗 ScarletSpots',
+      title: "🚗 ScarletSpots",
       body: `We recorded your parking at ${topCandidate.lotName}. Open the app to see your spot.`,
       data: {
         lotId: topCandidate.lotId,
-        action: 'confirm_park',
+        action: "confirm_park",
       },
       sound: true,
       priority: Notifications.AndroidNotificationPriority.HIGH,
@@ -134,7 +178,9 @@ TaskManager.defineTask(PARKING_DETECTION_TASK, async ({ data, error }: any) => {
 /**
  * Retrieve persisted parking candidates (set by background task).
  */
-export async function getPendingParkingCandidates(): Promise<ParkingCandidate[]> {
+export async function getPendingParkingCandidates(): Promise<
+  ParkingCandidate[]
+> {
   try {
     const raw = await AsyncStorage.getItem(CANDIDATES_STORAGE_KEY);
     return raw ? JSON.parse(raw) : [];

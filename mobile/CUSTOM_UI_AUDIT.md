@@ -119,4 +119,4 @@ This list covers UI that is **manually implemented** (custom components or RN pr
 
 ---
 
-*Generated for ScarletSpots mobile. Update this file when you replace or add custom UI.*
+_Generated for ScarletSpots mobile. Update this file when you replace or add custom UI._

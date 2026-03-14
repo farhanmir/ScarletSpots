@@ -1,13 +1,13 @@
 // https://docs.expo.dev/guides/using-eslint/
-const { defineConfig } = require('eslint/config');
-const expoConfig = require('eslint-config-expo/flat');
+const { defineConfig } = require("eslint/config");
+const expoConfig = require("eslint-config-expo/flat");
 
-const globals = require('globals');
+const globals = require("globals");
 
 module.exports = defineConfig([
   expoConfig,
   {
-    files: ['scripts/**/*.js'],
+    files: ["scripts/**/*.js"],
     languageOptions: {
       globals: {
         ...globals.node,
@@ -15,6 +15,6 @@ module.exports = defineConfig([
     },
   },
   {
-    ignores: ['dist/*'],
+    ignores: ["dist/*"],
   },
 ]);

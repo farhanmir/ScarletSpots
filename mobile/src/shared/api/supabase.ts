@@ -1,22 +1,25 @@
-import { supabase, supabaseAnonKey } from './supabase-client';
+import { supabase, supabaseAnonKey } from "./supabase-client";
 
 // API Helpers derived from base
-import { fetchBackend, safeJson } from './api-base';
+import { fetchBackend, safeJson } from "./api-base";
 
-import NetInfo from '@react-native-community/netinfo';
-import { queueParkAction } from '@/shared/services/OfflineQueue';
+import NetInfo from "@react-native-community/netinfo";
+import { queueParkAction } from "@/shared/services/OfflineQueue";
 export { supabase, supabaseAnonKey };
 
 /**
  * Public API call - uses the anon key, no user session required.
  * Use for endpoints like /lots, /signup that don't need auth.
  */
-export async function publicApiCall(endpoint: string, options: RequestInit = {}): Promise<any> {
+export async function publicApiCall(
+  endpoint: string,
+  options: RequestInit = {},
+): Promise<any> {
   const response = await fetchBackend(endpoint, {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
-      'apikey': supabaseAnonKey,
+      "Content-Type": "application/json",
+      apikey: supabaseAnonKey,
       Authorization: `Bearer ${supabaseAnonKey}`,
       ...(options.headers || {}),
     } as HeadersInit,
@@ -25,7 +28,10 @@ export async function publicApiCall(endpoint: string, options: RequestInit = {})
   const data = await safeJson(response);
 
   if (!response.ok) {
-    console.error(`Public API error on ${endpoint} (${response.status}):`, data);
+    console.error(
+      `Public API error on ${endpoint} (${response.status}):`,
+      data,
+    );
     throw new Error(data.error || `API request failed (${response.status})`);
   }
 
@@ -37,27 +43,47 @@ export async function publicApiCall(endpoint: string, options: RequestInit = {})
  * Use for endpoints like /park/session/active that need the user's JWT.
  * Returns null silently if no session exists (instead of crashing).
  */
-export async function authApiCall(endpoint: string, options: RequestInit = {}): Promise<any> {
+export async function authApiCall(
+  endpoint: string,
+  options: RequestInit = {},
+): Promise<any> {
   // Check network BEFORE attempting
   const netState = await NetInfo.fetch();
   if (!netState.isConnected) {
     console.log(`[authApiCall] device offline, queueing ${endpoint}`);
-    
+
     // Use the unified OfflineQueue
     const payload = options.body ? JSON.parse(options.body as string) : {};
-    if (endpoint.includes('/park/session') && options.method === 'POST') {
-      await queueParkAction(endpoint.includes('end') ? 'END_PARK' : 'PARK', payload);
-      return { success: true, session: { id: 'offline-pending', active: true, startTime: new Date().toISOString() } };
-    } else if (options.method && options.method !== 'GET') {
+    if (endpoint.includes("/park/session") && options.method === "POST") {
+      await queueParkAction(
+        endpoint.includes("end") ? "END_PARK" : "PARK",
+        payload,
+      );
+      return {
+        success: true,
+        session: {
+          id: "offline-pending",
+          active: true,
+          startTime: new Date().toISOString(),
+        },
+      };
+    } else if (options.method && options.method !== "GET") {
       // @ts-ignore - endpoint is added to QueuedParkAction in service
-      await queueParkAction('GENERIC_MUTATION', payload, endpoint, options.method);
+      await queueParkAction(
+        "GENERIC_MUTATION",
+        payload,
+        endpoint,
+        options.method,
+      );
     }
-    
+
     return { success: true, _offline: true };
   }
 
   // 1. Get current session
-  let { data: { session } } = await supabase.auth.getSession();
+  let {
+    data: { session },
+  } = await supabase.auth.getSession();
 
   if (!session?.access_token) {
     console.log(`No session for authenticated call to ${endpoint}, skipping.`);
@@ -70,10 +96,10 @@ export async function authApiCall(endpoint: string, options: RequestInit = {}): 
     response = await fetchBackend(endpoint, {
       ...options,
       headers: {
-        'Content-Type': 'application/json',
-        'apikey': supabaseAnonKey as string,
-        'Authorization': `Bearer ${session?.access_token || supabaseAnonKey}`,
-        'x-user-token': session?.access_token || '',
+        "Content-Type": "application/json",
+        apikey: supabaseAnonKey as string,
+        Authorization: `Bearer ${session?.access_token || supabaseAnonKey}`,
+        "x-user-token": session?.access_token || "",
         ...(options.headers || {}),
       } as HeadersInit,
     });
@@ -85,9 +111,9 @@ export async function authApiCall(endpoint: string, options: RequestInit = {}): 
     // offline path was taken.
     console.log(`[authApiCall] Network fetch failed, queueing ${endpoint}`);
     const payload = options.body ? JSON.parse(options.body as string) : {};
-    if (endpoint.includes('/park/session') && options.method === 'POST') {
-      const isEnd = endpoint.includes('end');
-      await queueParkAction(isEnd ? 'END_PARK' : 'PARK', payload);
+    if (endpoint.includes("/park/session") && options.method === "POST") {
+      const isEnd = endpoint.includes("end");
+      await queueParkAction(isEnd ? "END_PARK" : "PARK", payload);
       if (!isEnd) {
         return {
           success: true,
@@ -103,24 +129,30 @@ export async function authApiCall(endpoint: string, options: RequestInit = {}): 
           },
         };
       }
-    } else if (options.method && options.method !== 'GET') {
+    } else if (options.method && options.method !== "GET") {
       // @ts-ignore
-      await queueParkAction('GENERIC_MUTATION', payload, endpoint, options.method);
+      await queueParkAction(
+        "GENERIC_MUTATION",
+        payload,
+        endpoint,
+        options.method,
+      );
     }
     return { success: true, _offline: true };
   }
 
   // 4. Handle 401 ...
   if (response.status === 401) {
-    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+    const { data: refreshData, error: refreshError } =
+      await supabase.auth.refreshSession();
     if (!refreshError && refreshData.session) {
       try {
         response = await fetchBackend(endpoint, {
           ...options,
           headers: {
             ...options.headers,
-            'Authorization': `Bearer ${refreshData.session.access_token}`,
-            'x-user-token': refreshData.session.access_token,
+            Authorization: `Bearer ${refreshData.session.access_token}`,
+            "x-user-token": refreshData.session.access_token,
           } as any,
         });
       } catch {
@@ -147,6 +179,9 @@ export async function authApiCall(endpoint: string, options: RequestInit = {}): 
 }
 
 // Keep backward-compatible apiCall that routes to the right one
-export async function apiCall(endpoint: string, options: RequestInit = {}): Promise<any> {
+export async function apiCall(
+  endpoint: string,
+  options: RequestInit = {},
+): Promise<any> {
   return publicApiCall(endpoint, options);
 }

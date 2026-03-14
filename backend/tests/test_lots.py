@@ -1,8 +1,9 @@
 """
 Tests for the lots router: occupancy aggregate and forecasting.
 """
-import pytest
+
 from fastapi.testclient import TestClient
+
 from app.main import app
 
 client = TestClient(app)

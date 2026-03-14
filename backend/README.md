@@ -29,6 +29,37 @@ Interactive API docs: `http://localhost:8000/api/v1/openapi.json`
 pytest tests/
 ```
 
+## Development quality checks
+
+Install development tools:
+
+```bash
+pip install -r requirements-dev.txt
+```
+
+Run the full local quality gate:
+
+```bash
+make check
+```
+
+Auto-fix what can be fixed automatically:
+
+```bash
+make fix
+```
+
+Run individual checks:
+
+```bash
+make lint         # Ruff lint checks
+make format-check # Ruff formatting check
+make typecheck    # mypy type checking
+make security     # Bandit security scan
+make deps-audit   # pip-audit dependency vulnerability scan
+make deadcode     # Vulture dead code scan
+```
+
 ## Database migrations
 
 Migrations are in `supabase/migrations/` and should be applied in filename order using the Supabase CLI:
@@ -40,3 +71,18 @@ supabase db push
 ## API prefix
 
 All routes are prefixed with `/api/v1`. See `app/main.py` for the full router list.
+
+## Local environment notes
+
+Recommended Python version: 3.11 (matches CI and avoids local build-toolchain issues on Python 3.14).
+
+If make is not available on your system (common on Windows), run tools directly:
+
+```bash
+python -m ruff check app tests
+python -m ruff format --check app tests
+python -m mypy app --ignore-missing-imports --no-strict-optional
+python -m bandit -r app -x tests
+python -m pip_audit
+python -m vulture app --min-confidence 80
+```

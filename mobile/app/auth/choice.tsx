@@ -1,1 +1,1 @@
-export { default } from '@/features/auth/screens/AuthChoiceScreen';
+export { default } from "@/features/auth/screens/AuthChoiceScreen";

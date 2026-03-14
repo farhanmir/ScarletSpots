@@ -1,6 +1,6 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { getOccupancyColor } from '@/features/home/services/utils';
+import React from "react";
+import { View, Text, StyleSheet } from "react-native";
+import { getOccupancyColor } from "@/features/home/services/utils";
 
 interface OccupancyBadgeProps {
   rate: number;
@@ -10,7 +10,9 @@ interface OccupancyBadgeProps {
 export default function OccupancyBadge({ rate, campus }: OccupancyBadgeProps) {
   return (
     <View style={styles.badgeContainer}>
-      <View style={[styles.badgeDot, { backgroundColor: getOccupancyColor(rate) }]} />
+      <View
+        style={[styles.badgeDot, { backgroundColor: getOccupancyColor(rate) }]}
+      />
       {campus && <Text style={styles.badgeText}>{campus} Campus</Text>}
     </View>
   );
@@ -18,10 +20,10 @@ export default function OccupancyBadge({ rate, campus }: OccupancyBadgeProps) {
 
 const styles = StyleSheet.create({
   badgeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    alignSelf: 'flex-start',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    alignSelf: "flex-start",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
@@ -33,8 +35,8 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   badgeText: {
-    color: '#d4d4d8',
+    color: "#d4d4d8",
     fontSize: 13,
-    fontWeight: '500',
+    fontWeight: "500",
   },
 });

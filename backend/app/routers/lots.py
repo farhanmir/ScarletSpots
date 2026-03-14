@@ -9,12 +9,13 @@ This router only handles:
   2. Occupancy    — GET /lots/occupancy  (aggregate for all lots)
 """
 
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi_cache.decorator import cache as fastapi_cache
+
 from app.core.logger import get_logger
 from app.core.security import get_supabase
 from app.services.forecast_provider import ForecastProvider
 from app.services.ml_forecast_provider import MLForecastProvider
-from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi_cache.decorator import cache as fastapi_cache
 
 log = get_logger(__name__)
 
@@ -44,12 +45,8 @@ async def get_all_occupancy():
 @router.get("/{lot_id}/forecast")
 def get_lot_forecast(
     lot_id: str,
-    capacity: int = Query(
-        default=100, ge=0, description="Total lot capacity (from bundled JSON)"
-    ),
-    current_occupancy: int = Query(
-        default=0, ge=0, description="Current occupied count"
-    ),
+    capacity: int = Query(default=100, ge=0, description="Total lot capacity (from bundled JSON)"),
+    current_occupancy: int = Query(default=0, ge=0, description="Current occupied count"),
     provider: ForecastProvider = Depends(_get_forecast_provider),
 ):
     """

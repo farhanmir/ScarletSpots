@@ -1,22 +1,32 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
-from uuid import UUID
-from app.core.security import get_current_user, get_auth_db
+
 from app.core.limiter import limiter
 from app.core.logger import get_logger
+from app.core.security import get_auth_db, get_current_user
 
 log = get_logger(__name__)
 
 router = APIRouter(prefix="/friends", tags=["friends"])
 
+
 class FriendRequest(BaseModel):
     friend_email: str
+
 
 class FriendAction(BaseModel):
     request_id: UUID
 
+
 @router.get("")
-def get_friends(current_user=Depends(get_current_user), db=Depends(get_auth_db), limit: int = 50, offset: int = 0):
+def get_friends(
+    current_user=Depends(get_current_user),
+    db=Depends(get_auth_db),
+    limit: int = 50,
+    offset: int = 0,
+):
     """Get accepted friends and pending requests."""
     user_id = current_user.id
     limit = max(1, min(limit, 200))
@@ -24,8 +34,9 @@ def get_friends(current_user=Depends(get_current_user), db=Depends(get_auth_db),
 
     # Get all friendships for the user
     try:
+
         def _format_friend(db_client, friendship, profile):
-            name = profile.get('full_name', '') or profile.get('email', 'Unknown')
+            name = profile.get("full_name", "") or profile.get("email", "Unknown")
             uid = str(profile["id"])
             parked = False
             lot_id = None
@@ -59,32 +70,60 @@ def get_friends(current_user=Depends(get_current_user), db=Depends(get_auth_db),
             }
 
         # 1. Incoming requests (status = pending, friend_id = me)
-        incoming_query = db.table("friendships").select("id, status, user_id, profiles!friendships_user_id_fkey(id, email, full_name)", count="exact").eq("friend_id", user_id).eq("status", "pending").range(offset, offset + limit - 1).execute()
+        incoming_query = (
+            db.table("friendships")
+            .select(
+                "id, status, user_id, profiles!friendships_user_id_fkey(id, email, full_name)",
+                count="exact",
+            )
+            .eq("friend_id", user_id)
+            .eq("status", "pending")
+            .range(offset, offset + limit - 1)
+            .execute()
+        )
 
         # 2. Accepted friends: we check both directions
         # Query A: Where I am the initiator
-        q1 = db.table("friendships").select(
-            "id, status, user_id, friend_id, sharing_enabled, "
-            "friend:profiles!friendships_friend_id_fkey(id, email, full_name)", count="exact"
-        ).eq("user_id", user_id).eq("status", "accepted").range(offset, offset + limit - 1).execute()
+        q1 = (
+            db.table("friendships")
+            .select(
+                "id, status, user_id, friend_id, sharing_enabled, "
+                "friend:profiles!friendships_friend_id_fkey(id, email, full_name)",
+                count="exact",
+            )
+            .eq("user_id", user_id)
+            .eq("status", "accepted")
+            .range(offset, offset + limit - 1)
+            .execute()
+        )
 
         # Query B: Where I am the target
-        q2 = db.table("friendships").select(
-            "id, status, user_id, friend_id, sharing_enabled, "
-            "initiator:profiles!friendships_user_id_fkey(id, email, full_name)", count="exact"
-        ).eq("friend_id", user_id).eq("status", "accepted").range(offset, offset + limit - 1).execute()
+        q2 = (
+            db.table("friendships")
+            .select(
+                "id, status, user_id, friend_id, sharing_enabled, "
+                "initiator:profiles!friendships_user_id_fkey(id, email, full_name)",
+                count="exact",
+            )
+            .eq("friend_id", user_id)
+            .eq("status", "accepted")
+            .range(offset, offset + limit - 1)
+            .execute()
+        )
 
         requests = []
         for req in incoming_query.data:
             profile = req.get("profiles", {}) or {}
-            name = profile.get('full_name', '') or profile.get('email', 'Unknown')
-            requests.append({
-                "id": str(req["id"]),
-                "user_id": str(req["user_id"]),
-                "name": name,
-                "status": "Incoming Request",
-                "avatar": None
-            })
+            name = profile.get("full_name", "") or profile.get("email", "Unknown")
+            requests.append(
+                {
+                    "id": str(req["id"]),
+                    "user_id": str(req["user_id"]),
+                    "name": name,
+                    "status": "Incoming Request",
+                    "avatar": None,
+                }
+            )
 
         friends = []
         # Process Initiator Query
@@ -116,15 +155,21 @@ def get_friends(current_user=Depends(get_current_user), db=Depends(get_auth_db),
             "total_friends": len(friends),
             "total_requests": incoming_query.count or 0,
             "limit": limit,
-            "offset": offset
+            "offset": offset,
         }
     except Exception as exc:
         log.error("Error getting friends: %s", exc)
         raise HTTPException(status_code=500, detail="Failed to retrieve friends")
 
+
 @router.post("/request")
 @limiter.limit("20/hour")
-def send_friend_request(request: Request, body: FriendRequest, current_user=Depends(get_current_user), db=Depends(get_auth_db)):
+def send_friend_request(
+    request: Request,
+    body: FriendRequest,
+    current_user=Depends(get_current_user),
+    db=Depends(get_auth_db),
+):
     """Send a friend request by email."""
     try:
         # Find friend by email
@@ -138,26 +183,31 @@ def send_friend_request(request: Request, body: FriendRequest, current_user=Depe
             raise HTTPException(status_code=400, detail="Cannot add yourself")
 
         # Check if friendship already exists in either direction
-        existing = db.table("friendships").select("id, status").or_(
-            f"and(user_id.eq.{current_user.id},friend_id.eq.{friend_id}),"
-            f"and(user_id.eq.{friend_id},friend_id.eq.{current_user.id})"
-        ).execute()
+        existing = (
+            db.table("friendships")
+            .select("id, status")
+            .or_(
+                f"and(user_id.eq.{current_user.id},friend_id.eq.{friend_id}),"
+                f"and(user_id.eq.{friend_id},friend_id.eq.{current_user.id})"
+            )
+            .execute()
+        )
 
         if existing.data:
             status = existing.data[0].get("status")
             if status == "accepted":
                 return {"success": True, "message": "Already friends", "data": existing.data[0]}
             elif status == "pending":
-                return {"success": True, "message": "Request already exists", "data": existing.data[0]}
+                return {
+                    "success": True,
+                    "message": "Request already exists",
+                    "data": existing.data[0],
+                }
             elif status == "blocked":
                 raise HTTPException(status_code=403, detail="Cannot send request to this user")
 
         # Insert request
-        payload = {
-            "user_id": current_user.id,
-            "friend_id": friend_id,
-            "status": "pending"
-        }
+        payload = {"user_id": current_user.id, "friend_id": friend_id, "status": "pending"}
         res = db.table("friendships").insert(payload).execute()
         return {"success": True, "data": res.data[0]}
     except HTTPException:
@@ -168,16 +218,26 @@ def send_friend_request(request: Request, body: FriendRequest, current_user=Depe
 
 
 @router.post("/accept")
-def accept_friend_request(body: FriendAction, current_user=Depends(get_current_user), db=Depends(get_auth_db)):
+def accept_friend_request(
+    body: FriendAction, current_user=Depends(get_current_user), db=Depends(get_auth_db)
+):
     """Accept an incoming friend request."""
     try:
         # Verify request exists and is to me
-        req_res = db.table("friendships").select("*").eq("id", str(body.request_id)).eq("friend_id", current_user.id).execute()
+        req_res = (
+            db.table("friendships")
+            .select("*")
+            .eq("id", str(body.request_id))
+            .eq("friend_id", current_user.id)
+            .execute()
+        )
         if not req_res.data:
             raise HTTPException(status_code=404, detail="Request not found")
 
         # Update original request to accepted
-        db.table("friendships").update({"status": "accepted"}).eq("id", str(body.request_id)).execute()
+        db.table("friendships").update({"status": "accepted"}).eq(
+            "id", str(body.request_id)
+        ).execute()
 
         return {"success": True}
     except HTTPException:
@@ -188,7 +248,9 @@ def accept_friend_request(body: FriendAction, current_user=Depends(get_current_u
 
 
 @router.post("/decline")
-def decline_friend_request(body: FriendAction, current_user=Depends(get_current_user), db=Depends(get_auth_db)):
+def decline_friend_request(
+    body: FriendAction, current_user=Depends(get_current_user), db=Depends(get_auth_db)
+):
     """Decline (delete) a friend request."""
     try:
         db.table("friendships").delete().eq("id", str(body.request_id)).execute()
@@ -209,15 +271,17 @@ def block_user(body: BlockAction, current_user=Depends(get_current_user), db=Dep
         target_id = body.user_id
 
         # Delete any existing friendships in both directions
-        db.table("friendships").delete().eq("user_id", current_user.id).eq("friend_id", target_id).execute()
-        db.table("friendships").delete().eq("user_id", target_id).eq("friend_id", current_user.id).execute()
+        db.table("friendships").delete().eq("user_id", current_user.id).eq(
+            "friend_id", target_id
+        ).execute()
+        db.table("friendships").delete().eq("user_id", target_id).eq(
+            "friend_id", current_user.id
+        ).execute()
 
         # Insert a blocked record
-        db.table("friendships").insert({
-            "user_id": current_user.id,
-            "friend_id": target_id,
-            "status": "blocked"
-        }).execute()
+        db.table("friendships").insert(
+            {"user_id": current_user.id, "friend_id": target_id, "status": "blocked"}
+        ).execute()
 
         return {"success": True}
     except Exception as exc:
@@ -226,10 +290,14 @@ def block_user(body: BlockAction, current_user=Depends(get_current_user), db=Dep
 
 
 @router.post("/unblock")
-def unblock_user(body: BlockAction, current_user=Depends(get_current_user), db=Depends(get_auth_db)):
+def unblock_user(
+    body: BlockAction, current_user=Depends(get_current_user), db=Depends(get_auth_db)
+):
     """Unblock a user."""
     try:
-        db.table("friendships").delete().eq("user_id", current_user.id).eq("friend_id", body.user_id).eq("status", "blocked").execute()
+        db.table("friendships").delete().eq("user_id", current_user.id).eq(
+            "friend_id", body.user_id
+        ).eq("status", "blocked").execute()
 
         return {"success": True}
     except Exception as exc:
@@ -242,17 +310,28 @@ class SharingToggle(BaseModel):
 
 
 @router.put("/{friendship_id}/sharing")
-def toggle_sharing(friendship_id: UUID, body: SharingToggle, current_user=Depends(get_current_user), db=Depends(get_auth_db)):
+def toggle_sharing(
+    friendship_id: UUID,
+    body: SharingToggle,
+    current_user=Depends(get_current_user),
+    db=Depends(get_auth_db),
+):
     """Toggle per-friend location sharing."""
     try:
         # Verify the friendship belongs to the current user
-        res = db.table("friendships").select("*").eq("id", str(friendship_id)).eq("user_id", current_user.id).execute()
+        res = (
+            db.table("friendships")
+            .select("*")
+            .eq("id", str(friendship_id))
+            .eq("user_id", current_user.id)
+            .execute()
+        )
         if not res.data:
             raise HTTPException(status_code=404, detail="Friendship not found")
 
-        db.table("friendships").update({
-            "sharing_enabled": body.enabled
-        }).eq("id", str(friendship_id)).execute()
+        db.table("friendships").update({"sharing_enabled": body.enabled}).eq(
+            "id", str(friendship_id)
+        ).execute()
 
         return {"success": True, "sharing_enabled": body.enabled}
     except HTTPException:

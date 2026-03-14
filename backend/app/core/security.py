@@ -1,12 +1,14 @@
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from supabase import create_client, Client
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
 from app.core.config import settings
 from app.core.logger import get_logger
+from supabase import Client, create_client
 
 log = get_logger(__name__)
 
 security = HTTPBearer()
+
 
 # --- Lazy-initialized Supabase clients ---
 def init_supabase_clients():
@@ -19,31 +21,38 @@ def init_supabase_clients():
     if not settings.SUPABASE_SERVICE_ROLE_KEY:
         raise HTTPException(
             status_code=500,
-            detail="SUPABASE_SERVICE_ROLE_KEY is not configured in environment variables."
+            detail="SUPABASE_SERVICE_ROLE_KEY is not configured in environment variables.",
         )
     admin_supa = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
 
     return {"supabase": supa, "admin_supabase": admin_supa}
 
+
 async def close_supabase_clients():
     """Close async client sessions if necessary. supabase-py uses httpx under the hood."""
-    pass # Currently supabase-py v2 doesn't expose a public teardown for its httpx clients
+    pass  # Currently supabase-py v2 doesn't expose a public teardown for its httpx clients
+
 
 def get_supabase() -> Client:
     """Return the shared Supabase client stored on app.state."""
     from app.main import app
+
     return app.state.supabase
+
 
 def get_admin_supabase() -> Client:
     """Return the admin Supabase client stored on app.state."""
     from app.main import app
+
     return app.state.admin_supabase
+
 
 def get_auth_db(credentials: HTTPAuthorizationCredentials = Depends(security)):
     """Return an authenticated Supabase client for the current request."""
     # We dynamically clone the PostgrestClient without re-instantiating the full Client.
     # This saves ~100ms and HTTPX overhead per request vs create_client().
     from app.main import app
+
     base_client = app.state.supabase
     token = credentials.credentials
 
@@ -58,6 +67,7 @@ def get_auth_db(credentials: HTTPAuthorizationCredentials = Depends(security)):
             # The base postgrest client can be cloned or its auth headers updated.
             # To be thread-safe in async context, we must instantiate a new postgrest client block.
             from postgrest import SyncPostgrestClient
+
             url = f"{settings.SUPABASE_URL}/rest/v1"
             headers = self.base.options.headers.copy()
             headers["Authorization"] = f"Bearer {self.auth_token}"
