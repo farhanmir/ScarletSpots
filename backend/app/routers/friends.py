@@ -149,9 +149,35 @@ def get_friends(
 
         friends = unique_friends
 
+        # 3. Blocked users (rows where I am the blocker)
+        blocked_query = (
+            db.table("friendships")
+            .select(
+                "id, user_id, friend_id, "
+                "blocked_user:profiles!friendships_friend_id_fkey(id, email, full_name)",
+            )
+            .eq("user_id", user_id)
+            .eq("status", "blocked")
+            .execute()
+        )
+
+        blocked = []
+        for row in blocked_query.data:
+            profile = row.get("blocked_user") or {}
+            name = profile.get("full_name", "") or profile.get("email", "Unknown")
+            blocked.append(
+                {
+                    "id": str(row["id"]),
+                    "friend_id": str(row["friend_id"]),
+                    "name": name,
+                    "avatar": None,
+                }
+            )
+
         return {
             "friends": friends,
             "requests": requests,
+            "blocked": blocked,
             "total_friends": len(friends),
             "total_requests": incoming_query.count or 0,
             "limit": limit,

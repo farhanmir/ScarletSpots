@@ -1281,6 +1281,9 @@ export default function MapScreen() {
                   { transform: [{ rotate: `${userHeading ?? 0}deg` }] },
                 ]}
               >
+                {/* Outer soft glow halo */}
+                <View style={styles.userHeadingConeOuter} />
+                {/* Main cone */}
                 <View style={styles.userHeadingCone} />
               </View>
               <View style={styles.userDotOuter}>
@@ -1481,9 +1484,15 @@ export default function MapScreen() {
         <GlassBackground
           style={StyleSheet.absoluteFill}
           glassStyle="regular"
-          blurIntensity={72}
-          blurTint="systemMaterialDark"
-          fallbackColor="rgba(38, 40, 46, 0.45)"
+          blurIntensity={80}
+          blurTint="systemChromeMaterialDark"
+          tintColor="rgba(0, 0, 0, 0.4)"
+          tintOpacity={0.8}
+          fallbackColor={
+            Platform.OS === "android"
+              ? "rgba(8, 8, 10, 0.95)"
+              : "rgba(10, 10, 12, 0.85)"
+          }
         />
         <TouchableOpacity
           style={[
@@ -1859,12 +1868,13 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 24,
     overflow: "hidden",
-    backgroundColor:
-      Platform.OS === "android" ? "rgba(30,32,38,0.45)" : "transparent",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+    backgroundColor: "transparent",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.45,
-    shadowRadius: 18,
+    shadowOpacity: 0.65,
+    shadowRadius: 28,
     elevation: 18,
   },
   centerButton: {
@@ -1875,12 +1885,12 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   centerButtonActive: {
-    backgroundColor: "rgba(255, 255, 255, 0.14)",
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
   },
   centerButtonPressed: {
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    backgroundColor: "rgba(255, 255, 255, 0.18)",
   },
-  centerButtonAndroid: { backgroundColor: "rgba(255,255,255,0.12)" },
+  centerButtonAndroid: { backgroundColor: "rgba(255,255,255,0.08)" },
 
   // ── Lot detail sheet ──────────────────────────────────────────────────
   lotSheetContent: {
@@ -2104,47 +2114,61 @@ const styles = StyleSheet.create({
   },
   clusterText: { color: "#fff", fontSize: 13, fontWeight: "bold" },
   userMarkerWrap: {
-    width: 60,
-    height: 60,
+    width: 70,
+    height: 70,
     alignItems: "center",
     justifyContent: "center",
   },
   userHeadingConeWrap: {
     position: "absolute",
-    width: 60,
-    height: 60,
+    width: 70,
+    height: 70,
     alignItems: "center",
     justifyContent: "center",
   },
-  userHeadingCone: {
+  // Outer soft halo — wider + more transparent for the glow falloff
+  userHeadingConeOuter: {
     position: "absolute",
-    top: -20,
+    top: -28,
     width: 0,
     height: 0,
-    borderLeftWidth: 18,
-    borderRightWidth: 18,
-    borderBottomWidth: 50,
+    borderLeftWidth: 26,
+    borderRightWidth: 26,
+    borderTopWidth: 63,
     borderLeftColor: "transparent",
     borderRightColor: "transparent",
-    borderBottomColor: "rgba(0, 122, 255, 0.22)",
+    borderTopColor: "rgba(0, 122, 255, 0.08)",
+  },
+  // Main cone — tip at dot center (top: borderTopWidth - height/2 of wrap → base above dot)
+  userHeadingCone: {
+    position: "absolute",
+    top: -22,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 16,
+    borderRightWidth: 16,
+    borderTopWidth: 57,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    borderTopColor: "rgba(0, 122, 255, 0.24)",
   },
   userDotOuter: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     backgroundColor: "#ffffff",
     justifyContent: "center",
     alignItems: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
   userDotInner: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
     backgroundColor: "#007AFF",
   },
 });

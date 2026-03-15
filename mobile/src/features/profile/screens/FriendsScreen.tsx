@@ -27,11 +27,12 @@ import { authApiCall, supabase } from "@/shared/api/supabase";
 import { useAuth } from "@/providers/AuthProvider";
 import { getLotById } from "@/shared/constants/lots";
 
-type TabKey = "friends" | "requests";
+type TabKey = "friends" | "requests" | "blocked";
 
 const TAB_OPTIONS: { key: TabKey; label: string }[] = [
   { key: "friends", label: "My Crew" },
   { key: "requests", label: "Requests" },
+  { key: "blocked", label: "Blocked" },
 ];
 
 const FLAT_CARD_BG = "#1c1d21";
@@ -47,12 +48,16 @@ export default function FriendsScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const queryClient = useQueryClient();
 
-  const { data = { friends: [], requests: [] }, isRefetching } = useQuery({
+  const { data = { friends: [], requests: [], blocked: [] }, isRefetching } = useQuery({
     queryKey: ["friends_list", user?.id],
     queryFn: async () => {
       const res = await authApiCall("/friends");
-      if (!res || res?._offline) return { friends: [], requests: [] };
-      return { friends: res?.friends ?? [], requests: res?.requests ?? [] };
+      if (!res || res?._offline) return { friends: [], requests: [], blocked: [] };
+      return {
+        friends: res?.friends ?? [],
+        requests: res?.requests ?? [],
+        blocked: res?.blocked ?? [],
+      };
     },
     enabled: !!user?.id,
     refetchInterval: isFocused ? 60000 : false,
@@ -96,7 +101,7 @@ export default function FriendsScreen() {
     };
   }, [isFocused, user?.id, queryClient]);
 
-  const { friends, requests } = data;
+  const { friends, requests, blocked } = data;
 
   const acceptMutation = useMutation({
     mutationFn: async (requestId: string) =>
@@ -127,6 +132,18 @@ export default function FriendsScreen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["friends_list"] });
       Alert.alert("Blocked", "User has been blocked.");
+    },
+  });
+
+  const unblockMutation = useMutation({
+    mutationFn: async (userId: string) =>
+      authApiCall("/friends/unblock", {
+        method: "POST",
+        body: JSON.stringify({ user_id: userId }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["friends_list"] });
+      Alert.alert("Unblocked", "User has been unblocked.");
     },
   });
 
@@ -206,11 +223,13 @@ export default function FriendsScreen() {
 
   const getInitial = (name: string) => name.charAt(0).toUpperCase();
 
-  const tabOptions = TAB_OPTIONS.map((opt) =>
-    opt.key === "requests"
-      ? { ...opt, badge: requests.length > 0 ? requests.length : undefined }
-      : opt,
-  );
+  const tabOptions = TAB_OPTIONS.map((opt) => {
+    if (opt.key === "requests")
+      return { ...opt, badge: requests.length > 0 ? requests.length : undefined };
+    if (opt.key === "blocked")
+      return { ...opt, badge: blocked.length > 0 ? blocked.length : undefined };
+    return opt;
+  });
 
   const friendCountLabel =
     data === undefined ? "—" : `${friends.length} in your crew`;
@@ -312,6 +331,40 @@ export default function FriendsScreen() {
     </GlassCard>
   );
 
+  const renderBlocked = ({ item }: { item: any }) => (
+    <GlassCard
+      style={styles.card}
+      contentStyle={styles.cardContent}
+      blurIntensity={GLASS.blurMedium}
+      borderColor={FLAT_CARD_BORDER}
+    >
+      <View style={styles.avatarWrap}>
+        <Text style={styles.avatarText}>{getInitial(item.name)}</Text>
+      </View>
+      <View style={styles.cardBody}>
+        <Text style={styles.cardName}>{item.name}</Text>
+        <View style={styles.cardStatusRow}>
+          <IconSymbol name="nosign" size={11} color={GLASS.textMuted} />
+          <Text style={styles.cardStatus}>Blocked</Text>
+        </View>
+      </View>
+      <TouchableOpacity
+        style={styles.unblockBtn}
+        onPress={() =>
+          Alert.alert("Unblock User", `Unblock ${item.name}?`, [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Unblock",
+              onPress: () => unblockMutation.mutate(item.friend_id),
+            },
+          ])
+        }
+      >
+        <Text style={styles.unblockText}>Unblock</Text>
+      </TouchableOpacity>
+    </GlassCard>
+  );
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
@@ -319,8 +372,20 @@ export default function FriendsScreen() {
 
       {/* ── List (rendered before glass header so blur works) ── */}
       <FlatList
-        data={activeTab === "friends" ? friends : requests}
-        renderItem={activeTab === "friends" ? renderFriend : renderRequest}
+        data={
+          activeTab === "friends"
+            ? friends
+            : activeTab === "requests"
+              ? requests
+              : blocked
+        }
+        renderItem={
+          activeTab === "friends"
+            ? renderFriend
+            : activeTab === "requests"
+              ? renderRequest
+              : renderBlocked
+        }
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
         refreshing={isRefetching}
@@ -331,19 +396,29 @@ export default function FriendsScreen() {
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <IconSymbol
-              name={activeTab === "friends" ? "person.2.fill" : "bell.fill"}
+              name={
+                activeTab === "friends"
+                  ? "person.2.fill"
+                  : activeTab === "requests"
+                    ? "bell.fill"
+                    : "nosign"
+              }
               size={40}
               color="#27272a"
             />
             <Text style={styles.emptyTitle}>
               {activeTab === "friends"
                 ? "No friends yet"
-                : "No pending requests"}
+                : activeTab === "requests"
+                  ? "No pending requests"
+                  : "No blocked users"}
             </Text>
             <Text style={styles.emptySub}>
               {activeTab === "friends"
                 ? "Tap + to add someone"
-                : "You're all caught up"}
+                : activeTab === "requests"
+                  ? "You're all caught up"
+                  : "You haven't blocked anyone"}
             </Text>
           </View>
         }
@@ -613,6 +688,23 @@ const styles = StyleSheet.create({
     borderColor: "#2a2a2e",
     justifyContent: "center",
     alignItems: "center",
+  },
+
+  // Unblock button
+  unblockBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: "rgba(220,38,38,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(220,38,38,0.25)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  unblockText: {
+    color: GLASS.accent,
+    fontSize: 13,
+    fontWeight: "600",
   },
 
   // Empty state
