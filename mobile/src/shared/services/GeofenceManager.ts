@@ -4,6 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import NetInfo from "@react-native-community/netinfo";
 import { AppState } from "react-native";
 import { PARKING_DETECTION_TASK, stopSensorTracking } from "./BackgroundTasks";
+import { wasRecentlyDriving } from "./ParkingDetectionService";
 import { getCachedSession, clearCachedSession } from "./OfflineCache";
 import { queueParkAction } from "./OfflineQueue";
 import { supabase } from "@/shared/api/supabase-client";
@@ -130,8 +131,14 @@ TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }: any) => {
     stopSensorTracking();
     await Location.stopLocationUpdatesAsync(PARKING_DETECTION_TASK);
 
-    // Auto-end parking session when user leaves the lot (works without opening the app)
+    // Auto-end parking session only when user DRIVES out (not when walking to class)
     try {
+      if (!wasRecentlyDriving()) {
+        console.log(
+          "[GeofenceManager] Exited on foot — keeping session active. End manually or drive out.",
+        );
+        return;
+      }
       const cached = (await getCachedSession()) as {
         session?: { lotId?: string };
       } | null;

@@ -326,7 +326,9 @@ export default function LotDetailsSheetContent({
       ) : null}
 
       {/* ── Forecast timeline ───────────────────────────────────────────── */}
-      <ForecastChart curve={forecast} isLoading={isLoadingForecast} />
+      <View style={styles.forecastWrapper}>
+        <ForecastChart curve={forecast} isLoading={isLoadingForecast} />
+      </View>
 
       {/* ── Actions ─────────────────────────────────────────────────────── */}
       <View style={styles.actionsRow}>
@@ -392,7 +394,7 @@ export default function LotDetailsSheetContent({
 
 const styles = StyleSheet.create({
   scroll: { width: "100%" },
-  content: { paddingHorizontal: 18, paddingTop: 10, paddingBottom: 8 },
+  content: { paddingHorizontal: 18, paddingTop: 20, paddingBottom: 8 },
 
   // ── Header ──────────────────────────────────────────────────────────────
   headerRow: {
@@ -593,5 +595,12 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 12,
     marginTop: 4,
+  },
+
+  // Wrapper for forecast — larger gap from notes, dynamic height for vertical bars
+  forecastWrapper: {
+    marginTop: 20,
+    marginBottom: 8,
+    minHeight: 60,
   },
 });

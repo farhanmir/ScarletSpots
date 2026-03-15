@@ -1,14 +1,18 @@
 import React from "react";
 import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
 import { ForecastPoint } from "@/features/home/types/types";
-import { getOccupancyColor, formatTime } from "@/features/home/services/utils";
+import {
+  getOccupancyGradientColor,
+  formatTime,
+} from "@/features/home/services/utils";
 
 interface ForecastChartProps {
   curve: ForecastPoint[];
   isLoading: boolean;
 }
 
-const DOT_SIZE = 9;
+const MAX_BAR_HEIGHT = 36;
+const BAR_WIDTH = 8;
 
 export default function ForecastChart({
   curve,
@@ -20,12 +24,11 @@ export default function ForecastChart({
         <ActivityIndicator size="small" color="#52525b" />
       ) : curve.length > 0 ? (
         <View style={styles.row}>
-          {/* Thin connecting line centred on the dots */}
-          <View style={styles.line} />
-
           {curve.map((point: ForecastPoint, index: number) => {
             const isNow = index === 2; // Curve: -60, -30, 0(now), +30, +60, …
-            const color = getOccupancyColor(point.expected_occupancy);
+            const occ = Math.max(0, Math.min(100, point.expected_occupancy));
+            const barHeight = Math.max(6, (occ / 100) * MAX_BAR_HEIGHT);
+            const color = getOccupancyGradientColor(occ);
             const currentTimeLabel = formatTime(point.time);
             const showLabel =
               isNow ||
@@ -38,7 +41,17 @@ export default function ForecastChart({
                 <Text style={[styles.label, isNow && styles.nowLabel]}>
                   {isNow ? "Now" : showLabel ? currentTimeLabel : ""}
                 </Text>
-                <View style={[styles.dot, { backgroundColor: color }]} />
+                <View style={styles.barContainer}>
+                  <View
+                    style={[
+                      styles.bar,
+                      {
+                        height: barHeight,
+                        backgroundColor: color,
+                      },
+                    ]}
+                  />
+                </View>
               </View>
             );
           })}
@@ -52,27 +65,14 @@ export default function ForecastChart({
 
 const styles = StyleSheet.create({
   wrapper: {
-    marginBottom: 8,
-    marginTop: 4,
-    minHeight: 44,
-    justifyContent: "center",
+    minHeight: 56,
+    justifyContent: "flex-end",
   },
   row: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-end",
-    position: "relative",
     paddingHorizontal: 4,
-  },
-  // Horizontal connector — sits at the vertical centre of the dots
-  line: {
-    position: "absolute",
-    left: 4,
-    right: 4,
-    bottom: Math.floor(DOT_SIZE / 2) - 1,
-    height: 1.5,
-    backgroundColor: "rgba(255,255,255,0.07)",
-    borderRadius: 1,
   },
   item: {
     flex: 1,
@@ -89,10 +89,16 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontWeight: "700",
   },
-  dot: {
-    width: DOT_SIZE,
-    height: DOT_SIZE,
-    borderRadius: Math.ceil(DOT_SIZE / 2),
+  barContainer: {
+    width: BAR_WIDTH,
+    height: MAX_BAR_HEIGHT,
+    alignItems: "center",
+    justifyContent: "flex-end",
+  },
+  bar: {
+    width: BAR_WIDTH,
+    borderRadius: 4,
+    minHeight: 6,
   },
   empty: {
     color: "#71717a",

@@ -69,7 +69,7 @@ class MLForecastProvider(ForecastProvider):
             # No model trained yet — fall back to heuristic
             return self._fallback.get_lot_forecast(lot_id, current_occupancy, capacity)
 
-        now = datetime.datetime.now()
+        now = datetime.datetime.now(datetime.timezone.utc)
         current_minute = now.replace(second=0, microsecond=0)
 
         def predict_at(target: datetime.datetime) -> Dict[str, Any]:
@@ -96,7 +96,7 @@ class MLForecastProvider(ForecastProvider):
             minutes_ahead = max(0, (target - now).total_seconds() / 60)
             band = 5 + minutes_ahead * 0.12
             return {
-                "time": target.isoformat(),
+                "time": target.isoformat().replace("+00:00", "Z"),
                 "expected_occupancy": round(pred_pct, 1),
                 "low": round(max(0.0, pred_pct - band), 1),
                 "high": round(min(100.0, pred_pct + band), 1),
@@ -121,7 +121,7 @@ class MLForecastProvider(ForecastProvider):
             "curve": curve,
             "metadata": {
                 "is_weekend": now.weekday() >= 5,
-                "generated_at": now.isoformat(),
+                "generated_at": now.isoformat().replace("+00:00", "Z"),
                 "source": "ml",
             },
         }

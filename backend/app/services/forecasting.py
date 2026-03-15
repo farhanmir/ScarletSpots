@@ -15,7 +15,7 @@ class HeuristicForecastProvider(ForecastProvider):
         - Day of week (Weekend vs Weekday)
         - Current state (Momentum)
         """
-        now = datetime.datetime.now()
+        now = datetime.datetime.now(datetime.timezone.utc)
         current_minute = now.replace(second=0, microsecond=0)
 
         # Deterministic seed for stability within the same hour
@@ -61,7 +61,7 @@ class HeuristicForecastProvider(ForecastProvider):
             band_width = 5 + (minutes_ahead * 0.15)  # Grows by 9% per hour
 
             return {
-                "time": target_time.isoformat(),
+                "time": target_time.isoformat().replace("+00:00", "Z"),
                 "expected_occupancy": round(expected, 1),
                 "low": round(max(0, expected - band_width), 1),
                 "high": round(min(100, expected + band_width), 1),
@@ -85,7 +85,7 @@ class HeuristicForecastProvider(ForecastProvider):
         return {
             "slices": slices,
             "curve": curve,
-            "metadata": {"is_weekend": is_weekend, "generated_at": now.isoformat()},
+            "metadata": {"is_weekend": is_weekend, "generated_at": now.isoformat().replace("+00:00", "Z")},
         }
 
     @staticmethod

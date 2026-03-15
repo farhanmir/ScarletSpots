@@ -127,6 +127,13 @@ export function clearSpeedBuffer(): void {
   speedBuffer = [];
 }
 
+/** True if recent speed readings indicate driving (e.g. leaving in a car). Used to distinguish walk-out vs drive-out. */
+export function wasRecentlyDriving(): boolean {
+  const valid = speedBuffer.filter((s) => s != null && s >= 0);
+  if (valid.length === 0) return false;
+  return Math.max(...valid) >= DRIVING_SPEED_THRESHOLD;
+}
+
 // ── Accelerometer Buffer ───────────────────────────────────────────────────────
 
 const ACCEL_BUFFER_SIZE = 20;
