@@ -85,7 +85,10 @@ class HeuristicForecastProvider(ForecastProvider):
         return {
             "slices": slices,
             "curve": curve,
-            "metadata": {"is_weekend": is_weekend, "generated_at": now.isoformat().replace("+00:00", "Z")},
+            "metadata": {
+                "is_weekend": is_weekend,
+                "generated_at": now.isoformat().replace("+00:00", "Z"),
+            },
         }
 
     @staticmethod
