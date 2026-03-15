@@ -9,6 +9,8 @@ jobs:
     runs-on: macos-26
     permissions:
       contents: write
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       - name: Checkout repository
@@ -44,7 +46,16 @@ jobs:
             exit 1
           fi
 
+      - name: Restore prebuild cache
+        id: prebuild-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: mobile/ios
+          key: ios-prebuild-${{ hashFiles('mobile/package-lock.json', 'mobile/app.json') }}
+          restore-keys: ios-prebuild-
+
       - name: Expo prebuild (generate native iOS project)
+        if: steps.prebuild-cache.outputs.cache-hit != 'true'
         working-directory: mobile
         env:
           EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
@@ -55,6 +66,13 @@ jobs:
           EXPO_PUBLIC_OFFLINE_QUEUE_ENABLED: ${{ vars.EXPO_PUBLIC_OFFLINE_QUEUE_ENABLED }}
           EXPO_PUBLIC_ENABLE_ALL_CAMPUSES: ${{ vars.EXPO_PUBLIC_ENABLE_ALL_CAMPUSES }}
         run: npx expo prebuild --platform ios
+
+      - name: Save prebuild cache
+        if: steps.prebuild-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: mobile/ios
+          key: ios-prebuild-${{ hashFiles('mobile/package-lock.json', 'mobile/app.json') }}
 
       - name: Identify workspace and scheme
         id: xcode_info
@@ -75,6 +93,13 @@ jobs:
           INFO_PLIST="mobile/ios/${{ steps.xcode_info.outputs.scheme }}/Info.plist"
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ github.run_number }}" "$INFO_PLIST"
           echo "Build number set to ${{ github.run_number }}"
+
+      - name: Restore Xcode build cache
+        uses: irgaly/xcode-cache@v1
+        with:
+          key: ios-xcode-${{ hashFiles('mobile/package-lock.json', 'mobile/app.json') }}
+          restore-keys: ios-xcode-
+          deriveddata-directory: ${{ github.workspace }}/build
 
       - name: Build with xcodebuild (Debug, no code signing)
         env:
