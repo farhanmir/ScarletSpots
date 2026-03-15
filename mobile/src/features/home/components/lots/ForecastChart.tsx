@@ -8,80 +8,95 @@ interface ForecastChartProps {
   isLoading: boolean;
 }
 
+const DOT_SIZE = 9;
+
 export default function ForecastChart({
   curve,
   isLoading,
 }: ForecastChartProps) {
   return (
-    <View style={styles.forecastContainer}>
+    <View style={styles.wrapper}>
       {isLoading ? (
         <ActivityIndicator size="small" color="#52525b" />
       ) : curve.length > 0 ? (
-        curve.map((point: ForecastPoint, index: number) => {
-          const isNow = index === 2; // Curve: -60, -30, 0(now), +30, +60, ...
-          const barHeight = Math.max(8, (point.expected_occupancy / 100) * 32);
-          const currentTimeLabel = formatTime(point.time);
+        <View style={styles.row}>
+          {/* Thin connecting line centred on the dots */}
+          <View style={styles.line} />
 
-          // Show label if it's "Now", or if it's the first item, or if it changed from previous item
-          const showLabel =
-            isNow ||
-            index === 0 ||
-            (index > 0 &&
-              formatTime(curve[index - 1].time) !== currentTimeLabel);
+          {curve.map((point: ForecastPoint, index: number) => {
+            const isNow = index === 2; // Curve: -60, -30, 0(now), +30, +60, …
+            const color = getOccupancyColor(point.expected_occupancy);
+            const currentTimeLabel = formatTime(point.time);
+            const showLabel =
+              isNow ||
+              index === 0 ||
+              (index > 0 &&
+                formatTime(curve[index - 1].time) !== currentTimeLabel);
 
-          return (
-            <View key={index} style={styles.forecastItem}>
-              <Text
-                style={[
-                  styles.forecastTime,
-                  isNow && { color: "#fff", fontWeight: "bold" },
-                ]}
-              >
-                {isNow ? "Now" : showLabel ? currentTimeLabel : ""}
-              </Text>
-              <View
-                style={[
-                  styles.forecastBar,
-                  {
-                    height: barHeight,
-                    backgroundColor: getOccupancyColor(
-                      point.expected_occupancy,
-                    ),
-                  },
-                ]}
-              />
-            </View>
-          );
-        })
+            return (
+              <View key={index} style={styles.item}>
+                <Text style={[styles.label, isNow && styles.nowLabel]}>
+                  {isNow ? "Now" : showLabel ? currentTimeLabel : ""}
+                </Text>
+                <View style={[styles.dot, { backgroundColor: color }]} />
+              </View>
+            );
+          })}
+        </View>
       ) : (
-        <Text style={{ color: "#71717a" }}>Forecast unavailable</Text>
+        <Text style={styles.empty}>Forecast unavailable</Text>
       )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  forecastContainer: {
+  wrapper: {
+    marginBottom: 8,
+    marginTop: 4,
+    minHeight: 44,
+    justifyContent: "center",
+  },
+  row: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-end",
-    height: 60,
-    marginBottom: 24,
-    paddingHorizontal: 8,
+    position: "relative",
+    paddingHorizontal: 4,
   },
-  forecastItem: {
-    alignItems: "center",
-    gap: 8,
+  // Horizontal connector — sits at the vertical centre of the dots
+  line: {
+    position: "absolute",
+    left: 4,
+    right: 4,
+    bottom: Math.floor(DOT_SIZE / 2) - 1,
+    height: 1.5,
+    backgroundColor: "rgba(255,255,255,0.07)",
+    borderRadius: 1,
+  },
+  item: {
     flex: 1,
+    alignItems: "center",
+    gap: 7,
   },
-  forecastBar: {
-    width: 8,
-    borderRadius: 4,
-    backgroundColor: "#3f3f46",
-  },
-  forecastTime: {
+  label: {
     color: "#71717a",
     fontSize: 11,
-    fontWeight: "600",
+    fontWeight: "500",
+    textAlign: "center",
+  },
+  nowLabel: {
+    color: "#ffffff",
+    fontWeight: "700",
+  },
+  dot: {
+    width: DOT_SIZE,
+    height: DOT_SIZE,
+    borderRadius: Math.ceil(DOT_SIZE / 2),
+  },
+  empty: {
+    color: "#71717a",
+    fontSize: 12,
+    textAlign: "center",
   },
 });

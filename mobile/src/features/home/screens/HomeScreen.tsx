@@ -32,6 +32,7 @@ import { TrueSheet } from "@lodev09/react-native-true-sheet";
 import { authApiCall, supabase } from "@/shared/api/supabase";
 import { useAuth } from "@/providers/AuthProvider";
 import ParkingConfirmationSheet from "../components/ParkingConfirmationSheet";
+import LotDetailsSheetContent from "../components/LotDetailsSheetContent";
 import CandidatePin from "../components/Map/CandidatePin";
 import { IconSymbol } from "@/shared/components/ui/icon-symbol";
 import {
@@ -60,7 +61,6 @@ import {
   ALL_COMMUTER_LOT_IDS,
   isLotAvailableNow,
   isSecondaryPermitAvailableNow,
-  getLotScheduleInfo,
   type RutgersLot,
 } from "@/shared/constants/lots";
 import { ENABLE_ALL_CAMPUSES } from "@/shared/constants/featureFlags";
@@ -1549,168 +1549,22 @@ export default function MapScreen() {
           setSelectedLotId(null);
         }}
       >
-        <View style={styles.lotSheetContent}>
-          {lotSheetData ? (
-            (() => {
-              const occRate = Math.round(lotSheetData.occupancyRate ?? 0);
-              const occCount = lotSheetData.occupiedCount ?? 0;
-              const capacity = lotSheetData.capacity ?? 0;
-              const campus = lotSheetData.campus ?? "—";
-              const occColor = getOccupancyColor(lotSheetData.occupancyRate ?? 0);
-              const lotAvailable =
-                isLotAvailableNow(permitType, lotSheetData.id) ||
-                isSecondaryPermitAvailableNow(secondaryPermitType, lotSheetData.id);
-              const scheduleInfo = getLotScheduleInfo(permitType, lotSheetData.id);
-              const sheetFeatures = [
-                lotSheetData.student && { icon: "graduationcap.fill", label: "Student", color: "#818cf8", bg: "rgba(99,102,241,0.15)", border: "rgba(99,102,241,0.35)" },
-                lotSheetData.employee && { icon: "briefcase.fill", label: "Employee", color: "#34d399", bg: "rgba(16,185,129,0.12)", border: "rgba(16,185,129,0.3)" },
-                (lotSheetData.regularGate || lotSheetData.smartGate) && { icon: "lock.fill", label: "Gated", color: "#fbbf24", bg: "rgba(245,158,11,0.12)", border: "rgba(245,158,11,0.3)" },
-                (lotSheetData.evCharging ?? 0) > 0 && { icon: "bolt.car.fill", label: "EV Charging", color: "#60a5fa", bg: "rgba(59,130,246,0.12)", border: "rgba(59,130,246,0.3)" },
-                (lotSheetData.handicapped ?? 0) > 0 && { icon: "figure.roll", label: "Accessible", color: "#c084fc", bg: "rgba(168,85,247,0.12)", border: "rgba(168,85,247,0.3)" },
-              ].filter(Boolean) as { icon: string; label: string; color: string; bg: string; border: string }[];
-
-              return (
-                <>
-                  {/* ── Header ── */}
-                  <View style={styles.lotSheetHeader}>
-                    <View style={styles.lotSheetTitleWrap}>
-                      <Text style={styles.lotSheetTitle} numberOfLines={1}>
-                        {lotSheetData.shortName}
-                      </Text>
-                      <Text style={styles.lotSheetSubtitle} numberOfLines={1}>
-                        {lotSheetData.name}
-                      </Text>
-                    </View>
-                    <TouchableOpacity
-                      style={styles.lotSheetFavoriteButton}
-                      onPress={() => void toggleFavorite(lotSheetData)}
-                      activeOpacity={0.75}
-                    >
-                      <IconSymbol
-                        name={favorites.includes(lotSheetData.id) ? "star.fill" : "star"}
-                        size={18}
-                        color="#f59e0b"
-                      />
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* ── Stats row ── */}
-                  <View style={styles.lotSheetStatsRow}>
-                    <View style={styles.lotStatCard}>
-                      <Text style={styles.lotStatLabel}>Full</Text>
-                      <Text style={[styles.lotStatValue, { color: occColor.full }]}>
-                        {occRate}%
-                      </Text>
-                    </View>
-                    <View style={styles.lotStatCard}>
-                      <Text style={styles.lotStatLabel}>Sessions</Text>
-                      <Text style={styles.lotStatValue}>{occCount}</Text>
-                    </View>
-                    <View style={styles.lotStatCard}>
-                      <Text style={styles.lotStatLabel}>Capacity</Text>
-                      <Text style={styles.lotStatValue}>{capacity}</Text>
-                    </View>
-                    <View style={styles.lotStatCard}>
-                      <Text style={styles.lotStatLabel}>Campus</Text>
-                      <Text style={styles.lotStatValue} numberOfLines={1}>{campus}</Text>
-                    </View>
-                  </View>
-
-                  {/* ── Occupancy bar ── */}
-                  <View style={styles.lotSheetBarTrack}>
-                    <View
-                      style={[
-                        styles.lotSheetBarFill,
-                        {
-                          width: `${Math.min(100, lotSheetData.occupancyRate ?? 0)}%` as any,
-                          backgroundColor: occColor.full,
-                        },
-                      ]}
-                    />
-                  </View>
-
-                  {/* ── Feature pills ── */}
-                  {sheetFeatures.length > 0 && (
-                    <View style={styles.lotSheetFeatureRow}>
-                      {sheetFeatures.map((f) => (
-                        <View
-                          key={f.label}
-                          style={[styles.lotSheetFeaturePill, { backgroundColor: f.bg, borderColor: f.border }]}
-                        >
-                          <IconSymbol name={f.icon as any} size={11} color={f.color} />
-                          <Text style={[styles.lotSheetFeaturePillText, { color: f.color }]}>
-                            {f.label}
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-                  )}
-
-                  {/* ── Schedule ── */}
-                  {scheduleInfo && (
-                    <View style={styles.lotSheetScheduleRow}>
-                      <IconSymbol name="clock.fill" size={12} color="#71717a" />
-                      <View style={styles.lotSheetScheduleText}>
-                        {scheduleInfo.time_text_1 ? (
-                          <Text style={styles.lotSheetScheduleLine}>{scheduleInfo.time_text_1}</Text>
-                        ) : null}
-                        {scheduleInfo.time_text_2 ? (
-                          <Text style={styles.lotSheetScheduleLine}>{scheduleInfo.time_text_2}</Text>
-                        ) : null}
-                      </View>
-                      <View style={[styles.lotSheetAvailBadge, lotAvailable ? styles.lotSheetAvailOpen : styles.lotSheetAvailClosed]}>
-                        <View style={[styles.lotSheetAvailDot, { backgroundColor: lotAvailable ? "#4ade80" : "#ef4444" }]} />
-                        <Text style={[styles.lotSheetAvailText, { color: lotAvailable ? "#4ade80" : "#ef4444" }]}>
-                          {lotAvailable ? "OPEN" : "CLOSED"}
-                        </Text>
-                      </View>
-                    </View>
-                  )}
-
-                  {/* ── Actions ── */}
-                  <View style={styles.lotSheetActionsRow}>
-                    <TouchableOpacity
-                      style={styles.lotSheetPrimaryAction}
-                      onPress={() => void handlePark(lotSheetData.id)}
-                      activeOpacity={0.85}
-                    >
-                      {loading ? (
-                        <ActivityIndicator size="small" color="#fff" />
-                      ) : (
-                        <>
-                          <IconSymbol name="car.fill" size={14} color="#fff" />
-                          <Text style={styles.lotSheetPrimaryActionText}>Park Here</Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.lotSheetSecondaryAction}
-                      onPress={() => {
-                        const scheme = Platform.select({ ios: "maps:0,0?q=", android: "geo:0,0?q=" });
-                        const latLng = `${lotSheetData.latitude},${lotSheetData.longitude}`;
-                        const url = Platform.select({
-                          ios: `${scheme}${lotSheetData.name}@${latLng}`,
-                          android: `${scheme}${latLng}(${lotSheetData.name})`,
-                        });
-                        if (url) Linking.openURL(url);
-                      }}
-                      activeOpacity={0.8}
-                    >
-                      <IconSymbol name="arrow.triangle.turn.up.right.diamond.fill" size={14} color="#60a5fa" />
-                      <Text style={styles.lotSheetSecondaryActionText}>Directions</Text>
-                    </TouchableOpacity>
-                  </View>
-                </>
-              );
-            })()
-          ) : (
-            <View style={styles.lotSheetEmptyState}>
-              <Text style={styles.lotSheetEmptyText}>No lot selected.</Text>
-            </View>
-          )}
-        </View>
+        {lotSheetData ? (
+          <LotDetailsSheetContent
+            lot={lotSheetData}
+            isFavorite={favorites.includes(lotSheetData.id)}
+            onToggleFavorite={() => void toggleFavorite(lotSheetData)}
+            onClose={() => setSelectedLotId(null)}
+            onPark={(id) => void handlePark(id)}
+            loading={loading}
+            user={user}
+            activeSession={activeSession}
+            permitType={permitType}
+            secondaryPermitType={secondaryPermitType}
+          />
+        ) : null}
       </TrueSheet>
+
 
       {/* ── Active Session Floating Chip ── */}
       {activeSession && (
@@ -1956,194 +1810,6 @@ const styles = StyleSheet.create({
   },
   centerButtonAndroid: { backgroundColor: "rgba(255,255,255,0.08)" },
 
-  // ── Lot detail sheet ──────────────────────────────────────────────────
-  lotSheetContent: {
-    paddingHorizontal: 16,
-    paddingTop: 6,
-    paddingBottom: 28,
-    gap: 12,
-  },
-  lotSheetHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-  },
-  lotSheetTitleWrap: {
-    flex: 1,
-    gap: 2,
-  },
-  lotSheetTitle: {
-    color: "#fff",
-    fontSize: 22,
-    fontWeight: "800",
-    letterSpacing: 0.2,
-  },
-  lotSheetSubtitle: {
-    color: "#a1a1aa",
-    fontSize: 13,
-    fontWeight: "500",
-  },
-  lotSheetFavoriteButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 11,
-    borderWidth: 1,
-    borderColor: "rgba(245,158,11,0.35)",
-    backgroundColor: "rgba(245,158,11,0.12)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  lotSheetStatsRow: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  lotStatCard: {
-    flex: 1,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    backgroundColor: "rgba(12, 12, 14, 0.75)",
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    gap: 2,
-  },
-  lotStatLabel: {
-    color: "#71717a",
-    fontSize: 10,
-    fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 0.4,
-  },
-  lotStatValue: {
-    color: "#f4f4f5",
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  // Occupancy bar
-  lotSheetBarTrack: {
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    overflow: "hidden",
-  },
-  lotSheetBarFill: {
-    height: "100%",
-    borderRadius: 3,
-  },
-  // Feature pills
-  lotSheetFeatureRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-  },
-  lotSheetFeaturePill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  lotSheetFeaturePillText: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  // Schedule
-  lotSheetScheduleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 7,
-    backgroundColor: "rgba(255,255,255,0.04)",
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.07)",
-  },
-  lotSheetScheduleText: {
-    flex: 1,
-    gap: 1,
-  },
-  lotSheetScheduleLine: {
-    color: "#a1a1aa",
-    fontSize: 12,
-    fontWeight: "500",
-  },
-  lotSheetAvailBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  lotSheetAvailOpen: {
-    backgroundColor: "rgba(74,222,128,0.08)",
-    borderColor: "rgba(74,222,128,0.25)",
-  },
-  lotSheetAvailClosed: {
-    backgroundColor: "rgba(239,68,68,0.08)",
-    borderColor: "rgba(239,68,68,0.25)",
-  },
-  lotSheetAvailDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  lotSheetAvailText: {
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 0.5,
-  },
-  // Actions
-  lotSheetActionsRow: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  lotSheetPrimaryAction: {
-    flex: 1,
-    minHeight: 46,
-    borderRadius: 13,
-    backgroundColor: "#dc2626",
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 6,
-  },
-  lotSheetPrimaryActionText: {
-    color: "#fff",
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  lotSheetSecondaryAction: {
-    flex: 1,
-    minHeight: 46,
-    borderRadius: 13,
-    borderWidth: 1,
-    borderColor: "rgba(96,165,250,0.3)",
-    backgroundColor: "rgba(96,165,250,0.08)",
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 6,
-  },
-  lotSheetSecondaryActionText: {
-    color: "#60a5fa",
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  lotSheetEmptyState: {
-    paddingVertical: 8,
-    alignItems: "center",
-  },
-  lotSheetEmptyText: {
-    color: "#a1a1aa",
-    fontSize: 13,
-    fontWeight: "500",
-  },
 
   // ── Offline badge ──────────────────────────────────────────────────────
   offlineBadge: {

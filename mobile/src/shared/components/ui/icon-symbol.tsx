@@ -46,6 +46,16 @@ const MAPPING: Record<string, IconDef> = {
   // Parking
   "car.fill": { lib: "mi", name: "directions-car" },
   "parkingsign.circle.fill": { lib: "mci", name: "parking" },
+  "p.circle.fill": { lib: "mi", name: "local-parking" },
+
+  // Lot feature icons
+  "graduationcap.fill": { lib: "mi", name: "school" },
+  "briefcase.fill": { lib: "mi", name: "work" },
+  "bolt.car.fill": { lib: "mi", name: "ev-station" },
+  "figure.roll": { lib: "mi", name: "accessible" },
+  "info.circle.fill": { lib: "mi", name: "info" },
+  "clock.fill": { lib: "mi", name: "access-time" },
+  "arrow.triangle.turn.up.right.diamond.fill": { lib: "mi", name: "navigation" },
 
   // Favorites / Settings
   "star.fill": { lib: "mi", name: "star" },

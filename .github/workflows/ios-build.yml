@@ -25,6 +25,8 @@ jobs:
 
       - name: Install Node dependencies
         working-directory: mobile
+        env:
+          HUSKY: 0
         run: npm ci
 
       - name: Validate required Expo environment variables
@@ -48,7 +50,7 @@ jobs:
 
       - name: Restore prebuild cache
         id: prebuild-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: mobile/ios
           key: ios-prebuild-${{ hashFiles('mobile/package-lock.json', 'mobile/app.json') }}
@@ -69,7 +71,7 @@ jobs:
 
       - name: Save prebuild cache
         if: steps.prebuild-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: mobile/ios
           key: ios-prebuild-${{ hashFiles('mobile/package-lock.json', 'mobile/app.json') }}
