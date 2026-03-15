@@ -101,7 +101,7 @@ export default function FriendsScreen() {
     };
   }, [isFocused, user?.id, queryClient]);
 
-  const { friends, requests, blocked } = data;
+  const { friends, requests, blocked = [] } = data;
 
   const acceptMutation = useMutation({
     mutationFn: async (requestId: string) =>
