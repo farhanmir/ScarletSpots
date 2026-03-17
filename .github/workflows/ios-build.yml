@@ -14,10 +14,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.0.2
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v6.3.0
         with:
           node-version: 22
           cache: npm
@@ -50,7 +50,7 @@ jobs:
 
       - name: Restore prebuild cache
         id: prebuild-cache
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@v5.0.3
         with:
           path: mobile/ios
           key: ios-prebuild-${{ hashFiles('mobile/package-lock.json', 'mobile/app.json') }}
@@ -71,7 +71,7 @@ jobs:
 
       - name: Save prebuild cache
         if: steps.prebuild-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@v5.0.3
         with:
           path: mobile/ios
           key: ios-prebuild-${{ hashFiles('mobile/package-lock.json', 'mobile/app.json') }}
@@ -97,7 +97,7 @@ jobs:
           echo "Build number set to ${{ github.run_number }}"
 
       - name: Restore Xcode build cache
-        uses: irgaly/xcode-cache@v1
+        uses: irgaly/xcode-cache@v1.9.2
         with:
           key: ios-xcode-${{ hashFiles('mobile/package-lock.json', 'mobile/app.json') }}
           restore-keys: ios-xcode-
@@ -152,19 +152,19 @@ jobs:
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
 
       - name: Upload IPA artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.0
         with:
           name: ${{ steps.xcode_info.outputs.scheme }}-${{ github.run_number }}
           path: ${{ steps.xcode_info.outputs.scheme }}.ipa
           retention-days: 30
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.release_info.outputs.tag }}
-          name: ${{ steps.release_info.outputs.name }}
-          generate_release_notes: true
-          prerelease: true
-          files: ${{ steps.xcode_info.outputs.scheme }}.ipa
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.release_info.outputs.tag }}" "${{ steps.xcode_info.outputs.scheme }}.ipa" \
+            --title "${{ steps.release_info.outputs.name }}" \
+            --generate-notes \
+            --prerelease
 
 
