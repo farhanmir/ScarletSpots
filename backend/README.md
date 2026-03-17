@@ -8,7 +8,6 @@ Copy `.env.example` to `.env` in `backend/` and fill in the values:
 
 ```bash
 SUPABASE_URL=https://your-project-ref.supabase.co
-SUPABASE_KEY=your-supabase-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
 SUPABASE_JWT_SECRET=your-supabase-jwt-secret
 ```

@@ -8,17 +8,18 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from contextlib import asynccontextmanager
 
+from app.core.config import settings
+from app.core.limiter import limiter
+from app.core.logger import logger
+from app.core.websocket import manager as websocket_manager
+from app.routers import favorites, friends, lots, park, users
+from app.routers.websocket import router as websocket_router
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
-
-from app.core.config import settings
-from app.core.limiter import limiter
-from app.core.logger import logger
-from app.routers import favorites, friends, lots, park, users
 
 
 # FastAPI Lifespan for Supabase Client Pooling
@@ -32,9 +33,11 @@ async def lifespan(app: FastAPI):
     app.state.supabase = clients["supabase"]
     app.state.admin_supabase = clients["admin_supabase"]
     await init_cache()
+    await websocket_manager.startup()
     print("!!! BACKEND STARTING UP !!!", flush=True)
     yield
     # Cleanup on shutdown
+    await websocket_manager.shutdown()
     await close_cache()
     await close_supabase_clients()
 
@@ -107,6 +110,7 @@ app.include_router(lots.router, prefix=settings.API_V1_STR)
 app.include_router(friends.router, prefix=settings.API_V1_STR)
 app.include_router(park.router, prefix=settings.API_V1_STR)
 app.include_router(favorites.router, prefix=settings.API_V1_STR)
+app.include_router(websocket_router)
 
 
 @app.get("/health")

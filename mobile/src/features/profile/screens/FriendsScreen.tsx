@@ -23,10 +23,12 @@ import { GLASS } from "@/shared/components/ui/glassTheme";
 import { useRouter } from "expo-router";
 import { useIsFocused } from "@react-navigation/native";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { authApiCall, supabase } from "@/shared/api/supabase";
+import { WEBSOCKET_BASE_URL } from "@/shared/api/api-base";
+import { authApiCall } from "@/shared/api/supabase";
 import { useAuth } from "@/providers/AuthProvider";
 import { getLotById } from "@/shared/constants/lots";
 import PERMIT_MAPPING from "@/shared/constants/permit_mapping.json";
+import { createAuthedWebSocket } from "@/shared/services/authedWebSocket";
 
 type TabKey = "friends" | "requests" | "blocked";
 
@@ -79,45 +81,27 @@ export default function FriendsScreen() {
     refetchInterval: isFocused ? 60000 : false,
   });
 
+  const { friends, requests, blocked = [] } = data;
+
   useEffect(() => {
     if (!isFocused || !user?.id) return;
-    const invalidate = () =>
-      queryClient.invalidateQueries({ queryKey: ["friends_list"] });
-    const outbound = supabase
-      .channel("friendships-outbound")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "friendships",
-          filter: `user_id=eq.${user.id}`,
-        },
-        invalidate,
-      )
-      .subscribe();
-    const inbound = supabase
-      .channel("friendships-inbound")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "friendships",
-          filter: `friend_id=eq.${user.id}`,
-        },
-        invalidate,
-      )
-      .subscribe();
+
+    const disconnect = createAuthedWebSocket({
+      endpoint: `${WEBSOCKET_BASE_URL}/ws/notifications`,
+      onMessage: (payload) => {
+        if (payload.type !== "notification") return;
+        const details = payload.payload as Record<string, unknown> | undefined;
+        if (details?.event !== "friend_request") return;
+
+        queryClient.invalidateQueries({ queryKey: ["friends_list"] });
+        Alert.alert("New Friend Request", "Someone just sent you a friend request.");
+      },
+    });
+
     return () => {
-      outbound.unsubscribe();
-      inbound.unsubscribe();
-      supabase.removeChannel(outbound);
-      supabase.removeChannel(inbound);
+      disconnect();
     };
   }, [isFocused, user?.id, queryClient]);
-
-  const { friends, requests, blocked = [] } = data;
 
   const acceptMutation = useMutation({
     mutationFn: async (requestId: string) =>

@@ -29,7 +29,8 @@ import * as Haptics from "expo-haptics";
 import NetInfo from "@react-native-community/netinfo";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { TrueSheet, type TrueSheetRef } from "@lodev09/react-native-true-sheet";
-import { authApiCall, supabase } from "@/shared/api/supabase";
+import { authApiCall, publicApiCall } from "@/shared/api/supabase";
+import { WEBSOCKET_BASE_URL } from "@/shared/api/api-base";
 import { useAuth } from "@/providers/AuthProvider";
 import ParkingConfirmationSheet from "../components/ParkingConfirmationSheet";
 import LotDetailsSheetContent from "../components/LotDetailsSheetContent";
@@ -62,6 +63,7 @@ import {
 } from "@/shared/constants/lots";
 import { ENABLE_ALL_CAMPUSES } from "@/shared/constants/featureFlags";
 import { GlassBackground } from "@/shared/components/ui/GlassBackground";
+import { createAuthedWebSocket } from "@/shared/services/authedWebSocket";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -101,6 +103,23 @@ const getClusterColor = (rate: number) => {
   if (rate > 50) return "#f59e0b";
   return "#059669";
 };
+
+function applyRealtimeOccupancyCount(
+  lots: RutgersLot[] | undefined,
+  lotId: string,
+  count: number,
+): RutgersLot[] | undefined {
+  if (!lots) return lots;
+  return lots.map((lot) => {
+    if (lot.id !== lotId) return lot;
+    return {
+      ...lot,
+      occupiedCount: count,
+      occupancyRate:
+        lot.capacity > 0 ? Math.min(100, (count / lot.capacity) * 100) : 0,
+    };
+  });
+}
 
 /** Haversine distance in meters. */
 function haversineMeters(
@@ -220,13 +239,11 @@ export default function MapScreen() {
     queryKey: ["lots_occupancy"],
     queryFn: async () => {
       try {
-        const { data, error } = await supabase
-          .from("lot_occupancy")
-          .select("lot_id, count");
-        if (error) throw error;
+        const data = await publicApiCall("/lots/occupancy");
+        const rows = Array.isArray(data?.occupancy) ? data.occupancy : [];
 
         const occupancyMap: Record<string, number> = {};
-        for (const row of data ?? []) {
+        for (const row of rows) {
           occupancyMap[row.lot_id] = row.count ?? 0;
         }
         return applyOccupancy(getAllLots(ENABLE_ALL_CAMPUSES), occupancyMap);
@@ -242,47 +259,31 @@ export default function MapScreen() {
     initialData: STATIC_LOTS.map((l) => ({ ...l })),
   });
 
-  // ── Realtime Occupancy Updates ────────────────────────────────────────
-
   useEffect(() => {
-    if (!isFocused) return;
+    if (!user) return;
 
-    const channel = supabase
-      .channel("lot-occupancy-changes")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "lot_occupancy" },
-        (payload) => {
-          const row = payload.new as { lot_id: string; count: number } | null;
-          if (!row?.lot_id) return;
+    const disconnect = createAuthedWebSocket({
+      endpoint: `${WEBSOCKET_BASE_URL}/ws/occupancy`,
+      authPayload: { lot_ids: STATIC_LOTS.map((lot) => lot.id) },
+      onMessage: (payload) => {
+        if (payload.type !== "occupancy_update") return;
+        const lotIdRaw = payload.lot_id;
+        if (typeof lotIdRaw !== "string" || !lotIdRaw) return;
+        const lotId = lotIdRaw;
+        const count = Number(payload.count ?? 0);
 
-          queryClient.setQueryData(
-            ["lots_occupancy"],
-            (old: RutgersLot[] | undefined) => {
-              if (!old) return old;
-              return old.map((lot) => {
-                if (lot.id !== row.lot_id) return lot;
-                const newCount = row.count ?? 0;
-                return {
-                  ...lot,
-                  occupiedCount: newCount,
-                  occupancyRate:
-                    lot.capacity > 0
-                      ? Math.min(100, (newCount / lot.capacity) * 100)
-                      : 0,
-                };
-              });
-            },
-          );
-        },
-      )
-      .subscribe();
+        queryClient.setQueryData(
+          ["lots_occupancy"],
+          (old: RutgersLot[] | undefined) =>
+            applyRealtimeOccupancyCount(old, lotId, count),
+        );
+      },
+    });
 
     return () => {
-      channel.unsubscribe();
-      supabase.removeChannel(channel);
+      disconnect();
     };
-  }, [isFocused, queryClient]);
+  }, [user, queryClient]);
 
   // ── Geofence Registration ──────────────────────────────────────────────
   // Register once on first load — geofences are based on static coordinates.

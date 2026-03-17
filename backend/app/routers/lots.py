@@ -9,13 +9,15 @@ This router only handles:
   2. Occupancy    — GET /lots/occupancy  (aggregate for all lots)
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi_cache.decorator import cache as fastapi_cache
-
+from app.core.database import get_db
 from app.core.logger import get_logger
-from app.core.security import get_supabase
+from app.models.parking import LotOccupancy
 from app.services.forecast_provider import ForecastProvider
 from app.services.ml_forecast_provider import MLForecastProvider
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi_cache.decorator import cache as fastapi_cache
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 log = get_logger(__name__)
 
@@ -31,12 +33,20 @@ def _get_forecast_provider() -> ForecastProvider:
 
 @router.get("/occupancy")
 @fastapi_cache(expire=30)
-async def get_all_occupancy():
+async def get_all_occupancy(db: AsyncSession = Depends(get_db)):
     """Return current occupancy counts for all lots from the lot_occupancy table."""
-    db = get_supabase()
     try:
-        res = db.table("lot_occupancy").select("lot_id, count, updated_at").execute()
-        return {"occupancy": res.data or []}
+        rows = (await db.execute(select(LotOccupancy))).scalars().all()
+        return {
+            "occupancy": [
+                {
+                    "lot_id": row.lot_id,
+                    "count": row.count,
+                    "updated_at": row.updated_at,
+                }
+                for row in rows
+            ]
+        }
     except Exception as exc:
         log.error("Failed to fetch occupancy: %s", exc)
         raise HTTPException(status_code=500, detail="Failed to fetch occupancy")
@@ -45,8 +55,12 @@ async def get_all_occupancy():
 @router.get("/{lot_id}/forecast")
 def get_lot_forecast(
     lot_id: str,
-    capacity: int = Query(default=100, ge=0, description="Total lot capacity (from bundled JSON)"),
-    current_occupancy: int = Query(default=0, ge=0, description="Current occupied count"),
+    capacity: int = Query(
+        default=100, ge=0, description="Total lot capacity (from bundled JSON)"
+    ),
+    current_occupancy: int = Query(
+        default=0, ge=0, description="Current occupied count"
+    ),
     provider: ForecastProvider = Depends(_get_forecast_provider),
 ):
     """

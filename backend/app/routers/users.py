@@ -1,58 +1,20 @@
-import re
+from types import SimpleNamespace
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel
-
+from app.core.database import get_db
 from app.core.limiter import limiter
 from app.core.logger import get_logger
-from app.core.security import get_admin_supabase, get_current_user, get_supabase
+from app.core.security import get_admin_auth_client, get_current_user
+from app.models.user import Profile
 from app.schemas.user import ProfileUpdate, SignupResponse, UserCreate
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+from supabase import Client
 
 log = get_logger(__name__)
 
 router = APIRouter(prefix="/users", tags=["users"])
-
-_OPTIONAL_PROFILE_COLUMNS = {
-    "first_name",
-    "last_name",
-    "avatar_url",
-    "permit_type",
-    "latitude",
-    "longitude",
-}
-
-
-def _missing_profiles_column(exc: Exception) -> str | None:
-    """Extract a missing profiles column name from a PostgREST schema-cache error."""
-    match = re.search(r"Could not find the '([^']+)' column of 'profiles'", str(exc))
-    if not match:
-        return None
-
-    column = match.group(1)
-    if column in _OPTIONAL_PROFILE_COLUMNS:
-        return column
-    return None
-
-
-def _upsert_profile_resilient(admin_db, payload: dict):
-    """Retry profile upserts when optional profile columns are missing in older DB schemas."""
-    compatible_payload = dict(payload)
-    removed_columns: list[str] = []
-
-    while True:
-        try:
-            return admin_db.table("profiles").upsert(compatible_payload).execute()
-        except Exception as exc:
-            missing_column = _missing_profiles_column(exc)
-            if missing_column and missing_column in compatible_payload:
-                compatible_payload.pop(missing_column, None)
-                removed_columns.append(missing_column)
-                log.warning(
-                    "Profiles schema missing column %s; retrying upsert with reduced payload",
-                    missing_column,
-                )
-                continue
-            raise
 
 
 def _build_profile_payload(user_id: str, email: str | None, name: str | None) -> dict:
@@ -68,29 +30,87 @@ def _build_profile_payload(user_id: str, email: str | None, name: str | None) ->
         "email": email,
         "first_name": first_name,
         "last_name": last_name,
+        "full_name": name.strip() if name else None,
         "role": "user",
     }
 
 
+def _to_uuid_or_401(user: SimpleNamespace) -> UUID:
+    try:
+        return UUID(str(user.id))
+    except Exception as exc:
+        raise HTTPException(
+            status_code=401, detail="Invalid authenticated user id"
+        ) from exc
+
+
+def _profile_to_response(profile: Profile, fallback_email: str | None = None) -> dict:
+    return {
+        "id": str(profile.id),
+        "email": profile.email or fallback_email,
+        "first_name": profile.first_name,
+        "last_name": profile.last_name,
+        "full_name": profile.full_name,
+        "avatar_url": profile.avatar_url,
+        "permit_type": profile.permit_type,
+        "latitude": profile.latitude,
+        "longitude": profile.longitude,
+        "role": profile.role,
+        "created_at": profile.created_at,
+        "updated_at": profile.updated_at,
+    }
+
+
+async def _upsert_profile(db: AsyncSession, payload: dict) -> Profile:
+    profile_id = UUID(payload["id"])
+    profile = await db.get(Profile, profile_id)
+    if profile is None:
+        profile = Profile(id=profile_id)
+        db.add(profile)
+
+    for field in [
+        "email",
+        "first_name",
+        "last_name",
+        "full_name",
+        "avatar_url",
+        "permit_type",
+        "latitude",
+        "longitude",
+        "role",
+    ]:
+        if field in payload:
+            setattr(profile, field, payload[field])
+
+    await db.commit()
+    await db.refresh(profile)
+    return profile
+
+
 @router.post("/signup")
 @limiter.limit("5/hour")
-def signup(request: Request, body: UserCreate):
+async def signup(
+    request: Request,
+    body: UserCreate,
+    db: AsyncSession = Depends(get_db),
+    admin_auth: Client = Depends(get_admin_auth_client),
+):
     """
     Create a new user with Rutgers email validation.
     Mirrors the logic from the legacy Edge Function.
     """
     email = body.email.lower()
-    if not (email.endswith("@rutgers.edu") or email.endswith("@scarletmail.rutgers.edu")):
+    if not (
+        email.endswith("@rutgers.edu") or email.endswith("@scarletmail.rutgers.edu")
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Only Rutgers email addresses are allowed (@rutgers.edu or @scarletmail.rutgers.edu)",
         )
 
-    admin_db = get_admin_supabase()
-
     try:
         # Create user in Auth
-        res = admin_db.auth.admin.create_user(
+        res = admin_auth.auth.admin.create_user(
             {
                 "email": email,
                 "password": body.password,
@@ -99,12 +119,8 @@ def signup(request: Request, body: UserCreate):
             }
         )
 
-        # Explicitly create the profiles row — there is no DB trigger.
-        # Older environments may still be missing some optional profile columns,
-        # so retry with a reduced payload instead of failing signup entirely.
-        _upsert_profile_resilient(
-            admin_db,
-            _build_profile_payload(str(res.user.id), email, body.name),
+        await _upsert_profile(
+            db, _build_profile_payload(str(res.user.id), email, body.name)
         )
 
         return SignupResponse(success=True, id=str(res.user.id), email=res.user.email)
@@ -125,25 +141,24 @@ def signup(request: Request, body: UserCreate):
 
 
 @router.get("/me")
-def read_user_me(current_user=Depends(get_current_user)):
+async def read_user_me(
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """Return the authenticated user's profile row, creating it if missing."""
-    db = get_supabase()
-    admin_db = get_admin_supabase()
-    user_id = current_user.id
+    user_id = _to_uuid_or_401(current_user)
     try:
-        row = db.table("profiles").select("*").eq("id", user_id).single().execute()
-        if row.data:
-            return row.data
-        # Profile missing — auto-create it from auth metadata (handles users
-        # created before the explicit profile insert was added to signup).
+        profile = await db.get(Profile, user_id)
+        if profile is not None:
+            return _profile_to_response(profile)
+
         email = getattr(current_user, "email", None)
         meta = getattr(current_user, "user_metadata", {}) or {}
         name = meta.get("name", "")
-        upserted = _upsert_profile_resilient(
-            admin_db,
-            _build_profile_payload(user_id, email, name),
+        profile = await _upsert_profile(
+            db, _build_profile_payload(str(user_id), email, name)
         )
-        return upserted.data[0] if upserted.data else {"id": user_id, "email": email}
+        return _profile_to_response(profile, fallback_email=email)
     except HTTPException:
         raise
     except Exception as exc:
@@ -152,19 +167,30 @@ def read_user_me(current_user=Depends(get_current_user)):
 
 
 @router.patch("/me")
-def update_user_me(body: ProfileUpdate, current_user=Depends(get_current_user)):
+async def update_user_me(
+    body: ProfileUpdate,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """Update the authenticated user's profile. Only first_name, last_name, avatar_url, permit_type allowed."""
-    admin_db = get_admin_supabase()
-    user_id = current_user.id
+    user_id = _to_uuid_or_401(current_user)
     update_data = body.model_dump(exclude_unset=True)
     if not update_data:
         raise HTTPException(status_code=400, detail="Empty body")
     try:
-        # Upsert so PATCH works even if the profile row was never created.
-        row = admin_db.table("profiles").upsert({"id": user_id, **update_data}).execute()
-        if not row.data:
-            raise HTTPException(status_code=500, detail="Failed to update profile")
-        return row.data[0]
+        profile = await db.get(Profile, user_id)
+        if profile is None:
+            profile = Profile(
+                id=user_id, email=getattr(current_user, "email", None), role="user"
+            )
+            db.add(profile)
+
+        for key, value in update_data.items():
+            setattr(profile, key, value)
+
+        await db.commit()
+        await db.refresh(profile)
+        return _profile_to_response(profile)
     except HTTPException:
         raise
     except Exception as exc:
@@ -178,14 +204,20 @@ class PasswordResetRequest(BaseModel):
 
 @router.post("/password-reset")
 @limiter.limit("3/hour")
-def request_password_reset(request: Request, body: PasswordResetRequest):
+async def request_password_reset(
+    request: Request,
+    body: PasswordResetRequest,
+    admin_auth: Client = Depends(get_admin_auth_client),
+):
     """
     Send a password reset email via Supabase Auth.
     Rate limited to 3 requests per hour to prevent abuse.
     Always returns success to avoid email enumeration.
     """
     email = body.email.lower().strip()
-    if not (email.endswith("@rutgers.edu") or email.endswith("@scarletmail.rutgers.edu")):
+    if not (
+        email.endswith("@rutgers.edu") or email.endswith("@scarletmail.rutgers.edu")
+    ):
         # Reject non-Rutgers emails but still return 200 to avoid enumeration
         return {
             "success": True,
@@ -193,8 +225,7 @@ def request_password_reset(request: Request, body: PasswordResetRequest):
         }
 
     try:
-        admin_db = get_admin_supabase()
-        admin_db.auth.admin.generate_link(
+        admin_auth.auth.admin.generate_link(
             {
                 "type": "recovery",
                 "email": email,
@@ -211,9 +242,13 @@ def request_password_reset(request: Request, body: PasswordResetRequest):
 
 
 @router.post("/me/location")
-def update_location(body: ProfileUpdate, current_user=Depends(get_current_user)):
+async def update_location(
+    body: ProfileUpdate,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """Update the authenticated user's coordinates."""
-    user_id = current_user.id
+    user_id = _to_uuid_or_401(current_user)
 
     # We only care about lat/lng here
     update_data = {}
@@ -226,25 +261,20 @@ def update_location(body: ProfileUpdate, current_user=Depends(get_current_user))
         raise HTTPException(status_code=400, detail="Latitude or longitude required")
 
     try:
-        # We use admin_db (service role) to bypass RLS for coordinates,
-        # ensuring the mobile app's rapid background updates don't fail
-        # on strict session/policy checks.
-        admin_db = get_admin_supabase()
-        admin_db.table("profiles").update(update_data).eq("id", user_id).execute()
+        profile = await db.get(Profile, user_id)
+        if profile is None:
+            profile = Profile(
+                id=user_id, email=getattr(current_user, "email", None), role="user"
+            )
+            db.add(profile)
+
+        if "latitude" in update_data:
+            profile.latitude = str(update_data["latitude"])
+        if "longitude" in update_data:
+            profile.longitude = str(update_data["longitude"])
+
+        await db.commit()
         return {"success": True}
     except Exception as exc:
-        # Check for missing column error specifically (PostgREST usually returns 400 for undefined column)
-        err_msg = str(exc)
-        if "column" in err_msg.lower() and (
-            "latitude" in err_msg.lower() or "longitude" in err_msg.lower()
-        ):
-            log.warning(
-                "Location update failed: columns missing in database. Run migration 20260306_add_profile_location.sql."
-            )
-            raise HTTPException(
-                status_code=501,
-                detail="Location tracking not yet enabled on server. Please contact administrator to run schema migrations.",
-            )
-
-        log.error("Failed to update location via admin_db: %s", exc)
+        log.error("Failed to update location: %s", exc)
         raise HTTPException(status_code=500, detail="Failed to update location")

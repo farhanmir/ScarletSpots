@@ -18,7 +18,6 @@ class Settings(BaseSettings):
 
     # Supabase
     SUPABASE_URL: str = Field(default="")
-    SUPABASE_KEY: str = Field(default="")
     SUPABASE_SERVICE_ROLE_KEY: str = Field(default="")
     SUPABASE_JWT_SECRET: str = Field(default="")
     DATABASE_URL: str = Field(default="")

@@ -15,12 +15,16 @@ export async function publicApiCall(
   endpoint: string,
   options: RequestInit = {},
 ): Promise<any> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
   const response = await fetchBackend(endpoint, {
     ...options,
     headers: {
       "Content-Type": "application/json",
       apikey: supabaseAnonKey,
-      Authorization: `Bearer ${supabaseAnonKey}`,
+      Authorization: `Bearer ${session?.access_token || supabaseAnonKey}`,
       ...(options.headers || {}),
     } as HeadersInit,
   });

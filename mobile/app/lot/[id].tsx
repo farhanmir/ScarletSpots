@@ -17,7 +17,7 @@ import NetInfo from "@react-native-community/netinfo";
 import { IconSymbol } from "@/shared/components/ui/icon-symbol";
 import { useAuth } from "@/providers/AuthProvider";
 import { useTabBar } from "@/providers/TabBarProvider";
-import { authApiCall, publicApiCall, supabase } from "@/shared/api/supabase";
+import { authApiCall, publicApiCall } from "@/shared/api/supabase";
 import {
   getLotById,
   getPermitLotIdsUnion,
@@ -61,12 +61,10 @@ export default function LotDetailsScreen() {
   const { data: lotsOccupancy } = useQuery<RutgersLot[]>({
     queryKey: ["lots_occupancy"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("lot_occupancy")
-        .select("lot_id, count");
-      if (error) throw error;
+      const data = await publicApiCall("/lots/occupancy");
+      const rows = Array.isArray(data?.occupancy) ? data.occupancy : [];
       const occupancyMap: Record<string, number> = {};
-      for (const row of data ?? []) {
+      for (const row of rows) {
         occupancyMap[row.lot_id] = row.count ?? 0;
       }
       return applyOccupancy(getAllLots(ENABLE_ALL_CAMPUSES), occupancyMap);

@@ -1,26 +1,19 @@
-"""
-Parking session router.
-
-Manages the lifecycle of a user's parking session:
-  POST /park/session         — start session (increments lot_occupancy)
-  POST /park/session/end     — end session   (decrements lot_occupancy)
-  GET  /park/session/active  — get current active session
-  POST /park/session/feedback — report detection quality (feeds forecast model)
-
-Lot IDs are the mapId strings from the bundled rutgers_parking_data.json
-(e.g. "10001"), not UUIDs. The lot_occupancy table keyed on lot_id TEXT.
-"""
-
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Optional
+from typing import Optional
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
-
+from app.core.database import get_db
 from app.core.limiter import limiter
 from app.core.logger import get_logger
-from app.core.security import get_admin_supabase, get_auth_db, get_current_user
+from app.core.security import get_current_user
+from app.core.websocket import manager as ws_manager
+from app.models.parking import LotOccupancy, ParkingSession
+from app.models.parking import SessionFeedback as SessionFeedbackModel
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 log = get_logger(__name__)
 
@@ -50,31 +43,46 @@ class SessionFeedback(BaseModel):
     notes: Optional[str] = None
 
 
+def _to_uuid_or_401(value: str) -> UUID:
+    try:
+        return UUID(str(value))
+    except Exception as exc:
+        raise HTTPException(
+            status_code=401, detail="Invalid authenticated user id"
+        ) from exc
+
+
+def _session_response(session: ParkingSession) -> dict:
+    return {
+        "id": str(session.id),
+        "lotId": str(session.lot_id),
+        "latitude": session.latitude,
+        "longitude": session.longitude,
+        "startTime": session.start_time or session.created_at,
+        "active": bool(session.active),
+        "autoStarted": bool(session.auto_started),
+    }
+
+
+async def _get_active_sessions(db: AsyncSession, user_id: UUID) -> list[ParkingSession]:
+    stmt = select(ParkingSession).where(
+        ParkingSession.user_id == user_id,
+        ParkingSession.active.is_(True),
+    )
+    return (await db.execute(stmt)).scalars().all()
+
+
 @router.get("/active")
-def get_active_session(current_user=Depends(get_current_user), db=Depends(get_auth_db)):
+async def get_active_session(
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """Get the active parking session for the current user."""
     try:
-        res = (
-            db.table("parking_sessions")
-            .select("*")
-            .eq("user_id", current_user.id)
-            .eq("active", True)
-            .limit(1)
-            .execute()
-        )
-        if res.data:
-            s = res.data[0]
-            return {
-                "session": {
-                    "id": str(s["id"]),
-                    "lotId": str(s["lot_id"]),
-                    "latitude": s.get("latitude"),
-                    "longitude": s.get("longitude"),
-                    "startTime": s.get("start_time") or s.get("created_at"),
-                    "active": True,
-                    "autoStarted": bool(s.get("auto_started", False)),
-                }
-            }
+        user_id = _to_uuid_or_401(current_user.id)
+        sessions = await _get_active_sessions(db, user_id)
+        if sessions:
+            return {"session": _session_response(sessions[0])}
         return {"session": None}
     except Exception as exc:
         log.error("Failed to get active session: %s", exc)
@@ -83,164 +91,128 @@ def get_active_session(current_user=Depends(get_current_user), db=Depends(get_au
 
 @router.post("")
 @limiter.limit("30/hour")
-def start_parking_session(
+async def start_parking_session(
     request: Request,
     body: ParkSessionCreate,
     current_user=Depends(get_current_user),
-    db=Depends(get_auth_db),
+    db: AsyncSession = Depends(get_db),
 ):
-    """Start a new parking session and atomically increment lot occupancy.
-
-    Uses start_parking_session_atomic RPC so the session INSERT and the
-    lot_occupancy upsert live in a single database transaction — partial
-    failures cannot leave counts inconsistent.
-    """
-    user_id = current_user.id
+    """Start a new parking session and increment local lot occupancy in one transaction."""
+    user_id = _to_uuid_or_401(current_user.id)
 
     if not body.lotId or not body.lotId.strip():
         raise HTTPException(status_code=400, detail="lotId is required")
 
     lot_id = body.lotId.strip()
-
-    # If user already has an active session, end it first (DB unique index is
-    # the hard safety net; this makes the UX seamless).
-    existing = get_active_session(current_user=current_user, db=db)
-    if existing.get("session"):
-        end_parking_session(current_user=current_user)
+    changed_lot_counts: dict[str, int] = {}
 
     try:
-        admin_db = get_admin_supabase()
-        rpc_res = admin_db.rpc(
-            "start_parking_session_atomic",
-            {
-                "p_user_id": str(user_id),
-                "p_lot_id": lot_id,
-                "p_latitude": body.latitude,
-                "p_longitude": body.longitude,
-                "p_auto_started": body.autoStarted,
-            },
-        ).execute()
+        async with db.begin():
+            existing_sessions = await _get_active_sessions(db, user_id)
+            for existing in existing_sessions:
+                existing.active = False
+                existing.end_time = datetime.now(timezone.utc)
+
+                old_occ = await db.get(LotOccupancy, existing.lot_id)
+                if old_occ is not None:
+                    old_occ.count = max(0, (old_occ.count or 0) - 1)
+                    changed_lot_counts[existing.lot_id] = old_occ.count
+
+            new_session = ParkingSession(
+                user_id=user_id,
+                lot_id=lot_id,
+                latitude=body.latitude,
+                longitude=body.longitude,
+                active=True,
+                auto_started=body.autoStarted,
+            )
+            db.add(new_session)
+
+            occupancy = await db.get(LotOccupancy, lot_id)
+            if occupancy is None:
+                occupancy = LotOccupancy(lot_id=lot_id, count=1)
+                db.add(occupancy)
+            else:
+                occupancy.count = (occupancy.count or 0) + 1
+            changed_lot_counts[lot_id] = occupancy.count or 0
+
+        await db.refresh(new_session)
+        confirmed_occupancy = occupancy.count if occupancy else None
+
+        for changed_lot_id, changed_count in changed_lot_counts.items():
+            await ws_manager.publish_occupancy_update(changed_lot_id, changed_count)
+
+        return {
+            "success": True,
+            "session": _session_response(new_session),
+            "confirmedOccupancy": confirmed_occupancy,
+        }
     except Exception as exc:
-        exc_text = str(exc)
         log.error(
-            "Atomic start session RPC failed for user %s lot %s: %s",
+            "Failed to start parking session for user %s lot %s: %s",
             user_id,
             lot_id,
             exc,
         )
-        if (
-            "'code': '23502'" in exc_text
-            and 'relation "parking_sessions"' in exc_text
-            and ('column "latitude"' in exc_text or 'column "longitude"' in exc_text)
-        ):
-            raise HTTPException(
-                status_code=500,
-                detail=(
-                    "Parking session schema mismatch: coordinates columns are non-null in "
-                    "the database. Apply latest backend migrations."
-                ),
-            )
         raise HTTPException(status_code=500, detail="Failed to start parking session")
-
-    if not isinstance(rpc_res.data, list) or not rpc_res.data:
-        log.error(
-            "start_parking_session_atomic returned no data for user %s lot %s",
-            user_id,
-            lot_id,
-        )
-        raise HTTPException(status_code=500, detail="Failed to start parking session")
-
-    first_row = rpc_res.data[0]
-    if not isinstance(first_row, dict):
-        log.error(
-            "start_parking_session_atomic returned invalid row for user %s lot %s",
-            user_id,
-            lot_id,
-        )
-        raise HTTPException(status_code=500, detail="Failed to start parking session")
-
-    new_session: dict[str, Any] = first_row
-
-    # Fetch the confirmed occupancy count so the mobile client can render
-    # the exact value without waiting for a realtime event.
-    confirmed_occupancy: Optional[int] = None
-    try:
-        occ_res = (
-            admin_db.table("lot_occupancy").select("count").eq("lot_id", lot_id).single().execute()
-        )
-        if isinstance(occ_res.data, dict):
-            confirmed_occupancy = occ_res.data.get("count")
-    except Exception as exc:
-        log.warning("Could not fetch confirmed occupancy for lot %s: %s", lot_id, exc)
-
-    return {
-        "success": True,
-        "session": {
-            "id": str(new_session["id"]),
-            "lotId": str(new_session["lot_id"]),
-            "latitude": new_session.get("latitude"),
-            "longitude": new_session.get("longitude"),
-            "startTime": new_session.get("start_time") or new_session.get("created_at"),
-            "active": True,
-            "autoStarted": bool(new_session.get("auto_started", False)),
-        },
-        "confirmedOccupancy": confirmed_occupancy,
-    }
 
 
 @router.post("/end")
-def end_parking_session(current_user=Depends(get_current_user)):
-    """End the active parking session and atomically decrement lot occupancy.
-
-    Uses end_parking_session_atomic RPC so the session UPDATE and the
-    lot_occupancy decrement live in a single transaction.  If the user
-    somehow ended up with multiple active sessions (data inconsistency
-    predating the unique index), all are closed and their lots decremented.
-    Errors in the occupancy step are no longer swallowed — the whole call
-    fails so the client knows to retry.
-    """
-    user_id = current_user.id
+async def end_parking_session(
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """End active parking session(s) and decrement occupancy atomically."""
+    user_id = _to_uuid_or_401(current_user.id)
+    changed_lot_counts: dict[str, int] = {}
 
     try:
-        admin_db = get_admin_supabase()
-        rpc_res = admin_db.rpc(
-            "end_parking_session_atomic",
-            {"p_user_id": str(user_id)},
-        ).execute()
-    except Exception as exc:
-        log.error("Atomic end session RPC failed for user %s: %s", user_id, exc)
-        raise HTTPException(status_code=500, detail="Failed to end parking session")
+        async with db.begin():
+            active_sessions = await _get_active_sessions(db, user_id)
+            for session in active_sessions:
+                session.active = False
+                session.end_time = datetime.now(timezone.utc)
 
-    ended_count = rpc_res.data if isinstance(rpc_res.data, int) else 0
-    log.info("Ended %d active session(s) for user %s", ended_count, user_id)
-    return {"success": True}
+                occupancy = await db.get(LotOccupancy, session.lot_id)
+                if occupancy is not None:
+                    occupancy.count = max(0, (occupancy.count or 0) - 1)
+                    changed_lot_counts[session.lot_id] = occupancy.count
+
+        for changed_lot_id, changed_count in changed_lot_counts.items():
+            await ws_manager.publish_occupancy_update(changed_lot_id, changed_count)
+
+        log.info(
+            "Ended %d active session(s) for user %s", len(active_sessions), user_id
+        )
+        return {"success": True}
+    except Exception as exc:
+        log.error("Failed to end parking session for user %s: %s", user_id, exc)
+        raise HTTPException(status_code=500, detail="Failed to end parking session")
 
 
 @router.post("/feedback")
 @limiter.limit("20/hour")
-def submit_session_feedback(
+async def submit_session_feedback(
     request: Request,
     body: SessionFeedback,
     current_user=Depends(get_current_user),
-    db=Depends(get_auth_db),
+    db: AsyncSession = Depends(get_db),
 ):
-    """
-    Submit detection quality feedback for a parking session.
-
-    Used to improve the auto-detection pipeline and the ML forecast model.
-    Stored in session_feedback table for periodic model retraining.
-    """
+    """Submit detection quality feedback for a parking session."""
     try:
-        feedback_data = {
-            "user_id": current_user.id,
-            "session_id": body.session_id,
-            "lot_id": body.lot_id,
-            "quality": body.quality.value,
-            "correct_lot_id": body.correct_lot_id,
-            "notes": body.notes,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        }
-        db.table("session_feedback").insert(feedback_data).execute()
+        user_id = _to_uuid_or_401(current_user.id)
+        session_id = UUID(body.session_id) if body.session_id else None
+
+        feedback = SessionFeedbackModel(
+            user_id=user_id,
+            session_id=session_id,
+            lot_id=body.lot_id,
+            quality=body.quality.value,
+            correct_lot_id=body.correct_lot_id,
+            notes=body.notes,
+        )
+        db.add(feedback)
+        await db.commit()
         return {"success": True}
     except Exception as exc:
         log.error("Failed to store session feedback: %s", exc)

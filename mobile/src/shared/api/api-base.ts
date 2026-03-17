@@ -17,6 +17,16 @@ export const LOCAL_FASTAPI_URL =
       ? "http://10.0.2.2:8000/api/v1"
       : "http://localhost:8000/api/v1");
 
+export const WEBSOCKET_BASE_URL = (() => {
+  try {
+    const apiUrl = new URL(LOCAL_FASTAPI_URL);
+    const wsProtocol = apiUrl.protocol === "https:" ? "wss:" : "ws:";
+    return `${wsProtocol}//${apiUrl.host}`;
+  } catch {
+    return "ws://localhost:8000";
+  }
+})();
+
 export async function fetchBackend(
   endpoint: string,
   init: RequestInit,

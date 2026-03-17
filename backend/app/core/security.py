@@ -1,14 +1,41 @@
-from fastapi import Depends, HTTPException, Security, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from types import SimpleNamespace
-from jose import jwt
+
 from app.core.config import settings
 from app.core.logger import get_logger
+from fastapi import Depends, HTTPException, Security, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import jwt
+from jose.exceptions import JWTError
 from supabase import Client, create_client
 
 log = get_logger(__name__)
 
 security = HTTPBearer()
+
+_SUPPORTED_JWT_ALGORITHMS = {"HS256", "ES256"}
+
+
+def _decode_token(token: str) -> dict:
+    header = jwt.get_unverified_header(token)
+    algorithm = header.get("alg")
+    if algorithm not in _SUPPORTED_JWT_ALGORITHMS:
+        raise JWTError(f"Unsupported JWT alg: {algorithm}")
+
+    return jwt.decode(
+        token,
+        settings.SUPABASE_JWT_SECRET,
+        algorithms=[algorithm],
+        options={"verify_aud": False},
+    )
+
+
+def decode_supabase_jwt_token(token: str) -> dict:
+    """Decode and validate a Supabase JWT string and return its payload."""
+    payload = _decode_token(token)
+    if not isinstance(payload, dict):
+        raise JWTError("Token payload is not a JSON object")
+    return payload
+
 
 def verify_supabase_jwt(auth: HTTPAuthorizationCredentials = Security(security)):
     """
@@ -17,20 +44,15 @@ def verify_supabase_jwt(auth: HTTPAuthorizationCredentials = Security(security))
     """
     token = auth.credentials
     try:
-        # This decodes and verifies the token locally using the SUPABASE_JWT_SECRET
-        payload = jwt.decode(
-            token, 
-            settings.SUPABASE_JWT_SECRET, 
-            algorithms=["HS256"], 
-            options={"verify_aud": False}
-        )
+        payload = decode_supabase_jwt_token(token)
         return payload
-    except Exception as exc:
+    except JWTError as exc:
         log.warning("Local JWT verification failed: %s", exc)
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, 
-            detail="Invalid or expired Supabase token"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired Supabase token",
         )
+
 
 def get_current_user(
     payload: dict = Depends(verify_supabase_jwt),
@@ -40,29 +62,33 @@ def get_current_user(
     Maintains compatibility with existing routers that expect current_user.id and email.
     Does NOT query any database tables.
     """
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Supabase token payload",
+        )
     return SimpleNamespace(
-        id=payload.get("sub"),
+        id=user_id,
         email=payload.get("email"),
-        user_metadata=payload.get("user_metadata", {})
+        user_metadata=payload.get("user_metadata") or {},
     )
 
 
 # --- Lazy-initialized Supabase clients ---
 def init_supabase_clients():
-    """Initializes and returns shared Supabase clients for the process."""
+    """Initialize and return a shared Supabase admin client for auth operations."""
 
-    # Standard client
-    supa = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
-
-    # Admin client
     if not settings.SUPABASE_SERVICE_ROLE_KEY:
         raise HTTPException(
             status_code=500,
             detail="SUPABASE_SERVICE_ROLE_KEY is not configured in environment variables.",
         )
-    admin_supa = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
+    admin_supa = create_client(
+        settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY
+    )
 
-    return {"supabase": supa, "admin_supabase": admin_supa}
+    return {"supabase": admin_supa, "admin_supabase": admin_supa}
 
 
 async def close_supabase_clients():
@@ -79,6 +105,13 @@ def get_supabase() -> Client:
 
 def get_admin_supabase() -> Client:
     """Return the admin Supabase client stored on app.state."""
+    from app.main import app
+
+    return app.state.admin_supabase
+
+
+def get_admin_auth_client() -> Client:
+    """Return the shared Supabase admin auth client from app.state."""
     from app.main import app
 
     return app.state.admin_supabase
@@ -114,7 +147,6 @@ def get_auth_db(credentials: HTTPAuthorizationCredentials = Depends(security)):
     return AuthContextClient(base_client, token)
 
 
-
 def require_admin(current_user=Depends(get_current_user)):
     """
     FastAPI dependency that enforces admin role.
@@ -123,7 +155,13 @@ def require_admin(current_user=Depends(get_current_user)):
     """
     try:
         db = get_supabase()
-        row = db.table("profiles").select("role").eq("id", current_user.id).single().execute()
+        row = (
+            db.table("profiles")
+            .select("role")
+            .eq("id", current_user.id)
+            .single()
+            .execute()
+        )
         if not row.data or row.data.get("role") != "admin":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
