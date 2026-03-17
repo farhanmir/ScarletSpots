@@ -78,7 +78,8 @@ export default function FriendsScreen() {
       };
     },
     enabled: !!user?.id,
-    refetchInterval: isFocused ? 60000 : false,
+    // Fallback for builds where websocket is not connected yet.
+    refetchInterval: isFocused ? 15000 : false,
   });
 
   const { friends, requests, blocked = [] } = data;

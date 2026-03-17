@@ -253,7 +253,8 @@ export default function MapScreen() {
       }
     },
     staleTime: 1000 * 60 * 2,
-    refetchInterval: isFocused ? 1000 * 60 * 5 : false,
+    // Fallback for builds where websocket is not connected yet.
+    refetchInterval: isFocused ? 1000 * 15 : false,
     refetchOnMount: true,
     refetchOnWindowFocus: false,
     initialData: STATIC_LOTS.map((l) => ({ ...l })),
