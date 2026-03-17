@@ -24,9 +24,14 @@ export default function ForecastChart({
     const now = new Date();
     now.setSeconds(0, 0);
     const minutes = now.getMinutes();
+    // Snap timeline to nearest half-hour:
+    // :00–:14 => :00, :15–:44 => :30, :45–:59 => next hour :00.
     if (minutes < 15) now.setMinutes(0);
     else if (minutes < 45) now.setMinutes(30);
-    else now.setMinutes(60);
+    else {
+      now.setHours(now.getHours() + 1);
+      now.setMinutes(0);
+    }
     return now.getTime();
   }, []);
 
