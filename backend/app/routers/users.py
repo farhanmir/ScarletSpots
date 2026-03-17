@@ -110,6 +110,15 @@ def signup(request: Request, body: UserCreate):
 
         return SignupResponse(success=True, id=str(res.user.id), email=res.user.email)
     except Exception as exc:
+        error_msg = str(exc).lower()
+        # Handle duplicate email error from Supabase Auth
+        if "already registered" in error_msg or "already exists" in error_msg:
+            log.info("Signup failed: email already registered: %s", email)
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="A user with this email address has already been registered",
+            ) from exc
+
         log.error("Signup failed: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Signup failed"

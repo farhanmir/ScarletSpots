@@ -61,3 +61,30 @@ def test_signup_retries_profile_upsert_when_optional_profile_columns_are_missing
     assert first_payload["last_name"] == "User"
     assert "first_name" not in second_payload
     assert second_payload["last_name"] == "User"
+
+
+def test_signup_returns_409_when_email_already_registered() -> None:
+    admin_db = MagicMock()
+    admin_db.auth.admin.create_user.side_effect = Exception(
+        "User with email already registered"
+    )
+
+    original_admin_db = app.state.admin_supabase
+    app.state.admin_supabase = admin_db
+    try:
+        response = client.post(
+            "/api/v1/users/signup",
+            json={
+                "email": "existing@rutgers.edu",
+                "password": "Password123!",
+                "name": "Test User",
+            },
+        )
+    finally:
+        app.state.admin_supabase = original_admin_db
+
+    assert response.status_code == 409
+    assert (
+        response.json()["detail"]
+        == "A user with this email address has already been registered"
+    )
