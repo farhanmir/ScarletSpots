@@ -1,4 +1,7 @@
+import json
+import time
 from types import SimpleNamespace
+from urllib.request import Request, urlopen
 
 from app.core.config import settings
 from app.core.logger import get_logger
@@ -13,6 +16,91 @@ log = get_logger(__name__)
 security = HTTPBearer()
 
 _SUPPORTED_JWT_ALGORITHMS = {"HS256", "ES256"}
+_JWKS_CACHE_TTL_SECONDS = 300
+_jwks_keys_cache: list[dict] = []
+_jwks_cache_expires_at: float = 0
+
+
+def _normalize_key_material(value: str) -> str:
+    """Normalize env-provided key material (escaped newlines, surrounding quotes)."""
+    normalized = (value or "").strip()
+    if (
+        len(normalized) >= 2
+        and normalized[0] == normalized[-1]
+        and normalized[0] in {'"', "'"}
+    ):
+        normalized = normalized[1:-1].strip()
+    return normalized.replace("\\n", "\n")
+
+
+def _decode_with_algorithm(token: str, key: str | dict, algorithm: str) -> dict:
+    return jwt.decode(
+        token,
+        key,
+        algorithms=[algorithm],
+        options={"verify_aud": False},
+    )
+
+
+def _fetch_supabase_jwks_keys() -> list[dict]:
+    global _jwks_keys_cache, _jwks_cache_expires_at
+
+    now = time.time()
+    if _jwks_keys_cache and now < _jwks_cache_expires_at:
+        return _jwks_keys_cache
+
+    if not settings.SUPABASE_URL:
+        raise JWTError("SUPABASE_URL is not configured")
+
+    supabase_url = str(settings.SUPABASE_URL or "").rstrip("/")
+    jwks_url = f"{supabase_url}/auth/v1/.well-known/jwks.json"
+    request = Request(jwks_url, headers={"Accept": "application/json"})
+
+    try:
+        with urlopen(request, timeout=3) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except Exception as exc:
+        raise JWTError(f"Failed to fetch Supabase JWKS: {exc}") from exc
+
+    keys = payload.get("keys")
+    if not isinstance(keys, list) or not keys:
+        raise JWTError("Supabase JWKS response has no keys")
+
+    _jwks_keys_cache = [k for k in keys if isinstance(k, dict)]
+    _jwks_cache_expires_at = now + _JWKS_CACHE_TTL_SECONDS
+    return _jwks_keys_cache
+
+
+def _decode_hs256(token: str) -> dict:
+    secret = _normalize_key_material(settings.SUPABASE_JWT_SECRET)
+    if not secret:
+        raise JWTError("SUPABASE_JWT_SECRET is not configured for HS256 verification")
+    return _decode_with_algorithm(token, secret, "HS256")
+
+
+def _decode_es256(token: str, header: dict) -> dict:
+    # Optional override: allow explicit public key in env for fully offline verification.
+    explicit_public_key = _normalize_key_material(settings.SUPABASE_JWT_PUBLIC_KEY)
+    if explicit_public_key:
+        return _decode_with_algorithm(token, explicit_public_key, "ES256")
+
+    kid = header.get("kid")
+    candidate_keys = _fetch_supabase_jwks_keys()
+    if kid:
+        matching = [key for key in candidate_keys if key.get("kid") == kid]
+        if matching:
+            candidate_keys = matching
+
+    last_error: Exception | None = None
+    for key in candidate_keys:
+        try:
+            return _decode_with_algorithm(token, key, "ES256")
+        except JWTError as exc:
+            last_error = exc
+
+    if last_error:
+        raise JWTError(f"Failed to verify ES256 token: {last_error}")
+    raise JWTError("No candidate JWKs available for ES256 verification")
 
 
 def _decode_token(token: str) -> dict:
@@ -21,12 +109,12 @@ def _decode_token(token: str) -> dict:
     if algorithm not in _SUPPORTED_JWT_ALGORITHMS:
         raise JWTError(f"Unsupported JWT alg: {algorithm}")
 
-    return jwt.decode(
-        token,
-        settings.SUPABASE_JWT_SECRET,
-        algorithms=[algorithm],
-        options={"verify_aud": False},
-    )
+    if algorithm == "HS256":
+        return _decode_hs256(token)
+    if algorithm == "ES256":
+        return _decode_es256(token, header)
+
+    raise JWTError(f"Unsupported JWT alg: {algorithm}")
 
 
 def decode_supabase_jwt_token(token: str) -> dict:

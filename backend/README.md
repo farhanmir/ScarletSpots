@@ -10,6 +10,8 @@ Copy `.env.example` to `.env` in `backend/` and fill in the values:
 SUPABASE_URL=https://your-project-ref.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
 SUPABASE_JWT_SECRET=your-supabase-jwt-secret
+# Optional for ES256 projects (PEM public key). If omitted, backend uses Supabase JWKS endpoint.
+SUPABASE_JWT_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"
 ```
 
 ## Run locally
