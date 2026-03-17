@@ -22,7 +22,7 @@ import MapView, {
   Marker,
   type Region,
 } from "react-native-maps";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import { useIsFocused } from "@react-navigation/native";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
@@ -169,7 +169,6 @@ const STATIC_LOTS = getAllLots(ENABLE_ALL_CAMPUSES);
 // ── Component ──────────────────────────────────────────────────────────────
 
 export default function MapScreen() {
-  const router = useRouter();
   const {
     user,
     permitType,

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
 import { ForecastPoint } from "@/features/home/types/types";
 import {
@@ -20,12 +20,19 @@ export default function ForecastChart({
   curve,
   isLoading,
 }: ForecastChartProps) {
-  const labelBaseTime = Date.now();
-  const getLabelForIndex = (index: number) =>
-    formatTime(
-      new Date(
-        labelBaseTime + (index - NOW_INDEX) * FORECAST_STEP_MINUTES * 60000,
-      ).toISOString(),
+  const labelBaseTime = useMemo(() => {
+    const now = new Date();
+    now.setSeconds(0, 0);
+    const minutes = now.getMinutes();
+    if (minutes < 15) now.setMinutes(0);
+    else if (minutes < 45) now.setMinutes(30);
+    else now.setMinutes(60);
+    return now.getTime();
+  }, []);
+
+  const getPointDateForIndex = (index: number) =>
+    new Date(
+      labelBaseTime + (index - NOW_INDEX) * FORECAST_STEP_MINUTES * 60000,
     );
 
   return (
@@ -39,11 +46,9 @@ export default function ForecastChart({
             const occ = Math.max(0, Math.min(100, point.expected_occupancy));
             const barHeight = Math.max(6, (occ / 100) * MAX_BAR_HEIGHT);
             const color = getOccupancyGradientColor(occ);
-            const currentTimeLabel = getLabelForIndex(index);
-            const showLabel =
-              isNow ||
-              index === 0 ||
-              (index > 0 && getLabelForIndex(index - 1) !== currentTimeLabel);
+            const pointDate = getPointDateForIndex(index);
+            const currentTimeLabel = formatTime(pointDate.toISOString());
+            const showLabel = isNow || pointDate.getMinutes() === 0;
 
             return (
               <View key={index} style={styles.item}>
