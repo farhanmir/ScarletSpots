@@ -441,25 +441,6 @@ export default function ProfileScreen() {
           <Text style={styles.signOutText}>Sign Out</Text>
         </TouchableOpacity>
 
-        {/* ── Danger zone ────────────────────────────────────────────────── */}
-        <GlassCard
-          style={styles.dangerCard}
-          contentStyle={styles.listCardContent}
-          blurIntensity={8}
-          borderColor="rgba(239,68,68,0.18)"
-          borderRadius={GLASS.radiusLarge}
-        >
-          <SettingRow
-            icon="trash.fill"
-            iconBg="rgba(239,68,68,0.12)"
-            iconColor="#ef4444"
-            label="Delete Account"
-            sublabel="Permanently remove all your data"
-            destructive
-            last
-          />
-        </GlassCard>
-
         <View style={{ height: 120 }} />
       </ScrollView>
     </View>
@@ -787,7 +768,4 @@ const styles = StyleSheet.create({
     backgroundColor: FLAT_CARD_BG,
   },
   signOutText: { color: GLASS.accent, fontSize: 15, fontWeight: "600" },
-
-  // ── Danger card ──
-  dangerCard: { marginTop: 12 },
 });

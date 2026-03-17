@@ -22,16 +22,13 @@ import MapView, {
   Marker,
   type Region,
 } from "react-native-maps";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import { useIsFocused } from "@react-navigation/native";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import NetInfo from "@react-native-community/netinfo";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  TrueSheet,
-  type TrueSheetRef,
-} from "@lodev09/react-native-true-sheet";
+import { TrueSheet, type TrueSheetRef } from "@lodev09/react-native-true-sheet";
 import { authApiCall, supabase } from "@/shared/api/supabase";
 import { useAuth } from "@/providers/AuthProvider";
 import ParkingConfirmationSheet from "../components/ParkingConfirmationSheet";
@@ -82,6 +79,13 @@ interface ParkingSession {
 }
 
 type ZoomLevel = "lot" | "campus" | "hidden";
+const LOT_TAP_SNAP_RADIUS_METERS = 110;
+const HEADING_CONE_LAYER_OPACITIES = [0.05, 0.08, 0.11, 0.14, 0.17, 0.2, 0.24];
+const HEADING_CONE_LAYER_INSET_STEP = 4;
+const HEADING_CONE_BASE_TOP = -30;
+const HEADING_CONE_BASE_HALF_WIDTH = 28;
+const HEADING_CONE_BASE_HEIGHT = 64;
+const HEADING_CONE_HEIGHT_INSET_MULTIPLIER = 1.8;
 
 interface Cluster {
   id: string;
@@ -165,7 +169,6 @@ const STATIC_LOTS = getAllLots(ENABLE_ALL_CAMPUSES);
 // ── Component ──────────────────────────────────────────────────────────────
 
 export default function MapScreen() {
-  const router = useRouter();
   const {
     user,
     permitType,
@@ -1095,6 +1098,41 @@ export default function MapScreen() {
     }
   }, []);
 
+  const handleMapPress = useCallback(
+    (latitude: number, longitude: number) => {
+      if (zoomLevel !== "lot") {
+        setSelectedLotId(null);
+        setSelectedPlace(null);
+        return;
+      }
+
+      let closestLot: RutgersLot | null = null;
+      let closestMeters = Number.POSITIVE_INFINITY;
+
+      for (const lot of visibleLots) {
+        const meters = haversineMeters(
+          latitude,
+          longitude,
+          lot.latitude,
+          lot.longitude,
+        );
+        if (meters < closestMeters) {
+          closestMeters = meters;
+          closestLot = lot;
+        }
+      }
+
+      if (closestLot && closestMeters <= LOT_TAP_SNAP_RADIUS_METERS) {
+        handleLotPress(closestLot);
+        return;
+      }
+
+      setSelectedLotId(null);
+      setSelectedPlace(null);
+    },
+    [zoomLevel, visibleLots, handleLotPress],
+  );
+
   // ── Active session lot name (for the floating chip) ───────────────────
 
   const activeSessionLotName = React.useMemo(() => {
@@ -1240,7 +1278,7 @@ export default function MapScreen() {
         style={styles.map}
         customMapStyle={darkMapStyle}
         userInterfaceStyle="dark"
-        showsUserLocation={!location}
+        showsUserLocation={true}
         showsMyLocationButton={false}
         showsTraffic={false}
         initialRegion={{
@@ -1261,12 +1299,14 @@ export default function MapScreen() {
           else if (region.latitudeDelta < 0.6) newZoom = "campus";
           setZoomLevel((prev) => (prev === newZoom ? prev : newZoom));
         }}
-        onPress={() => {
-          setSelectedLotId(null);
-          setSelectedPlace(null);
-        }}
+        onPress={(e) =>
+          handleMapPress(
+            e.nativeEvent.coordinate.latitude,
+            e.nativeEvent.coordinate.longitude,
+          )
+        }
       >
-        {/* User location: rotating blue cone (direction of travel) */}
+        {/* User location heading cone (native location marker rendered by map) */}
         {location && (
           <Marker
             coordinate={{
@@ -1274,25 +1314,37 @@ export default function MapScreen() {
               longitude: location.coords.longitude,
             }}
             flat
-            anchor={{ x: 0.5, y: 0.5 }}
+            anchor={{ x: 0.5, y: 1 }}
             tracksViewChanges={false}
             zIndex={100}
           >
-            <View style={styles.userMarkerWrap}>
-              <View
-                style={[
-                  styles.userHeadingConeWrap,
-                  { transform: [{ rotate: `${userHeading ?? 0}deg` }] },
-                ]}
-              >
-                {/* Outer soft glow halo */}
-                <View style={styles.userHeadingConeOuter} />
-                {/* Main cone */}
-                <View style={styles.userHeadingCone} />
-              </View>
-              <View style={styles.userDotOuter}>
-                <View style={styles.userDotInner} />
-              </View>
+            <View
+              style={[
+                styles.userHeadingConeWrap,
+                { transform: [{ rotate: `${userHeading ?? 0}deg` }] },
+              ]}
+            >
+              {HEADING_CONE_LAYER_OPACITIES.map((opacity, index) => {
+                const inset = index * HEADING_CONE_LAYER_INSET_STEP;
+                return (
+                  <View
+                    key={`cone-layer-${index}`}
+                    style={[
+                      styles.userHeadingConeLayer,
+                      {
+                        top: HEADING_CONE_BASE_TOP + inset,
+                        borderLeftWidth: HEADING_CONE_BASE_HALF_WIDTH - inset,
+                        borderRightWidth: HEADING_CONE_BASE_HALF_WIDTH - inset,
+                        borderTopWidth:
+                          HEADING_CONE_BASE_HEIGHT -
+                          inset * HEADING_CONE_HEIGHT_INSET_MULTIPLIER,
+                        borderTopColor: `rgba(0, 122, 255, ${opacity})`,
+                      },
+                    ]}
+                  />
+                );
+              })}
+              <View style={styles.userHeadingConeCore} />
             </View>
           </Marker>
         )}
@@ -1379,39 +1431,41 @@ export default function MapScreen() {
                 zIndex={isSelected ? 11 : 2}
                 tracksViewChanges={false}
               >
-                <View
-                  style={[
-                    styles.markerContainer,
-                    isSelected && { transform: [{ scale: 1.2 }] },
-                  ]}
-                >
+                <View style={styles.markerHitTarget}>
                   <View
                     style={[
-                      styles.markerBubble,
-                      { backgroundColor: colors.full },
-                      isSelected && { borderColor: "#fff", borderWidth: 2 },
+                      styles.markerContainer,
+                      isSelected && { transform: [{ scale: 1.2 }] },
                     ]}
                   >
-                    <Text style={styles.markerText}>
-                      {isDimmed ? "—" : `${Math.round(lot.occupancyRate)}%`}
-                    </Text>
-                    {isFavorite && (
-                      <View style={styles.favoriteBadge}>
-                        <IconSymbol
-                          name="star.fill"
-                          size={10}
-                          color="#f59e0b"
-                        />
-                      </View>
-                    )}
+                    <View
+                      style={[
+                        styles.markerBubble,
+                        { backgroundColor: colors.full },
+                        isSelected && { borderColor: "#fff", borderWidth: 2 },
+                      ]}
+                    >
+                      <Text style={styles.markerText}>
+                        {isDimmed ? "—" : `${Math.round(lot.occupancyRate)}%`}
+                      </Text>
+                      {isFavorite && (
+                        <View style={styles.favoriteBadge}>
+                          <IconSymbol
+                            name="star.fill"
+                            size={10}
+                            color="#f59e0b"
+                          />
+                        </View>
+                      )}
+                    </View>
+                    <View
+                      style={[
+                        styles.markerArrow,
+                        { borderTopColor: colors.full },
+                        isSelected && { borderTopColor: "#fff" },
+                      ]}
+                    />
                   </View>
-                  <View
-                    style={[
-                      styles.markerArrow,
-                      { borderTopColor: colors.full },
-                      isSelected && { borderTopColor: "#fff" },
-                    ]}
-                  />
                 </View>
               </Marker>
             );
@@ -1557,7 +1611,6 @@ export default function MapScreen() {
             lot={lotSheetData}
             isFavorite={favorites.includes(lotSheetData.id)}
             onToggleFavorite={() => void toggleFavorite(lotSheetData)}
-            onClose={() => setSelectedLotId(null)}
             onPark={(id) => void handlePark(id)}
             loading={loading}
             user={user}
@@ -1567,7 +1620,6 @@ export default function MapScreen() {
           />
         ) : null}
       </TrueSheet>
-
 
       {/* ── Active Session Floating Chip ── */}
       {activeSession && (
@@ -1813,7 +1865,6 @@ const styles = StyleSheet.create({
   },
   centerButtonAndroid: { backgroundColor: "rgba(255,255,255,0.08)" },
 
-
   // ── Offline badge ──────────────────────────────────────────────────────
   offlineBadge: {
     position: "absolute",
@@ -1863,6 +1914,12 @@ const styles = StyleSheet.create({
   permitBannerText: { color: "#a1a1aa", fontSize: 13, fontWeight: "500" },
 
   // ── Lot markers ───────────────────────────────────────────────────────
+  markerHitTarget: {
+    minWidth: 62,
+    minHeight: 62,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   markerContainer: { alignItems: "center" },
   markerBubble: {
     backgroundColor: "#dc2626",
@@ -1920,62 +1977,29 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.2)",
   },
   clusterText: { color: "#fff", fontSize: 13, fontWeight: "bold" },
-  userMarkerWrap: {
-    width: 70,
-    height: 70,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   userHeadingConeWrap: {
-    position: "absolute",
     width: 70,
     height: 70,
     alignItems: "center",
     justifyContent: "center",
   },
-  // Outer soft halo — wider + more transparent for the glow falloff
-  userHeadingConeOuter: {
+  userHeadingConeLayer: {
     position: "absolute",
-    top: -28,
     width: 0,
     height: 0,
-    borderLeftWidth: 26,
-    borderRightWidth: 26,
-    borderTopWidth: 63,
     borderLeftColor: "transparent",
     borderRightColor: "transparent",
-    borderTopColor: "rgba(0, 122, 255, 0.08)",
   },
-  // Main cone — tip at dot center (top: borderTopWidth - height/2 of wrap → base above dot)
-  userHeadingCone: {
+  userHeadingConeCore: {
     position: "absolute",
-    top: -22,
+    top: -6,
     width: 0,
     height: 0,
-    borderLeftWidth: 16,
-    borderRightWidth: 16,
-    borderTopWidth: 57,
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
+    borderTopWidth: 12,
     borderLeftColor: "transparent",
     borderRightColor: "transparent",
-    borderTopColor: "rgba(0, 122, 255, 0.24)",
-  },
-  userDotOuter: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: "#ffffff",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  userDotInner: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: "#007AFF",
+    borderTopColor: "rgba(0, 122, 255, 0.28)",
   },
 });

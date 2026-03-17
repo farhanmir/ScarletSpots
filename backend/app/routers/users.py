@@ -1,11 +1,12 @@
 import re
 
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel
+
 from app.core.limiter import limiter
 from app.core.logger import get_logger
 from app.core.security import get_admin_supabase, get_current_user, get_supabase
 from app.schemas.user import ProfileUpdate, SignupResponse, UserCreate
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel
 
 log = get_logger(__name__)
 
@@ -79,9 +80,7 @@ def signup(request: Request, body: UserCreate):
     Mirrors the logic from the legacy Edge Function.
     """
     email = body.email.lower()
-    if not (
-        email.endswith("@rutgers.edu") or email.endswith("@scarletmail.rutgers.edu")
-    ):
+    if not (email.endswith("@rutgers.edu") or email.endswith("@scarletmail.rutgers.edu")):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Only Rutgers email addresses are allowed (@rutgers.edu or @scarletmail.rutgers.edu)",
@@ -162,9 +161,7 @@ def update_user_me(body: ProfileUpdate, current_user=Depends(get_current_user)):
         raise HTTPException(status_code=400, detail="Empty body")
     try:
         # Upsert so PATCH works even if the profile row was never created.
-        row = (
-            admin_db.table("profiles").upsert({"id": user_id, **update_data}).execute()
-        )
+        row = admin_db.table("profiles").upsert({"id": user_id, **update_data}).execute()
         if not row.data:
             raise HTTPException(status_code=500, detail="Failed to update profile")
         return row.data[0]
@@ -188,9 +185,7 @@ def request_password_reset(request: Request, body: PasswordResetRequest):
     Always returns success to avoid email enumeration.
     """
     email = body.email.lower().strip()
-    if not (
-        email.endswith("@rutgers.edu") or email.endswith("@scarletmail.rutgers.edu")
-    ):
+    if not (email.endswith("@rutgers.edu") or email.endswith("@scarletmail.rutgers.edu")):
         # Reject non-Rutgers emails but still return 200 to avoid enumeration
         return {
             "success": True,

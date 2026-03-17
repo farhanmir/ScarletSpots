@@ -75,7 +75,7 @@ Database (Supabase, 5 tables)
 - **Map**: All NB lots from bundled JSON with live occupancy overlay. Other campuses behind `ENABLE_ALL_CAMPUSES` feature flag. Includes map redesign with better occupancy color encoding and multi-polygon rendering.
 - **Parking session**: Start (confirmation sheet), active state, end session
 - **Session chip**: Subtle floating pill above tab bar showing "Lot X • Find Car | End" — not an intrusive full-width banner
-- **Profile**: Full settings, data export, account deletion flow
+- **Profile**: Full settings, data export
 - **Offline**: Map always loads (data is local). Session actions queue to OfflineQueue and replay on reconnect.
 - **Forecasting**: Heuristic model for launch, ML model once session data accumulates (2–4 weeks)
 - **Parking Permit**: Onboarding permit picker + profile settings row. Permit type stored in `profiles.permit_type`. Permit-aware lot filtering on map. Permit validity badge on LotDetails. Supports no-permit modes (commuter-all, custom chip filter).
@@ -89,6 +89,7 @@ Database (Supabase, 5 tables)
 - Google OAuth (Replaced by Rutgers CAS SSO plan)
 - Rutgers CAS SSO Integration (Detailed in [RU_SSO_GUIDE.md](file:///c:/Users/Farhan%20Mir/Desktop/Projects/ScarletSpots/RU_SSO_GUIDE.md))
 - Notification preferences screen
+- Account deletion flow (export + delete data)
 - Heat map overlays (per-zone density visualization)
 - Virtual Grid Park Flow (accelerometer-based spot suggestion)
 - Bluetooth-assisted parking detection
