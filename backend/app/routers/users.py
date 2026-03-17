@@ -1,14 +1,74 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel
+import re
 
 from app.core.limiter import limiter
 from app.core.logger import get_logger
 from app.core.security import get_admin_supabase, get_current_user, get_supabase
 from app.schemas.user import ProfileUpdate, SignupResponse, UserCreate
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel
 
 log = get_logger(__name__)
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+_OPTIONAL_PROFILE_COLUMNS = {
+    "first_name",
+    "last_name",
+    "avatar_url",
+    "permit_type",
+    "latitude",
+    "longitude",
+}
+
+
+def _missing_profiles_column(exc: Exception) -> str | None:
+    """Extract a missing profiles column name from a PostgREST schema-cache error."""
+    match = re.search(r"Could not find the '([^']+)' column of 'profiles'", str(exc))
+    if not match:
+        return None
+
+    column = match.group(1)
+    if column in _OPTIONAL_PROFILE_COLUMNS:
+        return column
+    return None
+
+
+def _upsert_profile_resilient(admin_db, payload: dict):
+    """Retry profile upserts when optional profile columns are missing in older DB schemas."""
+    compatible_payload = dict(payload)
+    removed_columns: list[str] = []
+
+    while True:
+        try:
+            return admin_db.table("profiles").upsert(compatible_payload).execute()
+        except Exception as exc:
+            missing_column = _missing_profiles_column(exc)
+            if missing_column and missing_column in compatible_payload:
+                compatible_payload.pop(missing_column, None)
+                removed_columns.append(missing_column)
+                log.warning(
+                    "Profiles schema missing column %s; retrying upsert with reduced payload",
+                    missing_column,
+                )
+                continue
+            raise
+
+
+def _build_profile_payload(user_id: str, email: str | None, name: str | None) -> dict:
+    first_name = None
+    last_name = None
+    if name:
+        parts = name.strip().split(" ", 1)
+        first_name = parts[0]
+        last_name = parts[1] if len(parts) > 1 else None
+
+    return {
+        "id": user_id,
+        "email": email,
+        "first_name": first_name,
+        "last_name": last_name,
+        "role": "user",
+    }
 
 
 @router.post("/signup")
@@ -19,7 +79,9 @@ def signup(request: Request, body: UserCreate):
     Mirrors the logic from the legacy Edge Function.
     """
     email = body.email.lower()
-    if not (email.endswith("@rutgers.edu") or email.endswith("@scarletmail.rutgers.edu")):
+    if not (
+        email.endswith("@rutgers.edu") or email.endswith("@scarletmail.rutgers.edu")
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Only Rutgers email addresses are allowed (@rutgers.edu or @scarletmail.rutgers.edu)",
@@ -39,30 +101,19 @@ def signup(request: Request, body: UserCreate):
         )
 
         # Explicitly create the profiles row — there is no DB trigger.
-        # Split name into first/last if provided.
-        first_name = None
-        last_name = None
-        if body.name:
-            parts = body.name.strip().split(" ", 1)
-            first_name = parts[0]
-            last_name = parts[1] if len(parts) > 1 else None
-
-        admin_db.table("profiles").upsert(
-            {
-                "id": str(res.user.id),
-                "email": email,
-                "first_name": first_name,
-                "last_name": last_name,
-                "role": "user",
-            }
-        ).execute()
+        # Older environments may still be missing some optional profile columns,
+        # so retry with a reduced payload instead of failing signup entirely.
+        _upsert_profile_resilient(
+            admin_db,
+            _build_profile_payload(str(res.user.id), email, body.name),
+        )
 
         return SignupResponse(success=True, id=str(res.user.id), email=res.user.email)
     except Exception as exc:
         log.error("Signup failed: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Signup failed"
-        )
+        ) from exc
 
 
 @router.get("/me")
@@ -80,19 +131,9 @@ def read_user_me(current_user=Depends(get_current_user)):
         email = getattr(current_user, "email", None)
         meta = getattr(current_user, "user_metadata", {}) or {}
         name = meta.get("name", "")
-        parts = name.strip().split(" ", 1) if name else []
-        upserted = (
-            admin_db.table("profiles")
-            .upsert(
-                {
-                    "id": user_id,
-                    "email": email,
-                    "first_name": parts[0] if parts else None,
-                    "last_name": parts[1] if len(parts) > 1 else None,
-                    "role": "user",
-                }
-            )
-            .execute()
+        upserted = _upsert_profile_resilient(
+            admin_db,
+            _build_profile_payload(user_id, email, name),
         )
         return upserted.data[0] if upserted.data else {"id": user_id, "email": email}
     except HTTPException:
@@ -112,7 +153,9 @@ def update_user_me(body: ProfileUpdate, current_user=Depends(get_current_user)):
         raise HTTPException(status_code=400, detail="Empty body")
     try:
         # Upsert so PATCH works even if the profile row was never created.
-        row = admin_db.table("profiles").upsert({"id": user_id, **update_data}).execute()
+        row = (
+            admin_db.table("profiles").upsert({"id": user_id, **update_data}).execute()
+        )
         if not row.data:
             raise HTTPException(status_code=500, detail="Failed to update profile")
         return row.data[0]
@@ -136,7 +179,9 @@ def request_password_reset(request: Request, body: PasswordResetRequest):
     Always returns success to avoid email enumeration.
     """
     email = body.email.lower().strip()
-    if not (email.endswith("@rutgers.edu") or email.endswith("@scarletmail.rutgers.edu")):
+    if not (
+        email.endswith("@rutgers.edu") or email.endswith("@scarletmail.rutgers.edu")
+    ):
         # Reject non-Rutgers emails but still return 200 to avoid enumeration
         return {
             "success": True,
