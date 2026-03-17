@@ -216,6 +216,7 @@ export default function LotDetailsSheetContent({
 
         {/* Favorite button */}
         <View style={styles.headerButtons}>
+          <View style={styles.iconBtnSpacer} />
           <TouchableOpacity
             style={styles.iconBtn}
             onPress={onToggleFavorite}
@@ -396,8 +397,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 6,
     paddingTop: 2,
-    width: 74,
     justifyContent: "flex-end",
+  },
+  iconBtnSpacer: {
+    width: 34,
+    height: 34,
   },
 
   campusPill: {

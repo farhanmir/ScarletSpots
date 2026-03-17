@@ -80,6 +80,12 @@ interface ParkingSession {
 
 type ZoomLevel = "lot" | "campus" | "hidden";
 const LOT_TAP_SNAP_RADIUS_METERS = 110;
+const HEADING_CONE_LAYER_OPACITIES = [0.05, 0.08, 0.11, 0.14, 0.17, 0.2, 0.24];
+const HEADING_CONE_LAYER_INSET_STEP = 4;
+const HEADING_CONE_BASE_TOP = -30;
+const HEADING_CONE_BASE_HALF_WIDTH = 28;
+const HEADING_CONE_BASE_HEIGHT = 64;
+const HEADING_CONE_HEIGHT_INSET_MULTIPLIER = 1.8;
 
 interface Cluster {
   id: string;
@@ -1319,26 +1325,26 @@ export default function MapScreen() {
                 { transform: [{ rotate: `${userHeading ?? 0}deg` }] },
               ]}
             >
-              {[0.05, 0.08, 0.11, 0.14, 0.17, 0.2, 0.24].map(
-                (opacity, index) => {
-                  const inset = index * 4;
-                  return (
-                    <View
-                      key={`cone-layer-${index}`}
-                      style={[
-                        styles.userHeadingConeLayer,
-                        {
-                          top: -30 + inset,
-                          borderLeftWidth: 28 - inset,
-                          borderRightWidth: 28 - inset,
-                          borderTopWidth: 64 - inset * 1.8,
-                          borderTopColor: `rgba(0, 122, 255, ${opacity})`,
-                        },
-                      ]}
-                    />
-                  );
-                },
-              )}
+              {HEADING_CONE_LAYER_OPACITIES.map((opacity, index) => {
+                const inset = index * HEADING_CONE_LAYER_INSET_STEP;
+                return (
+                  <View
+                    key={`cone-layer-${index}`}
+                    style={[
+                      styles.userHeadingConeLayer,
+                      {
+                        top: HEADING_CONE_BASE_TOP + inset,
+                        borderLeftWidth: HEADING_CONE_BASE_HALF_WIDTH - inset,
+                        borderRightWidth: HEADING_CONE_BASE_HALF_WIDTH - inset,
+                        borderTopWidth:
+                          HEADING_CONE_BASE_HEIGHT -
+                          inset * HEADING_CONE_HEIGHT_INSET_MULTIPLIER,
+                        borderTopColor: `rgba(0, 122, 255, ${opacity})`,
+                      },
+                    ]}
+                  />
+                );
+              })}
               <View style={styles.userHeadingConeCore} />
             </View>
           </Marker>
