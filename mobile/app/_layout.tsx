@@ -7,10 +7,9 @@ import { Stack, useSegments, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { View, Text, TouchableOpacity } from "react-native";
 import "react-native-reanimated";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { QueryClient } from "@tanstack/react-query";
 import "@/shared/services/BackgroundTasks"; // Register background tasks globally
-import "@/shared/services/GeofenceManager";
 
 import { useColorScheme } from "@/shared/hooks/use-color-scheme";
 import { AuthProvider, useAuth } from "@/providers/AuthProvider";
@@ -28,6 +27,9 @@ import {
 } from "@/shared/services/OfflineQueue";
 import { installGlobalCrashHandlers } from "@/shared/services/CrashLogger";
 import { TabBarProvider } from "@/providers/TabBarProvider";
+import { registerLotGeofences } from "@/shared/services/GeofenceManager";
+import { getAllLots } from "@/shared/constants/lots";
+import { ENABLE_ALL_CAMPUSES } from "@/shared/constants/featureFlags";
 
 // Global Error Boundary
 export { ErrorBoundary } from "expo-router";
@@ -61,6 +63,7 @@ function InitialLayout() {
   const segments = useSegments();
   const router = useRouter();
   const colorScheme = useColorScheme();
+  const hasBootstrappedGeofences = useRef(false);
 
   useEffect(() => {
     if (loading) return;
@@ -71,10 +74,19 @@ function InitialLayout() {
       // Redirect to choice if not signed in and not trying to login
       router.replace("/auth/choice" as any);
     } else if (session && inAuthGroup) {
-      // Redirect to app if signed in and trying to access login
-      router.replace("/(tabs)" as any);
+      // Route through root so permission gating can run.
+      router.replace("/" as any);
     }
   }, [session, loading, segments, router]);
+
+  useEffect(() => {
+    if (loading || !session || hasBootstrappedGeofences.current) return;
+    hasBootstrappedGeofences.current = true;
+
+    registerLotGeofences(getAllLots(ENABLE_ALL_CAMPUSES)).catch((err) =>
+      console.warn("[RootLayout] Geofence bootstrap failed:", err),
+    );
+  }, [loading, session]);
 
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>

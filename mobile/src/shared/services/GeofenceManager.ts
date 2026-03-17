@@ -3,7 +3,11 @@ import * as TaskManager from "expo-task-manager";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import NetInfo from "@react-native-community/netinfo";
 import { AppState } from "react-native";
-import { PARKING_DETECTION_TASK, stopSensorTracking } from "./BackgroundTasks";
+import {
+  PARKING_DETECTION_TASK,
+  stopSensorTracking,
+  wasDrivingRecentlyForAutoEnd,
+} from "./BackgroundTasks";
 import { wasRecentlyDriving } from "./ParkingDetectionService";
 import { getCachedSession, clearCachedSession } from "./OfflineCache";
 import { queueParkAction } from "./OfflineQueue";
@@ -127,13 +131,25 @@ TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }: any) => {
     );
     await AsyncStorage.removeItem("current_geofence_lot_id");
 
-    // Stop active tracking and sensors to save battery/memory
+    // Stop active tracking and sensors to save battery/memory.
+    // Do not let this throw block the auto-end flow.
     stopSensorTracking();
-    await Location.stopLocationUpdatesAsync(PARKING_DETECTION_TASK);
+    try {
+      const isTracking = await Location.hasStartedLocationUpdatesAsync(
+        PARKING_DETECTION_TASK,
+      );
+      if (isTracking) {
+        await Location.stopLocationUpdatesAsync(PARKING_DETECTION_TASK);
+      }
+    } catch (err) {
+      console.warn("[GeofenceManager] Failed to stop active tracking:", err);
+    }
 
     // Auto-end parking session only when user DRIVES out (not when walking to class)
     try {
-      if (!wasRecentlyDriving()) {
+      const recentlyDrivingInMemory = wasRecentlyDriving();
+      const recentlyDrivingPersisted = await wasDrivingRecentlyForAutoEnd();
+      if (!recentlyDrivingInMemory && !recentlyDrivingPersisted) {
         console.log(
           "[GeofenceManager] Exited on foot — keeping session active. End manually or drive out.",
         );

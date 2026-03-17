@@ -7,11 +7,19 @@ import * as Location from "expo-location";
 export default function Index() {
   const { loading: authLoading } = useAuth();
   const [checkingPerms, setCheckingPerms] = useState(true);
+  const [needsPermissions, setNeedsPermissions] = useState(false);
 
   useEffect(() => {
     (async () => {
-      // Check if we already have permission without asking
-      await Location.getForegroundPermissionsAsync();
+      // Check strict requirements without auto-requesting from this splash route.
+      const fg = await Location.getForegroundPermissionsAsync();
+      const bg = await Location.getBackgroundPermissionsAsync();
+      const preciseOk =
+        (fg.ios?.accuracy ? fg.ios.accuracy === "full" : true) &&
+        (fg.android?.accuracy ? fg.android.accuracy === "fine" : true);
+      const needsLocationSetup =
+        fg.status !== "granted" || bg.status !== "granted" || !preciseOk;
+      setNeedsPermissions(needsLocationSetup);
       setCheckingPerms(false);
     })();
   }, []);
@@ -29,6 +37,10 @@ export default function Index() {
         <ActivityIndicator size="large" color="#dc2626" />
       </View>
     );
+  }
+
+  if (needsPermissions) {
+    return <Redirect href={"/onboarding/permissions" as any} />;
   }
 
   // 3. Go to Map

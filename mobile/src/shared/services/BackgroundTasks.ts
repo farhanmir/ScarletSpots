@@ -19,6 +19,30 @@ import { PARKING_CONFIDENCE_THRESHOLD } from "../constants/featureFlags";
 
 export const PARKING_DETECTION_TASK = "SCARLETSPOTS_PARKING_DETECTION";
 const CANDIDATES_STORAGE_KEY = "parking_candidates";
+const RECENT_DRIVING_TS_KEY = "recent_driving_ts";
+const DRIVING_SPEED_SIGNAL_MPS = 5;
+const RECENT_DRIVING_WINDOW_MS = 1000 * 60 * 20;
+
+async function markRecentDrivingSignal(speed: number | null): Promise<void> {
+  if (speed == null || speed < DRIVING_SPEED_SIGNAL_MPS) return;
+  try {
+    await AsyncStorage.setItem(RECENT_DRIVING_TS_KEY, String(Date.now()));
+  } catch {
+    // Best-effort only; auto-end has in-memory fallback paths too.
+  }
+}
+
+export async function wasDrivingRecentlyForAutoEnd(): Promise<boolean> {
+  try {
+    const raw = await AsyncStorage.getItem(RECENT_DRIVING_TS_KEY);
+    if (!raw) return false;
+    const ts = Number(raw);
+    if (!Number.isFinite(ts)) return false;
+    return Date.now() - ts <= RECENT_DRIVING_WINDOW_MS;
+  } catch {
+    return false;
+  }
+}
 
 // ── Sensor Tracking Listeners ──────────────────────────────────────────────────
 
@@ -78,6 +102,7 @@ TaskManager.defineTask(PARKING_DETECTION_TASK, async ({ data, error }: any) => {
 
   // Feed signals into the rolling buffers
   pushSpeed(speed);
+  await markRecentDrivingSignal(speed);
   pushHeading(heading);
 
   // Load cached lots for comparison

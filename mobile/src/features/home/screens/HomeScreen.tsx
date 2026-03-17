@@ -28,7 +28,10 @@ import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import NetInfo from "@react-native-community/netinfo";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { TrueSheet } from "@lodev09/react-native-true-sheet";
+import {
+  TrueSheet,
+  type TrueSheetRef,
+} from "@lodev09/react-native-true-sheet";
 import { authApiCall, supabase } from "@/shared/api/supabase";
 import { useAuth } from "@/providers/AuthProvider";
 import ParkingConfirmationSheet from "../components/ParkingConfirmationSheet";
@@ -211,7 +214,7 @@ export default function MapScreen() {
 
   // Keep track of the last selected lot for smooth exit animations
   const lastSelectedLotRef = useRef<RutgersLot | null>(null);
-  const lotSheetRef = useRef<TrueSheet>(null);
+  const lotSheetRef = useRef<TrueSheetRef>(null);
   const [isLotSheetVisible, setIsLotSheetVisible] = useState(false);
 
   const isFocused = useIsFocused();

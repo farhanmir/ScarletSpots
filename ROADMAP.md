@@ -54,7 +54,7 @@
 **Goal:** Take the visual design to the next level. Only after core is stable.
 
 - [x] Map redesign: richer lot cards, better occupancy color encoding, color-coded markers (green/yellow/red)
-- [ ] Parking confirmation sheet: polish candidate flow, snap-to-spot with drag-to-adjust for GPS drift
+- [x] Parking confirmation UX pivot: precise-location auto-start + correction path ("Detected parked; if wrong, End")
 - [x] Friends tab: richer friend cards with lot info, campus indicator
 - [x] Profile: full settings, data export, account deletion flow
 

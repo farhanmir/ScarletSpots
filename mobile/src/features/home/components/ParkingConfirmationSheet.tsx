@@ -184,7 +184,8 @@ export default function ParkingConfirmationSheet({
               <Text style={styles.title}>Parking Detected</Text>
             </View>
             <Text style={styles.subtitle}>
-              We think you just parked. Confirm your spot below.
+              We detected a parked session from your precise location. Pick the
+              best lot match below.
             </Text>
           </View>
 
@@ -239,7 +240,7 @@ export default function ParkingConfirmationSheet({
           {/* Action buttons */}
           <View style={styles.actions}>
             <PressButton style={styles.dismissButton} onPress={onDismiss}>
-              <Text style={styles.dismissText}>Not Now</Text>
+              <Text style={styles.dismissText}>Not Parked</Text>
             </PressButton>
 
             <PressButton

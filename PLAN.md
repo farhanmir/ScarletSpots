@@ -107,6 +107,7 @@ Database (Supabase, 5 tables)
 | Realtime updates | Poll `parking_lots` table every 5 min | Push subscription on `lot_occupancy` table |
 | Geofencing | Loaded polygons from API | Loaded from bundled JSON |
 | Permit filtering | Not planned for v1 | Added — permit-aware lot filtering + onboarding picker |
+| Parking confirmation UX | Spot-level snap/drag correction concept | Precise-location auto-start with quick correction path ("Wrong? End") |
 
 ---
 

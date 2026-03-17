@@ -19,6 +19,58 @@ import { LinearGradient } from "expo-linear-gradient";
 // Steps definition
 type PermissionStep = "location" | "motion" | "notifications" | "completed";
 
+function hasPreciseLocation(
+  fgPermission: Location.LocationPermissionResponse,
+): boolean {
+  if (Platform.OS === "ios") {
+    // iOS 14+ exposes full vs reduced precision.
+    return fgPermission.ios?.accuracy === "full";
+  }
+  if (Platform.OS === "android") {
+    // Android reports fine/coarse/none precision.
+    return fgPermission.android?.accuracy === "fine";
+  }
+  return true;
+}
+
+async function getStrictLocationState() {
+  const fg = await Location.getForegroundPermissionsAsync();
+  const bg = await Location.getBackgroundPermissionsAsync();
+  const precise = hasPreciseLocation(fg);
+  const fgGranted = fg.status === "granted";
+  const bgGranted = bg.status === "granted";
+  const fullyGranted = fgGranted && bgGranted && precise;
+  const canAskAgain = Boolean(fg.canAskAgain || bg.canAskAgain);
+
+  return {
+    fg,
+    bg,
+    precise,
+    fgGranted,
+    bgGranted,
+    fullyGranted,
+    canAskAgain,
+  };
+}
+
+function getLocationRecoverySteps(platformOS: string): string[] {
+  if (platformOS === "ios") {
+    return [
+      "In Settings > Location, set access to Always.",
+      "Turn on Precise Location.",
+    ];
+  }
+
+  return [
+    "In Settings > Permissions > Location, choose Allow all the time.",
+    "Set location accuracy to Precise.",
+  ];
+}
+
+function getLocationRecoveryPlatformLabel(platformOS: string): string {
+  return platformOS === "ios" ? "iOS" : "Android";
+}
+
 export default function PermissionsScreen() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -33,14 +85,8 @@ export default function PermissionsScreen() {
 
   const checkInitialStatus = async () => {
     // Check location first
-    const { status: fgStatus } = await Location.getForegroundPermissionsAsync();
-    if (fgStatus === "granted") {
-      const { status: bgStatus } =
-        await Location.getBackgroundPermissionsAsync();
-      if (bgStatus !== "granted") {
-        setCurrentStep("location");
-        return;
-      }
+    const locationState = await getStrictLocationState();
+    if (locationState.fullyGranted) {
 
       // Pedometer check
       const { status: motionStatus } = await Pedometer.getPermissionsAsync();
@@ -60,6 +106,7 @@ export default function PermissionsScreen() {
       }
     } else {
       setCurrentStep("location");
+      setDenied(!locationState.canAskAgain);
     }
   };
 
@@ -73,43 +120,67 @@ export default function PermissionsScreen() {
     router.replace("/onboarding/permit" as any);
   };
 
+  const requestLocationPermission = async () => {
+    let locationState = await getStrictLocationState();
+
+    if (!locationState.fgGranted && locationState.fg.canAskAgain) {
+      await Location.requestForegroundPermissionsAsync();
+      locationState = await getStrictLocationState();
+    }
+
+    if (locationState.fgGranted && !locationState.bgGranted) {
+      if (locationState.bg.canAskAgain) {
+        await Location.requestBackgroundPermissionsAsync();
+        locationState = await getStrictLocationState();
+      }
+    }
+
+    if (locationState.fullyGranted) {
+      nextStep();
+      return;
+    }
+
+    setDenied(true);
+  };
+
+  const requestMotionPermission = async () => {
+    // Motion involves Pedometer on iOS/Android often.
+    const { status } = await Pedometer.requestPermissionsAsync();
+    if (status === "granted") {
+      nextStep();
+      return;
+    }
+
+    // Blueprint says denied motion still allows continuing with reduced confidence.
+    Alert.alert(
+      "Motion Detection Disabled",
+      "Auto-parking detection will be less accurate without motion sensors.",
+      [{ text: "OK", onPress: () => nextStep() }],
+    );
+  };
+
+  const requestNotificationPermission = async () => {
+    await Notifications.requestPermissionsAsync();
+    // Always proceed after notifications, granted or not.
+    finish();
+  };
+
   const requestPermission = async () => {
     setLoading(true);
     setDenied(false);
     try {
-      if (currentStep === "location") {
-        const { status: fgStatus } =
-          await Location.requestForegroundPermissionsAsync();
-        if (fgStatus === "granted") {
-          const { status: bgStatus } =
-            await Location.requestBackgroundPermissionsAsync();
-          if (bgStatus === "granted") {
-            nextStep();
-          } else {
-            setDenied(true);
-          }
-        } else {
-          setDenied(true);
-        }
-      } else if (currentStep === "motion") {
-        // Motion involves Pedometer on iOS/Android often
-        const { status } = await Pedometer.requestPermissionsAsync();
-        if (status === "granted") {
-          nextStep();
-        } else {
-          // Motion is optional-ish, we can warn and skip or force.
-          // Blueprint says "denied -> app runs with reduced detection confidence"
-          // So we allow proceeding even if denied, maybe with an alert?
-          Alert.alert(
-            "Motion Detection Disabled",
-            "Auto-parking detection will be less accurate without motion sensors.",
-            [{ text: "OK", onPress: () => nextStep() }],
-          );
-        }
-      } else if (currentStep === "notifications") {
-        await Notifications.requestPermissionsAsync();
-        // Always proceed after notifications, granted or not
-        finish();
+      switch (currentStep) {
+        case "location":
+          await requestLocationPermission();
+          break;
+        case "motion":
+          await requestMotionPermission();
+          break;
+        case "notifications":
+          await requestNotificationPermission();
+          break;
+        default:
+          break;
       }
     } catch (error) {
       console.error(error);
@@ -131,11 +202,8 @@ export default function PermissionsScreen() {
     // Re-checks current step's permission
     setLoading(true);
     if (currentStep === "location") {
-      const { status: fgStatus } =
-        await Location.getForegroundPermissionsAsync();
-      const { status: bgStatus } =
-        await Location.getBackgroundPermissionsAsync();
-      if (fgStatus === "granted" && bgStatus === "granted") {
+      const locationState = await getStrictLocationState();
+      if (locationState.fullyGranted) {
         setDenied(false);
         nextStep();
       } else {
@@ -153,9 +221,9 @@ export default function PermissionsScreen() {
         return {
           icon: "location.fill",
           color: "#dc2626",
-          title: "Enable Location",
+          title: "Enable Precise Always Location",
           subtitle:
-            'ScarletSpots needs your location to show nearby parking lots and navigate you to your car. Allow "Always" so we can detect when you park even when the app is closed.',
+            'ScarletSpots needs precise location access set to "Always" to auto-start and auto-stop parking sessions even when the app is closed.',
         };
       case "motion":
         return {
@@ -184,6 +252,8 @@ export default function PermissionsScreen() {
   };
 
   const content = renderContent();
+  const locationRecoverySteps = getLocationRecoverySteps(Platform.OS);
+  const recoveryPlatformLabel = getLocationRecoveryPlatformLabel(Platform.OS);
 
   return (
     <View style={styles.container}>
@@ -196,7 +266,55 @@ export default function PermissionsScreen() {
         style={StyleSheet.absoluteFill}
       />
 
-      {!denied ? (
+      {denied ? (
+        /* ── DENIED RECOVERY UI (Mostly for Location) ── */
+        <View style={styles.content}>
+          <View style={[styles.iconCircle, styles.iconCircleDenied]}>
+            <IconSymbol name="location.slash.fill" size={48} color="#f87171" />
+          </View>
+
+          <Text style={styles.title}>Permission Denied</Text>
+          <Text style={styles.subtitle}>
+            ScarletSpots needs Precise + Always Location for background parking
+            detection. Please enable it in Settings, then return and tap
+            I&apos;ve Enabled It.
+          </Text>
+
+          <View style={styles.hintList}>
+            <View style={styles.hintBadge}>
+              <Text style={styles.hintBadgeText}>{recoveryPlatformLabel}</Text>
+            </View>
+            {locationRecoverySteps.map((step) => (
+              <Text key={step} style={styles.hintItem}>
+                • {step}
+              </Text>
+            ))}
+          </View>
+
+          <TouchableOpacity
+            style={styles.primaryButton}
+            onPress={openSettings}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.primaryButtonText}>Open Settings</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={recheckPermission}
+            disabled={loading}
+            activeOpacity={0.85}
+          >
+            {loading ? (
+              <ActivityIndicator color="#dc2626" />
+            ) : (
+              <Text style={styles.secondaryButtonText}>
+                I&apos;ve Enabled It
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      ) : (
         /* ── REQUEST UI ── */
         <View style={styles.content}>
           <View style={styles.stepIndicator}>
@@ -283,42 +401,6 @@ export default function PermissionsScreen() {
             </TouchableOpacity>
           )}
         </View>
-      ) : (
-        /* ── DENIED RECOVERY UI (Mostly for Location) ── */
-        <View style={styles.content}>
-          <View style={[styles.iconCircle, styles.iconCircleDenied]}>
-            <IconSymbol name="location.slash.fill" size={48} color="#f87171" />
-          </View>
-
-          <Text style={styles.title}>Permission Denied</Text>
-          <Text style={styles.subtitle}>
-            ScarletSpots can&apos;t function properly without this permission.
-            Please enable it in settings.
-          </Text>
-
-          <TouchableOpacity
-            style={styles.primaryButton}
-            onPress={openSettings}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.primaryButtonText}>Open Settings</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.secondaryButton}
-            onPress={recheckPermission}
-            disabled={loading}
-            activeOpacity={0.85}
-          >
-            {loading ? (
-              <ActivityIndicator color="#dc2626" />
-            ) : (
-              <Text style={styles.secondaryButtonText}>
-                I&apos;ve Enabled It
-              </Text>
-            )}
-          </TouchableOpacity>
-        </View>
       )}
     </View>
   );
@@ -390,7 +472,38 @@ const styles = StyleSheet.create({
     color: "#a1a1aa",
     textAlign: "center",
     lineHeight: 22,
-    marginBottom: 32,
+    marginBottom: 14,
+  },
+  hintList: {
+    width: "100%",
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 20,
+  },
+  hintBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(220,38,38,0.2)",
+    borderColor: "rgba(220,38,38,0.5)",
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    marginBottom: 8,
+  },
+  hintBadgeText: {
+    color: "#fca5a5",
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.4,
+  },
+  hintItem: {
+    color: "#d4d4d8",
+    fontSize: 14,
+    lineHeight: 20,
   },
 
   // Buttons

@@ -26,6 +26,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { authApiCall, supabase } from "@/shared/api/supabase";
 import { useAuth } from "@/providers/AuthProvider";
 import { getLotById } from "@/shared/constants/lots";
+import PERMIT_MAPPING from "@/shared/constants/permit_mapping.json";
 
 type TabKey = "friends" | "requests" | "blocked";
 
@@ -37,6 +38,21 @@ const TAB_OPTIONS: { key: TabKey; label: string }[] = [
 
 const FLAT_CARD_BG = "#1c1d21";
 const FLAT_CARD_BORDER = "rgba(255,255,255,0.11)";
+
+type PermitMappingEntry = { id: string; name: string };
+const LOT_NAME_BY_ID = new Map<string, string>(
+  Object.values(PERMIT_MAPPING as Record<string, PermitMappingEntry[]>)
+    .flat()
+    .map((entry) => [String(entry.id), entry.name]),
+);
+
+function resolveLotDisplayName(lotId: string | null | undefined): string {
+  if (!lotId) return "Unknown lot";
+  const lot = getLotById(lotId);
+  if (lot?.shortName) return lot.shortName;
+  if (lot?.name) return lot.name;
+  return LOT_NAME_BY_ID.get(String(lotId)) ?? "Unknown lot";
+}
 
 export default function FriendsScreen() {
   const router = useRouter();
@@ -257,7 +273,9 @@ export default function FriendsScreen() {
           <Text
             style={[styles.cardStatus, item.parked && styles.cardStatusParked]}
           >
-            {item.status}
+            {item.parked
+              ? `Parked at ${resolveLotDisplayName(item.lot_id)}`
+              : item.status}
           </Text>
         </View>
       </View>
