@@ -122,10 +122,16 @@ class ConnectionManager:
             "count": count,
             "updated_at": (updated_at or datetime.now(timezone.utc)).isoformat(),
         }
+        log.info("WS publish occupancy: lot_id=%s count=%s", lot_id, count)
         await self._publish(_OCCUPANCY_CHANNEL, payload)
 
     async def publish_notification(self, user_id: str, payload: dict[str, Any]) -> None:
         message = {"type": "notification", "user_id": user_id, "payload": payload}
+        log.info(
+            "WS publish notification: user_id=%s event=%s",
+            user_id,
+            payload.get("event"),
+        )
         await self._publish(_NOTIFICATIONS_CHANNEL, message)
 
     async def _publish(self, channel: str, payload: dict[str, Any]) -> None:
@@ -172,6 +178,8 @@ class ConnectionManager:
         async with self._lock:
             sockets = list(self._occupancy_clients.get(lot_id, set()))
 
+        log.info("WS broadcast occupancy: lot_id=%s sockets=%d", lot_id, len(sockets))
+
         await self._send_to_sockets(sockets, payload)
 
     async def _broadcast_notification(self, payload: dict[str, Any]) -> None:
@@ -181,6 +189,10 @@ class ConnectionManager:
 
         async with self._lock:
             sockets = list(self._notification_clients.get(user_id, set()))
+
+        log.info(
+            "WS broadcast notification: user_id=%s sockets=%d", user_id, len(sockets)
+        )
 
         await self._send_to_sockets(sockets, payload)
 
