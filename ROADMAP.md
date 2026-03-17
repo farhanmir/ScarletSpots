@@ -56,7 +56,7 @@
 - [x] Map redesign: richer lot cards, better occupancy color encoding, color-coded markers (green/yellow/red)
 - [x] Parking confirmation UX pivot: precise-location auto-start + correction path ("Detected parked; if wrong, End")
 - [x] Friends tab: richer friend cards with lot info, campus indicator
-- [x] Profile: full settings, data export, account deletion flow
+- [x] Profile: full settings, data export
 
 **Exit criteria:** App looks beautiful. UX is delightful. Ship.
 

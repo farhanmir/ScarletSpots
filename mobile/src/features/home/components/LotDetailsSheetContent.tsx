@@ -35,8 +35,6 @@ export interface LotDetailsSheetContentProps {
   lot: RutgersLot;
   isFavorite: boolean;
   onToggleFavorite: () => void;
-  /** Called when the user taps the ✕ button — should trigger sheet dismiss. */
-  onClose: () => void;
   onPark: (lotId: string) => void;
   loading: boolean;
   user: any;
@@ -49,7 +47,6 @@ export default function LotDetailsSheetContent({
   lot,
   isFavorite,
   onToggleFavorite,
-  onClose,
   onPark,
   loading,
   user,
@@ -68,9 +65,7 @@ export default function LotDetailsSheetContent({
         return data || {};
       },
       enabled:
-        !!lot.id &&
-        !lot.id.startsWith("custom:") &&
-        (lot.capacity ?? 0) > 0,
+        !!lot.id && !lot.id.startsWith("custom:") && (lot.capacity ?? 0) > 0,
       staleTime: 60000 * 15,
       retry: 1,
     });
@@ -87,7 +82,8 @@ export default function LotDetailsSheetContent({
   // ── Permit validity ─────────────────────────────────────────────────────
   const permitValidity: boolean | null = useMemo(() => {
     if (!permitType) return null;
-    if (permitType === "__commuter_all") return ALL_COMMUTER_LOT_IDS.has(lot.id);
+    if (permitType === "__commuter_all")
+      return ALL_COMMUTER_LOT_IDS.has(lot.id);
     if (permitType.startsWith("__custom:")) {
       const flags = permitType.slice("__custom:".length).split(",");
       return flags.some((flag) => {
@@ -218,7 +214,7 @@ export default function LotDetailsSheetContent({
           </View>
         </View>
 
-        {/* Star + X buttons */}
+        {/* Favorite button */}
         <View style={styles.headerButtons}>
           <TouchableOpacity
             style={styles.iconBtn}
@@ -230,13 +226,6 @@ export default function LotDetailsSheetContent({
               size={18}
               color={isFavorite ? "#f59e0b" : "#a1a1aa"}
             />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.iconBtn}
-            onPress={onClose}
-            activeOpacity={0.75}
-          >
-            <IconSymbol name="xmark" size={18} color="#a1a1aa" />
           </TouchableOpacity>
         </View>
       </View>
@@ -375,9 +364,7 @@ export default function LotDetailsSheetContent({
             size={18}
             color="#60a5fa"
           />
-          {isParked && (
-            <Text style={styles.dirBtnText}>Directions</Text>
-          )}
+          {isParked && <Text style={styles.dirBtnText}>Directions</Text>}
         </TouchableOpacity>
       </View>
 
@@ -405,7 +392,13 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   headerLeft: { flex: 1, gap: 6 },
-  headerButtons: { flexDirection: "row", gap: 6, paddingTop: 2 },
+  headerButtons: {
+    flexDirection: "row",
+    gap: 6,
+    paddingTop: 2,
+    width: 74,
+    justifyContent: "flex-end",
+  },
 
   campusPill: {
     alignSelf: "flex-start",
