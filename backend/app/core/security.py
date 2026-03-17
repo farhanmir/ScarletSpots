@@ -1,6 +1,7 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-
+from types import SimpleNamespace
+from jose import jwt
 from app.core.config import settings
 from app.core.logger import get_logger
 from supabase import Client, create_client
@@ -8,6 +9,42 @@ from supabase import Client, create_client
 log = get_logger(__name__)
 
 security = HTTPBearer()
+
+def verify_supabase_jwt(auth: HTTPAuthorizationCredentials = Security(security)):
+    """
+    Decodes and verifies the Supabase JWT locally without calling their API.
+    Saves latency and works on the ARM server.
+    """
+    token = auth.credentials
+    try:
+        # This decodes and verifies the token locally using the SUPABASE_JWT_SECRET
+        payload = jwt.decode(
+            token, 
+            settings.SUPABASE_JWT_SECRET, 
+            algorithms=["HS256"], 
+            audience="authenticated"
+        )
+        return payload
+    except Exception as exc:
+        log.warning("Local JWT verification failed: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, 
+            detail="Invalid or expired Supabase token"
+        )
+
+def get_current_user(
+    payload: dict = Depends(verify_supabase_jwt),
+):
+    """
+    Adapter that converts the JWT payload into a user-like object.
+    Maintains compatibility with existing routers that expect current_user.id and email.
+    Does NOT query any database tables.
+    """
+    return SimpleNamespace(
+        id=payload.get("sub"),
+        email=payload.get("email"),
+        user_metadata=payload.get("user_metadata", {})
+    )
 
 
 # --- Lazy-initialized Supabase clients ---
@@ -76,22 +113,6 @@ def get_auth_db(credentials: HTTPAuthorizationCredentials = Depends(security)):
 
     return AuthContextClient(base_client, token)
 
-
-def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-):
-    """Validate Supabase JWT via the Auth API (works with any signing algo)."""
-    token = credentials.credentials
-    try:
-        resp = get_supabase().auth.get_user(token)
-        return resp.user
-    except Exception as exc:
-        log.warning("Auth failed: %s", exc)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
 
 
 def require_admin(current_user=Depends(get_current_user)):
