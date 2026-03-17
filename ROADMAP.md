@@ -78,6 +78,33 @@
 
 These are real ideas, just not for v1:
 
+### iOS Live Activities + Dynamic Island
+
+- **Active parking session Live Activity**: show lot short name, parked elapsed time, and quick actions (End, Directions, report wrong lot)
+- **Compact/Minimal Dynamic Island states**: lot short code + timer for at-a-glance status
+- **Expanded Dynamic Island state**: richer controls + contextual messaging when a session was auto-started
+- **Parking confidence confirmation**: when detection is uncertain, show a quick "Did you park at X?" confirm/dismiss flow
+- **Exit/re-entry nudges**: if user exits lot with active session, prompt with "Still parked?" and provide one-tap end
+- **Lot surge alerts (opt-in)**: brief high-signal alerts for favorites when occupancy rapidly rises
+
+### Widgets + StandBy
+
+- **Where I Parked widget** (small/medium): lot name, parked time, distance, Find Car shortcut
+- **Best Lot Right Now widget**: top nearby lots with occupancy and trend direction
+- **Favorites occupancy widget**: 1-3 favorite lots with green/yellow/red status
+- **Commuter context widget**: morning lot suggestion by permit; afternoon reminder to end session
+- **Parking habits widget**: weekly routine insight (e.g., usual lot/time)
+- **StandBy campus heat panel**: large glanceable occupancy summary by campus
+- **StandBy return panel**: session status on one side, Find Car/End on the other
+
+### Rollout plan for iOS surfaces
+
+- **Phase A (MVP)**: Active parking Live Activity + one medium "Where I Parked" widget + one small favorites widget
+- **Phase B**: add App Intents for End Session, Find Car, and open favorite lot
+- **Phase C**: support push-updated Live Activity state for low-latency occupancy/session changes
+- **Phase D**: add confidence confirmation and exit nudges once reliability metrics are stable
+- **Privacy defaults**: show lot labels by default (not raw coordinates), and keep location-rich updates opt-in
+
 - **Admin portal** (web): Occupancy dashboard, session monitoring, lot management — geofence editor with visual draw/edit of lot polygons, "Test Mode" to simulate entering/exiting geofences, user management (ban/unban)
 - **Google OAuth**: Add as a sign-in option alongside email/password
 - **Push notifications**: "Your lot is almost full" / "Your friend just parked nearby"

@@ -190,3 +190,4 @@ Core features are functional:
 In progress:
 - ML forecast model (launches with heuristic, trains once session data accumulates)
 - CI/CD pipeline
+- iOS glanceable surfaces plan (Live Activities/Dynamic Island + widgets + StandBy) documented in ROADMAP backlog

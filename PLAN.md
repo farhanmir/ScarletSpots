@@ -88,6 +88,7 @@ Database (Supabase, 5 tables)
 - Push notifications ("lot almost full" / "friend parked nearby")
 - Google OAuth (Replaced by Rutgers CAS SSO plan)
 - Rutgers CAS SSO Integration (Detailed in [RU_SSO_GUIDE.md](file:///c:/Users/Farhan%20Mir/Desktop/Projects/ScarletSpots/RU_SSO_GUIDE.md))
+- iOS Live Activities + Dynamic Island + widgets (see ROADMAP backlog for rollout and UX states)
 - Notification preferences screen
 - Account deletion flow (export + delete data)
 - Heat map overlays (per-zone density visualization)
