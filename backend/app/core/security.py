@@ -22,7 +22,7 @@ def verify_supabase_jwt(auth: HTTPAuthorizationCredentials = Security(security))
             token, 
             settings.SUPABASE_JWT_SECRET, 
             algorithms=["HS256"], 
-            audience="authenticated"
+            options={"verify_aud": False}
         )
         return payload
     except Exception as exc:
