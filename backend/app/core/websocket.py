@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import inspect
 import json
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -61,12 +62,24 @@ class ConnectionManager:
             self._listener_task = None
 
         if self._pubsub is not None:
-            await self._pubsub.close()
+            await self._close_async_resource(self._pubsub)
             self._pubsub = None
 
         if self._redis is not None:
-            await self._redis.aclose()
+            await self._close_async_resource(self._redis)
             self._redis = None
+
+    async def _close_async_resource(self, resource: Any) -> None:
+        """Close redis resources across redis-py versions (aclose vs close)."""
+        close_method = getattr(resource, "aclose", None) or getattr(
+            resource, "close", None
+        )
+        if close_method is None:
+            return
+
+        result = close_method()
+        if inspect.isawaitable(result):
+            await result
 
     async def register_occupancy(
         self, websocket: WebSocket, lot_ids: list[str]
