@@ -49,10 +49,7 @@ import {
   getCachedFavorites,
 } from "@/shared/services/OfflineCache";
 import {
-  initOfflineQueue,
   queueParkAction,
-  addQueueListener,
-  getPendingCount,
 } from "@/shared/services/OfflineQueue";
 import {
   getAllLots,
@@ -80,12 +77,6 @@ interface ParkingSession {
 
 type ZoomLevel = "lot" | "campus" | "hidden";
 const LOT_TAP_SNAP_RADIUS_METERS = 110;
-const HEADING_CONE_LAYER_OPACITIES = [0.05, 0.08, 0.11, 0.14, 0.17, 0.2, 0.24];
-const HEADING_CONE_LAYER_INSET_STEP = 4;
-const HEADING_CONE_BASE_TOP = -30;
-const HEADING_CONE_BASE_HALF_WIDTH = 28;
-const HEADING_CONE_BASE_HEIGHT = 64;
-const HEADING_CONE_HEIGHT_INSET_MULTIPLIER = 1.8;
 
 interface Cluster {
   id: string;
@@ -196,8 +187,6 @@ export default function MapScreen() {
   >([]);
   const [isConfirming, setIsConfirming] = useState(false);
   const [favorites, setFavorites] = useState<string[]>([]);
-  const [pendingSyncCount, setPendingSyncCount] = useState(0);
-  const [isOnline, setIsOnline] = useState(true);
   const [isCenterButtonPressed, setIsCenterButtonPressed] = useState(false);
   const [isCenteredOnUser, setIsCenteredOnUser] = useState(false);
   const [chipUserPosition, setChipUserPosition] = useState<{
@@ -205,7 +194,6 @@ export default function MapScreen() {
     longitude: number;
   } | null>(null);
   const [chipHeading, setChipHeading] = useState<number | null>(null);
-  const [userHeading, setUserHeading] = useState<number | null>(null);
 
   // ── Animations ────────────────────────────────────────────────────────
 
@@ -221,24 +209,6 @@ export default function MapScreen() {
   const [isLotSheetVisible, setIsLotSheetVisible] = useState(false);
 
   const isFocused = useIsFocused();
-
-  // ── Offline Queue Init ─────────────────────────────────────────────────
-
-  useEffect(() => {
-    initOfflineQueue();
-    const unsubscribeQueue = addQueueListener((count) =>
-      setPendingSyncCount(count),
-    );
-    getPendingCount().then(setPendingSyncCount);
-    NetInfo.fetch().then((state) => setIsOnline(!!state.isConnected));
-    const unsubscribeNet = NetInfo.addEventListener((state) =>
-      setIsOnline(!!state.isConnected),
-    );
-    return () => {
-      unsubscribeQueue();
-      unsubscribeNet();
-    };
-  }, []);
 
   // ── Occupancy Data (from Supabase lot_occupancy table) ────────────────
   //
@@ -713,18 +683,15 @@ export default function MapScreen() {
     })();
   }, []);
 
-  // ── Map user location + heading for rotating blue cone ───────────────────
+  // ── Map user location watcher ────────────────────────────────────────────
 
   const mapUserWatchRef = useRef<{
     position?: { remove: () => void };
-    heading?: { remove: () => void };
   }>({});
   useEffect(() => {
     if (!isFocused) {
       mapUserWatchRef.current.position?.remove();
-      mapUserWatchRef.current.heading?.remove();
       mapUserWatchRef.current = {};
-      setUserHeading(null);
       return;
     }
     let cancelled = false;
@@ -745,17 +712,6 @@ export default function MapScreen() {
           return;
         }
         mapUserWatchRef.current.position = posSub;
-        const headSub = await Location.watchHeadingAsync((h) => {
-          if (cancelled) return;
-          const deg = h.trueHeading >= 0 ? h.trueHeading : h.magHeading;
-          if (deg >= 0) setUserHeading(deg);
-        });
-        if (cancelled) {
-          headSub.remove();
-          posSub.remove();
-          return;
-        }
-        mapUserWatchRef.current.heading = headSub;
       } catch (err) {
         if (!cancelled)
           console.warn(
@@ -767,9 +723,7 @@ export default function MapScreen() {
     return () => {
       cancelled = true;
       mapUserWatchRef.current.position?.remove();
-      mapUserWatchRef.current.heading?.remove();
       mapUserWatchRef.current = {};
-      setUserHeading(null);
     };
   }, [isFocused]);
 
@@ -1306,49 +1260,6 @@ export default function MapScreen() {
           )
         }
       >
-        {/* User location heading cone (native location marker rendered by map) */}
-        {location && (
-          <Marker
-            coordinate={{
-              latitude: location.coords.latitude,
-              longitude: location.coords.longitude,
-            }}
-            flat
-            anchor={{ x: 0.5, y: 1 }}
-            tracksViewChanges={false}
-            zIndex={100}
-          >
-            <View
-              style={[
-                styles.userHeadingConeWrap,
-                { transform: [{ rotate: `${userHeading ?? 0}deg` }] },
-              ]}
-            >
-              {HEADING_CONE_LAYER_OPACITIES.map((opacity, index) => {
-                const inset = index * HEADING_CONE_LAYER_INSET_STEP;
-                return (
-                  <View
-                    key={`cone-layer-${index}`}
-                    style={[
-                      styles.userHeadingConeLayer,
-                      {
-                        top: HEADING_CONE_BASE_TOP + inset,
-                        borderLeftWidth: HEADING_CONE_BASE_HALF_WIDTH - inset,
-                        borderRightWidth: HEADING_CONE_BASE_HALF_WIDTH - inset,
-                        borderTopWidth:
-                          HEADING_CONE_BASE_HEIGHT -
-                          inset * HEADING_CONE_HEIGHT_INSET_MULTIPLIER,
-                        borderTopColor: `rgba(0, 122, 255, ${opacity})`,
-                      },
-                    ]}
-                  />
-                );
-              })}
-              <View style={styles.userHeadingConeCore} />
-            </View>
-          </Marker>
-        )}
-
         {/* Lot polygons at zoom level 'lot' */}
         {zoomLevel === "lot" &&
           visibleLots.flatMap((lot) => {
@@ -1717,15 +1628,6 @@ export default function MapScreen() {
         </View>
       )}
 
-      {/* Offline / sync badge */}
-      {(!isOnline || pendingSyncCount > 0) && (
-        <View style={styles.offlineBadge}>
-          <Text style={styles.offlineBadgeText}>
-            {!isOnline ? "Offline" : `${pendingSyncCount} pending`}
-          </Text>
-        </View>
-      )}
-
       {/* Detection Confirmation Sheet */}
       {pendingCandidates.length > 0 && (
         <ParkingConfirmationSheet
@@ -1865,18 +1767,6 @@ const styles = StyleSheet.create({
   },
   centerButtonAndroid: { backgroundColor: "rgba(255,255,255,0.08)" },
 
-  // ── Offline badge ──────────────────────────────────────────────────────
-  offlineBadge: {
-    position: "absolute",
-    top: 60,
-    alignSelf: "center",
-    backgroundColor: "rgba(239, 68, 68, 0.85)",
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  offlineBadgeText: { color: "#fff", fontSize: 12, fontWeight: "600" },
-
   // ── Permit banner ─────────────────────────────────────────────────────
   permitBanner: {
     position: "absolute",
@@ -1977,29 +1867,4 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.2)",
   },
   clusterText: { color: "#fff", fontSize: 13, fontWeight: "bold" },
-  userHeadingConeWrap: {
-    width: 70,
-    height: 70,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  userHeadingConeLayer: {
-    position: "absolute",
-    width: 0,
-    height: 0,
-    borderLeftColor: "transparent",
-    borderRightColor: "transparent",
-  },
-  userHeadingConeCore: {
-    position: "absolute",
-    top: -6,
-    width: 0,
-    height: 0,
-    borderLeftWidth: 6,
-    borderRightWidth: 6,
-    borderTopWidth: 12,
-    borderLeftColor: "transparent",
-    borderRightColor: "transparent",
-    borderTopColor: "rgba(0, 122, 255, 0.28)",
-  },
 });
