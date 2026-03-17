@@ -13,11 +13,21 @@ interface ForecastChartProps {
 
 const MAX_BAR_HEIGHT = 36;
 const BAR_WIDTH = 8;
+const NOW_INDEX = 2;
+const FORECAST_STEP_MINUTES = 30;
 
 export default function ForecastChart({
   curve,
   isLoading,
 }: ForecastChartProps) {
+  const labelBaseTime = Date.now();
+  const getLabelForIndex = (index: number) =>
+    formatTime(
+      new Date(
+        labelBaseTime + (index - NOW_INDEX) * FORECAST_STEP_MINUTES * 60000,
+      ).toISOString(),
+    );
+
   return (
     <View style={styles.wrapper}>
       {isLoading ? (
@@ -25,16 +35,15 @@ export default function ForecastChart({
       ) : curve.length > 0 ? (
         <View style={styles.row}>
           {curve.map((point: ForecastPoint, index: number) => {
-            const isNow = index === 2; // Curve: -60, -30, 0(now), +30, +60, …
+            const isNow = index === NOW_INDEX; // Curve: -60, -30, 0(now), +30, +60, …
             const occ = Math.max(0, Math.min(100, point.expected_occupancy));
             const barHeight = Math.max(6, (occ / 100) * MAX_BAR_HEIGHT);
             const color = getOccupancyGradientColor(occ);
-            const currentTimeLabel = formatTime(point.time);
+            const currentTimeLabel = getLabelForIndex(index);
             const showLabel =
               isNow ||
               index === 0 ||
-              (index > 0 &&
-                formatTime(curve[index - 1].time) !== currentTimeLabel);
+              (index > 0 && getLabelForIndex(index - 1) !== currentTimeLabel);
 
             return (
               <View key={index} style={styles.item}>
