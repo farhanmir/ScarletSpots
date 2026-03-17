@@ -181,6 +181,7 @@ const STATIC_LOTS = getAllLots(ENABLE_ALL_CAMPUSES);
 export default function MapScreen() {
   const {
     user,
+    session,
     permitType,
     secondaryPermitType,
     noPermitMode,
@@ -261,7 +262,7 @@ export default function MapScreen() {
   });
 
   useEffect(() => {
-    if (!user) return;
+    if (!session) return;
 
     const disconnect = createAuthedWebSocket({
       endpoint: `${WEBSOCKET_BASE_URL}/ws/occupancy`,
@@ -284,7 +285,7 @@ export default function MapScreen() {
     return () => {
       disconnect();
     };
-  }, [user, queryClient]);
+  }, [session, queryClient]);
 
   // ── Geofence Registration ──────────────────────────────────────────────
   // Register once on first load — geofences are based on static coordinates.

@@ -58,7 +58,7 @@ function resolveLotDisplayName(lotId: string | null | undefined): string {
 
 export default function FriendsScreen() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const isFocused = useIsFocused();
   const [activeTab, setActiveTab] = useState<TabKey>("friends");
   const [isAddModalVisible, setIsAddModalVisible] = useState(false);
@@ -77,7 +77,7 @@ export default function FriendsScreen() {
         blocked: res?.blocked ?? [],
       };
     },
-    enabled: !!user?.id,
+    enabled: !!session,
     // Fallback for builds where websocket is not connected yet.
     refetchInterval: isFocused ? 15000 : false,
   });
@@ -85,7 +85,7 @@ export default function FriendsScreen() {
   const { friends, requests, blocked = [] } = data;
 
   useEffect(() => {
-    if (!isFocused || !user?.id) return;
+    if (!isFocused || !session) return;
 
     const disconnect = createAuthedWebSocket({
       endpoint: `${WEBSOCKET_BASE_URL}/ws/notifications`,
@@ -102,7 +102,7 @@ export default function FriendsScreen() {
     return () => {
       disconnect();
     };
-  }, [isFocused, user?.id, queryClient]);
+  }, [isFocused, session, queryClient]);
 
   const acceptMutation = useMutation({
     mutationFn: async (requestId: string) =>
