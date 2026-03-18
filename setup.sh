@@ -29,6 +29,12 @@ sudo docker compose up -d --build
 # 5. Data Injection (First time only)
 echo "Waiting for DB to wake up..."
 sleep 10
-cat ~/ScarletSpots/backups/latest_prod_data.sql | sudo docker exec -i scarletspots-db psql -U scarlet_admin -d scarletspots
+
+if [ -f ~/ScarletSpots/backups/latest_prod_data.sql ]; then
+	cat ~/ScarletSpots/backups/latest_prod_data.sql | sudo docker exec -i scarletspots-db psql -U scarlet_admin -d scarletspots
+	echo "Imported latest_prod_data.sql"
+else
+	echo "No latest_prod_data.sql found; skipping data import"
+fi
 
 echo "Production Ferrari is now Containerized and Hardened."

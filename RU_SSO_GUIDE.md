@@ -29,4 +29,4 @@ To use this in production, you must submit an **Enterprise CAS request** to Rutg
 
 ## Resources
 - [Rutgers CAS Documentation](https://it.rutgers.edu/knowledgebase/requesting-a-cas-service/)
-- [Implementation Plan](file:///C:/Users/Farhan%20Mir/.gemini/antigravity/brain/03e71f98-0f8b-4836-a88e-81551f21964b/implementation_plan.md)
+- [Roadmap Context](ROADMAP.md)

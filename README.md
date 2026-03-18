@@ -16,10 +16,42 @@ ScarletSpots is a mobile app (iOS + Android) that shows live parking occupancy f
 
 ```
 ScarletSpots/
-├── mobile/          # Expo (React Native) — the real app
-├── backend/         # FastAPI (Python) — thin API layer
-└── frontend/        # Deprecated — see docs/ROADMAP.md
+├── mobile/          # Expo (React Native) app
+├── backend/         # FastAPI API + business logic
+├── docker-compose.yml
+├── postgres_config/ # Postgres tuning for self-hosted deployment
+└── setup.sh         # Server bootstrap helper (Ubuntu)
 ```
+
+---
+
+## Infrastructure (Docker Compose)
+
+The latest infra update introduces a full local/prod-style stack:
+
+- `db`: PostgreSQL 18 (`postgres:18-alpine`) with custom tuning from `postgres_config/postgresql.conf`
+- `backend`: FastAPI service built from `backend/Dockerfile` on port `8000`
+- `redis`: Pub/Sub + cache backbone for WebSocket fan-out
+- `maintenance`: daily compressed Postgres backups via cron + `pg_dump`
+- `duckdns`: dynamic DNS heartbeat service
+
+### Quick start (containerized)
+
+1. Create root `.env`:
+```
+DB_PASSWORD=change-me
+DUCKDNS_TOKEN=your-duckdns-token
+```
+2. Ensure backend env exists:
+```
+cp backend/.env.example backend/.env
+```
+3. Start the stack:
+```bash
+docker compose up -d --build
+```
+
+Backend API: `http://localhost:8000/api/v1`
 
 ---
 
@@ -40,7 +72,7 @@ Environment variables needed (`.env`):
 ```
 EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-EXPO_PUBLIC_API_URL=http://localhost:8001/api/v1
+EXPO_PUBLIC_API_URL=http://localhost:8000/api/v1
 ```
 
 ### Key files
@@ -59,9 +91,9 @@ EXPO_PUBLIC_API_URL=http://localhost:8001/api/v1
 
 ## Backend
 
-**FastAPI** (Python 3.14) with Supabase as the database. The backend is intentionally thin — it only handles things that must be server-authoritative.
+**FastAPI** (Python 3.12 in Docker; 3.11+ local is recommended) with Supabase for auth/data APIs and PostgreSQL for core persistence.
 
-### Running locally
+### Running locally (native Python)
 
 ```bash
 cd backend
@@ -69,7 +101,7 @@ python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env  # Fill in Supabase keys
-uvicorn app.main:app --reload --port 8001
+uvicorn app.main:app --reload --port 8000
 ```
 
 ### API endpoints
@@ -126,8 +158,8 @@ psql $DATABASE_URL -f backend/supabase/migrations/20260310_pivot_static_lots.sql
 Mobile App
 ├── rutgers_parking_data.json  (bundled, 1.4 MB — zero API calls for lot data)
 │   └── lot names, polygons, capacity, photos, campus
-└── Supabase Realtime  (live occupancy push)
-    └── lot_occupancy table changes
+└── WebSocket stream (`/ws/occupancy`)
+    └── pushed by backend via Redis pub/sub fan-out
 
 FastAPI Backend  (handles only dynamic data)
 ├── Auth + profiles
@@ -135,7 +167,8 @@ FastAPI Backend  (handles only dynamic data)
 ├── Occupancy RPCs (atomic increment / decrement)
 ├── Friends
 ├── Favorites
-└── Forecasting (heuristic → ML once data accumulates)
+├── Forecasting (heuristic → ML once data accumulates)
+└── WebSocket hubs (`/ws/occupancy`, `/ws/notifications`)
 
 Supabase (PostgreSQL)
 └── 5 tables (profiles, sessions, lot_occupancy, friendships, favorites)
@@ -144,7 +177,7 @@ Supabase (PostgreSQL)
 **API call budget (50k users):**
 - Load lot data: **0 calls** (bundled in app)
 - Typical park + leave: **2 write calls/day**
-- Occupancy updates: **0 polling** (Supabase Realtime push)
+- Occupancy updates: **0 polling** (backend WebSocket push)
 - Friends check: **1 read on tab open**
 - Total: ~3–4 calls/day per user — well within Supabase free tier
 
@@ -170,7 +203,11 @@ EXPO_PUBLIC_ENABLE_ALL_CAMPUSES=false   # true to show all Rutgers campuses
 ```
 SUPABASE_URL=
 SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+SUPABASE_JWT_SECRET=
+SUPABASE_JWT_PUBLIC_KEY=
+DATABASE_URL=
+REDIS_URL=redis://localhost:6379/0
 ```
 
 ---
@@ -178,6 +215,13 @@ SUPABASE_SERVICE_KEY=
 ## Current Status
 
 See [ROADMAP.md](ROADMAP.md) for the phased plan.
+
+Canonical docs after cleanup:
+- Product/status and setup: [README.md](README.md)
+- System/data/API architecture: [ARCHITECTURE.md](ARCHITECTURE.md)
+- Delivery phases and backlog: [ROADMAP.md](ROADMAP.md)
+- WebSocket + background parking deep dive: [WEBSOCKET_BACKGROUND_PARKING_ARCHITECTURE.md](WEBSOCKET_BACKGROUND_PARKING_ARCHITECTURE.md)
+- Rutgers CAS SSO plan: [RU_SSO_GUIDE.md](RU_SSO_GUIDE.md)
 
 Core features are functional:
 - Map with live occupancy overlay

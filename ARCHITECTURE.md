@@ -199,9 +199,8 @@ Response:
        └── 1 small HTTP request
        └── applyOccupancy(STATIC_LOTS, map)
 
-3. Realtime subscribe 'lot_occupancy'
-   └── supabase.channel('lot-occupancy-changes')
-       └── On INSERT/UPDATE: update in-memory lot data → re-render markers
+3. Open WebSocket `/ws/occupancy` for active lot IDs
+  └── On occupancy messages: update in-memory lot data → re-render markers
 ```
 
 ### Session Lifecycle
@@ -210,7 +209,7 @@ User taps Park
   └── POST /park/session {lotId: "10001"}
       └── Backend: rpc('increment_lot_occupancy', {p_lot_id: "10001"})
           └── lot_occupancy.count++ (atomic, UPSERT)
-          └── Realtime pushes change to all clients
+      └── Backend publishes occupancy update to websocket subscribers
       └── INSERT parking_sessions {user_id, lot_id: "10001", active: true}
   └── Mobile: optimistic update → anchor to confirmedOccupancy
 
@@ -218,7 +217,7 @@ User taps End
   └── POST /park/session/end
       └── Backend: rpc('decrement_lot_occupancy', {p_lot_id: "10001"})
           └── lot_occupancy.count = MAX(0, count-1) (atomic)
-          └── Realtime pushes change
+      └── Backend publishes occupancy update to websocket subscribers
       └── UPDATE parking_sessions SET active=false
 ```
 
@@ -365,4 +364,4 @@ Models land in `backend/app/services/forecast_models/{lot_id}.joblib` and are lo
 - `session_feedback` write-only for the owning user
 - Rutgers-only email validation on signup and password reset
 - Rate limiting via SlowAPI on sensitive endpoints (signup, park, password reset)
-- **Planned**: Migration to Rutgers CAS SSO to eliminate Supabase Auth costs (detailed in [RU_SSO_GUIDE.md](file:///c:/Users/Farhan%20Mir/Desktop/Projects/ScarletSpots/RU_SSO_GUIDE.md)).
+- **Planned**: Migration to Rutgers CAS SSO to eliminate Supabase Auth costs (detailed in [RU_SSO_GUIDE.md](RU_SSO_GUIDE.md)).

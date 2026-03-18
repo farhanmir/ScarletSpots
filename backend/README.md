@@ -1,6 +1,17 @@
 # ScarletSpots Backend
 
-FastAPI service providing the API layer for the ScarletSpots mobile app and web admin portal.
+FastAPI service providing the API layer for the ScarletSpots mobile app.
+
+## Run with Docker Compose (recommended)
+
+From the repository root:
+
+```bash
+cp backend/.env.example backend/.env
+docker compose up -d --build
+```
+
+API base URL: `http://localhost:8000/api/v1`
 
 ## Environment variables
 
@@ -12,11 +23,16 @@ SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
 SUPABASE_JWT_SECRET=your-supabase-jwt-secret
 # Optional for ES256 projects (PEM public key). If omitted, backend uses Supabase JWKS endpoint.
 SUPABASE_JWT_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"
+DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/scarletspots
+REDIS_URL=redis://localhost:6379/0
 ```
 
-## Run locally
+## Run locally (native Python)
 
 ```bash
+python -m venv .venv
+# Windows PowerShell: .venv\Scripts\Activate.ps1
+# macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
@@ -75,7 +91,8 @@ All routes are prefixed with `/api/v1`. See `app/main.py` for the full router li
 
 ## Local environment notes
 
-Recommended Python version: 3.11 (matches CI and avoids local build-toolchain issues on Python 3.14).
+Recommended Python version: 3.11+ for local development.
+Docker runtime in production-style local stack uses Python 3.12 (`backend/Dockerfile`).
 
 If make is not available on your system (common on Windows), run tools directly:
 

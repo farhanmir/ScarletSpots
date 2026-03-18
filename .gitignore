@@ -146,6 +146,5 @@ package-lock.json
 # Cursor IDE — commit rules, ignore everything else
 .cursor/*
 !.cursor/rules/
-.env
 postgres_data/
 backups/
