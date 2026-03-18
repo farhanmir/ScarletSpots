@@ -266,6 +266,7 @@ export default function MapScreen() {
 
     const disconnect = createAuthedWebSocket({
       endpoint: `${WEBSOCKET_BASE_URL}/ws/occupancy`,
+      getAccessToken,
       authPayload: { lot_ids: STATIC_LOTS.map((lot) => lot.id) },
       onMessage: (payload) => {
         if (payload.type !== "occupancy_update") return;

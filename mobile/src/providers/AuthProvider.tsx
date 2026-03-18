@@ -47,6 +47,8 @@ function parsePermitPreference(raw: string | null): {
 type AuthContextType = {
   isAuthenticated: boolean;
   loading: boolean;
+  user: any;
+  session: any;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
   getIdTokenClaims: () => Promise<any>;
@@ -66,6 +68,8 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType>({
   isAuthenticated: false,
   loading: true,
+  user: null,
+  session: null,
   signIn: async () => {},
   signOut: async () => {},
   getIdTokenClaims: async () => ({}),
@@ -91,12 +95,29 @@ export let getAccessTokenSilently: () => Promise<string | undefined> = async () 
 function AuthProviderInner({ children }: { children: React.ReactNode }) {
   const {
     isAuthenticated,
-    isLoading: loading,
+    isInitialized,
     signIn: logtoSignIn,
     signOut: logtoSignOut,
     getIdTokenClaims,
     getAccessToken,
   } = useLogto();
+
+  const loading = !isInitialized;
+
+  const [user, setUser] = useState<any>(null);
+  const [session, setSession] = useState<any>(null);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      getIdTokenClaims().then((claims) => {
+        setUser(claims);
+        setSession(claims);
+      });
+    } else {
+      setUser(null);
+      setSession(null);
+    }
+  }, [isAuthenticated, getIdTokenClaims]);
 
   // Sync the global getter
   useEffect(() => {
@@ -223,6 +244,8 @@ function AuthProviderInner({ children }: { children: React.ReactNode }) {
     () => ({
       isAuthenticated,
       loading,
+      user,
+      session,
       signIn,
       signOut,
       getIdTokenClaims,
@@ -239,6 +262,8 @@ function AuthProviderInner({ children }: { children: React.ReactNode }) {
     [
       isAuthenticated,
       loading,
+      user,
+      session,
       signIn,
       signOut,
       getIdTokenClaims,

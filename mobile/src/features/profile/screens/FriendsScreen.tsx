@@ -58,7 +58,7 @@ function resolveLotDisplayName(lotId: string | null | undefined): string {
 
 export default function FriendsScreen() {
   const router = useRouter();
-  const { user, session } = useAuth();
+  const { user, session, getAccessToken } = useAuth();
   const isFocused = useIsFocused();
   const [activeTab, setActiveTab] = useState<TabKey>("friends");
   const [isAddModalVisible, setIsAddModalVisible] = useState(false);
@@ -89,6 +89,7 @@ export default function FriendsScreen() {
 
     const disconnect = createAuthedWebSocket({
       endpoint: `${WEBSOCKET_BASE_URL}/ws/notifications`,
+      getAccessToken,
       onMessage: (payload) => {
         if (payload.type !== "notification") return;
         const details = payload.payload as Record<string, unknown> | undefined;
