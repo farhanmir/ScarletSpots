@@ -27,7 +27,7 @@ jobs:
         working-directory: mobile
         env:
           HUSKY: 0
-        run: npm ci
+        run: npm ci --legacy-peer-deps
 
       - name: Validate required Expo environment variables
         env:
