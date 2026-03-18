@@ -1,32 +1,41 @@
-# Rutgers SSO (CAS) Integration Guide
+# Rutgers SSO Guide (Deprecated)
 
-This guide details how to replace Supabase Auth with Rutgers Central Authentication Service (CAS) for free SSO.
+This document is retained for historical context.
 
-## Overview
-To avoid Supabase's paid Enterprise SSO tier, we implement the CAS protocol directly in our FastAPI backend and issue our own JWTs for session management.
+## Status
 
-## Technical Architecture
-1. **Frontend (Expo)**: Uses `expo-auth-session` to open the Rutgers CAS login page.
-2. **Backend (FastAPI)**: 
-   - Receives a `ticket` from the CAS callback.
-   - Validates the ticket with `https://cas.rutgers.edu/serviceValidate`.
-   - Extracts the NetID and user attributes.
-   - Issues a local JWT (signed with a private secret).
-3. **Database (Supabase)**: We continue using the `profiles` table, but we bypass Supabase's internal `auth.users` for new sign-ups, using deterministic UUIDs (via NetID) or mapping emails.
+The previous Rutgers CAS SSO direction is no longer the primary auth plan.
 
-## CAS Registration Details
-To use this in production, you must submit an **Enterprise CAS request** to Rutgers IT.
+ScarletSpots now standardizes on Keycloak for identity and token issuance.
 
-| Field | Recommended Value |
-|-------|-------------------|
-| **Request Type** | New Integration (Production & Test) |
-| **Service Name** | ScarletSpots |
-| **Production URL** | `https://api.scarletspots.app/api/v1/auth/cas/callback` |
-| **Test URL** | `https://dev-api.scarletspots.app/api/v1/auth/cas/callback` |
-| **CAS Version** | CAS 6.5 |
-| **Protocol** | CAS 2.0 or 3.0 |
-| **Attributes** | `uid` (NetID), `email`, `givenName`, `sn` |
+## What Changed
 
-## Resources
-- [Rutgers CAS Documentation](https://it.rutgers.edu/knowledgebase/requesting-a-cas-service/)
-- [Implementation Plan](file:///C:/Users/Farhan%20Mir/.gemini/antigravity/brain/03e71f98-0f8b-4836-a88e-81551f21964b/implementation_plan.md)
+Previous approach:
+
+- mobile redirects to Rutgers CAS
+- backend validates CAS ticket
+- backend issues local JWT
+
+Current approach:
+
+- mobile authenticates against Keycloak (OIDC)
+- backend validates Keycloak JWT via issuer + JWKS
+- backend admin flows (signup/reset) use Keycloak Admin API
+
+## Why Keycloak
+
+- supports self-hosting and portability
+- avoids dependency on managed auth pricing constraints
+- provides flexible realm/client/role management
+- aligns with fully dockerized deployment and recovery strategy
+
+## Rutgers Email Restriction
+
+Rutgers domain restrictions remain enforced in backend business logic (`@rutgers.edu`, `@scarletmail.rutgers.edu`) even though CAS is no longer the identity protocol.
+
+## Reference Docs
+
+- `backend/README.md`
+- `backend/keycloak/README.md`
+- `ARCHITECTURE.md`
+- `OCI_MIGRATION_PLAN.md`

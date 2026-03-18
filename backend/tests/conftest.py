@@ -10,10 +10,9 @@ MagicMock clients before any test is executed.
 from unittest.mock import MagicMock
 
 import pytest
+from app.main import app
 from fastapi_cache import FastAPICache
 from fastapi_cache.backends.inmemory import InMemoryBackend
-
-from app.main import app
 
 
 @pytest.fixture(autouse=True, scope="session")
@@ -31,19 +30,25 @@ def mock_app_state():
     }
 
     # GET /lots (no campus filter)  →  .table().select().range().execute().data
-    mock_db.table.return_value.select.return_value.range.return_value.execute.return_value.data = []
+    mock_db.table.return_value.select.return_value.range.return_value.execute.return_value.data = (
+        []
+    )
 
     # GET /lots?campus=…  →  .table().select().eq().range().execute().data
-    mock_db.table.return_value.select.return_value.eq.return_value.range.return_value.execute.return_value.data = []
+    mock_db.table.return_value.select.return_value.eq.return_value.range.return_value.execute.return_value.data = (
+        []
+    )
 
     app.state.supabase = mock_db
-    app.state.admin_supabase = MagicMock()
+    app.state.admin_auth = MagicMock()
+    app.state.admin_supabase = app.state.admin_auth
 
     yield
 
     # Clean up so other test sessions start fresh
     try:
         del app.state.supabase
+        del app.state.admin_auth
         del app.state.admin_supabase
     except AttributeError:
         pass

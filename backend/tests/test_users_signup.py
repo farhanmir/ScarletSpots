@@ -1,14 +1,15 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-from fastapi.testclient import TestClient
-
 from app.main import app
+from fastapi.testclient import TestClient
 
 client = TestClient(app)
 
 
-def test_signup_retries_profile_upsert_when_optional_profile_columns_are_missing() -> None:
+def test_signup_retries_profile_upsert_when_optional_profile_columns_are_missing() -> (
+    None
+):
     admin_db = MagicMock()
     created_user = SimpleNamespace(
         id="00000000-0000-0000-0000-000000000123",
@@ -35,7 +36,8 @@ def test_signup_retries_profile_upsert_when_optional_profile_columns_are_missing
     admin_db.table.return_value = profiles_table
     profiles_table.upsert.side_effect = upsert_side_effect
 
-    original_admin_db = app.state.admin_supabase
+    original_admin_db = app.state.admin_auth
+    app.state.admin_auth = admin_db
     app.state.admin_supabase = admin_db
     try:
         response = client.post(
@@ -47,6 +49,7 @@ def test_signup_retries_profile_upsert_when_optional_profile_columns_are_missing
             },
         )
     finally:
+        app.state.admin_auth = original_admin_db
         app.state.admin_supabase = original_admin_db
 
     assert response.status_code == 200
@@ -64,9 +67,12 @@ def test_signup_retries_profile_upsert_when_optional_profile_columns_are_missing
 
 def test_signup_returns_409_when_email_already_registered() -> None:
     admin_db = MagicMock()
-    admin_db.auth.admin.create_user.side_effect = Exception("User with email already registered")
+    admin_db.auth.admin.create_user.side_effect = Exception(
+        "User with email already registered"
+    )
 
-    original_admin_db = app.state.admin_supabase
+    original_admin_db = app.state.admin_auth
+    app.state.admin_auth = admin_db
     app.state.admin_supabase = admin_db
     try:
         response = client.post(
@@ -78,7 +84,11 @@ def test_signup_returns_409_when_email_already_registered() -> None:
             },
         )
     finally:
+        app.state.admin_auth = original_admin_db
         app.state.admin_supabase = original_admin_db
 
     assert response.status_code == 409
-    assert response.json()["detail"] == "A user with this email address has already been registered"
+    assert (
+        response.json()["detail"]
+        == "A user with this email address has already been registered"
+    )

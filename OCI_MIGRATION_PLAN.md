@@ -1,62 +1,78 @@
-# ScarletSpots: OCI Always Free Migration Plan
+# ScarletSpots OCI Migration Plan
 
-This document outlines the strategy to migrate ScarletSpots from Supabase to a self-hosted architecture on Oracle Cloud Infrastructure (OCI) Always Free, designed to support 50k+ users with zero infrastructure costs.
+## Goal
 
-## 1. Executive Summary
-The migration trades the convenience of Supabase for the massive performance and scale of OCI's ARM Ampere tokens (4 OCPUs, 24GB RAM). This transition enables university-wide scale while removing the limitations of Supabase's free tier.
+Deploy ScarletSpots on OCI Always Free with a recoverable containerized architecture.
 
-## 2. Competitive Advantage: OCI vs. Supabase
+## Target Runtime on OCI
 
-| Resource | Supabase Free | OCI Always Free (ARM) | Benefit |
-| :--- | :--- | :--- | :--- |
-| **Compute** | Shared/Burstable | 4 Dedicated OCPUs | Higher throughput for FastAPI |
-| **Memory** | < 1GB | 24GB RAM | Massive caching & in-memory DB |
-| **Storage** | 500MB | 200GB Block Volume | Large-scale parking history |
-| **Realtime** | 200 concurrent | Unlimited | Better performance for 50k users |
+- Compute: OCI Ampere A1 (Always Free)
+- Orchestration: Docker Compose
+- App data: Postgres container + persistent volume
+- Realtime bus: Redis container
+- Identity: Keycloak + dedicated Postgres container
+- DB admin: pgAdmin4
+- API: FastAPI container
 
-## 3. Technical Architecture
+## Why This Design
 
-### Core Stack
-- **Compute**: Ubuntu 22.04 on OCI ARM (A1).
-- **Database**: PostgreSQL 16+ (Self-hosted) with PostGIS.
-- **Cache/Realtime**: Redis (Self-hosted) for session caching and WebSocket pub/sub.
-- **Backend**: FastAPI (Python 3.14+) running in Docker.
+- Removes dependence on managed Supabase Auth
+- Keeps identity and app data under your control
+- Supports fast rebuild/recovery on a new VM
+- Keeps operational stack small and understandable
 
-### Auth Migration (Rutgers SSO)
-- **Current**: Supabase Auth (Email/Social).
-- **Target**: Rutgers CAS 3.0 Integration.
-- **Flow**: Mobile app → Rutgers CAS login → Backend validates ticket → Backend issues JWT.
-- **Result**: No passwords stored; NetID-native login.
+## Networking and Security
 
-### Realtime Occupancy
-- Replace Supabase Realtime with **FastAPI WebSockets + Redis**.
-- Backend publishes occupancy changes to Redis; WebSocket workers broadcast to connected devices.
+- Expose only required public ports (typically 80/443 via reverse proxy).
+- Keep Postgres, Redis, pgAdmin private on internal docker network.
+- Place Keycloak and API behind HTTPS.
+- Store secrets in `.env` outside source control.
 
-## 4. Implementation Steps
+## Deployment Sequence
 
-1. **Environment Setup**:
-   - Provision OCI ARM Instance.
-   - Configure Security Lists (Ports 80, 443, 22).
-   - Install Docker & Docker Compose.
+1. Provision OCI instance and attach persistent storage.
+2. Install Docker Engine and Compose plugin.
+3. Copy repository + environment files.
+4. Pull latest images.
+5. Start stack with compose.
+6. Run smoke checks:
+   - API health
+   - Keycloak realm endpoint
+   - DB connectivity
+   - WebSocket handshake
 
-2. **Database Migration**:
-   - Export schema and data from Supabase (`pg_dump`).
-   - Restore to OCI Postgres instance.
+## Backup and Restore Strategy
 
-3. **Backend Updates**:
-   - Implement Rutgers CAS validation service.
-   - Set up WebSocket Manager for occupancy updates.
-   - Configure OCI Object Storage for media assets.
+### Backups
 
-4. **DevOps & Maintenance**:
-   - Configure OCI Volume Backups (5 free).
-   - Setup GitHub Actions for automated deployment.
-   - Use Cloudflare for SSL and DNS management.
+- Daily `pg_dump` for app-db and keycloak-db
+- Optional periodic volume snapshots
+- Secure copy to Object Storage or off-host target
 
-## 5. Security & Persistence
-- **Firewall**: Restrict OCI Security Lists to necessary ports only.
-- **Backups**: Daily `pg_dump` to OCI Object Storage bucket.
-- **Persistence**: Data stored on a 200GB OCI Block Volume with high IOPS.
+### Restore
 
----
-*Drafted: March 2026*
+1. Provision replacement host.
+2. Restore repo + env + compose definitions.
+3. Restore DB dumps or mounted volumes.
+4. Start compose stack.
+5. Verify login, protected routes, and occupancy updates.
+
+## pgAdmin4 Operations
+
+Use pgAdmin4 for:
+
+- inspecting migration state
+- validating restored data
+- running emergency read queries
+- confirming table/index presence post-recovery
+
+Operational recommendation:
+
+- allow pgAdmin access only from VPN or private admin subnet
+
+## Acceptance Criteria
+
+- Auth works via Keycloak after full restart
+- API and websocket paths remain functional
+- Restore drill can be executed in a single session without undocumented steps
+- Recovery docs are current and tested

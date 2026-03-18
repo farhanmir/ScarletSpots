@@ -2,7 +2,7 @@ import json
 from urllib.parse import parse_qs
 
 from app.core.logger import get_logger
-from app.core.security import decode_supabase_jwt_token
+from app.core.security import decode_keycloak_jwt_token
 from app.core.websocket import manager
 from fastapi import (
     APIRouter,
@@ -29,7 +29,7 @@ def _extract_user_id(auth_data: dict) -> str:
         raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION)
 
     try:
-        payload = decode_supabase_jwt_token(token)
+        payload = decode_keycloak_jwt_token(token)
     except JWTError as exc:
         raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION) from exc
 

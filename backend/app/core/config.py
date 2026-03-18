@@ -19,8 +19,21 @@ class Settings(BaseSettings):
     # Supabase
     SUPABASE_URL: str = Field(default="")
     SUPABASE_SERVICE_ROLE_KEY: str = Field(default="")
-    SUPABASE_JWT_SECRET: str = Field(default="")
-    SUPABASE_JWT_PUBLIC_KEY: str = Field(default="")
+
+    # Keycloak auth
+    KEYCLOAK_URL: str = Field(default="")
+    KEYCLOAK_REALM: str = Field(default="")
+    KEYCLOAK_ISSUER: str = Field(default="")
+    KEYCLOAK_AUDIENCE: str = Field(default="")
+    KEYCLOAK_VERIFY_AUDIENCE: bool = Field(default=True)
+    KEYCLOAK_JWT_PUBLIC_KEY: str = Field(default="")
+
+    # Keycloak admin client (for signup/password-reset flows)
+    KEYCLOAK_ADMIN_CLIENT_ID: str = Field(default="")
+    KEYCLOAK_ADMIN_CLIENT_SECRET: str = Field(default="")
+    KEYCLOAK_PASSWORD_RESET_CLIENT_ID: str = Field(default="")
+    KEYCLOAK_PASSWORD_RESET_REDIRECT_URI: str = Field(default="")
+
     DATABASE_URL: str = Field(default="")
     EXPO_PUSH_ACCESS_TOKEN: str = Field(default="")
 

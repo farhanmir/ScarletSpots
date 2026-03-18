@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from typing import Any
 from uuid import UUID
 
 from app.core.database import get_db
@@ -14,7 +15,6 @@ from app.services.push_notifications import (
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from supabase import Client
 
 log = get_logger(__name__)
 
@@ -97,7 +97,7 @@ async def signup(
     request: Request,
     body: UserCreate,
     db: AsyncSession = Depends(get_db),
-    admin_auth: Client = Depends(get_admin_auth_client),
+    admin_auth: Any = Depends(get_admin_auth_client),
 ):
     """
     Create a new user with Rutgers email validation.
@@ -220,7 +220,7 @@ class PushTokenDeleteRequest(BaseModel):
 async def request_password_reset(
     request: Request,
     body: PasswordResetRequest,
-    admin_auth: Client = Depends(get_admin_auth_client),
+    admin_auth: Any = Depends(get_admin_auth_client),
 ):
     """
     Send a password reset email via Supabase Auth.

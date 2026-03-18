@@ -31,6 +31,7 @@ async def lifespan(app: FastAPI):
 
     clients = init_supabase_clients()
     app.state.supabase = clients["supabase"]
+    app.state.admin_auth = clients["admin_auth"]
     app.state.admin_supabase = clients["admin_supabase"]
     await init_cache()
     await websocket_manager.startup()

@@ -1,153 +1,75 @@
-# ScarletSpots — Product & Architecture Contract
+# ScarletSpots Execution Plan
 
-> This document is the authoritative source of truth for what ScarletSpots is, how it works, and what decisions have been made. It replaces all previous planning documents.
+This is the active implementation plan for platform hardening.
 
----
+## Objective
 
-## The Core Insight
+Complete the transition to:
 
-We have `rutgers_parking_data.json` — 245 lots, 1.4 MB, every lot has exact coordinates, GeoJSON polygons, capacity breakdown, photos, and campus. **Parking lot locations don't change.**
+- Keycloak-authenticated backend
+- dockerized server stack for one-command recovery
+- pgAdmin4-enabled DB operations runbook
 
-We were storing this static data in a PostgreSQL database and hitting it on every map load. That was wrong.
+## Scope
 
-**New principle:** Static data lives in the app. Dynamic data lives in the database. The database only knows things that change.
+In scope:
 
----
+1. Replace Supabase Auth and Rutgers CAS strategy with Keycloak OIDC.
+2. Keep existing backend data model and app features stable.
+3. Run backend dependencies in containers.
+4. Document restore/recovery workflow.
 
-## What ScarletSpots Is
+Out of scope:
 
-A mobile app for Rutgers students to:
-1. See which parking lots have space right now
-2. Start a parking session when they park (crowd-sources occupancy)
-3. Find their car later (compass bearing + distance to the lot)
-4. Check if friends are parked on campus
+- major feature redesigns unrelated to auth/deployment
+- replacing Postgres data model with a new schema family
 
-That's it. Simple. Fast. Free to run.
+## Workstreams
 
----
+### A. Authentication Migration
 
-## Architecture
+1. Backend token verification uses Keycloak issuer/JWKS.
+2. Signup and password reset route through Keycloak admin APIs.
+3. WebSocket auth uses the same Keycloak access token verification.
+4. Mobile auth integration points switched from Supabase auth SDK assumptions.
 
-```
-Mobile App
-├── rutgers_parking_data.json  (bundled, 1.4 MB, zero API calls for lot data)
-│   └── used for: map display, geofencing, compass target, capacity, photos
-└── Supabase Realtime subscription  (occupancy count updates only)
+### B. Dockerized Platform
 
-FastAPI Backend  (thin — only handles what's truly dynamic)
-├── /users     → auth, profile, password reset
-├── /park      → session start/end/active, detection feedback
-├── /friends   → friend lifecycle + their parking lot (in Friends tab)
-├── /favorites → add/remove/list (lot_id refs the JSON mapId)
-└── /lots      → occupancy aggregate, forecasting
+1. Compose services:
+   - `api`
+   - `app-db`
+   - `redis`
+   - `keycloak`
+   - `keycloak-db`
+   - `pgadmin`
+2. Env var templates and secret handling.
+3. Health checks and startup order.
 
-Database (Supabase, 5 tables)
-├── profiles
-├── parking_sessions        ← lot_id is TEXT (JSON mapId e.g. "10001")
-├── lot_occupancy           ← (lot_id TEXT, count INT) updated atomically
-├── friendships
-└── user_favorites
-```
+### C. Recovery and Operations
 
-### What was removed from the database
+1. Backup strategy for app-db and keycloak-db.
+2. Restore drill documentation (RTO target: under 30 minutes for core API + auth).
+3. pgAdmin4 procedures for validation after restore.
 
-- `parking_lots` table — replaced by bundled JSON
-- `occupancy_logs` table — replaced by `lot_occupancy` + sessions
-- `event_logs` / `friend_sharing_settings` — simplified away
-- PostGIS extension — polygon checks are client-side from JSON
-- All spatial migrations and indexes
+## Milestones
 
-### API call math at 50k users
+1. M1: Keycloak auth wired end-to-end in backend and websocket entrypoints.
+2. M2: Compose stack runs locally with keycloak + postgres + redis + api + pgadmin.
+3. M3: OCI deployment dry run with backup/restore tested.
+4. M4: Mobile release candidate using Keycloak tokens in production-like environment.
 
-- Load lot data: **0 calls** (bundled)
-- Typical user parks + leaves: **2 write calls/day**
-- Occupancy updates: **0 polling** (Supabase Realtime push)
-- Friends check: **1 read on tab open**
-- Total: ~3–4 calls/day per user → well within Supabase free tier
+## Validation Checklist
 
----
+- Login issues valid Keycloak token and backend accepts it.
+- `GET /api/v1/users/me` works with Keycloak JWT.
+- `POST /api/v1/park/session` and websocket occupancy updates still function.
+- Password reset endpoint triggers Keycloak action email.
+- pgAdmin can connect to both app-db and keycloak-db.
+- Full stack restart recovers cleanly from persisted volumes.
 
-## Feature Decisions
+## Ownership
 
-### In for v1
-
-- **Auth**: email + password, Rutgers domain enforced (`@rutgers.edu`, `@scarletmail.rutgers.edu`)
-- **Map**: All NB lots from bundled JSON with live occupancy overlay. Other campuses behind `ENABLE_ALL_CAMPUSES` feature flag. Includes map redesign with better occupancy color encoding and multi-polygon rendering.
-- **Parking session**: Start (confirmation sheet), active state, end session
-- **Session chip**: Subtle floating pill above tab bar showing "Lot X • Find Car | End" — not an intrusive full-width banner
-- **Profile**: Full settings, data export
-- **Offline**: Map always loads (data is local). Session actions queue to OfflineQueue and replay on reconnect.
-- **Forecasting**: Heuristic model for launch, ML model once session data accumulates (2–4 weeks)
-- **Parking Permit**: Onboarding permit picker + profile settings row. Permit type stored in `profiles.permit_type`. Permit-aware lot filtering on map. Permit validity badge on LotDetails. Supports no-permit modes (commuter-all, custom chip filter).
-
-### Out for v1 (documented as future)
-
-- Web admin frontend (completely removed — plan as v2 admin portal with geofence editor, live heatmap, user management)
-- Friend location markers on map (friends tab only for v1)
-- Push notifications ("lot almost full" / "friend parked nearby")
-- Push notifications ("lot almost full" / "friend parked nearby")
-- Google OAuth (Replaced by Rutgers CAS SSO plan)
-- Rutgers CAS SSO Integration (Detailed in [RU_SSO_GUIDE.md](file:///c:/Users/Farhan%20Mir/Desktop/Projects/ScarletSpots/RU_SSO_GUIDE.md))
-- iOS Live Activities + Dynamic Island + widgets (see ROADMAP backlog for rollout and UX states)
-- Notification preferences screen
-- Account deletion flow (export + delete data)
-- Heat map overlays (per-zone density visualization)
-- Virtual Grid Park Flow (accelerometer-based spot suggestion)
-- Bluetooth-assisted parking detection
-- Common Commuter Spots database (pre-mapped Rutgers buildings for destination suggestions)
-- Navigation hand-off to Google Maps / Apple Maps
-- ScarletSpots Premium: ticket reporting + enforcement analytics (post-launch, monetization)
-
-### Changed from original
-
-| Feature | Before | After |
-|---------|--------|-------|
-| Active session indicator | Full-width intrusive banner at top | Subtle floating chip above tab bar |
-| Compass | Magnetometer + GPS + proximity states + haptic lock-on | Bearing arrow + distance text only |
-| Friends | See friends on map + friends tab | Friends tab only (which lot, not coordinates) |
-| Lot data source | PostgreSQL database via API | Bundled JSON, zero API calls |
-| Realtime updates | Poll `parking_lots` table every 5 min | Push subscription on `lot_occupancy` table |
-| Geofencing | Loaded polygons from API | Loaded from bundled JSON |
-| Permit filtering | Not planned for v1 | Added — permit-aware lot filtering + onboarding picker |
-| Parking confirmation UX | Spot-level snap/drag correction concept | Precise-location auto-start with quick correction path ("Wrong? End") |
-
----
-
-## Data Flow
-
-### App startup
-1. Module loads `rutgers_parking_data.json` → builds `NB_LOTS` array
-2. Supabase query: `SELECT lot_id, count FROM lot_occupancy` (one small query)
-3. `applyOccupancy(lots, occupancyMap)` merges live counts into the static array
-4. Realtime subscription on `lot_occupancy` — UI updates instantly on any change
-
-### Park start
-1. User taps "Park Here" on a lot
-2. `POST /park/session {lotId, lat, lng}`
-3. Backend calls `increment_lot_occupancy(lot_id)` RPC → `lot_occupancy.count++`
-4. Supabase Realtime pushes the change to all subscribed clients
-5. Mobile updates optimistically, anchors to `confirmedOccupancy` from response
-
-### Park end
-1. User taps "End" on the session chip
-2. `POST /park/session/end`
-3. Backend calls `decrement_lot_occupancy(lot_id)` RPC → `lot_occupancy.count--`
-4. Realtime push propagates to all clients
-
-### Compass
-1. User opens Navigate tab
-2. `GET /park/session/active` → returns `{lotId}`
-3. `getLotById(lotId)` → from bundled JSON → `{latitude, longitude}`
-4. GPS position + bearing formula → animated needle + distance text
-
----
-
-## Non-Functional Requirements
-
-- **Cost**: Supabase free tier supports ~50k users at this call volume
-- **Reliability**: App must not crash. Known crash causes addressed: removed periodic location broadcast loop, fixed Realtime subscription cleanup on unmount
-- **Offline**: Map loads offline (local data). Actions queue and replay.
-- **Auth only**: `@rutgers.edu` and `@scarletmail.rutgers.edu` emails only
-- **No Redis**: Not needed at this scale with static lot data
-- **No background workers**: No batch jobs required with static lot data
-- **No PostGIS**: Client-side polygon checks from JSON are sufficient
+- Identity and auth integration: backend team
+- Mobile token flow and session handling: mobile team
+- Compose/deployment/backups: platform/devops
+- Runbooks and incident readiness: shared ownership

@@ -1,89 +1,110 @@
 # ScarletSpots Backend
 
-FastAPI service providing the API layer for the ScarletSpots mobile app and web admin portal.
+FastAPI API service for sessions, occupancy, friends, favorites, and profile data.
 
-## Environment variables
+## Auth and Identity
 
-Copy `.env.example` to `.env` in `backend/` and fill in the values:
+Authentication is Keycloak-based.
+
+- Access tokens are validated against Keycloak issuer/JWKS
+- Signup and password reset use Keycloak admin operations
+- Rutgers email domain rules remain enforced in backend logic
+
+## Environment Variables
+
+Copy `backend/.env.example` to `backend/.env` and set values.
+
+Key identity variables:
+
+```bash
+KEYCLOAK_URL=https://auth.your-domain.com
+KEYCLOAK_REALM=scarletspots
+KEYCLOAK_ISSUER=
+KEYCLOAK_AUDIENCE=scarletspots-mobile
+KEYCLOAK_VERIFY_AUDIENCE=true
+KEYCLOAK_JWT_PUBLIC_KEY=
+KEYCLOAK_ADMIN_CLIENT_ID=scarletspots-backend-admin
+KEYCLOAK_ADMIN_CLIENT_SECRET=replace-with-secret
+KEYCLOAK_PASSWORD_RESET_CLIENT_ID=scarletspots-mobile
+KEYCLOAK_PASSWORD_RESET_REDIRECT_URI=
+```
+
+Data layer variables:
 
 ```bash
 SUPABASE_URL=https://your-project-ref.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
-SUPABASE_JWT_SECRET=your-supabase-jwt-secret
-# Optional for ES256 projects (PEM public key). If omitted, backend uses Supabase JWKS endpoint.
-SUPABASE_JWT_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"
+DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/scarletspots
+REDIS_URL=redis://localhost:6379/0
 ```
 
-## Run locally
+## Run Locally (Non-Docker)
 
 ```bash
+cd backend
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-The API will be available at `http://localhost:8000`.
-Interactive API docs: `http://localhost:8000/api/v1/openapi.json`
+## Keycloak Self-Hosting (Docker)
 
-## Run tests
+A dedicated compose file is included:
+
+- `docker-compose.keycloak.yml`
+
+Run:
+
+```bash
+docker compose -f docker-compose.keycloak.yml pull
+docker compose -f docker-compose.keycloak.yml up -d
+```
+
+Keycloak setup details are in `keycloak/README.md`.
+
+## Whole-Server Dockerization Target
+
+The intended production stack is:
+
+- API service
+- Postgres for app data
+- Redis
+- Keycloak
+- Keycloak Postgres
+- pgAdmin4
+
+If only Keycloak compose is currently present, treat it as the first stage; keep the rest of the stack documented and staged in deployment runbooks until all compose artifacts are committed.
+
+## pgAdmin4 Guidance
+
+Use pgAdmin4 to:
+
+- connect to app-db and keycloak-db
+- inspect migration status
+- validate post-restore data integrity
+- run emergency diagnostics
+
+Security:
+
+- private network access only
+- do not expose pgAdmin4 directly to the public internet
+
+## Recovery Checklist
+
+1. Restore `.env` secrets.
+2. Pull latest images.
+3. Start identity and data services.
+4. Start API service.
+5. Validate:
+   - `/health`
+   - Keycloak realm endpoints
+   - protected API route with bearer token
+   - websocket auth + occupancy fanout
+6. Verify DB integrity through pgAdmin4.
+
+## Testing
 
 ```bash
 pytest tests/
 ```
 
-## Development quality checks
-
-Install development tools:
-
-```bash
-pip install -r requirements-dev.txt
-```
-
-Run the full local quality gate:
-
-```bash
-make check
-```
-
-Auto-fix what can be fixed automatically:
-
-```bash
-make fix
-```
-
-Run individual checks:
-
-```bash
-make lint         # Ruff lint checks
-make format-check # Ruff formatting check
-make typecheck    # mypy type checking
-make security     # Bandit security scan
-make deps-audit   # pip-audit dependency vulnerability scan
-make deadcode     # Vulture dead code scan
-```
-
-## Database migrations
-
-Migrations are in `supabase/migrations/` and should be applied in filename order using the Supabase CLI:
-
-```bash
-supabase db push
-```
-
-## API prefix
-
-All routes are prefixed with `/api/v1`. See `app/main.py` for the full router list.
-
-## Local environment notes
-
-Recommended Python version: 3.11 (matches CI and avoids local build-toolchain issues on Python 3.14).
-
-If make is not available on your system (common on Windows), run tools directly:
-
-```bash
-python -m ruff check app tests
-python -m ruff format --check app tests
-python -m mypy app --ignore-missing-imports --no-strict-optional
-python -m bandit -r app -x tests
-python -m pip_audit
-python -m vulture app --min-confidence 80
-```
+If running tests in a fresh environment, install backend dependencies first (including SQLAlchemy and related packages).
