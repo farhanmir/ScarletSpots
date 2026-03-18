@@ -4,11 +4,16 @@ import React, {
   useEffect,
   useState,
   useCallback,
+  useMemo,
 } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase, authApiCall } from "@/shared/api/supabase";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { NB_CAMPUS_NAMES } from "@/shared/constants/lots";
+import {
+  clearPushTokenFromBackend,
+  syncPushTokenToBackend,
+} from "@/shared/services/PushRegistration";
 
 // ── Permit preference helpers ─────────────────────────────────────────────
 
@@ -88,7 +93,9 @@ const AuthContext = createContext<AuthContextType>({
 
 export const useAuth = () => useContext(AuthContext);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -185,9 +192,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (session) {
       loadProfile();
+      syncPushTokenToBackend();
     } else {
       // Clear permit state on sign-out
       applyPermitRaw(null);
+      clearPushTokenFromBackend();
     }
   }, [session, loadProfile, applyPermitRaw]);
 
@@ -222,23 +231,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
+  const contextValue = useMemo(
+    () => ({
+      session,
+      user,
+      loading,
+      signOut,
+      permitType,
+      secondaryPermitType,
+      noPermitMode,
+      customLotFilter,
+      setPermitPreference,
+      setSecondaryPermitPreference,
+      enabledCampuses,
+      toggleCampus,
+    }),
+    [
+      session,
+      user,
+      loading,
+      signOut,
+      permitType,
+      secondaryPermitType,
+      noPermitMode,
+      customLotFilter,
+      setPermitPreference,
+      setSecondaryPermitPreference,
+      enabledCampuses,
+      toggleCampus,
+    ],
+  );
+
   return (
-    <AuthContext.Provider
-      value={{
-        session,
-        user,
-        loading,
-        signOut,
-        permitType,
-        secondaryPermitType,
-        noPermitMode,
-        customLotFilter,
-        setPermitPreference,
-        setSecondaryPermitPreference,
-        enabledCampuses,
-        toggleCampus,
-      }}
-    >
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

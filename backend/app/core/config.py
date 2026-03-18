@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     SUPABASE_JWT_SECRET: str = Field(default="")
     SUPABASE_JWT_PUBLIC_KEY: str = Field(default="")
     DATABASE_URL: str = Field(default="")
+    EXPO_PUSH_ACCESS_TOKEN: str = Field(default="")
 
     # Redis (local, no auth by default)
     REDIS_URL: str = Field(default="redis://localhost:6379/0")

@@ -7,6 +7,10 @@ from app.core.logger import get_logger
 from app.core.security import get_admin_auth_client, get_current_user
 from app.models.user import Profile
 from app.schemas.user import ProfileUpdate, SignupResponse, UserCreate
+from app.services.push_notifications import (
+    deactivate_device_push_token,
+    upsert_device_push_token,
+)
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -202,6 +206,15 @@ class PasswordResetRequest(BaseModel):
     email: str
 
 
+class PushTokenUpsertRequest(BaseModel):
+    token: str
+    platform: str | None = None
+
+
+class PushTokenDeleteRequest(BaseModel):
+    token: str
+
+
 @router.post("/password-reset")
 @limiter.limit("3/hour")
 async def request_password_reset(
@@ -278,3 +291,35 @@ async def update_location(
     except Exception as exc:
         log.error("Failed to update location: %s", exc)
         raise HTTPException(status_code=500, detail="Failed to update location")
+
+
+@router.post("/me/push-token")
+async def upsert_push_token(
+    body: PushTokenUpsertRequest,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Register or refresh a device push token for the current user."""
+    user_id = _to_uuid_or_401(current_user)
+    token = body.token.strip()
+    if not token:
+        raise HTTPException(status_code=400, detail="token is required")
+
+    await upsert_device_push_token(db, user_id, token, platform=body.platform)
+    return {"success": True}
+
+
+@router.delete("/me/push-token")
+async def delete_push_token(
+    body: PushTokenDeleteRequest,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Deactivate a device push token for the current user."""
+    user_id = _to_uuid_or_401(current_user)
+    token = body.token.strip()
+    if not token:
+        raise HTTPException(status_code=400, detail="token is required")
+
+    removed = await deactivate_device_push_token(db, user_id, token)
+    return {"success": True, "removed": removed}

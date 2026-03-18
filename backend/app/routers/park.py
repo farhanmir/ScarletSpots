@@ -8,11 +8,14 @@ from app.core.limiter import limiter
 from app.core.logger import get_logger
 from app.core.security import get_current_user
 from app.core.websocket import manager as ws_manager
+from app.models.friendship import Friendship
 from app.models.parking import LotOccupancy, ParkingSession
 from app.models.parking import SessionFeedback as SessionFeedbackModel
+from app.models.user import Profile
+from app.services.push_notifications import send_push_to_users
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 log = get_logger(__name__)
@@ -70,6 +73,23 @@ async def _get_active_sessions(db: AsyncSession, user_id: UUID) -> list[ParkingS
         ParkingSession.active.is_(True),
     )
     return (await db.execute(stmt)).scalars().all()
+
+
+async def _get_friend_user_ids(db: AsyncSession, user_id: UUID) -> list[UUID]:
+    stmt = select(Friendship).where(
+        Friendship.status == "accepted",
+        Friendship.sharing_enabled.is_(True),
+        or_(Friendship.user_id == user_id, Friendship.friend_id == user_id),
+    )
+    rows = (await db.execute(stmt)).scalars().all()
+    friend_ids: list[UUID] = []
+    for friendship in rows:
+        friend_ids.append(
+            friendship.friend_id
+            if friendship.user_id == user_id
+            else friendship.user_id
+        )
+    return friend_ids
 
 
 @router.get("/active")
@@ -141,6 +161,38 @@ async def start_parking_session(
 
         for changed_lot_id, changed_count in changed_lot_counts.items():
             await ws_manager.publish_occupancy_update(changed_lot_id, changed_count)
+
+        display_name = None
+        profile = await db.get(Profile, user_id)
+        if profile is not None:
+            display_name = profile.full_name or profile.first_name or profile.email
+
+        friend_targets = list(dict.fromkeys(await _get_friend_user_ids(db, user_id)))
+        if friend_targets:
+            actor = display_name or "Your friend"
+            await send_push_to_users(
+                db,
+                friend_targets,
+                title="ScarletSpots",
+                body=f"{actor} parked at Lot {lot_id}.",
+                data={
+                    "type": "session_started",
+                    "lotId": lot_id,
+                    "autoStarted": bool(body.autoStarted),
+                },
+            )
+
+        if body.autoStarted:
+            await send_push_to_users(
+                db,
+                [user_id],
+                title="ScarletSpots",
+                body=f"We auto-started your parking at Lot {lot_id}.",
+                data={
+                    "type": "auto_started",
+                    "lotId": lot_id,
+                },
+            )
 
         return {
             "success": True,

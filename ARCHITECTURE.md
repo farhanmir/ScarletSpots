@@ -253,28 +253,77 @@ User taps "Locate" on parked friend
 
 ## Realtime Architecture
 
-Supabase Realtime is used for occupancy push updates only.
+**See [WEBSOCKET_BACKGROUND_PARKING_ARCHITECTURE.md](WEBSOCKET_BACKGROUND_PARKING_ARCHITECTURE.md) for detailed explanation of how background auto-parking integrates with WebSocket occupancy broadcasts.**
+
+### FastAPI WebSocket + Redis Pub/Sub
+
+Replaces Supabase Realtime for real-time occupancy and notifications.
 
 ```
-Client subscribes:
-  supabase.channel('lot-occupancy-changes')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'lot_occupancy' }, ...)
-    .subscribe()
+[Mobile App]
+  ├── WebSocket: /ws/occupancy
+  │   └── Registers for lot updates (e.g., [lot_1, lot_2, lot_3])
+  │   └── Receives occupancy changes in < 100ms
+  │
+  └── WebSocket: /ws/notifications
+      └── Registers for user updates (notifications, friend requests)
 
-Server triggers:
-  Any INSERT/UPDATE to lot_occupancy (via RPCs on session start/end)
-  → Supabase broadcasts to all subscribed clients
-  → Client updates lot.occupiedCount and lot.occupancyRate in React Query cache
-  → Map markers re-render with new percentage
+[Backend: app/core/websocket.py]
+  └── ConnectionManager maintains:
+      ├── _occupancy_clients: dict[lot_id → set[WebSocket]]
+      └── _notification_clients: dict[user_id → set[WebSocket]]
+  
+  └── Redis listener threads:
+      └── Subscribe to channels:
+          ├── occupancy/{lot_id}
+          └── notifications/{user_id}
+      
+      └── On message:
+          └── Broadcast to all connected WebSocket clients for that lot/user
+
+[Session lifecycle: /park/session start/end]
+  └── Backend atomically:
+      ├── Update DB: parking_sessions, lot_occupancy
+      └── Publish to Redis: occupancy/{lot_id} with new count
+          └── All connected clients on that lot receive update
 ```
 
-Channel cleanup on unmount:
+### Key Insight: Background Parking Works
+
+When user auto-parks with app **closed**:
+
+1. Background task calls `POST /api/v1/park/session` (API, not WebSocket)
+2. Backend stores session + updates occupancy count
+3. Backend publishes occupancy to Redis
+4. **All WebSocket clients watching that lot get the update** (if their app is open)
+5. User A's local notification confirms their parking
+6. User B (viewing the lot with app open) sees occupancy change in real-time
+
+**See [WEBSOCKET_BACKGROUND_PARKING_ARCHITECTURE.md](WEBSOCKET_BACKGROUND_PARKING_ARCHITECTURE.md) for the full architecture, including the implemented push-notification foundation.**
+
+### WebSocket Connection Flow
+
+```typescript
+// homescreen.tsx
+const { disconnect } = createAuthedWebSocket(
+  "/ws/occupancy",
+  (payload) => {
+    const lotIdRaw = payload.lot_id;
+    const count = Number(payload.count ?? 0);
+    
+    queryClient.setQueryData(
+      ["lots_occupancy"],
+      (old) => applyRealtimeOccupancyCount(old, lotId, count)
+    );
+  }
+);
+```
+
+Cleanup on unmount / app background:
 ```typescript
 useEffect(() => {
-  if (!isFocused) return;
-  const channel = supabase.channel('lot-occupancy-changes').on(...).subscribe();
-  return () => { supabase.removeChannel(channel); };
-}, [isFocused, queryClient]);
+  return () => { disconnect(); };
+}, [session, queryClient]);
 ```
 
 ---
