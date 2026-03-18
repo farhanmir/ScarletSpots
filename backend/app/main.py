@@ -22,17 +22,15 @@ from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
 
 
-# FastAPI Lifespan for Supabase Client Pooling
+# FastAPI Lifespan — Keycloak client init
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Initialize shared clients once per process
     from app.core.cache import close_cache, init_cache
-    from app.core.security import close_supabase_clients, init_supabase_clients
+    from app.core.security import close_clients, init_clients
 
-    clients = init_supabase_clients()
-    app.state.supabase = clients["supabase"]
+    clients = init_clients()
     app.state.admin_auth = clients["admin_auth"]
-    app.state.admin_supabase = clients["admin_supabase"]
     await init_cache()
     await websocket_manager.startup()
     print("!!! BACKEND STARTING UP !!!", flush=True)
@@ -40,7 +38,7 @@ async def lifespan(app: FastAPI):
     # Cleanup on shutdown
     await websocket_manager.shutdown()
     await close_cache()
-    await close_supabase_clients()
+    await close_clients()
 
 
 app = FastAPI(

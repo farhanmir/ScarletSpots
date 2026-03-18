@@ -1,0 +1,24 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "ScarletSpots App DB",
+      "Group": "ScarletSpots",
+      "Host": "app-db",
+      "Port": 5432,
+      "MaintenanceDB": "scarletspots",
+      "Username": "scarlet_admin",
+      "SSLMode": "prefer",
+      "PassFile": "/pgpass"
+    },
+    "2": {
+      "Name": "Keycloak DB",
+      "Group": "ScarletSpots",
+      "Host": "keycloak-db",
+      "Port": 5432,
+      "MaintenanceDB": "keycloak",
+      "Username": "keycloak",
+      "SSLMode": "prefer",
+      "PassFile": "/pgpass"
+    }
+  }
+}

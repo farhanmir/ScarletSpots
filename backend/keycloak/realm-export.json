@@ -1,0 +1,87 @@
+{
+  "id": "scarletspots",
+  "realm": "scarletspots",
+  "displayName": "ScarletSpots",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "roles": {
+    "realm": [
+      {
+        "name": "user",
+        "description": "Standard application user",
+        "composite": false
+      },
+      {
+        "name": "admin",
+        "description": "Application administrator",
+        "composite": false
+      }
+    ]
+  },
+  "defaultRoles": ["user"],
+  "clients": [
+    {
+      "clientId": "scarletspots-mobile",
+      "name": "ScarletSpots Mobile",
+      "description": "Public PKCE client for the React Native mobile app",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "exp://*",
+        "scarletspots://*",
+        "http://localhost:*"
+      ],
+      "webOrigins": ["*"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "protocolMappers": [
+        {
+          "name": "audience-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "scarletspots-mobile",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "scarletspots-backend-admin",
+      "name": "ScarletSpots Backend Admin",
+      "description": "Confidential service-account client used by the FastAPI backend for admin operations",
+      "enabled": true,
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "secret": "replace-with-secret",
+      "serviceAccountRoles": ["realm-admin"]
+    },
+    {
+      "clientId": "scarletspots",
+      "name": "ScarletSpots Web",
+      "description": "General web/admin client",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "redirectUris": ["http://localhost:*", "https://*.scarletspots.app/*"],
+      "webOrigins": ["*"]
+    }
+  ],
+  "passwordPolicy": "length(8) and upperCase(1) and digits(1) and notUsername()",
+  "smtpServer": {}
+}

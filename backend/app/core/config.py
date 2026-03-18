@@ -16,9 +16,6 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "ScarletSpots API"
     VERSION: str = "0.1.0"
 
-    # Supabase
-    SUPABASE_URL: str = Field(default="")
-    SUPABASE_SERVICE_ROLE_KEY: str = Field(default="")
 
     # Keycloak auth
     KEYCLOAK_URL: str = Field(default="")
