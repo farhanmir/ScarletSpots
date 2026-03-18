@@ -35,8 +35,6 @@ services:
     image: redis:7-alpine
     container_name: scarletspots-redis
     restart: unless-stopped
-    ports:
-      - "6379:6379"
 
   keycloak:
     image: quay.io/keycloak/keycloak:latest
