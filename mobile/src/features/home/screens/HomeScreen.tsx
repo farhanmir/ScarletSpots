@@ -182,6 +182,7 @@ export default function MapScreen() {
   const {
     user,
     session,
+    getAccessToken,
     permitType,
     secondaryPermitType,
     noPermitMode,
