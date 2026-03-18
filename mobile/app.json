@@ -24,6 +24,7 @@
       "bundleIdentifier": "com.scarletspots.app",
       "buildNumber": "1",
       "supportsTablet": true,
+      "newArchEnabled": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": ["location", "fetch"],
@@ -35,6 +36,7 @@
     "android": {
       "package": "com.scarletspots.app",
       "versionCode": 1,
+      "newArchEnabled": true,
       "backgroundColor": "#000000",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/scarletspots_logo.png",
