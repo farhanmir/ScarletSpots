@@ -11,43 +11,43 @@ Static lot metadata is bundled in the mobile app. Dynamic state lives in the bac
 
 ```text
 Mobile (Expo)
-  -> Keycloak OIDC login
+  -> Logto OIDC login
   -> FastAPI API calls
   -> WebSocket subscriptions (occupancy + notifications)
 
 FastAPI Backend
-  -> Verifies Keycloak JWT access tokens
+  -> Verifies Logto JWT access tokens
   -> Uses Postgres-compatible DB for app tables
   -> Uses Redis pub/sub for realtime fanout
   -> Publishes push notifications (Expo)
 
 Data + Identity Infrastructure
   -> Postgres (app data)
-  -> Keycloak + Keycloak Postgres
+  -> Logto + Logto Postgres
   -> pgAdmin4 for DB admin/recovery workflows
 ```
 
-## Authentication Architecture (Keycloak)
+## Authentication Architecture (Logto)
 
 ### Why
 
-- Replaces Supabase Auth dependency
+- Replaces legacy Supabase Auth dependency
 - Replaces Rutgers CAS-only SSO plan
 - Supports self-hosted identity and long-term control
 
 ### Flow
 
-1. Mobile obtains access token from Keycloak realm/client.
+1. Mobile obtains access token from Logto native app flow.
 2. Mobile calls backend with `Authorization: Bearer <token>`.
-3. Backend verifies token using Keycloak issuer + JWKS.
+3. Backend verifies token using Logto issuer + JWKS.
 4. Backend maps `sub` to internal profile identity.
 5. Protected routes and websocket auth rely on this token verification.
 
 ### Backend Contract
 
-- JWT issuer: `KEYCLOAK_ISSUER` or derived from URL + realm
-- Audience validation: controlled by `KEYCLOAK_VERIFY_AUDIENCE`
-- Admin operations: `KEYCLOAK_ADMIN_CLIENT_ID/SECRET`
+- JWT issuer: `LOGTO_ISSUER` (or derived from `LOGTO_ENDPOINT`)
+- Audience validation: controlled by `LOGTO_VERIFY_AUDIENCE`
+- Admin operations: `LOGTO_M2M_APP_ID/LOGTO_M2M_APP_SECRET`
 
 ## Data Model (Operational)
 
@@ -60,7 +60,7 @@ Core tables:
 - `user_favorites`
 - `device_push_tokens`
 
-Identity source is Keycloak; app profile rows remain in backend DB.
+Identity source is Logto; app profile rows remain in backend DB.
 
 ## Realtime Architecture
 
@@ -80,8 +80,8 @@ Target operational stack:
 - `api`: FastAPI backend
 - `app-db`: Postgres for app data
 - `redis`: pub/sub + cache
-- `keycloak`: identity provider
-- `keycloak-db`: Postgres for Keycloak
+- `logto`: identity provider
+- `logto-db`: Postgres for Logto
 - `pgadmin`: DB GUI and emergency operations
 
 This layout supports quick recovery by restoring DB data and relaunching compose services.
@@ -99,7 +99,7 @@ Recommended practice:
 
 - keep pgAdmin behind auth/network controls
 - avoid exposing pgAdmin publicly
-- maintain saved server connections for app-db and keycloak-db
+- maintain saved server connections for app-db and logto-db
 
 ## Disaster Recovery Design
 
@@ -107,6 +107,6 @@ Recovery objectives are based on container and volume restoration:
 
 1. Restore compose files and environment secrets.
 2. Restore Postgres volume snapshots or SQL dumps.
-3. Bring up `keycloak-db`, `keycloak`, `app-db`, `redis`, `api`, `pgadmin`.
+3. Bring up `logto-db`, `logto`, `app-db`, `redis`, `api`, `pgadmin`.
 4. Validate health endpoints and login flow.
 5. Verify websocket fanout and push token persistence.

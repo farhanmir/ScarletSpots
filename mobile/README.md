@@ -11,13 +11,12 @@ Create `mobile/.env` with:
 ```bash
 EXPO_PUBLIC_API_URL=http://localhost:8000/api/v1
 EXPO_PUBLIC_ENABLE_ALL_CAMPUSES=false
-
-# Keep only if legacy code paths still reference them during migration:
-EXPO_PUBLIC_SUPABASE_URL=
-EXPO_PUBLIC_SUPABASE_ANON_KEY=
+EXPO_PUBLIC_LOGTO_ENDPOINT=http://localhost:3001
+EXPO_PUBLIC_LOGTO_ISSUER=http://localhost:3001/oidc
+EXPO_PUBLIC_LOGTO_APP_ID=your-logto-native-app-id
 ```
 
-Auth direction is Keycloak-backed token flow through backend APIs.
+Auth direction is Logto-backed token flow through backend APIs.
 
 ## Run Locally
 
@@ -29,9 +28,9 @@ npx expo start
 
 ## Auth Notes
 
-- Mobile should authenticate against Keycloak realm/client configuration.
+- Mobile should authenticate against Logto native app configuration.
 - Backend protected routes require bearer access token.
-- During migration cleanup, remove remaining Supabase-auth-only assumptions from mobile auth providers/services.
+- Keep app and issuer IDs aligned with the Logto tenant used by backend.
 
 ## Operational Notes
 

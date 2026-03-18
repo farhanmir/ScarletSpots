@@ -1,40 +1,36 @@
 # ScarletSpots Backend
 
-FastAPI API service for sessions, occupancy, friends, favorites, and profile data.
+FastAPI backend for Rutgers parking sessions, occupancy, favorites, friendships, and profile data.
 
 ## Auth and Identity
 
-Authentication is Keycloak-based.
+Authentication is Logto-based.
 
-- Access tokens are validated against Keycloak issuer/JWKS
-- Signup and password reset use Keycloak admin operations
-- Rutgers email domain rules remain enforced in backend logic
+- Access tokens are validated against Logto issuer/JWKS via OIDC discovery.
+- Signup and password reset use Logto Management API through an M2M app.
+- Rutgers email domain rules are still enforced by backend business logic.
 
 ## Environment Variables
 
 Copy `backend/.env.example` to `backend/.env` and set values.
 
-Key identity variables:
+Core identity variables:
 
 ```bash
-KEYCLOAK_URL=https://auth.your-domain.com
-KEYCLOAK_REALM=scarletspots
-KEYCLOAK_ISSUER=
-KEYCLOAK_AUDIENCE=scarletspots-mobile
-KEYCLOAK_VERIFY_AUDIENCE=true
-KEYCLOAK_JWT_PUBLIC_KEY=
-KEYCLOAK_ADMIN_CLIENT_ID=scarletspots-backend-admin
-KEYCLOAK_ADMIN_CLIENT_SECRET=replace-with-secret
-KEYCLOAK_PASSWORD_RESET_CLIENT_ID=scarletspots-mobile
-KEYCLOAK_PASSWORD_RESET_REDIRECT_URI=
+LOGTO_ENDPOINT=http://logto:3001
+LOGTO_ISSUER=http://<server-host>:3001/oidc
+LOGTO_AUDIENCE=
+LOGTO_VERIFY_AUDIENCE=false
+
+LOGTO_M2M_APP_ID=replace-after-creating-m2m-app
+LOGTO_M2M_APP_SECRET=replace-after-creating-m2m-app
+LOGTO_MANAGEMENT_API_RESOURCE=https://default.logto.app/api
 ```
 
-Data layer variables:
+Core data variables:
 
 ```bash
-SUPABASE_URL=https://your-project-ref.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
-DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/scarletspots
+DATABASE_URL=postgresql+asyncpg://scarlet_admin:change-me@localhost:5432/scarletspots
 REDIS_URL=redis://localhost:6379/0
 ```
 
@@ -46,65 +42,59 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-## Keycloak Self-Hosting (Docker)
+## Full Stack Docker (Recommended)
 
-A dedicated compose file is included:
-
-- `docker-compose.keycloak.yml`
-
-Run:
+From repository root:
 
 ```bash
-docker compose -f docker-compose.keycloak.yml pull
-docker compose -f docker-compose.keycloak.yml up -d
+docker compose pull
+docker compose up --build -d
 ```
 
-Keycloak setup details are in `keycloak/README.md`.
+Stack services:
 
-## Whole-Server Dockerization Target
+- `app-db` (Postgres for app data)
+- `logto-db` (Postgres for Logto)
+- `redis`
+- `logto`
+- `backend`
+- `pgadmin`
 
-The intended production stack is:
+## First-Time Logto Setup
 
-- API service
-- Postgres for app data
-- Redis
-- Keycloak
-- Keycloak Postgres
-- pgAdmin4
+1. Open Logto admin console at `http://<server-host>:3002`.
+2. Complete tenant initialization wizard.
+3. Create a Machine-to-Machine app for backend management operations.
+4. Grant it Management API access.
+5. Create a Native app for mobile login.
+6. Put generated app IDs/secrets into `backend/.env` and mobile env.
+7. Restart backend after env updates:
 
-If only Keycloak compose is currently present, treat it as the first stage; keep the rest of the stack documented and staged in deployment runbooks until all compose artifacts are committed.
+```bash
+docker compose up -d --force-recreate backend
+```
 
-## pgAdmin4 Guidance
+## Health Checks
+
+- Backend health: `http://<server-host>:8001/health`
+- Logto API health: `http://<server-host>:3001/api/status`
+
+## pgAdmin Guidance
 
 Use pgAdmin4 to:
 
-- connect to app-db and keycloak-db
-- inspect migration status
-- validate post-restore data integrity
-- run emergency diagnostics
+- connect to `app-db` and `logto-db`
+- inspect migrations and schema state
+- verify recovery data integrity
 
-Security:
+Security guidance:
 
-- private network access only
-- do not expose pgAdmin4 directly to the public internet
-
-## Recovery Checklist
-
-1. Restore `.env` secrets.
-2. Pull latest images.
-3. Start identity and data services.
-4. Start API service.
-5. Validate:
-   - `/health`
-   - Keycloak realm endpoints
-   - protected API route with bearer token
-   - websocket auth + occupancy fanout
-6. Verify DB integrity through pgAdmin4.
+- keep pgAdmin behind private network controls
+- do not expose pgAdmin publicly in production
 
 ## Testing
 
 ```bash
+cd backend
 pytest tests/
 ```
-
-If running tests in a fresh environment, install backend dependencies first (including SQLAlchemy and related packages).

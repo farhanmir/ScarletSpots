@@ -18,7 +18,7 @@ Background or foreground park action
 
 ## Auth Layer
 
-WebSocket auth now uses Keycloak access token verification:
+WebSocket auth now uses Logto access token verification:
 
 1. client connects to websocket endpoint
 2. client sends auth payload containing bearer token
@@ -49,6 +49,6 @@ Current push foundation:
 
 After deploy/recovery:
 
-1. validate websocket auth with Keycloak token
+1. validate websocket auth with Logto token
 2. start session from one client and observe occupancy update on another
 3. verify push token registration and dispatch path

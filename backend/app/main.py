@@ -22,7 +22,7 @@ from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
 
 
-# FastAPI Lifespan — Keycloak client init
+# FastAPI lifespan — Logto client init
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Initialize shared clients once per process

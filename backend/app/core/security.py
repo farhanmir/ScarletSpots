@@ -28,6 +28,7 @@ _OIDC_CACHE_EXPIRES_AT: float = 0
 # Logto OIDC helpers
 # ---------------------------------------------------------------------------
 
+
 def _logto_endpoint() -> str:
     url = str(settings.LOGTO_ENDPOINT or "").rstrip("/")
     if not url:
@@ -145,6 +146,11 @@ def decode_logto_jwt_token(token: str) -> dict:
     return payload
 
 
+# Backward-compat alias for legacy imports.
+def decode_keycloak_jwt_token(token: str) -> dict:
+    return decode_logto_jwt_token(token)
+
+
 def verify_access_token(auth: HTTPAuthorizationCredentials = Security(security)):
     """Decode and verify a Logto access token."""
     token = auth.credentials
@@ -188,6 +194,7 @@ def get_current_user(payload: dict = Depends(verify_access_token)):
 # Logto Management API service
 # ---------------------------------------------------------------------------
 
+
 class LogtoManagementService:
     """Calls the Logto Management API using M2M client_credentials token."""
 
@@ -199,7 +206,9 @@ class LogtoManagementService:
     def _endpoint(self) -> str:
         base = str(settings.LOGTO_ENDPOINT or "").rstrip("/")
         if not base:
-            raise HTTPException(status_code=500, detail="LOGTO_ENDPOINT is not configured")
+            raise HTTPException(
+                status_code=500, detail="LOGTO_ENDPOINT is not configured"
+            )
         return base
 
     def _m2m_credentials(self) -> tuple[str, str]:
@@ -218,7 +227,9 @@ class LogtoManagementService:
             return self._token
 
         app_id, app_secret = self._m2m_credentials()
-        resource = str(settings.LOGTO_MANAGEMENT_API_RESOURCE or "https://default.logto.app/api").strip()
+        resource = str(
+            settings.LOGTO_MANAGEMENT_API_RESOURCE or "https://default.logto.app/api"
+        ).strip()
         token_url = f"{self._endpoint}/oidc/token"
 
         try:
@@ -249,7 +260,9 @@ class LogtoManagementService:
         token = str(data.get("access_token") or "")
         expires_in = int(data.get("expires_in") or 60)
         if not token:
-            raise HTTPException(status_code=502, detail="Logto M2M response missing access_token")
+            raise HTTPException(
+                status_code=502, detail="Logto M2M response missing access_token"
+            )
 
         self._token = token
         self._token_expires_at = now + max(expires_in - 10, 10)
@@ -270,7 +283,9 @@ class LogtoManagementService:
             "Content-Type": "application/json",
         }
         with httpx.Client(timeout=8.0) as client:
-            return client.request(method, url, json=json_body, params=params, headers=headers)
+            return client.request(
+                method, url, json=json_body, params=params, headers=headers
+            )
 
     def _find_user_by_email(self, email: str) -> dict | None:
         response = self._api_request("GET", "users", params={"search": email})
@@ -346,6 +361,7 @@ class LogtoManagementService:
 # Compat facade (routers call auth.admin.create_user / auth.admin.generate_link)
 # ---------------------------------------------------------------------------
 
+
 class _LogtoAdminApi:
     def __init__(self, service: LogtoManagementService) -> None:
         self._service = service
@@ -373,6 +389,7 @@ class LogtoAdminClientFacade:
 # Application lifecycle helpers
 # ---------------------------------------------------------------------------
 
+
 def init_clients() -> dict:
     """Initialise shared auth clients for the app lifespan."""
     admin_auth = LogtoAdminClientFacade(LogtoManagementService())
@@ -396,6 +413,7 @@ async def close_supabase_clients() -> None:
 def get_admin_auth_client():
     """Return the shared Logto admin facade from app.state."""
     from app.main import app
+
     return app.state.admin_auth
 
 
@@ -412,9 +430,10 @@ async def require_admin_async(
     db=Depends(None),
 ):
     """Async admin check via SQLAlchemy profiles table."""
+    from uuid import UUID
+
     from app.models.user import Profile
     from sqlalchemy import select
-    from uuid import UUID
 
     try:
         user_id = UUID(str(current_user.id))
@@ -433,4 +452,5 @@ async def require_admin_async(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required",
         )
+    return current_user
     return current_user

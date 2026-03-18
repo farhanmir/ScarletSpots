@@ -10,7 +10,7 @@ Deploy ScarletSpots on OCI Always Free with a recoverable containerized architec
 - Orchestration: Docker Compose
 - App data: Postgres container + persistent volume
 - Realtime bus: Redis container
-- Identity: Keycloak + dedicated Postgres container
+- Identity: Logto + dedicated Postgres container
 - DB admin: pgAdmin4
 - API: FastAPI container
 
@@ -25,7 +25,7 @@ Deploy ScarletSpots on OCI Always Free with a recoverable containerized architec
 
 - Expose only required public ports (typically 80/443 via reverse proxy).
 - Keep Postgres, Redis, pgAdmin private on internal docker network.
-- Place Keycloak and API behind HTTPS.
+- Place Logto and API behind HTTPS.
 - Store secrets in `.env` outside source control.
 
 ## Deployment Sequence
@@ -37,7 +37,7 @@ Deploy ScarletSpots on OCI Always Free with a recoverable containerized architec
 5. Start stack with compose.
 6. Run smoke checks:
    - API health
-   - Keycloak realm endpoint
+   - Logto OIDC discovery endpoint
    - DB connectivity
    - WebSocket handshake
 
@@ -45,7 +45,7 @@ Deploy ScarletSpots on OCI Always Free with a recoverable containerized architec
 
 ### Backups
 
-- Daily `pg_dump` for app-db and keycloak-db
+- Daily `pg_dump` for app-db and logto-db
 - Optional periodic volume snapshots
 - Secure copy to Object Storage or off-host target
 
@@ -72,7 +72,7 @@ Operational recommendation:
 
 ## Acceptance Criteria
 
-- Auth works via Keycloak after full restart
+- Auth works via Logto after full restart
 - API and websocket paths remain functional
 - Restore drill can be executed in a single session without undocumented steps
 - Recovery docs are current and tested
