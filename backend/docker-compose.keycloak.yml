@@ -26,7 +26,6 @@ services:
       - start
       - --proxy-headers=xforwarded
       - --hostname-strict=false
-      - --hostname-strict-https=false
       - --http-enabled=true
     environment:
       KC_DB: postgres
