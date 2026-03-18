@@ -40,7 +40,8 @@ Complete the transition from Keycloak to **Logto** for a more modern, developer-
 
 ### 2) Integration Verification
 - Verify that the mobile app can successfully perform OIDC login via Logto.
-- Verify that the backend can create users via the Management API during signup.
+- Decide and standardize backend published port strategy:
+  - keep backend mapped to 8001 and document it consistently.
 - Verify that password reset emails are triggered correctly.
 
 ### 3) Security Hardening

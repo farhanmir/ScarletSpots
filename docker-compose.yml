@@ -49,7 +49,7 @@ services:
       logto-db:
         condition: service_healthy
     # Seed DB on first boot then start the server
-    command: ["sh", "-c", "npx @logto/cli db seed -- --swe; npm start"]
+    entrypoint: ["sh", "-c", "npx @logto/cli db seed -- --swe; npm start"]
     environment:
       DB_URL: postgresql://${LOGTO_DB_USER:-logto}:${LOGTO_DB_PASSWORD:-change-me}@logto-db:5432/${LOGTO_DB_NAME:-logto}
       # Public-facing endpoint (what gets embedded in tokens as issuer)
@@ -88,7 +88,7 @@ services:
       # Backend container reaches Logto via internal service name
       LOGTO_ENDPOINT: http://logto:3001
     ports:
-      - "8000:8000"
+      - "8001:8000"
 
   pgadmin:
     image: dpage/pgadmin4:9.3
