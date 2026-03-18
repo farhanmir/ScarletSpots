@@ -11,7 +11,7 @@ import {
 import { wasRecentlyDriving } from "./ParkingDetectionService";
 import { getCachedSession, clearCachedSession } from "./OfflineCache";
 import { queueParkAction } from "./OfflineQueue";
-import { supabase } from "@/shared/api/supabase-client";
+import { getAccessTokenSilently } from "@/providers/AuthProvider";
 import { fetchBackend } from "@/shared/api/api-base";
 
 export const GEOFENCE_TASK_NAME = "SCARLETSPOTS_GEOFENCE_TASK";
@@ -22,13 +22,7 @@ interface LotGeoPoint {
   longitude: number;
 }
 
-/**
- * Registers geofences for parking lots from the bundled JSON data.
- * Lot coordinates come from the static data — no API call needed.
- * When a user enters a geofence, intensive location/sensor tracking starts.
- */
 let isRegistering = false;
-/** Last lot set passed to registerLotGeofences — used by the retry listener. */
 let _lastLots: LotGeoPoint[] = [];
 
 export async function registerLotGeofences(lots: LotGeoPoint[]) {
@@ -37,34 +31,31 @@ export async function registerLotGeofences(lots: LotGeoPoint[]) {
   isRegistering = true;
   _lastLots = lots;
 
-  // Single try/finally guarantees isRegistering is reset on every exit path,
-  // including permission-denied and permission-check-error early-outs.
   try {
-    // Check permissions — fail fast but always release the lock via finally.
     let bgStatus: string;
     try {
       const result = await Location.getBackgroundPermissionsAsync();
       bgStatus = result.status;
     } catch (err) {
       console.warn("[GeofenceManager] Failed to check permissions:", err);
-      return; // lock released by outer finally
+      return;
     }
 
     if (bgStatus !== "granted") {
       console.warn(
         "[GeofenceManager] Background location permission not granted. Geofencing will not work.",
       );
-      return; // lock released by outer finally
+      return;
     }
 
     const regions = lots
       .filter((lot) => lot.latitude && lot.longitude)
-      .slice(0, 20) // iOS has a strict hard limit of 20 monitored regions per app
+      .slice(0, 20)
       .map((lot) => ({
         identifier: String(lot.id),
         latitude: Number(lot.latitude),
         longitude: Number(lot.longitude),
-        radius: 500, // 500 meters radius to trigger "near lot" state
+        radius: 500,
         notifyOnEntry: true,
         notifyOnExit: true,
       }));
@@ -84,12 +75,6 @@ export async function registerLotGeofences(lots: LotGeoPoint[]) {
   }
 }
 
-/**
- * Re-attempt geofence registration when the app returns to the foreground.
- * This handles the common case where the user navigates to iOS Settings,
- * grants background location, then returns — the lock is now clear and
- * registration will succeed on the next foreground transition.
- */
 AppState.addEventListener("change", (nextState) => {
   if (nextState === "active" && _lastLots.length > 0) {
     registerLotGeofences(_lastLots).catch((err) =>
@@ -110,10 +95,8 @@ TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }: any) => {
     console.log(
       `[GeofenceManager] Entered region: ${region.identifier}. Starting active tracking.`,
     );
-    // Save the lot ID we are near
     await AsyncStorage.setItem("current_geofence_lot_id", region.identifier);
 
-    // Start active location tracking with higher accuracy
     await Location.startLocationUpdatesAsync(PARKING_DETECTION_TASK, {
       accuracy: Location.Accuracy.High,
       distanceInterval: 5,
@@ -131,8 +114,6 @@ TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }: any) => {
     );
     await AsyncStorage.removeItem("current_geofence_lot_id");
 
-    // Stop active tracking and sensors to save battery/memory.
-    // Do not let this throw block the auto-end flow.
     stopSensorTracking();
     try {
       const isTracking = await Location.hasStartedLocationUpdatesAsync(
@@ -145,7 +126,6 @@ TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }: any) => {
       console.warn("[GeofenceManager] Failed to stop active tracking:", err);
     }
 
-    // Auto-end parking session only when user DRIVES out (not when walking to class)
     try {
       const recentlyDrivingInMemory = wasRecentlyDriving();
       const recentlyDrivingPersisted = await wasDrivingRecentlyForAutoEnd();
@@ -160,18 +140,15 @@ TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }: any) => {
       } | null;
       const sessionLotId = cached?.session?.lotId;
       if (sessionLotId && String(region.identifier) === String(sessionLotId)) {
-        const {
-          data: { session: authSession },
-        } = await supabase.auth.getSession();
+        const accessToken = await getAccessTokenSilently();
         const netState = await NetInfo.fetch();
-        if (authSession?.access_token) {
+        if (accessToken) {
           if (netState.isConnected) {
             const response = await fetchBackend("/park/session/end", {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
-                Authorization: `Bearer ${authSession.access_token}`,
-                apikey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "",
+                Authorization: `Bearer ${accessToken}`,
               },
               body: "{}",
             });

@@ -6,8 +6,9 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
-import { Session, User } from "@supabase/supabase-js";
-import { supabase, authApiCall } from "@/shared/api/supabase";
+import { LogtoProvider, useLogto } from "@logto/rn";
+import { logtoConfig } from "@/shared/api/logto";
+import { fetchBackend, safeJson } from "@/shared/api/api-base";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { NB_CAMPUS_NAMES } from "@/shared/constants/lots";
 import {
@@ -20,7 +21,6 @@ import {
 export type CustomLotFilter = Set<"student" | "employee" | "gated" | "ev">;
 export type NoPermitMode = "commuter_all" | "all" | null;
 
-/** Parse the raw `permit_type` string stored in the DB into structured state. */
 function parsePermitPreference(raw: string | null): {
   permitType: string | null;
   noPermitMode: NoPermitMode;
@@ -45,42 +45,31 @@ function parsePermitPreference(raw: string | null): {
 // ── Context type ──────────────────────────────────────────────────────────
 
 type AuthContextType = {
-  session: Session | null;
-  user: User | null;
+  isAuthenticated: boolean;
   loading: boolean;
+  signIn: () => Promise<void>;
   signOut: () => Promise<void>;
+  getIdTokenClaims: () => Promise<any>;
+  getAccessToken: (resource?: string) => Promise<string | undefined>;
 
-  /** Raw permit_type string as stored in the DB (or null if not set). */
   permitType: string | null;
-  /** Secondary commuter permit type (stored locally). */
   secondaryPermitType: string | null;
-  /**
-   * 'commuter_all' → show union of all commuter lots.
-   * 'custom'       → show lots matching customLotFilter attributes.
-   * null           → permitType is a real permit name (or not configured).
-   */
   noPermitMode: NoPermitMode;
-  /** Active when noPermitMode === 'custom'. */
   customLotFilter: CustomLotFilter;
-  /**
-   * Save a permit preference and update context immediately.
-   * Pass null to clear the preference.
-   */
   setPermitPreference: (raw: string | null) => Promise<void>;
-  /** Save a secondary permit preference (local only). */
   setSecondaryPermitPreference: (raw: string | null) => Promise<void>;
 
-  /** Set of campus names that are enabled for display. */
   enabledCampuses: Set<string>;
-  /** Toggle a campus on or off. */
   toggleCampus: (campus: string) => void;
 };
 
 const AuthContext = createContext<AuthContextType>({
-  session: null,
-  user: null,
+  isAuthenticated: false,
   loading: true,
+  signIn: async () => {},
   signOut: async () => {},
+  getIdTokenClaims: async () => ({}),
+  getAccessToken: async () => undefined,
   permitType: null,
   secondaryPermitType: null,
   noPermitMode: null,
@@ -93,12 +82,26 @@ const AuthContext = createContext<AuthContextType>({
 
 export const useAuth = () => useContext(AuthContext);
 
-export function AuthProvider({
-  children,
-}: Readonly<{ children: React.ReactNode }>) {
-  const [session, setSession] = useState<Session | null>(null);
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+/**
+ * Global getter for access tokens.
+ * Allows non-hook functions (like authApiCall) to retrieve a valid token.
+ */
+export let getAccessTokenSilently: () => Promise<string | undefined> = async () => undefined;
+
+function AuthProviderInner({ children }: { children: React.ReactNode }) {
+  const {
+    isAuthenticated,
+    isLoading: loading,
+    signIn: logtoSignIn,
+    signOut: logtoSignOut,
+    getIdTokenClaims,
+    getAccessToken,
+  } = useLogto();
+
+  // Sync the global getter
+  useEffect(() => {
+    getAccessTokenSilently = getAccessToken;
+  }, [getAccessToken]);
 
   const [permitType, setPermitType] = useState<string | null>(null);
   const [secondaryPermitType, setSecondaryPermitType] = useState<string | null>(
@@ -109,12 +112,10 @@ export function AuthProvider({
     new Set(),
   );
 
-  // ── Campus filter ──
   const [enabledCampuses, setEnabledCampuses] = useState<Set<string>>(
     new Set(NB_CAMPUS_NAMES),
   );
 
-  // Load saved campus and secondary permit preferences from AsyncStorage
   useEffect(() => {
     AsyncStorage.getItem("enabled_campuses").then((raw) => {
       if (raw) {
@@ -133,7 +134,6 @@ export function AuthProvider({
     setEnabledCampuses((prev) => {
       const next = new Set(prev);
       if (next.has(campus)) {
-        // Don't allow disabling all campuses
         if (next.size > 1) next.delete(campus);
       } else {
         next.add(campus);
@@ -143,7 +143,6 @@ export function AuthProvider({
     });
   }, []);
 
-  /** Apply parsed permit state from a raw DB string. */
   const applyPermitRaw = useCallback((raw: string | null) => {
     const parsed = parsePermitPreference(raw);
     setPermitType(parsed.permitType);
@@ -151,72 +150,61 @@ export function AuthProvider({
     setCustomLotFilter(parsed.customLotFilter);
   }, []);
 
-  /** Fetch the user's profile and hydrate permit state. */
   const loadProfile = useCallback(async () => {
     try {
-      const profile = await authApiCall("/users/me");
+      const token = await getAccessToken();
+      if (!token) return;
+      
+      const response = await fetchBackend("/users/me", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const profile = await safeJson(response);
       if (profile?.permit_type !== undefined) {
         applyPermitRaw(profile.permit_type);
       }
     } catch {
-      // Profile fetch failing should not block auth — leave permit as null
+      // Profile fetch failing should not block auth
     }
-  }, [applyPermitRaw]);
+  }, [applyPermitRaw, getAccessToken]);
 
   useEffect(() => {
-    const fetchSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    };
-
-    fetchSession();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  // Load profile (and permit_type) whenever a session appears
-  useEffect(() => {
-    if (session) {
+    if (isAuthenticated) {
       loadProfile();
       syncPushTokenToBackend();
     } else {
-      // Clear permit state on sign-out
       applyPermitRaw(null);
       clearPushTokenFromBackend();
     }
-  }, [session, loadProfile, applyPermitRaw]);
+  }, [isAuthenticated, loadProfile, applyPermitRaw]);
+
+  const signIn = async () => {
+    await logtoSignIn("com.scarletspots.app://callback");
+  };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    await logtoSignOut();
   };
 
   const setPermitPreference = useCallback(
     async (raw: string | null) => {
       applyPermitRaw(raw);
       try {
-        await authApiCall("/users/me", {
+        const token = await getAccessToken();
+        await fetchBackend("/users/me", {
           method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({ permit_type: raw }),
         });
       } catch {
         console.warn("[AuthProvider] Failed to save permit_type to backend");
       }
     },
-    [applyPermitRaw],
+    [applyPermitRaw, getAccessToken],
   );
 
   const setSecondaryPermitPreference = useCallback(
@@ -233,10 +221,12 @@ export function AuthProvider({
 
   const contextValue = useMemo(
     () => ({
-      session,
-      user,
+      isAuthenticated,
       loading,
+      signIn,
       signOut,
+      getIdTokenClaims,
+      getAccessToken,
       permitType,
       secondaryPermitType,
       noPermitMode,
@@ -247,10 +237,12 @@ export function AuthProvider({
       toggleCampus,
     }),
     [
-      session,
-      user,
+      isAuthenticated,
       loading,
+      signIn,
       signOut,
+      getIdTokenClaims,
+      getAccessToken,
       permitType,
       secondaryPermitType,
       noPermitMode,
@@ -266,5 +258,13 @@ export function AuthProvider({
     <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
+  );
+}
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  return (
+    <LogtoProvider config={logtoConfig}>
+      <AuthProviderInner>{children}</AuthProviderInner>
+    </LogtoProvider>
   );
 }

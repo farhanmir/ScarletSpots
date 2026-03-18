@@ -1,30 +1,19 @@
-import { supabase, supabaseAnonKey } from "./supabase-client";
-
-// API Helpers derived from base
+import { getAccessTokenSilently } from "@/providers/AuthProvider";
 import { fetchBackend, safeJson } from "./api-base";
-
 import NetInfo from "@react-native-community/netinfo";
 import { queueParkAction } from "@/shared/services/OfflineQueue";
-export { supabase, supabaseAnonKey };
 
 /**
- * Public API call - uses the anon key, no user session required.
- * Use for endpoints like /lots, /signup that don't need auth.
+ * Public API call.
  */
 export async function publicApiCall(
   endpoint: string,
   options: RequestInit = {},
 ): Promise<any> {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
   const response = await fetchBackend(endpoint, {
     ...options,
     headers: {
       "Content-Type": "application/json",
-      apikey: supabaseAnonKey,
-      Authorization: `Bearer ${session?.access_token || supabaseAnonKey}`,
       ...(options.headers || {}),
     } as HeadersInit,
   });
@@ -43,9 +32,7 @@ export async function publicApiCall(
 }
 
 /**
- * Authenticated API call - requires a valid user session.
- * Use for endpoints like /park/session/active that need the user's JWT.
- * Returns null silently if no session exists (instead of crashing).
+ * Authenticated API call using Logto tokens.
  */
 export async function authApiCall(
   endpoint: string,
@@ -56,7 +43,6 @@ export async function authApiCall(
   if (!netState.isConnected) {
     console.log(`[authApiCall] device offline, queueing ${endpoint}`);
 
-    // Use the unified OfflineQueue
     const payload = options.body ? JSON.parse(options.body as string) : {};
     if (endpoint.includes("/park/session") && options.method === "POST") {
       await queueParkAction(
@@ -72,7 +58,7 @@ export async function authApiCall(
         },
       };
     } else if (options.method && options.method !== "GET") {
-      // @ts-ignore - endpoint is added to QueuedParkAction in service
+      // @ts-ignore
       await queueParkAction(
         "GENERIC_MUTATION",
         payload,
@@ -84,13 +70,11 @@ export async function authApiCall(
     return { success: true, _offline: true };
   }
 
-  // 1. Get current session
-  let {
-    data: { session },
-  } = await supabase.auth.getSession();
+  // 1. Get current token from global getter
+  const accessToken = await getAccessTokenSilently();
 
-  if (!session?.access_token) {
-    console.log(`No session for authenticated call to ${endpoint}, skipping.`);
+  if (!accessToken) {
+    console.log(`No token for authenticated call to ${endpoint}, skipping.`);
     return null;
   }
 
@@ -101,18 +85,11 @@ export async function authApiCall(
       ...options,
       headers: {
         "Content-Type": "application/json",
-        apikey: supabaseAnonKey as string,
-        Authorization: `Bearer ${session?.access_token || supabaseAnonKey}`,
-        "x-user-token": session?.access_token || "",
+        Authorization: `Bearer ${accessToken}`,
         ...(options.headers || {}),
       } as HeadersInit,
     });
   } catch {
-    // Fetch threw an error (likely network failure midway).
-    // For park mutations, queue the semantic action type and return the same
-    // consistent session payload that the explicit offline path returns — so
-    // handlePark always receives a usable session object regardless of which
-    // offline path was taken.
     console.log(`[authApiCall] Network fetch failed, queueing ${endpoint}`);
     const payload = options.body ? JSON.parse(options.body as string) : {};
     if (endpoint.includes("/park/session") && options.method === "POST") {
@@ -145,31 +122,10 @@ export async function authApiCall(
     return { success: true, _offline: true };
   }
 
-  // 4. Handle 401 ...
+  // Note: Logto SDK handles token refreshing internally via getAccessTokenSilently.
+  // If we get a 401 here, it truly means the token is invalid or the session is gone.
   if (response.status === 401) {
-    const { data: refreshData, error: refreshError } =
-      await supabase.auth.refreshSession();
-    if (!refreshError && refreshData.session) {
-      try {
-        response = await fetchBackend(endpoint, {
-          ...options,
-          headers: {
-            ...options.headers,
-            Authorization: `Bearer ${refreshData.session.access_token}`,
-            "x-user-token": refreshData.session.access_token,
-          } as any,
-        });
-      } catch {
-        return { success: true, _offline: true };
-      }
-    } else {
-      await supabase.auth.signOut();
-      return null;
-    }
-  }
-
-  if (response.status === 401) {
-    await supabase.auth.signOut();
+    console.log("401 Unauthorized from backend, token might be invalid.");
     return null;
   }
 
@@ -182,7 +138,7 @@ export async function authApiCall(
   return data;
 }
 
-// Keep backward-compatible apiCall that routes to the right one
+// Keep backward-compatible apiCall
 export async function apiCall(
   endpoint: string,
   options: RequestInit = {},

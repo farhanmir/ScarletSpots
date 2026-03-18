@@ -1,9 +1,8 @@
-import React, { useState } from "react";
+import React from "react";
 import {
   StyleSheet,
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   ActivityIndicator,
   Alert,
@@ -12,7 +11,7 @@ import {
   ScrollView,
 } from "react-native";
 
-import { supabase } from "@/shared/api/supabase";
+import { useAuth } from "@/providers/AuthProvider";
 import { Stack, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { IconSymbol } from "@/shared/components/ui/icon-symbol";
@@ -20,45 +19,19 @@ import { GlassBackground } from "@/shared/components/ui/GlassBackground";
 
 export default function LoginScreen() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const validateForm = (): string | null => {
-    if (!email || !password) {
-      return "Please fill in all fields";
-    }
-    return null;
-  };
-
-  const signIn = async () => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) throw error;
-  };
+  const { signIn, loading } = useAuth();
 
   async function handleAuth() {
-    const validationError = validateForm();
-    if (validationError) {
-      Alert.alert("Error", validationError);
-      return;
-    }
-
-    setLoading(true);
     try {
       await signIn();
-      // Ensure we redirect to root which handles permissions
-      router.replace("/" as any);
+      // AuthProvider handles redirect via InitialLayout when session appears
     } catch (error: any) {
-      Alert.alert(
-        "Authentication Failed",
-        error.message || "An error occurred",
-      );
-    } finally {
-      setLoading(false);
+      if (error.message !== "User cancelled") {
+        Alert.alert(
+          "Authentication Failed",
+          error.message || "An error occurred",
+        );
+      }
     }
   }
 
@@ -66,8 +39,6 @@ export default function LoginScreen() {
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* Gradient background */}
-      {/* Sweeping background gradient from top-center */}
       <View style={StyleSheet.absoluteFill}>
         <LinearGradient
           colors={["#450a0a", "#18181b", "#000000"]}
@@ -86,7 +57,6 @@ export default function LoginScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity
               style={styles.backButton}
@@ -99,12 +69,11 @@ export default function LoginScreen() {
             </TouchableOpacity>
 
             <View style={styles.headerTextWrap}>
-              <Text style={styles.title}>Welcome Back</Text>
-              <Text style={styles.subtitle}>Sign in to continue</Text>
+              <Text style={styles.title}>ScarletSpots</Text>
+              <Text style={styles.subtitle}>Sign in with Rutgers NetID</Text>
             </View>
           </View>
 
-          {/* Form Card */}
           <View style={styles.cardContainer}>
             <GlassBackground
               style={StyleSheet.absoluteFill}
@@ -114,42 +83,11 @@ export default function LoginScreen() {
               fallbackColor="rgba(24,24,27,0.8)"
             />
             <View style={styles.cardInner}>
-              {/* Email */}
-              <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Rutgers Email</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="netid@rutgers.edu"
-                  placeholderTextColor="#71717a"
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                  value={email}
-                  onChangeText={setEmail}
-                />
-              </View>
+              <Text style={styles.description}>
+                Authentication is now handled securely via Logto. You will be
+                redirected to your browser to sign in.
+              </Text>
 
-              {/* Password */}
-              <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Password</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="••••••••"
-                  placeholderTextColor="#71717a"
-                  secureTextEntry={true}
-                  value={password}
-                  onChangeText={setPassword}
-                />
-              </View>
-
-              {/* Forgot Password */}
-              <TouchableOpacity
-                style={styles.forgotButton}
-                onPress={() => router.push("/auth/forgot-password" as any)}
-              >
-                <Text style={styles.forgotText}>Forgot Password?</Text>
-              </TouchableOpacity>
-
-              {/* Submit */}
               <TouchableOpacity
                 style={styles.button}
                 onPress={handleAuth}
@@ -159,15 +97,14 @@ export default function LoginScreen() {
                 {loading ? (
                   <ActivityIndicator color="white" />
                 ) : (
-                  <Text style={styles.buttonText}>Sign In</Text>
+                  <Text style={styles.buttonText}>Continue to Sign In</Text>
                 )}
               </TouchableOpacity>
 
-              {/* Demo hint */}
               <View style={styles.demoBox}>
                 <Text style={styles.demoText}>
                   <Text style={styles.demoBold}>Tip: </Text>
-                  Use your NetID or ScarletMail credentials.
+                  Use your Rutgers email on the next screen.
                 </Text>
               </View>
             </View>
@@ -192,8 +129,6 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === "ios" ? 80 : 60,
     paddingBottom: 40,
   },
-
-  // --- Header ---
   header: {
     marginBottom: 40,
     marginTop: 20,
@@ -211,7 +146,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.1)",
     justifyContent: "center",
     alignItems: "center",
-    paddingRight: 2, // optical center for chevron
+    paddingRight: 2,
   },
   headerTextWrap: {
     marginLeft: 4,
@@ -228,8 +163,6 @@ const styles = StyleSheet.create({
     color: "#a1a1aa",
     fontWeight: "500",
   },
-
-  // --- Card ---
   cardContainer: {
     width: "100%",
     borderRadius: 32,
@@ -245,46 +178,13 @@ const styles = StyleSheet.create({
   cardInner: {
     padding: 32,
   },
-
-  // --- Fields ---
-  fieldGroup: {
-    marginBottom: 20,
+  description: {
+    color: "#d4d4d8",
+    fontSize: 15,
+    lineHeight: 22,
+    marginBottom: 24,
+    textAlign: "center",
   },
-  label: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#d4d4d8", // zinc-300
-    marginBottom: 8,
-  },
-  input: {
-    height: 54,
-    backgroundColor: "rgba(0,0,0,0.2)", // Darker input field inside the glass card
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    paddingHorizontal: 16,
-    color: "#ffffff",
-    fontSize: 16,
-  },
-  hint: {
-    fontSize: 12,
-    color: "#71717a", // zinc-500
-    marginTop: 6,
-  },
-
-  // --- Forgot Password ---
-  forgotButton: {
-    alignSelf: "flex-end",
-    marginBottom: 8,
-    marginTop: -8,
-  },
-  forgotText: {
-    fontSize: 13,
-    color: "#ef4444",
-    fontWeight: "500",
-  },
-
-  // --- Button ---
   button: {
     height: 56,
     backgroundColor: "#dc2626",
@@ -304,24 +204,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 0.3,
   },
-
-  // --- Switch ---
-  switchRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginTop: 20,
-  },
-  switchText: {
-    fontSize: 14,
-    color: "#a1a1aa", // zinc-400
-  },
-  switchLink: {
-    fontSize: 14,
-    color: "#ef4444", // red-500
-    fontWeight: "600",
-  },
-
-  // --- Demo ---
   demoBox: {
     marginTop: 24,
     backgroundColor: "rgba(0,0,0,0.25)",

@@ -48,14 +48,17 @@ services:
     depends_on:
       logto-db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     # Try to seed DB on boot, but continue if it's already initialized.
     entrypoint: ["sh", "-c", "npx @logto/cli db seed -- --swe || true; npm start"]
     environment:
       DB_URL: postgresql://${LOGTO_DB_USER:-logto}:${LOGTO_DB_PASSWORD:-change-me}@logto-db:5432/${LOGTO_DB_NAME:-logto}
+      REDIS_URL: redis://redis:6379/0
       # Public-facing endpoint (what gets embedded in tokens as issuer)
-      ENDPOINT: http://localhost:3001
+      ENDPOINT: ${LOGTO_PUBLIC_ENDPOINT:-http://localhost:3001}
       # Admin console endpoint
-      ADMIN_ENDPOINT: http://localhost:3002
+      ADMIN_ENDPOINT: ${LOGTO_ADMIN_ENDPOINT:-http://localhost:3002}
       TRUST_PROXY_HEADER: "1"
     ports:
       - "127.0.0.1:3001:3001"

@@ -11,7 +11,7 @@ import {
 import { Stack, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { supabase } from "@/shared/api/supabase";
+import { publicApiCall } from "@/shared/api/supabase";
 
 const RESEND_COOLDOWN_S = 60;
 
@@ -61,15 +61,25 @@ export default function ForgotPasswordScreen() {
 
     setLoading(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(trimmed);
-      if (error) throw error;
+      const response = await publicApiCall("/users/password-reset", {
+        method: "POST",
+        body: JSON.stringify({ email: trimmed }),
+      });
+      if (response.success) {
+        setSent(true);
+        startCooldown();
+      } else {
+        throw new Error(response.message || "Failed to send reset email");
+      }
+    } catch (error: any) {
+      // Still show "sent" state to avoid email enumeration if backend returns error,
+      // but here the backend already handles enumeration protection.
+      Alert.alert(
+        "Reset Requested",
+        "If that email exists, a reset link has been sent.",
+      );
       setSent(true);
       startCooldown();
-    } catch (error: any) {
-      Alert.alert(
-        "Reset Failed",
-        error?.message || "Could not send reset email. Please try again.",
-      );
     } finally {
       setLoading(false);
     }
@@ -77,22 +87,7 @@ export default function ForgotPasswordScreen() {
 
   const handleResend = async () => {
     if (cooldown > 0) return;
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(
-        email.trim().toLowerCase(),
-      );
-      if (error) throw error;
-      startCooldown();
-      Alert.alert("Sent", "Another reset email has been sent.");
-    } catch (error: any) {
-      Alert.alert(
-        "Failed",
-        error?.message || "Could not resend. Please try again.",
-      );
-    } finally {
-      setLoading(false);
-    }
+    await handleSend();
   };
 
   return (
