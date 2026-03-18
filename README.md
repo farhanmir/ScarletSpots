@@ -6,7 +6,7 @@ Real-time Rutgers parking availability with a mobile-first architecture.
 
 ScarletSpots is standardizing on:
 
-- Keycloak for authentication (replacing Rutgers CAS-only plan and Supabase Auth)
+- Logto for authentication (replacing Rutgers CAS-only plan and Supabase Auth)
 - Supabase/Postgres-compatible relational data model for app data
 - FastAPI backend with Redis-assisted realtime fanout
 - Dockerized backend stack for fast disaster recovery and reproducible deploys
@@ -22,21 +22,21 @@ ScarletSpots/
 ├── PLAN.md
 ├── ROADMAP.md
 ├── OCI_MIGRATION_PLAN.md
-└── RU_SSO_GUIDE.md      # Historical doc now superseded by Keycloak plan
+└── RU_SSO_GUIDE.md      # Historical doc now superseded by Logto plan
 ```
 
 ## Auth Status
 
-Authentication is now documented around Keycloak OIDC/JWT, not Supabase Auth and not Rutgers CAS ticket validation.
+Authentication is now documented around Logto OIDC/JWT, not Supabase Auth and not Rutgers CAS ticket validation.
 
-- Backend validates Keycloak access tokens via issuer + JWKS
-- Backend signup/password reset endpoints are wired to Keycloak Admin APIs
+- Backend validates Logto access tokens via issuer + JWKS
+- Backend signup/password reset endpoints are wired to Logto Management APIs
 - Rutgers domain restrictions still apply in app/business logic
 
 See:
 
 - `backend/README.md`
-- `backend/keycloak/README.md`
+- `backend/README.md`
 - `ARCHITECTURE.md`
 
 ## Dockerization + Recovery Goal
@@ -48,7 +48,7 @@ Recovery playbook focus:
 1. Pull infra/app images
 2. Restore DB volume or dump
 3. Bring up stack with compose
-4. Verify Keycloak, API health, and websocket channels
+4. Verify Logto, API health, and websocket channels
 
 Detailed plans:
 
@@ -79,5 +79,5 @@ uvicorn app.main:app --reload
 - `PLAN.md`: execution plan for migration and operations
 - `ROADMAP.md`: phased product + platform milestones
 - `OCI_MIGRATION_PLAN.md`: OCI hosting and operations strategy
-- `RU_SSO_GUIDE.md`: deprecation notice + migration notes to Keycloak
+- `RU_SSO_GUIDE.md`: deprecation notice + migration notes to Logto
 - `WEBSOCKET_BACKGROUND_PARKING_ARCHITECTURE.md`: realtime and background updates

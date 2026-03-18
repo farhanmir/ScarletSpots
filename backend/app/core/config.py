@@ -3,7 +3,6 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
@@ -16,25 +15,34 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "ScarletSpots API"
     VERSION: str = "0.1.0"
 
+    # ---------------------------------------------------------------------------
+    # Logto OIDC auth
+    # ---------------------------------------------------------------------------
+    # Internal URL (used by backend container to reach Logto service)
+    LOGTO_ENDPOINT: str = Field(default="")
+    # Optional explicit issuer override.
+    # If empty, derived as {LOGTO_ENDPOINT}/oidc
+    # Set this to the PUBLIC URL of Logto so it matches the `iss` claim in tokens
+    # e.g.  http://193.122.155.58:3001/oidc
+    LOGTO_ISSUER: str = Field(default="")
+    # Audience expected in access tokens (your M2M or web app resource indicator)
+    LOGTO_AUDIENCE: str = Field(default="")
+    LOGTO_VERIFY_AUDIENCE: bool = Field(default=False)
 
-    # Keycloak auth
-    KEYCLOAK_URL: str = Field(default="")
-    KEYCLOAK_REALM: str = Field(default="")
-    KEYCLOAK_ISSUER: str = Field(default="")
-    KEYCLOAK_AUDIENCE: str = Field(default="")
-    KEYCLOAK_VERIFY_AUDIENCE: bool = Field(default=True)
-    KEYCLOAK_JWT_PUBLIC_KEY: str = Field(default="")
-
-    # Keycloak admin client (for signup/password-reset flows)
-    KEYCLOAK_ADMIN_CLIENT_ID: str = Field(default="")
-    KEYCLOAK_ADMIN_CLIENT_SECRET: str = Field(default="")
-    KEYCLOAK_PASSWORD_RESET_CLIENT_ID: str = Field(default="")
-    KEYCLOAK_PASSWORD_RESET_REDIRECT_URI: str = Field(default="")
+    # ---------------------------------------------------------------------------
+    # Logto Machine-to-Machine app (backend admin operations)
+    # ---------------------------------------------------------------------------
+    LOGTO_M2M_APP_ID: str = Field(default="")
+    LOGTO_M2M_APP_SECRET: str = Field(default="")
+    # Management API resource identifier (default for self-hosted Logto)
+    LOGTO_MANAGEMENT_API_RESOURCE: str = Field(
+        default="https://default.logto.app/api"
+    )
 
     DATABASE_URL: str = Field(default="")
     EXPO_PUSH_ACCESS_TOKEN: str = Field(default="")
 
-    # Redis (local, no auth by default)
+    # Redis
     REDIS_URL: str = Field(default="redis://localhost:6379/0")
 
     # CORS

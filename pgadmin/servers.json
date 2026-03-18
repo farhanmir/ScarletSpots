@@ -11,12 +11,12 @@
       "PassFile": "/pgpass"
     },
     "2": {
-      "Name": "Keycloak DB",
+      "Name": "Logto DB",
       "Group": "ScarletSpots",
-      "Host": "keycloak-db",
+      "Host": "logto-db",
       "Port": 5432,
-      "MaintenanceDB": "keycloak",
-      "Username": "keycloak",
+      "MaintenanceDB": "logto",
+      "Username": "logto",
       "SSLMode": "prefer",
       "PassFile": "/pgpass"
     }
