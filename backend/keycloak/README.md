@@ -6,6 +6,12 @@ This directory documents Keycloak deployment used by ScarletSpots.
 
 `backend/docker-compose.keycloak.yml`
 
+Notes:
+
+- Keycloak DB is pinned to `postgres:16-alpine` to avoid Postgres 18+ data directory layout migration issues during fresh rollouts and upgrades.
+- Compose uses `KC_BOOTSTRAP_ADMIN_USERNAME` and `KC_BOOTSTRAP_ADMIN_PASSWORD` for Keycloak admin bootstrap.
+- pgAdmin requires a deliverable-style email domain (for example `admin@scarletspots.app`), not reserved domains like `.local`.
+
 ## Bring Up Keycloak
 
 ```bash
