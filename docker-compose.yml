@@ -1,0 +1,76 @@
+services:
+  # 1. THE ENGINE: Postgres 18 (Hardened for 50k users)
+  db:
+    image: postgres:18-alpine
+    container_name: scarletspots-db
+    restart: always
+    shm_size: 4gb
+    environment:
+      POSTGRES_DB: scarletspots
+      POSTGRES_USER: scarlet_admin
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+      - ./postgres_config/postgresql.conf:/etc/postgresql/postgresql.conf
+    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scarlet_admin -d scarletspots"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# 2. THE JANITOR: Auto-Backups & Maintenance
+  maintenance:
+    image: alpine:latest
+    container_name: scarletspots-janitor
+    restart: always
+    depends_on:
+      - db
+    volumes:
+      - ./backups:/backups
+    environment:
+      - PGPASSWORD=${DB_PASSWORD} # <--- Pass the password here
+    entrypoint: |
+      sh -c "apk add --no-cache postgresql-client && 
+      echo '0 3 * * * pg_dump -h db -U scarlet_admin scarletspots | gzip > /backups/auto_\$$(date +\%F).sql.gz' > /etc/periodic/daily/backup &&
+      chmod +x /etc/periodic/daily/backup &&
+      crond -f -l 2"
+
+  # 3. THE BRAIN: FastAPI Backend
+  backend:
+    build: ./backend
+    container_name: scarletspots-backend
+    restart: always
+    ports:
+      - "8000:8000"
+    env_file: ./backend/.env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql+asyncpg://scarlet_admin:${DB_PASSWORD}@db:5432/scarletspots
+
+  # 4. THE NERVOUS SYSTEM: Redis
+  redis:
+    image: redis:7-alpine
+    container_name: scarletspots-redis
+    restart: always
+
+  # 5. THE INSURANCE: Oracle Keep-Alive
+  keepalive:
+    image: alpine:latest
+    container_name: oracle-keepalive
+    restart: always
+    command: sh -c "apk add --no-cache stress-ng && stress-ng --cpu 1 --cpu-load 15"
+    
+  # THE DOMAIN HEARTBEAT
+  duckdns:
+    image: linuxserver/duckdns:latest
+    container_name: scarletspots-duckdns
+    restart: always
+    environment:
+      - SUBDOMAINS=scarletspots
+      - TOKEN=${DUCKDNS_TOKEN} # Ensure this is in your .env
+      - LOG_FILE=true
