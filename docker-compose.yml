@@ -49,7 +49,7 @@ services:
       logto-db:
         condition: service_healthy
     # Seed DB on first boot then start the server
-    command: ["sh", "-c", "npm run cli db seed -- --swe 2>/dev/null; npm start"]
+    command: ["sh", "-c", "npx @logto/cli db seed -- --swe; npm start"]
     environment:
       DB_URL: postgresql://${LOGTO_DB_USER:-logto}:${LOGTO_DB_PASSWORD:-change-me}@logto-db:5432/${LOGTO_DB_NAME:-logto}
       # Public-facing endpoint (what gets embedded in tokens as issuer)
