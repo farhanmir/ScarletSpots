@@ -3,7 +3,7 @@ import * as Location from "expo-location";
 import * as Notifications from "expo-notifications";
 import { Accelerometer, Pedometer } from "expo-sensors";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { supabase } from "@/shared/api/supabase-client";
+import { getAccessTokenSilently } from "@/providers/AuthProvider";
 import { fetchBackend, safeJson } from "@/shared/api/api-base";
 import {
   pushSpeed,
@@ -95,7 +95,7 @@ TaskManager.defineTask(PARKING_DETECTION_TASK, async ({ data, error }: any) => {
 
   const latestLocation = locations.at(-1)!;
   const speed = latestLocation.coords.speed;
-  const heading = latestLocation.coords.heading; // degrees 0–360, or -1 if unavailable
+  const heading = latestLocation.coords.heading;
 
   // Start sensors when we are in active tracking mode
   await startSensorTracking();
@@ -147,18 +147,14 @@ TaskManager.defineTask(PARKING_DETECTION_TASK, async ({ data, error }: any) => {
   // Try true background auto-start first so parking can begin even when the
   // app UI is closed. If this fails, we keep pending candidates for foreground.
   try {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
+    const accessToken = await getAccessTokenSilently();
 
-    if (session?.access_token) {
+    if (accessToken) {
       const response = await fetchBackend("/park/session", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          apikey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "",
-          Authorization: `Bearer ${session.access_token}`,
-          "x-user-token": session.access_token,
+          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           lotId: topCandidate.lotId,
@@ -197,8 +193,6 @@ TaskManager.defineTask(PARKING_DETECTION_TASK, async ({ data, error }: any) => {
     trigger: null,
   });
 });
-
-// ── Public API ─────────────────────────────────────────────────────────────────
 
 /**
  * Retrieve persisted parking candidates (set by background task).

@@ -53,9 +53,9 @@ services:
     environment:
       DB_URL: postgresql://${LOGTO_DB_USER:-logto}:${LOGTO_DB_PASSWORD:-change-me}@logto-db:5432/${LOGTO_DB_NAME:-logto}
       # Public-facing endpoint (what gets embedded in tokens as issuer)
-      ENDPOINT: http://localhost:3001
+      ENDPOINT: ${LOGTO_PUBLIC_ENDPOINT:-http://localhost:3001}
       # Admin console endpoint
-      ADMIN_ENDPOINT: http://localhost:3002
+      ADMIN_ENDPOINT: ${LOGTO_ADMIN_ENDPOINT:-http://localhost:3002}
       TRUST_PROXY_HEADER: "1"
     ports:
       - "127.0.0.1:3001:3001"

@@ -13,7 +13,6 @@ import "@/shared/services/BackgroundTasks"; // Register background tasks globall
 
 import { useColorScheme } from "@/shared/hooks/use-color-scheme";
 import { AuthProvider, useAuth } from "@/providers/AuthProvider";
-import { isSupabaseConfigValid } from "@/shared/api/supabase-client";
 import { IconSymbol } from "@/shared/components/ui/icon-symbol";
 
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
@@ -37,15 +36,12 @@ export { ErrorBoundary } from "expo-router";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // ── Aggressive caching to prevent 951-request blizzards ──────────────────
-      // Hot-reloading, re-mounts, and app-foreground events all re-use
-      // cached data rather than hitting the network.
       gcTime: 1000 * 60 * 60 * 24, // Keep data in memory / AsyncStorage for 24 h
       staleTime: 1000 * 60 * 5, // Data is "fresh" for 5 min — no refetch needed
-      refetchOnMount: false, // Never auto-refetch just because a component mounts
-      refetchOnWindowFocus: false, // Never refetch when the RN app comes to foreground
-      refetchOnReconnect: true, // DO refetch when coming back online (offline-first)
-      retry: 1, // One retry on failure, then give up
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: true,
+      retry: 1,
     },
   },
 });
@@ -59,7 +55,7 @@ export const unstable_settings = {
 };
 
 function InitialLayout() {
-  const { session, loading } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
   const colorScheme = useColorScheme();
@@ -70,23 +66,23 @@ function InitialLayout() {
 
     const inAuthGroup = segments[0] === "auth";
 
-    if (!session && !inAuthGroup) {
+    if (!isAuthenticated && !inAuthGroup) {
       // Redirect to choice if not signed in and not trying to login
       router.replace("/auth/choice" as any);
-    } else if (session && inAuthGroup) {
+    } else if (isAuthenticated && inAuthGroup) {
       // Route through root so permission gating can run.
       router.replace("/" as any);
     }
-  }, [session, loading, segments, router]);
+  }, [isAuthenticated, loading, segments, router]);
 
   useEffect(() => {
-    if (loading || !session || hasBootstrappedGeofences.current) return;
+    if (loading || !isAuthenticated || hasBootstrappedGeofences.current) return;
     hasBootstrappedGeofences.current = true;
 
     registerLotGeofences(getAllLots(ENABLE_ALL_CAMPUSES)).catch((err) =>
       console.warn("[RootLayout] Geofence bootstrap failed:", err),
     );
-  }, [loading, session]);
+  }, [loading, isAuthenticated]);
 
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
@@ -124,65 +120,6 @@ function InitialLayout() {
   );
 }
 
-function ConfigErrorScreen() {
-  return (
-    <View
-      style={{
-        flex: 1,
-        backgroundColor: "#000000",
-        justifyContent: "center",
-        alignItems: "center",
-        padding: 40,
-      }}
-    >
-      <IconSymbol
-        name="exclamationmark.triangle.fill"
-        size={64}
-        color="#dc2626"
-      />
-      <Text
-        style={{
-          color: "#fff",
-          fontSize: 24,
-          fontWeight: "bold",
-          marginTop: 24,
-          textAlign: "center",
-        }}
-      >
-        Configuration Missing
-      </Text>
-      <Text
-        style={{
-          color: "#a1a1aa",
-          fontSize: 16,
-          marginTop: 12,
-          textAlign: "center",
-          lineHeight: 24,
-        }}
-      >
-        The app is missing required Supabase environment variables. Please check
-        your .env file and restart the Expo server.
-      </Text>
-      <TouchableOpacity
-        style={{
-          marginTop: 40,
-          backgroundColor: "#27272a",
-          paddingHorizontal: 24,
-          paddingVertical: 12,
-          borderRadius: 12,
-        }}
-        onPress={() => {
-          /* Could add a reload functionality here if desired */
-        }}
-      >
-        <Text style={{ color: "#fff", fontWeight: "bold" }}>
-          See Documentation
-        </Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
 export default function RootLayout() {
   // Install crash handlers once at boot
   useEffect(() => {
@@ -190,17 +127,9 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    // initOfflineQueue registers its own NetInfo listener and flushes the
-    // queue whenever the device comes back online. Calling it here (once, at
-    // root mount) is the single authoritative reconnect handler — no duplicate
-    // NetInfo.addEventListener wrappers needed.
     initOfflineQueue();
     return () => teardownOfflineQueue();
   }, []);
-
-  if (!isSupabaseConfigValid) {
-    return <ConfigErrorScreen />;
-  }
 
   return (
     <PersistQueryClientProvider

@@ -1,9 +1,8 @@
-import { supabase } from "@/shared/api/supabase-client";
-
 type SocketMessage = Record<string, unknown>;
 
 type AuthedWebSocketConfig = {
   endpoint: string;
+  getAccessToken: () => Promise<string | undefined>;
   authPayload?: Record<string, unknown>;
   onMessage: (payload: SocketMessage) => void;
 };
@@ -42,11 +41,9 @@ export function createAuthedWebSocket(config: AuthedWebSocketConfig): () => void
 
     socket.onopen = async () => {
       retryCount = 0;
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const accessToken = await config.getAccessToken();
 
-      if (!session?.access_token || socket?.readyState !== WebSocket.OPEN) {
+      if (!accessToken || socket?.readyState !== WebSocket.OPEN) {
         socket?.close();
         return;
       }
@@ -54,7 +51,7 @@ export function createAuthedWebSocket(config: AuthedWebSocketConfig): () => void
       socket.send(
         JSON.stringify({
           type: "auth",
-          token: session.access_token,
+          token: accessToken,
           ...config.authPayload,
         }),
       );

@@ -130,7 +130,7 @@ async def signup(
         return SignupResponse(success=True, id=str(res.user.id), email=res.user.email)
     except Exception as exc:
         error_msg = str(exc).lower()
-        # Handle duplicate email error from Supabase Auth
+        # Handle duplicate email error from Logto Auth
         if "already registered" in error_msg or "already exists" in error_msg:
             log.info("Signup failed: email already registered: %s", email)
             raise HTTPException(
@@ -223,7 +223,7 @@ async def request_password_reset(
     admin_auth: Any = Depends(get_admin_auth_client),
 ):
     """
-    Send a password reset email via Supabase Auth.
+    Send a password reset email via Logto Auth.
     Rate limited to 3 requests per hour to prevent abuse.
     Always returns success to avoid email enumeration.
     """

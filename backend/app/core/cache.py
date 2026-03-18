@@ -23,7 +23,7 @@ async def init_cache() -> None:
     """Connect to Redis and register the cache backend.
 
     On failure the warning is logged and caching is silently skipped so the
-    application can still serve live data from Supabase.
+    application can still serve live data from Logto.
     """
     global _redis_pool
     try:
@@ -45,4 +45,4 @@ async def init_cache() -> None:
 async def close_cache() -> None:
     """Gracefully shut down the Redis connection pool."""
     if _redis_pool:
-        await _redis_pool.aclose()
+        await _redis_pool.close()
