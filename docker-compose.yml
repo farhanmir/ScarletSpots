@@ -53,13 +53,13 @@ services:
     environment:
       DB_URL: postgresql://${LOGTO_DB_USER:-logto}:${LOGTO_DB_PASSWORD:-change-me}@logto-db:5432/${LOGTO_DB_NAME:-logto}
       # Public-facing endpoint (what gets embedded in tokens as issuer)
-      ENDPOINT: http://${SERVER_HOST:-localhost}:3001
+      ENDPOINT: ${LOGTO_PUBLIC_ENDPOINT:-http://${SERVER_HOST:-localhost}:3001}
       # Admin console endpoint
-      ADMIN_ENDPOINT: http://${SERVER_HOST:-localhost}:3002
+      ADMIN_ENDPOINT: ${LOGTO_ADMIN_ENDPOINT:-http://${SERVER_HOST:-localhost}:3002}
       TRUST_PROXY_HEADER: "1"
     ports:
-      - "3001:3001"
-      - "3002:3002"
+      - "127.0.0.1:3001:3001"
+      - "127.0.0.1:3002:3002"
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:3001/api/status || exit 1"]
       interval: 15s
@@ -88,9 +88,9 @@ services:
       # Backend container reaches Logto via internal service name
       LOGTO_ENDPOINT: http://logto:3001
     ports:
-      - "8001:8000"
+      - "127.0.0.1:8001:8000"
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8000/health || exit 1"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -111,7 +111,7 @@ services:
       PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION: "True"
       PGADMIN_SERVER_JSON_FILE: /pgadmin4/servers.json
     ports:
-      - "5050:80"
+      - "127.0.0.1:5050:80"
     volumes:
       - pgadmin_data:/var/lib/pgadmin
       - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
