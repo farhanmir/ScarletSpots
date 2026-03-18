@@ -15,12 +15,14 @@
       {
         "name": "user",
         "description": "Standard application user",
-        "composite": false
+        "composite": false,
+        "clientRole": false
       },
       {
         "name": "admin",
         "description": "Application administrator",
-        "composite": false
+        "composite": false,
+        "clientRole": false
       }
     ]
   },
@@ -50,6 +52,7 @@
           "name": "audience-mapper",
           "protocol": "openid-connect",
           "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
           "config": {
             "included.client.audience": "scarletspots-mobile",
             "id.token.claim": "false",
@@ -68,8 +71,7 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": true,
-      "secret": "replace-with-secret",
-      "serviceAccountRoles": ["realm-admin"]
+      "secret": "replace-with-secret"
     },
     {
       "clientId": "scarletspots",

@@ -1,6 +1,6 @@
 services:
   app-db:
-    image: postgres:16-alpine
+    image: postgres:17-alpine
     container_name: scarletspots-app-db
     restart: unless-stopped
     environment:
@@ -16,7 +16,7 @@ services:
       retries: 5
 
   keycloak-db:
-    image: postgres:16-alpine
+    image: postgres:17-alpine
     container_name: scarletspots-keycloak-db
     restart: unless-stopped
     environment:
@@ -32,7 +32,7 @@ services:
       retries: 5
 
   redis:
-    image: redis:7-alpine
+    image: redis:8.0-alpine
     container_name: scarletspots-redis
     restart: unless-stopped
     healthcheck:
@@ -42,7 +42,7 @@ services:
       retries: 5
 
   keycloak:
-    image: quay.io/keycloak/keycloak:26.1.4
+    image: quay.io/keycloak/keycloak:26.2.5
     container_name: scarletspots-keycloak
     restart: unless-stopped
     depends_on:
@@ -95,7 +95,7 @@ services:
       - "8000:8000"
 
   pgadmin:
-    image: dpage/pgadmin4:latest
+    image: dpage/pgadmin4:9.3
     container_name: scarletspots-pgadmin
     restart: unless-stopped
     depends_on:
