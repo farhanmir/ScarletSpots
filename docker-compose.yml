@@ -10,7 +10,7 @@ services:
       POSTGRES_USER: scarlet_admin
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
-      - ./postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
       - ./postgres_config/postgresql.conf:/etc/postgresql/postgresql.conf
     command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
     healthcheck:
@@ -29,12 +29,29 @@ services:
     volumes:
       - ./backups:/backups
     environment:
-      - PGPASSWORD=${DB_PASSWORD} # <--- Pass the password here
-    entrypoint: |
-      sh -c "apk add --no-cache postgresql-client && 
-      echo '0 3 * * * pg_dump -h db -U scarlet_admin scarletspots | gzip > /backups/auto_\$$(date +\%F).sql.gz' > /etc/periodic/daily/backup &&
-      chmod +x /etc/periodic/daily/backup &&
-      crond -f -l 2"
+      - PGPASSWORD=${DB_PASSWORD}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        apk add --no-cache postgresql-client
+        # Write the actual backup shell script
+        cat > /usr/local/bin/do-backup.sh << 'EOF'
+        #!/bin/sh
+        BACKUP_FILE="/backups/auto_$$(date +%F_%H%M%S).sql.gz"
+        pg_dump -h db -U scarlet_admin scarletspots | gzip > "$$BACKUP_FILE"
+        echo "[$$(date)] Backup written to $$BACKUP_FILE"
+        # Keep only last 7 backups
+        ls -t /backups/auto_*.sql.gz 2>/dev/null | tail -n +8 | xargs rm -f
+        EOF
+        chmod +x /usr/local/bin/do-backup.sh
+        # Write cron entry to /etc/crontabs/root (Alpine crond format)
+        echo '0 3 * * * /usr/local/bin/do-backup.sh >> /backups/cron.log 2>&1' > /etc/crontabs/root
+        # Run an initial backup immediately on startup
+        /usr/local/bin/do-backup.sh
+        # Start crond in foreground
+        crond -f -l 2
 
   # 3. THE BRAIN: FastAPI Backend
   backend:
@@ -74,3 +91,7 @@ services:
       - SUBDOMAINS=scarletspots
       - TOKEN=${DUCKDNS_TOKEN}
       - LOG_FILE=true
+
+volumes:
+  postgres_data:
+    # Named Docker volume for postgres - reliable persistence without bind mount conflicts
