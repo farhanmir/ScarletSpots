@@ -9,6 +9,8 @@ services:
       POSTGRES_DB: scarletspots
       POSTGRES_USER: scarlet_admin
       POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./postgres_config/postgresql.conf:/etc/postgresql/postgresql.conf
