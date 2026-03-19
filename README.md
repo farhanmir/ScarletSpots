@@ -220,6 +220,7 @@ Canonical docs after cleanup:
 - Product/status and setup: [README.md](README.md)
 - System/data/API architecture: [ARCHITECTURE.md](ARCHITECTURE.md)
 - Delivery phases and backlog: [ROADMAP.md](ROADMAP.md)
+- Inference & ground-truth methodology (sampling-bias correction): [INFERENCE_GROUND_TRUTH.md](INFERENCE_GROUND_TRUTH.md)
 - WebSocket + background parking deep dive: [WEBSOCKET_BACKGROUND_PARKING_ARCHITECTURE.md](WEBSOCKET_BACKGROUND_PARKING_ARCHITECTURE.md)
 - Rutgers CAS SSO plan: [RU_SSO_GUIDE.md](RU_SSO_GUIDE.md)
 
@@ -232,6 +233,6 @@ Core features are functional:
 - Offline action queue
 
 In progress:
-- ML forecast model (launches with heuristic, trains once session data accumulates)
+- Inference & ground truth (SOC oracle + “Vulture” demand + confidence intervals; sampling-bias correction)
 - CI/CD pipeline
 - iOS glanceable surfaces plan (Live Activities/Dynamic Island + widgets + StandBy) documented in ROADMAP backlog

@@ -43,6 +43,8 @@
 - [x] `POST /park/session/feedback` — users can correct detection quality, feeds future model tuning
 - [x] `session_feedback` migration
 
+**Next step (sampling-bias correction):** Implement the physics-based “Inference & Ground Truth” system (Rutgers SOC oracle + departure/opening + “Vulture” searching demand proxy + incentivized verification + confidence intervals).
+
 **Deployment:** Launch with heuristic. After 2–4 weeks of session data, run `python -m app.services.train_forecast_model`. Models appear automatically.
 
 **Exit criteria:** `GET /lots/{lot_id}/forecast` returns sensible predictions with confidence bands.

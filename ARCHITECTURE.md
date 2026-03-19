@@ -354,6 +354,17 @@ Training: `python -m app.services.train_forecast_model`
 
 Models land in `backend/app/services/forecast_models/{lot_id}.joblib` and are loaded lazily. If no model exists for a lot, falls back to heuristic.
 
+### Inference & ground truth (sampling bias correction)
+
+This app currently observes only active app users, so raw `lot_occupancy` is a biased sample of true demand. The next step is a physics-constrained inference engine that:
+
+- uses a Rutgers SOC “oracle” to create time-varying lot pressure priors
+- adds passive observation channels for departures (“spot openings”) and “searching” demand proxy
+- calibrates via incentivized manual verification + periodic manual audits
+- outputs confidence intervals (`low/high`) instead of a single occupancy number
+
+See [INFERENCE_GROUND_TRUTH.md](INFERENCE_GROUND_TRUTH.md).
+
 ---
 
 ## Security

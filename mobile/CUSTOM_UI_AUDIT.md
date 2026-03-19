@@ -75,6 +75,7 @@ This list covers UI that is **manually implemented** (custom components or RN pr
 
 - **What**: Custom chart/slices built from `View`/style (no native chart control).
 - **Alternatives**: `react-native-chart-kit`, `victory-native`, or similar for richer charts and less custom code.
+- **Note (upcoming inference rollout)**: these UI surfaces should render confidence intervals/ranges (e.g. `low/high` occupancy) instead of only a single expected occupancy number.
 
 ---
 
