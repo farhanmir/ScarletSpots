@@ -18,11 +18,13 @@ class Settings(BaseSettings):
 
     # Supabase
     SUPABASE_URL: str = Field(default="")
+    SUPABASE_ANON_KEY: str = Field(default="")
     SUPABASE_SERVICE_ROLE_KEY: str = Field(default="")
     SUPABASE_JWT_SECRET: str = Field(default="")
     SUPABASE_JWT_PUBLIC_KEY: str = Field(default="")
     DATABASE_URL: str = Field(default="")
     EXPO_PUSH_ACCESS_TOKEN: str = Field(default="")
+    DEBUG: bool = Field(default=False)
 
     # Redis (local, no auth by default)
     REDIS_URL: str = Field(default="redis://localhost:6379/0")

@@ -2,9 +2,11 @@
 Tests for the friends router.
 """
 
-from fastapi.testclient import TestClient
+from uuid import UUID
 
+import pytest
 from app.main import app
+from fastapi.testclient import TestClient
 
 client = TestClient(app)
 
@@ -17,7 +19,9 @@ def test_friends_requires_auth():
 
 def test_send_request_requires_auth():
     """POST /friends/request without auth should fail."""
-    response = client.post("/api/v1/friends/request", json={"friend_email": "test@test.com"})
+    response = client.post(
+        "/api/v1/friends/request", json={"friend_email": "test@test.com"}
+    )
     assert response.status_code in (401, 403, 500)
 
 
@@ -33,25 +37,32 @@ def test_unblock_requires_auth():
     assert response.status_code in (401, 403, 500)
 
 
-def test_sharing_toggle_updates_friendship():
+@pytest.mark.asyncio
+async def test_sharing_toggle_updates_friendship():
     """TD-03: Test that sharing toggle correctly updates sharing_enabled on the friendships table."""
-    from unittest.mock import MagicMock
+    from unittest.mock import AsyncMock, MagicMock
 
+    from app.models.friendship import Friendship
     from app.routers.friends import SharingToggle, toggle_sharing
 
     db_mock = MagicMock()
-    # Mock the DB lookup for the friendship
-    db_mock.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.return_value.data = [
-        {"friend_id": "123", "id": "00000000-0000-0000-0000-000000000000"}
-    ]
+    friendship = Friendship(
+        id="00000000-0000-0000-0000-000000000000",
+        user_id="00000000-0000-0000-0000-000000000456",
+        friend_id="00000000-0000-0000-0000-000000000123",
+        status="accepted",
+        sharing_enabled=False,
+    )
+    db_mock.get = AsyncMock(return_value=friendship)
+    db_mock.commit = AsyncMock(return_value=None)
 
     user_mock = MagicMock()
-    user_mock.id = "456"
+    user_mock.id = "00000000-0000-0000-0000-000000000456"
 
     # Test True (Enabled) — should call update with sharing_enabled=True
     body_true = SharingToggle(enabled=True)
-    result = toggle_sharing(
-        friendship_id="00000000-0000-0000-0000-000000000000",
+    result = await toggle_sharing(
+        friendship_id=UUID("00000000-0000-0000-0000-000000000000"),
         body=body_true,
         current_user=user_mock,
         db=db_mock,
@@ -60,8 +71,8 @@ def test_sharing_toggle_updates_friendship():
 
     # Test False (Disabled) — should call update with sharing_enabled=False
     body_false = SharingToggle(enabled=False)
-    result = toggle_sharing(
-        friendship_id="00000000-0000-0000-0000-000000000000",
+    result = await toggle_sharing(
+        friendship_id=UUID("00000000-0000-0000-0000-000000000000"),
         body=body_false,
         current_user=user_mock,
         db=db_mock,

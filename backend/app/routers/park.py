@@ -1,5 +1,7 @@
+import json
 from datetime import datetime, timezone
 from enum import Enum
+from pathlib import Path
 from typing import Optional
 from uuid import UUID
 
@@ -21,6 +23,37 @@ from sqlalchemy.ext.asyncio import AsyncSession
 log = get_logger(__name__)
 
 router = APIRouter(prefix="/park/session", tags=["parking_session"])
+
+
+def _load_lot_display_name_map() -> dict[str, str]:
+    data_file = (
+        Path(__file__).resolve().parent.parent
+        / "services"
+        / "rutgers_parking_data.json"
+    )
+    try:
+        with data_file.open("r", encoding="utf-8") as fh:
+            lots = json.load(fh)
+    except Exception:
+        return {}
+
+    mapping: dict[str, str] = {}
+    for lot in lots if isinstance(lots, list) else []:
+        if not isinstance(lot, dict):
+            continue
+        lot_id = str(lot.get("mapId") or "").strip()
+        if not lot_id:
+            continue
+        display_name = (
+            str(lot.get("shortName") or "").strip()
+            or str(lot.get("propertyName") or "").strip()
+            or f"Lot {lot_id}"
+        )
+        mapping[lot_id] = display_name
+    return mapping
+
+
+LOT_DISPLAY_NAME_BY_ID = _load_lot_display_name_map()
 
 
 class ParkSessionCreate(BaseModel):
@@ -46,9 +79,9 @@ class SessionFeedback(BaseModel):
     notes: Optional[str] = None
 
 
-def _to_uuid_or_401(value: str) -> UUID:
+def _to_uuid_or_401(value: str) -> str:
     try:
-        return UUID(str(value))
+        return str(UUID(str(value)))
     except Exception as exc:
         raise HTTPException(
             status_code=401, detail="Invalid authenticated user id"
@@ -67,7 +100,7 @@ def _session_response(session: ParkingSession) -> dict:
     }
 
 
-async def _get_active_sessions(db: AsyncSession, user_id: UUID) -> list[ParkingSession]:
+async def _get_active_sessions(db: AsyncSession, user_id: str) -> list[ParkingSession]:
     stmt = select(ParkingSession).where(
         ParkingSession.user_id == user_id,
         ParkingSession.active.is_(True),
@@ -75,14 +108,14 @@ async def _get_active_sessions(db: AsyncSession, user_id: UUID) -> list[ParkingS
     return (await db.execute(stmt)).scalars().all()
 
 
-async def _get_friend_user_ids(db: AsyncSession, user_id: UUID) -> list[UUID]:
+async def _get_friend_user_ids(db: AsyncSession, user_id: str) -> list[str]:
     stmt = select(Friendship).where(
         Friendship.status == "accepted",
         Friendship.sharing_enabled.is_(True),
         or_(Friendship.user_id == user_id, Friendship.friend_id == user_id),
     )
     rows = (await db.execute(stmt)).scalars().all()
-    friend_ids: list[UUID] = []
+    friend_ids: list[str] = []
     for friendship in rows:
         friend_ids.append(
             friendship.friend_id
@@ -156,7 +189,6 @@ async def start_parking_session(
                 occupancy.count = (occupancy.count or 0) + 1
             changed_lot_counts[lot_id] = occupancy.count or 0
 
-        await db.refresh(new_session)
         confirmed_occupancy = occupancy.count if occupancy else None
 
         for changed_lot_id, changed_count in changed_lot_counts.items():
@@ -170,11 +202,12 @@ async def start_parking_session(
         friend_targets = list(dict.fromkeys(await _get_friend_user_ids(db, user_id)))
         if friend_targets:
             actor = display_name or "Your friend"
+            lot_display = LOT_DISPLAY_NAME_BY_ID.get(lot_id, f"Lot {lot_id}")
             await send_push_to_users(
                 db,
                 friend_targets,
                 title="ScarletSpots",
-                body=f"{actor} parked at Lot {lot_id}.",
+                body=f"{actor} parked at {lot_display}.",
                 data={
                     "type": "session_started",
                     "lotId": lot_id,
@@ -183,11 +216,12 @@ async def start_parking_session(
             )
 
         if body.autoStarted:
+            lot_display = LOT_DISPLAY_NAME_BY_ID.get(lot_id, f"Lot {lot_id}")
             await send_push_to_users(
                 db,
                 [user_id],
                 title="ScarletSpots",
-                body=f"We auto-started your parking at Lot {lot_id}.",
+                body=f"We auto-started your parking at {lot_display}.",
                 data={
                     "type": "auto_started",
                     "lotId": lot_id,

@@ -41,7 +41,6 @@ import {
   clearPendingParkingCandidates,
 } from "@/shared/services/BackgroundTasks";
 import { type ParkingCandidate } from "@/shared/services/ParkingDetectionService";
-import { registerLotGeofences } from "@/shared/services/GeofenceManager";
 import {
   fetchWithOfflineFallback,
   clearCachedSession,
@@ -286,18 +285,6 @@ export default function MapScreen() {
       disconnect();
     };
   }, [session, queryClient]);
-
-  // ── Geofence Registration ──────────────────────────────────────────────
-  // Register once on first load — geofences are based on static coordinates.
-
-  const geofencesRegistered = useRef(false);
-  useEffect(() => {
-    if (geofencesRegistered.current) return;
-    geofencesRegistered.current = true;
-    registerLotGeofences(STATIC_LOTS).catch((err) =>
-      console.warn("[MapScreen] Geofence registration failed:", err),
-    );
-  }, []);
 
   // ── Active Session ─────────────────────────────────────────────────────
 

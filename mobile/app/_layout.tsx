@@ -27,7 +27,10 @@ import {
 } from "@/shared/services/OfflineQueue";
 import { installGlobalCrashHandlers } from "@/shared/services/CrashLogger";
 import { TabBarProvider } from "@/providers/TabBarProvider";
-import { registerLotGeofences } from "@/shared/services/GeofenceManager";
+import {
+  bootstrapLotGeofenceRegistration,
+  teardownLotGeofenceRegistration,
+} from "@/shared/services/GeofenceManager";
 import { getAllLots } from "@/shared/constants/lots";
 import { ENABLE_ALL_CAMPUSES } from "@/shared/constants/featureFlags";
 
@@ -83,9 +86,13 @@ function InitialLayout() {
     if (loading || !session || hasBootstrappedGeofences.current) return;
     hasBootstrappedGeofences.current = true;
 
-    registerLotGeofences(getAllLots(ENABLE_ALL_CAMPUSES)).catch((err) =>
+    bootstrapLotGeofenceRegistration(getAllLots(ENABLE_ALL_CAMPUSES)).catch((err) =>
       console.warn("[RootLayout] Geofence bootstrap failed:", err),
     );
+
+    return () => {
+      teardownLotGeofenceRegistration();
+    };
   }, [loading, session]);
 
   return (

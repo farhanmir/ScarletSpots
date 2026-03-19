@@ -1,50 +1,112 @@
-"""
-Session-wide test fixtures.
-
-The FastAPI lifespan sets app.state.supabase / app.state.admin_supabase during
-startup.  When TestClient is created at module level (not used as a context
-manager) the lifespan never runs, so we seed app.state here with lightweight
-MagicMock clients before any test is executed.
-"""
-
-from unittest.mock import MagicMock
+import uuid
+from collections.abc import AsyncIterator, Generator
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from fastapi_cache import FastAPICache
-from fastapi_cache.backends.inmemory import InMemoryBackend
-
+import pytest_asyncio
+from app.core.database import Base, get_db
+from app.core.security import get_current_user
 from app.main import app
+from app.models.parking import ParkingSession
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy import event
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import StaticPool
+
+TEST_DATABASE_URL = "sqlite+aiosqlite://"
+
+engine = create_async_engine(
+    TEST_DATABASE_URL,
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
+TestingSessionLocal = async_sessionmaker(
+    bind=engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+)
+
+
+@event.listens_for(engine.sync_engine, "connect")
+def _sqlite_register_gen_random_uuid(dbapi_connection, _connection_record) -> None:
+    dbapi_connection.create_function("gen_random_uuid", 0, lambda: str(uuid.uuid4()))
+
+
+@event.listens_for(ParkingSession, "before_insert")
+def _ensure_parking_session_uuid(_mapper, _connection, target: ParkingSession) -> None:
+    if getattr(target, "id", None) is None:
+        target.id = str(uuid.uuid4())
 
 
 @pytest.fixture(autouse=True, scope="session")
 def mock_app_state():
-    """Populate app.state as if the lifespan startup has run."""
-    # Use in-memory backend so tests don't need a live Redis
-    FastAPICache.init(InMemoryBackend(), prefix="test:")
-
-    mock_db = MagicMock()
-
-    # GET /lots/{id}/forecast  →  .table().select().eq().single().execute().data
-    mock_db.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value.data = {
-        "current_occupancy": 20,
-        "capacity": 100,
-    }
-
-    # GET /lots (no campus filter)  →  .table().select().range().execute().data
-    mock_db.table.return_value.select.return_value.range.return_value.execute.return_value.data = []
-
-    # GET /lots?campus=…  →  .table().select().eq().range().execute().data
-    mock_db.table.return_value.select.return_value.eq.return_value.range.return_value.execute.return_value.data = []
-
-    app.state.supabase = mock_db
+    """Populate app.state for tests that import app without running lifespan."""
+    app.state.supabase = MagicMock()
     app.state.admin_supabase = MagicMock()
-
     yield
 
-    # Clean up so other test sessions start fresh
-    try:
-        del app.state.supabase
-        del app.state.admin_supabase
-    except AttributeError:
-        pass
-        pass
+
+@pytest_asyncio.fixture(scope="session", autouse=True)
+async def setup_database() -> AsyncIterator[None]:
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+    await engine.dispose()
+
+
+@pytest_asyncio.fixture
+async def db_session() -> AsyncIterator[AsyncSession]:
+    async with engine.begin() as conn:
+        for table in reversed(Base.metadata.sorted_tables):
+            await conn.execute(table.delete())
+
+    async with TestingSessionLocal() as session:
+        yield session
+
+
+@pytest_asyncio.fixture
+async def client(db_session: AsyncSession) -> AsyncIterator[AsyncClient]:
+    _ = db_session
+
+    async def _override_get_db() -> AsyncIterator[AsyncSession]:
+        async with TestingSessionLocal() as session:
+            yield session
+
+    app.dependency_overrides[get_db] = _override_get_db
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+
+    app.dependency_overrides.pop(get_db, None)
+
+
+@pytest.fixture
+def auth_user() -> SimpleNamespace:
+    return SimpleNamespace(
+        id="00000000-0000-0000-0000-000000000123",
+        email="test@rutgers.edu",
+        user_metadata={"name": "Test User"},
+    )
+
+
+@pytest.fixture
+def noop_ws_publish(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "app.core.websocket.manager.publish_occupancy_update",
+        AsyncMock(return_value=None),
+    )
+    monkeypatch.setattr(
+        "app.core.websocket.manager.publish_notification",
+        AsyncMock(return_value=None),
+    )
+
+
+@pytest.fixture
+def override_current_user(auth_user: SimpleNamespace) -> Generator[None, None, None]:
+    app.dependency_overrides[get_current_user] = lambda: auth_user
+    yield
+    app.dependency_overrides.pop(get_current_user, None)

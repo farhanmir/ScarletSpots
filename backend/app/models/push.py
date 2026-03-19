@@ -1,16 +1,14 @@
 from app.core.database import Base
+from app.models.types import UUID_SQL
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String, func
-from sqlalchemy.dialects.postgresql import UUID
 
 
 class DevicePushToken(Base):
     __tablename__ = "device_push_tokens"
 
-    id = Column(
-        UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()
-    )
+    id = Column(UUID_SQL, primary_key=True, server_default=func.gen_random_uuid())
     user_id = Column(
-        UUID(as_uuid=True),
+        UUID_SQL,
         ForeignKey("profiles.id", ondelete="CASCADE"),
         nullable=False,
         index=True,

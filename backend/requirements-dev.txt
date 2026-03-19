@@ -3,3 +3,5 @@ mypy>=1.6.0
 bandit>=1.7.9
 pip-audit>=2.7.3
 vulture>=2.11
+pytest-asyncio>=0.23.0
+aiosqlite>=0.20.0

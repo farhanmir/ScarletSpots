@@ -6,7 +6,8 @@ This list covers UI that is **manually implemented** (custom components or RN pr
 
 ## 1. **Tab bar** — DONE
 
-- **Was**: Custom `LiquidGlassTabBar` (Reanimated sliding pill + `GlassBackground` + `TouchableOpacity`).
+- **Was**: Custom `LiquidGlassTabBar` (Reanimated sliding pill + `GlassBackground` + `TouchableOpacity`) in `src/navigation/components/LiquidGlassTabBar.tsx`.
+- **Status**: **Decommissioned** (file removed).
 - **Now**: **Native liquid glass tabs** via `expo-router/unstable-native-tabs` (`NativeTabs`). Tab order: **Search | Map | Friends | Profile** (Search leftmost).
 
 ---
@@ -14,7 +15,7 @@ This list covers UI that is **manually implemented** (custom components or RN pr
 ## 2. **GlassBackground** (`src/shared/components/ui/GlassBackground.tsx`)
 
 - **What**: Wrapper that uses `expo-glass-effect` `GlassView` on iOS 26+, `expo-blur` `BlurView` on older iOS, and a solid translucent color on Android.
-- **Used in**: Session chip, center-on-map button, LotDetails panel, ParkingConfirmationSheet, auth/onboarding screens, tab bar (replaced).
+- **Used in**: Session chip, center-on-map button, LotDetails panel, ParkingConfirmationSheet, auth/onboarding screens.
 - **Alternatives**: Rely on native materials where available; keep for consistent “glass” look across screens.
 
 ---

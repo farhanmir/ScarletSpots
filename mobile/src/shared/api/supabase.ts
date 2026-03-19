@@ -58,11 +58,8 @@ export async function authApiCall(
 
     // Use the unified OfflineQueue
     const payload = options.body ? JSON.parse(options.body as string) : {};
-    if (endpoint.includes("/park/session") && options.method === "POST") {
-      await queueParkAction(
-        endpoint.includes("end") ? "END_PARK" : "PARK",
-        payload,
-      );
+    if (endpoint === "/park/session" && options.method === "POST") {
+      await queueParkAction("PARK", payload);
       return {
         success: true,
         session: {
@@ -71,6 +68,12 @@ export async function authApiCall(
           startTime: new Date().toISOString(),
         },
       };
+    } else if (endpoint === "/park/session/end" && options.method === "POST") {
+      await queueParkAction("END_PARK", payload);
+      return { success: true, _offline: true };
+    } else if (endpoint === "/park/session/feedback" && options.method === "POST") {
+      await queueParkAction("GENERIC_MUTATION", payload, endpoint, options.method);
+      return { success: true, _offline: true };
     } else if (options.method && options.method !== "GET") {
       // @ts-ignore - endpoint is added to QueuedParkAction in service
       await queueParkAction(
@@ -115,24 +118,27 @@ export async function authApiCall(
     // offline path was taken.
     console.log(`[authApiCall] Network fetch failed, queueing ${endpoint}`);
     const payload = options.body ? JSON.parse(options.body as string) : {};
-    if (endpoint.includes("/park/session") && options.method === "POST") {
-      const isEnd = endpoint.includes("end");
-      await queueParkAction(isEnd ? "END_PARK" : "PARK", payload);
-      if (!isEnd) {
-        return {
-          success: true,
-          _offline: true,
-          session: {
-            id: `offline-${Date.now()}`,
-            lotId: payload.lotId as string,
-            startTime: new Date().toISOString(),
-            active: true,
-            latitude: payload.latitude,
-            longitude: payload.longitude,
-            autoStarted: !!payload.autoStarted,
-          },
-        };
-      }
+    if (endpoint === "/park/session" && options.method === "POST") {
+      await queueParkAction("PARK", payload);
+      return {
+        success: true,
+        _offline: true,
+        session: {
+          id: `offline-${Date.now()}`,
+          lotId: payload.lotId as string,
+          startTime: new Date().toISOString(),
+          active: true,
+          latitude: payload.latitude,
+          longitude: payload.longitude,
+          autoStarted: !!payload.autoStarted,
+        },
+      };
+    } else if (endpoint === "/park/session/end" && options.method === "POST") {
+      await queueParkAction("END_PARK", payload);
+      return { success: true, _offline: true };
+    } else if (endpoint === "/park/session/feedback" && options.method === "POST") {
+      await queueParkAction("GENERIC_MUTATION", payload, endpoint, options.method);
+      return { success: true, _offline: true };
     } else if (options.method && options.method !== "GET") {
       // @ts-ignore
       await queueParkAction(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
@@ -14,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 log = get_logger(__name__)
 
 EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
+BATCH_SIZE = 100
 
 
 def _build_expo_headers() -> dict[str, str]:
@@ -123,16 +125,35 @@ async def send_push_to_users(
 
     headers = _build_expo_headers()
 
+    batches = [payload[i : i + BATCH_SIZE] for i in range(0, len(payload), BATCH_SIZE)]
+
+    async def _send_batch(
+        client: httpx.AsyncClient, batch_payload: list[dict[str, Any]]
+    ) -> dict[str, Any]:
+        response = await client.post(EXPO_PUSH_URL, json=batch_payload, headers=headers)
+        response.raise_for_status()
+        return response.json()
+
+    results: list[dict[str, Any]] = []
     try:
         async with httpx.AsyncClient(timeout=5) as client:
-            response = await client.post(EXPO_PUSH_URL, json=payload, headers=headers)
-            response.raise_for_status()
-            result = response.json()
+            batch_results = await asyncio.gather(
+                *[_send_batch(client, batch) for batch in batches],
+                return_exceptions=True,
+            )
     except Exception as exc:
         log.warning("Push dispatch failed for users=%s: %s", user_ids, exc)
         return
 
-    invalid_tokens = _collect_invalid_tokens(result)
+    for result in batch_results:
+        if isinstance(result, Exception):
+            log.warning("Push batch dispatch failed for users=%s: %s", user_ids, result)
+            continue
+        results.append(result)
+
+    invalid_tokens: set[str] = set()
+    for result in results:
+        invalid_tokens.update(_collect_invalid_tokens(result))
     if invalid_tokens:
         invalid_stmt = select(DevicePushToken).where(
             DevicePushToken.token.in_(list(invalid_tokens))

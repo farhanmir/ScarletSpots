@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from app.core.logger import get_logger
+from app.services.forecast_features import FEATURE_COLUMNS
 from app.services.forecast_provider import ForecastProvider
 from app.services.forecasting import HeuristicForecastProvider
 
@@ -75,17 +76,18 @@ class MLForecastProvider(ForecastProvider):
         def predict_at(target: datetime.datetime) -> Dict[str, Any]:
             import numpy as np  # type: ignore
 
+            minutes_ahead = max(0.0, (target - now).total_seconds() / 60)
+            feature_row = {
+                "hour": target.hour,
+                "dow": target.weekday(),
+                "month": target.month,
+                "current_occupancy": current_occupancy,
+                "capacity": capacity,
+                "minutes_ahead": minutes_ahead,
+            }
             features = np.array(
-                [
-                    [
-                        target.hour,
-                        target.weekday(),
-                        target.month,
-                        current_occupancy,
-                        capacity,
-                        max(0, (target - now).total_seconds() / 60),  # minutes_ahead
-                    ]
-                ]
+                [[feature_row[column] for column in FEATURE_COLUMNS]],
+                dtype=float,
             )
             try:
                 pred_ratio = float(model.predict(features)[0])
@@ -93,7 +95,6 @@ class MLForecastProvider(ForecastProvider):
             except Exception:
                 pred_pct = (current_occupancy / max(1, capacity)) * 100
 
-            minutes_ahead = max(0, (target - now).total_seconds() / 60)
             band = 5 + minutes_ahead * 0.12
             return {
                 "time": target.isoformat().replace("+00:00", "Z"),

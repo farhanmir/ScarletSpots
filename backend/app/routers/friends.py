@@ -35,9 +35,9 @@ class SharingToggle(BaseModel):
     enabled: bool
 
 
-def _to_uuid_or_401(value: str) -> UUID:
+def _to_uuid_or_401(value: str) -> str:
     try:
-        return UUID(str(value))
+        return str(UUID(str(value)))
     except Exception as exc:
         raise HTTPException(
             status_code=401, detail="Invalid authenticated user id"
@@ -92,7 +92,7 @@ async def get_friends(
             await db.execute(accepted_b_stmt)
         ).all()
 
-        friend_ids: list[UUID] = []
+        friend_ids: list[str] = []
         for _, profile in accepted_rows:
             friend_ids.append(profile.id)
 
@@ -119,7 +119,7 @@ async def get_friends(
             )
 
         friends = []
-        seen_friend_ids: set[UUID] = set()
+        seen_friend_ids: set[str] = set()
         for friendship, profile in accepted_rows:
             if profile.id in seen_friend_ids:
                 continue

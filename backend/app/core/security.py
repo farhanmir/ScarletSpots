@@ -1,8 +1,8 @@
-import json
+import asyncio
 import time
 from types import SimpleNamespace
-from urllib.request import Request, urlopen
 
+import httpx
 from app.core.config import settings
 from app.core.logger import get_logger
 from fastapi import Depends, HTTPException, Security, status
@@ -19,6 +19,7 @@ _SUPPORTED_JWT_ALGORITHMS = {"HS256", "ES256"}
 _JWKS_CACHE_TTL_SECONDS = 300
 _jwks_keys_cache: list[dict] = []
 _jwks_cache_expires_at: float = 0
+_jwks_cache_lock = asyncio.Lock()
 
 
 def _normalize_key_material(value: str) -> str:
@@ -42,33 +43,42 @@ def _decode_with_algorithm(token: str, key: str | dict, algorithm: str) -> dict:
     )
 
 
-def _fetch_supabase_jwks_keys() -> list[dict]:
+async def _fetch_supabase_jwks_keys() -> list[dict]:
     global _jwks_keys_cache, _jwks_cache_expires_at
 
     now = time.time()
     if _jwks_keys_cache and now < _jwks_cache_expires_at:
         return _jwks_keys_cache
 
-    if not settings.SUPABASE_URL:
-        raise JWTError("SUPABASE_URL is not configured")
+    async with _jwks_cache_lock:
+        now = time.time()
+        if _jwks_keys_cache and now < _jwks_cache_expires_at:
+            return _jwks_keys_cache
 
-    supabase_url = str(settings.SUPABASE_URL or "").rstrip("/")
-    jwks_url = f"{supabase_url}/auth/v1/.well-known/jwks.json"
-    request = Request(jwks_url, headers={"Accept": "application/json"})
+        if not settings.SUPABASE_URL:
+            raise JWTError("SUPABASE_URL is not configured")
 
-    try:
-        with urlopen(request, timeout=3) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except Exception as exc:
-        raise JWTError(f"Failed to fetch Supabase JWKS: {exc}") from exc
+        supabase_url = str(settings.SUPABASE_URL or "").rstrip("/")
+        jwks_url = f"{supabase_url}/auth/v1/.well-known/jwks.json"
 
-    keys = payload.get("keys")
-    if not isinstance(keys, list) or not keys:
-        raise JWTError("Supabase JWKS response has no keys")
+        try:
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                response = await client.get(
+                    jwks_url,
+                    headers={"Accept": "application/json"},
+                )
+                response.raise_for_status()
+                payload = response.json()
+        except Exception as exc:
+            raise JWTError(f"Failed to fetch Supabase JWKS: {exc}") from exc
 
-    _jwks_keys_cache = [k for k in keys if isinstance(k, dict)]
-    _jwks_cache_expires_at = now + _JWKS_CACHE_TTL_SECONDS
-    return _jwks_keys_cache
+        keys = payload.get("keys")
+        if not isinstance(keys, list) or not keys:
+            raise JWTError("Supabase JWKS response has no keys")
+
+        _jwks_keys_cache = [k for k in keys if isinstance(k, dict)]
+        _jwks_cache_expires_at = now + _JWKS_CACHE_TTL_SECONDS
+        return _jwks_keys_cache
 
 
 def _decode_hs256(token: str) -> dict:
@@ -78,14 +88,14 @@ def _decode_hs256(token: str) -> dict:
     return _decode_with_algorithm(token, secret, "HS256")
 
 
-def _decode_es256(token: str, header: dict) -> dict:
+async def _decode_es256(token: str, header: dict) -> dict:
     # Optional override: allow explicit public key in env for fully offline verification.
     explicit_public_key = _normalize_key_material(settings.SUPABASE_JWT_PUBLIC_KEY)
     if explicit_public_key:
         return _decode_with_algorithm(token, explicit_public_key, "ES256")
 
     kid = header.get("kid")
-    candidate_keys = _fetch_supabase_jwks_keys()
+    candidate_keys = await _fetch_supabase_jwks_keys()
     if kid:
         matching = [key for key in candidate_keys if key.get("kid") == kid]
         if matching:
@@ -103,7 +113,7 @@ def _decode_es256(token: str, header: dict) -> dict:
     raise JWTError("No candidate JWKs available for ES256 verification")
 
 
-def _decode_token(token: str) -> dict:
+async def _decode_token(token: str) -> dict:
     header = jwt.get_unverified_header(token)
     algorithm = header.get("alg")
     if algorithm not in _SUPPORTED_JWT_ALGORITHMS:
@@ -112,34 +122,34 @@ def _decode_token(token: str) -> dict:
     if algorithm == "HS256":
         return _decode_hs256(token)
     if algorithm == "ES256":
-        return _decode_es256(token, header)
+        return await _decode_es256(token, header)
 
     raise JWTError(f"Unsupported JWT alg: {algorithm}")
 
 
-def decode_supabase_jwt_token(token: str) -> dict:
+async def decode_supabase_jwt_token(token: str) -> dict:
     """Decode and validate a Supabase JWT string and return its payload."""
-    payload = _decode_token(token)
+    payload = await _decode_token(token)
     if not isinstance(payload, dict):
         raise JWTError("Token payload is not a JSON object")
     return payload
 
 
-def verify_supabase_jwt(auth: HTTPAuthorizationCredentials = Security(security)):
+async def verify_supabase_jwt(auth: HTTPAuthorizationCredentials = Security(security)):
     """
     Decodes and verifies the Supabase JWT locally without calling their API.
     Saves latency and works on the ARM server.
     """
     token = auth.credentials
     try:
-        payload = decode_supabase_jwt_token(token)
+        payload = await decode_supabase_jwt_token(token)
         return payload
     except JWTError as exc:
         log.warning("Local JWT verification failed: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired Supabase token",
-        )
+        ) from exc
 
 
 def get_current_user(
@@ -165,41 +175,48 @@ def get_current_user(
 
 # --- Lazy-initialized Supabase clients ---
 def init_supabase_clients():
-    """Initialize and return a shared Supabase admin client for auth operations."""
+    """Initialize and return shared user-context and admin Supabase clients."""
+
+    if not settings.SUPABASE_ANON_KEY:
+        raise HTTPException(
+            status_code=500,
+            detail="SUPABASE_ANON_KEY is not configured in environment variables.",
+        )
 
     if not settings.SUPABASE_SERVICE_ROLE_KEY:
         raise HTTPException(
             status_code=500,
             detail="SUPABASE_SERVICE_ROLE_KEY is not configured in environment variables.",
         )
+    user_supa = create_client(settings.SUPABASE_URL, settings.SUPABASE_ANON_KEY)
     admin_supa = create_client(
         settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY
     )
 
-    return {"supabase": admin_supa, "admin_supabase": admin_supa}
+    return {"supabase": user_supa, "admin_supabase": admin_supa}
 
 
 async def close_supabase_clients():
     """Close async client sessions if necessary. supabase-py uses httpx under the hood."""
-    pass  # Currently supabase-py v2 doesn't expose a public teardown for its httpx clients
+    return None  # Currently supabase-py v2 doesn't expose a public teardown for its httpx clients
 
 
 def get_supabase() -> Client:
-    """Return the shared Supabase client stored on app.state."""
+    """Return the shared anon Supabase client stored on app.state."""
     from app.main import app
 
     return app.state.supabase
 
 
 def get_admin_supabase() -> Client:
-    """Return the admin Supabase client stored on app.state."""
+    """Return the service-role Supabase client stored on app.state."""
     from app.main import app
 
     return app.state.admin_supabase
 
 
 def get_admin_auth_client() -> Client:
-    """Return the shared Supabase admin auth client from app.state."""
+    """Return the service-role Supabase auth client from app.state."""
     from app.main import app
 
     return app.state.admin_supabase
@@ -262,5 +279,5 @@ def require_admin(current_user=Depends(get_current_user)):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required",
-        )
+        ) from exc
     return current_user

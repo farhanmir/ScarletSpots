@@ -11,7 +11,7 @@ import {
 import { Stack, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { supabase } from "@/shared/api/supabase";
+import { publicApiCall } from "@/shared/api/supabase";
 
 const RESEND_COOLDOWN_S = 60;
 
@@ -61,8 +61,10 @@ export default function ForgotPasswordScreen() {
 
     setLoading(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(trimmed);
-      if (error) throw error;
+      await publicApiCall("/users/password-reset", {
+        method: "POST",
+        body: JSON.stringify({ email: trimmed }),
+      });
       setSent(true);
       startCooldown();
     } catch (error: any) {
@@ -79,10 +81,10 @@ export default function ForgotPasswordScreen() {
     if (cooldown > 0) return;
     setLoading(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(
-        email.trim().toLowerCase(),
-      );
-      if (error) throw error;
+      await publicApiCall("/users/password-reset", {
+        method: "POST",
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      });
       startCooldown();
       Alert.alert("Sent", "Another reset email has been sent.");
     } catch (error: any) {

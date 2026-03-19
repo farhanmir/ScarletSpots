@@ -22,6 +22,7 @@ Target: occupancy_ratio (0.0–1.0) at session start time.
 Training cadence: run once per week (or cron'd via CI) after data accumulates.
 """
 
+import json
 import sys
 from collections import defaultdict
 from datetime import datetime
@@ -31,7 +32,33 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 MODELS_DIR = Path(__file__).parent / "forecast_models"
+LOT_DATA_PATH = Path(__file__).parent / "rutgers_parking_data.json"
 MIN_SAMPLES = 50  # Minimum sessions per lot before training
+
+from app.services.forecast_features import FEATURE_COLUMNS
+
+
+def _load_lot_capacities() -> dict[str, int]:
+    try:
+        with LOT_DATA_PATH.open("r", encoding="utf-8") as fh:
+            lots = json.load(fh)
+    except Exception:
+        return {}
+
+    capacities: dict[str, int] = {}
+    for lot in lots if isinstance(lots, list) else []:
+        if not isinstance(lot, dict):
+            continue
+        lot_id = str(lot.get("mapId") or "").strip()
+        if not lot_id:
+            continue
+        try:
+            capacity = int(lot.get("totalSpaces") or 0)
+        except Exception:
+            capacity = 0
+        if capacity > 0:
+            capacities[lot_id] = capacity
+    return capacities
 
 
 def train():
@@ -40,7 +67,9 @@ def train():
         import numpy as np
         from sklearn.ensemble import GradientBoostingRegressor
     except ImportError:
-        print("ERROR: scikit-learn and joblib are required. Run: pip install scikit-learn joblib")
+        print(
+            "ERROR: scikit-learn and joblib are required. Run: pip install scikit-learn joblib"
+        )
         sys.exit(1)
 
     from app.core.security import get_supabase
@@ -73,6 +102,8 @@ def train():
         print("No sessions to train on yet. Come back in a few weeks!")
         return
 
+    lot_capacities = _load_lot_capacities()
+
     # Group sessions by lot_id
     by_lot: dict[str, list] = defaultdict(list)
     for s in all_sessions:
@@ -84,9 +115,6 @@ def train():
                 by_lot[lot_id].append(dt)
             except ValueError:
                 pass
-
-    # Fetch current occupancy per lot to compute target ratio
-    db.table("lot_occupancy").select("lot_id, count").execute()
 
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -106,17 +134,24 @@ def train():
             key = (dt.hour, dt.weekday(), dt.month)
             hour_counts[key].append(1)
 
-        # Estimate capacity from the JSON data if available
-        # For now use a default of 200; the lots.py endpoint will pass the real capacity
-        capacity = 200
+        capacity = lot_capacities.get(lot_id, 200)
 
         X, y = [], []
         for (hour, dow, month), counts in hour_counts.items():
             session_count = len(counts)
+            representative_current_occupancy = min(capacity, session_count)
             # Estimate ratio as fraction of sessions in this slot vs capacity
             # This is a simplified proxy until we have richer data
-            ratio = min(1.0, session_count / max(1, capacity / 24))
-            X.append([hour, dow, month, capacity, 0, 0])
+            ratio = min(1.0, representative_current_occupancy / max(1, capacity))
+            feature_row = {
+                "hour": hour,
+                "dow": dow,
+                "month": month,
+                "current_occupancy": representative_current_occupancy,
+                "capacity": capacity,
+                "minutes_ahead": 0,
+            }
+            X.append([feature_row[column] for column in FEATURE_COLUMNS])
             y.append(ratio)
 
         if len(X) < 10:

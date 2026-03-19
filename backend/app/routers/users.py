@@ -4,7 +4,7 @@ from uuid import UUID
 from app.core.database import get_db
 from app.core.limiter import limiter
 from app.core.logger import get_logger
-from app.core.security import get_admin_auth_client, get_current_user
+from app.core.security import get_admin_auth_client, get_current_user, get_supabase
 from app.models.user import Profile
 from app.schemas.user import ProfileUpdate, SignupResponse, UserCreate
 from app.services.push_notifications import (
@@ -39,9 +39,9 @@ def _build_profile_payload(user_id: str, email: str | None, name: str | None) ->
     }
 
 
-def _to_uuid_or_401(user: SimpleNamespace) -> UUID:
+def _to_uuid_or_401(user: SimpleNamespace) -> str:
     try:
-        return UUID(str(user.id))
+        return str(UUID(str(user.id)))
     except Exception as exc:
         raise HTTPException(
             status_code=401, detail="Invalid authenticated user id"
@@ -66,7 +66,7 @@ def _profile_to_response(profile: Profile, fallback_email: str | None = None) ->
 
 
 async def _upsert_profile(db: AsyncSession, payload: dict) -> Profile:
-    profile_id = UUID(payload["id"])
+    profile_id = str(UUID(payload["id"]))
     profile = await db.get(Profile, profile_id)
     if profile is None:
         profile = Profile(id=profile_id)
@@ -87,7 +87,6 @@ async def _upsert_profile(db: AsyncSession, payload: dict) -> Profile:
             setattr(profile, field, payload[field])
 
     await db.commit()
-    await db.refresh(profile)
     return profile
 
 
@@ -220,7 +219,7 @@ class PushTokenDeleteRequest(BaseModel):
 async def request_password_reset(
     request: Request,
     body: PasswordResetRequest,
-    admin_auth: Client = Depends(get_admin_auth_client),
+    supabase: Client = Depends(get_supabase),
 ):
     """
     Send a password reset email via Supabase Auth.
@@ -238,12 +237,7 @@ async def request_password_reset(
         }
 
     try:
-        admin_auth.auth.admin.generate_link(
-            {
-                "type": "recovery",
-                "email": email,
-            }
-        )
+        supabase.auth.reset_password_for_email(email)
     except Exception as exc:
         log.warning("Password reset failed for %s: %s", email, exc)
         # Do not surface errors to caller — prevents email enumeration
@@ -282,9 +276,9 @@ async def update_location(
             db.add(profile)
 
         if "latitude" in update_data:
-            profile.latitude = str(update_data["latitude"])
+            profile.latitude = update_data["latitude"]
         if "longitude" in update_data:
-            profile.longitude = str(update_data["longitude"])
+            profile.longitude = update_data["longitude"]
 
         await db.commit()
         return {"success": True}

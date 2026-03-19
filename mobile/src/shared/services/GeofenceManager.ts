@@ -8,7 +8,7 @@ import {
   stopSensorTracking,
   wasDrivingRecentlyForAutoEnd,
 } from "./BackgroundTasks";
-import { wasRecentlyDriving } from "./ParkingDetectionService";
+import { haversineDistance, wasRecentlyDriving } from "./ParkingDetectionService";
 import { getCachedSession, clearCachedSession } from "./OfflineCache";
 import { queueParkAction } from "./OfflineQueue";
 import { supabase } from "@/shared/api/supabase-client";
@@ -22,6 +22,11 @@ interface LotGeoPoint {
   longitude: number;
 }
 
+interface GeoPoint {
+  latitude: number;
+  longitude: number;
+}
+
 /**
  * Registers geofences for parking lots from the bundled JSON data.
  * Lot coordinates come from the static data — no API call needed.
@@ -30,8 +35,35 @@ interface LotGeoPoint {
 let isRegistering = false;
 /** Last lot set passed to registerLotGeofences — used by the retry listener. */
 let _lastLots: LotGeoPoint[] = [];
+let _lastRegistrationPoint: GeoPoint | null = null;
+let _locationWatcher: Location.LocationSubscription | null = null;
+const REREGISTER_DISTANCE_METERS = 2000;
 
-export async function registerLotGeofences(lots: LotGeoPoint[]) {
+
+async function _resolveUserLocation(
+  userLocation?: GeoPoint,
+): Promise<GeoPoint | null> {
+  if (userLocation) {
+    return userLocation;
+  }
+  try {
+    const lastKnown = await Location.getLastKnownPositionAsync();
+    if (!lastKnown) {
+      return null;
+    }
+    return {
+      latitude: lastKnown.coords.latitude,
+      longitude: lastKnown.coords.longitude,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function registerLotGeofences(
+  lots: LotGeoPoint[],
+  userLocation?: GeoPoint,
+) {
   if (lots.length === 0) return;
   if (isRegistering) return;
   isRegistering = true;
@@ -57,7 +89,26 @@ export async function registerLotGeofences(lots: LotGeoPoint[]) {
       return; // lock released by outer finally
     }
 
-    const regions = lots
+    const resolvedUserLocation = await _resolveUserLocation(userLocation);
+    const sortedLots = resolvedUserLocation
+      ? [...lots].sort(
+          (a, b) =>
+            haversineDistance(
+              resolvedUserLocation.latitude,
+              resolvedUserLocation.longitude,
+              a.latitude,
+              a.longitude,
+            ) -
+            haversineDistance(
+              resolvedUserLocation.latitude,
+              resolvedUserLocation.longitude,
+              b.latitude,
+              b.longitude,
+            ),
+        )
+      : [...lots];
+
+    const regions = sortedLots
       .filter((lot) => lot.latitude && lot.longitude)
       .slice(0, 20) // iOS has a strict hard limit of 20 monitored regions per app
       .map((lot) => ({
@@ -76,12 +127,66 @@ export async function registerLotGeofences(lots: LotGeoPoint[]) {
     }
 
     await Location.startGeofencingAsync(GEOFENCE_TASK_NAME, regions);
+    if (resolvedUserLocation) {
+      _lastRegistrationPoint = resolvedUserLocation;
+    }
     console.log(`[GeofenceManager] Registered ${regions.length} regions.`);
   } catch (err) {
     console.error("[GeofenceManager] Registration failed:", err);
   } finally {
     isRegistering = false;
   }
+}
+
+async function _maybeReregisterOnMovement(nextPoint: GeoPoint) {
+  if (!_lastRegistrationPoint || _lastLots.length === 0) {
+    return;
+  }
+
+  const traveledMeters = haversineDistance(
+    _lastRegistrationPoint.latitude,
+    _lastRegistrationPoint.longitude,
+    nextPoint.latitude,
+    nextPoint.longitude,
+  );
+  if (traveledMeters < REREGISTER_DISTANCE_METERS) {
+    return;
+  }
+
+  await registerLotGeofences(_lastLots, nextPoint);
+}
+
+export async function bootstrapLotGeofenceRegistration(lots: LotGeoPoint[]) {
+  await registerLotGeofences(lots);
+
+  if (_locationWatcher) {
+    return;
+  }
+
+  try {
+    _locationWatcher = await Location.watchPositionAsync(
+      {
+        accuracy: Location.Accuracy.Balanced,
+        distanceInterval: 500,
+        timeInterval: 60000,
+      },
+      (location) => {
+        _maybeReregisterOnMovement({
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        }).catch((err) =>
+          console.warn("[GeofenceManager] Movement re-registration failed:", err),
+        );
+      },
+    );
+  } catch (err) {
+    console.warn("[GeofenceManager] Failed to start movement watcher:", err);
+  }
+}
+
+export function teardownLotGeofenceRegistration() {
+  _locationWatcher?.remove();
+  _locationWatcher = null;
 }
 
 /**

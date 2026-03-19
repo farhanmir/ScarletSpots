@@ -1,84 +1,71 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-from fastapi.testclient import TestClient
-
+import pytest
+from app.core.security import get_admin_auth_client
 from app.main import app
+from app.models.user import Profile
+from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
-client = TestClient(app)
 
-
-def test_signup_retries_profile_upsert_when_optional_profile_columns_are_missing() -> None:
-    admin_db = MagicMock()
+@pytest.mark.asyncio
+async def test_signup_creates_profile_via_sqlalchemy_upsert(
+    client: AsyncClient,
+    db_session: AsyncSession,
+):
     created_user = SimpleNamespace(
-        id="00000000-0000-0000-0000-000000000123",
-        email="test@rutgers.edu",
+        id="00000000-0000-0000-0000-000000000777",
+        email="newuser@rutgers.edu",
     )
-    admin_db.auth.admin.create_user.return_value = SimpleNamespace(user=created_user)
+    admin_auth = MagicMock()
+    admin_auth.auth.admin.create_user.return_value = SimpleNamespace(user=created_user)
 
-    profiles_table = MagicMock()
-    captured_payloads: list[dict] = []
-
-    def upsert_side_effect(payload: dict) -> MagicMock:
-        captured_payloads.append(dict(payload))
-        execute_result = MagicMock()
-        if len(captured_payloads) == 1:
-            execute_result.execute.side_effect = Exception(
-                "{'message': \"Could not find the 'first_name' column of 'profiles' in the schema cache\", 'code': 'PGRST204'}"
-            )
-        else:
-            execute_result.execute.return_value = SimpleNamespace(
-                data=[{"id": created_user.id, "email": created_user.email}]
-            )
-        return execute_result
-
-    admin_db.table.return_value = profiles_table
-    profiles_table.upsert.side_effect = upsert_side_effect
-
-    original_admin_db = app.state.admin_supabase
-    app.state.admin_supabase = admin_db
+    app.dependency_overrides[get_admin_auth_client] = lambda: admin_auth
     try:
-        response = client.post(
+        response = await client.post(
             "/api/v1/users/signup",
             json={
                 "email": created_user.email,
                 "password": "Password123!",
-                "name": "Test User",
+                "name": "New User",
             },
         )
     finally:
-        app.state.admin_supabase = original_admin_db
+        app.dependency_overrides.pop(get_admin_auth_client, None)
 
-    assert response.status_code == 200
+    assert response.status_code == 200, response.text
     assert response.json()["success"] is True
-    assert len(captured_payloads) == 2
 
-    first_payload = captured_payloads[0]
-    second_payload = captured_payloads[1]
-
-    assert first_payload["first_name"] == "Test"
-    assert first_payload["last_name"] == "User"
-    assert "first_name" not in second_payload
-    assert second_payload["last_name"] == "User"
+    profile = await db_session.get(Profile, created_user.id)
+    assert profile is not None
+    assert profile.email == created_user.email
+    assert profile.first_name == "New"
+    assert profile.last_name == "User"
 
 
-def test_signup_returns_409_when_email_already_registered() -> None:
-    admin_db = MagicMock()
-    admin_db.auth.admin.create_user.side_effect = Exception("User with email already registered")
+@pytest.mark.asyncio
+async def test_signup_returns_409_when_email_already_registered(client: AsyncClient):
+    admin_auth = MagicMock()
+    admin_auth.auth.admin.create_user.side_effect = Exception(
+        "User with email already registered"
+    )
 
-    original_admin_db = app.state.admin_supabase
-    app.state.admin_supabase = admin_db
+    app.dependency_overrides[get_admin_auth_client] = lambda: admin_auth
     try:
-        response = client.post(
+        response = await client.post(
             "/api/v1/users/signup",
             json={
                 "email": "existing@rutgers.edu",
                 "password": "Password123!",
-                "name": "Test User",
+                "name": "Existing User",
             },
         )
     finally:
-        app.state.admin_supabase = original_admin_db
+        app.dependency_overrides.pop(get_admin_auth_client, None)
 
     assert response.status_code == 409
-    assert response.json()["detail"] == "A user with this email address has already been registered"
+    assert (
+        response.json()["detail"]
+        == "A user with this email address has already been registered"
+    )
