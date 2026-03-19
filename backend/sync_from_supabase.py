@@ -13,7 +13,7 @@ load_dotenv(dotenv_path=env_path)
 
 # Supabase Credentials (from your .env)
 S_URL = os.getenv("SUPABASE_URL")
-S_KEY = os.getenv("SUPABASE_KEY")
+S_KEY = os.getenv("SUPABASE_ANON_KEY")
 supabase = create_client(S_URL, S_KEY)
 
 async def sync():
@@ -24,7 +24,17 @@ async def sync():
         
         for p in sb_profiles.data:
             # Upsert into local Postgres
-            profile = Profile(id=p['id'], email=p['email'], full_name=p.get('full_name'))
+            profile = Profile(
+                id=p['id'], 
+                email=p['email'], 
+                full_name=p.get('full_name'),
+                first_name=p.get('first_name'),
+                last_name=p.get('last_name'),
+                avatar_url=p.get('avatar_url'),
+                role=p.get('role', 'user'),
+                latitude=p.get('latitude'),
+                longitude=p.get('longitude')
+            )
             await session.merge(profile)
         
         # 2. Pull Favorites
