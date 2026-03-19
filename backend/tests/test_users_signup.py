@@ -2,11 +2,12 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.security import get_admin_auth_client
 from app.main import app
 from app.models.user import Profile
-from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.mark.asyncio

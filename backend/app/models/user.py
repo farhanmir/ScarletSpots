@@ -1,6 +1,7 @@
+from sqlalchemy import Column, DateTime, Float, String, func
+
 from app.core.database import Base
 from app.models.types import UUID_SQL
-from sqlalchemy import Column, DateTime, Float, String, func
 
 
 class Profile(Base):

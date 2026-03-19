@@ -4,6 +4,12 @@ from pathlib import Path
 from typing import Optional
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
+from sqlalchemy import case, or_, select, text, update
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.database import get_db
 from app.core.limiter import limiter
 from app.core.logger import get_logger
@@ -14,11 +20,6 @@ from app.models.parking import LotOccupancy, ParkingSession
 from app.models.parking import SessionFeedback as SessionFeedbackModel
 from app.models.user import Profile
 from app.services.push_notifications import send_push_to_users
-from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
-from sqlalchemy import case, or_, select, text, update
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
 
 log = get_logger(__name__)
 
@@ -79,9 +80,9 @@ class SessionFeedback(BaseModel):
     notes: Optional[str] = None
 
 
-def _to_uuid_or_401(value: str) -> str:
+def _to_uuid_or_401(value: str) -> UUID:
     try:
-        return str(UUID(str(value)))
+        return UUID(str(value))
     except Exception as exc:
         raise HTTPException(
             status_code=401, detail="Invalid authenticated user id"

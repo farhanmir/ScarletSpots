@@ -5,8 +5,9 @@ Tests for the friends router.
 from uuid import UUID
 
 import pytest
-from app.main import app
 from fastapi.testclient import TestClient
+
+from app.main import app
 
 client = TestClient(app)
 
@@ -46,10 +47,13 @@ async def test_sharing_toggle_updates_friendship():
     from app.routers.friends import SharingToggle, toggle_sharing
 
     db_mock = MagicMock()
+    user_id = UUID("00000000-0000-0000-0000-000000000456")
+    friendship_id = UUID("00000000-0000-0000-0000-000000000000")
+
     friendship = Friendship(
-        id="00000000-0000-0000-0000-000000000000",
-        user_id="00000000-0000-0000-0000-000000000456",
-        friend_id="00000000-0000-0000-0000-000000000123",
+        id=friendship_id,
+        user_id=user_id,
+        friend_id=UUID("00000000-0000-0000-0000-000000000123"),
         status="accepted",
         sharing_enabled=False,
     )
@@ -57,24 +61,98 @@ async def test_sharing_toggle_updates_friendship():
     db_mock.commit = AsyncMock(return_value=None)
 
     user_mock = MagicMock()
-    user_mock.id = "00000000-0000-0000-0000-000000000456"
+    user_mock.id = str(user_id)
 
     # Test True (Enabled) — should call update with sharing_enabled=True
     body_true = SharingToggle(enabled=True)
     result = await toggle_sharing(
-        friendship_id=UUID("00000000-0000-0000-0000-000000000000"),
+        friendship_id=friendship_id,
         body=body_true,
         current_user=user_mock,
         db=db_mock,
     )
     assert result == {"success": True, "sharing_enabled": True}
+    assert friendship.sharing_enabled is True
 
     # Test False (Disabled) — should call update with sharing_enabled=False
     body_false = SharingToggle(enabled=False)
     result = await toggle_sharing(
-        friendship_id=UUID("00000000-0000-0000-0000-000000000000"),
+        friendship_id=friendship_id,
         body=body_false,
         current_user=user_mock,
         db=db_mock,
     )
     assert result == {"success": True, "sharing_enabled": False}
+    assert friendship.sharing_enabled is False
+
+
+@pytest.mark.asyncio
+async def test_accept_friend_request():
+    """Test that a friend request can be accepted by the recipient."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.models.friendship import Friendship
+    from app.routers.friends import FriendAction, accept_friend_request
+
+    db_mock = MagicMock()
+    recipient_id = UUID("00000000-0000-0000-0000-000000000789")
+    request_id = UUID("00000000-0000-0000-0000-000000000001")
+
+    friendship = Friendship(
+        id=request_id,
+        user_id=UUID("00000000-0000-0000-0000-000000000123"), # sender
+        friend_id=recipient_id, # recipient
+        status="pending",
+    )
+    db_mock.get = AsyncMock(return_value=friendship)
+    db_mock.commit = AsyncMock(return_value=None)
+
+    recipient_user_mock = MagicMock()
+    recipient_user_mock.id = str(recipient_id)
+
+    body = FriendAction(request_id=request_id)
+    result = await accept_friend_request(
+        body=body,
+        current_user=recipient_user_mock,
+        db=db_mock,
+    )
+    assert result == {"success": True}
+    assert friendship.status == "accepted"
+
+
+@pytest.mark.asyncio
+async def test_accept_friend_request_unauthorized():
+    """Test that someone other than the recipient cannot accept the request."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    from fastapi import HTTPException
+
+    from app.models.friendship import Friendship
+    from app.routers.friends import FriendAction, accept_friend_request
+
+    db_mock = MagicMock()
+    recipient_id = UUID("00000000-0000-0000-0000-000000000789")
+    stranger_id = UUID("00000000-0000-0000-0000-000000000999")
+    request_id = UUID("00000000-0000-0000-0000-000000000001")
+
+    friendship = Friendship(
+        id=request_id,
+        user_id=UUID("00000000-0000-0000-0000-000000000123"), # sender
+        friend_id=recipient_id, # recipient
+        status="pending",
+    )
+    db_mock.get = AsyncMock(return_value=friendship)
+
+    stranger_user_mock = MagicMock()
+    stranger_user_mock.id = str(stranger_id)
+
+    body = FriendAction(request_id=request_id)
+
+    with pytest.raises(HTTPException) as excinfo:
+        await accept_friend_request(
+            body=body,
+            current_user=stranger_user_mock,
+            db=db_mock,
+        )
+    assert excinfo.value.status_code == 404
+    assert friendship.status == "pending"

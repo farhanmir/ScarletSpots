@@ -28,14 +28,14 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
+from app.services.forecast_features import FEATURE_COLUMNS
+
 # Ensure we can import from the app package
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 MODELS_DIR = Path(__file__).parent / "forecast_models"
 LOT_DATA_PATH = Path(__file__).parent / "rutgers_parking_data.json"
 MIN_SAMPLES = 50  # Minimum sessions per lot before training
-
-from app.services.forecast_features import FEATURE_COLUMNS
 
 
 def _load_lot_capacities() -> dict[str, int]:

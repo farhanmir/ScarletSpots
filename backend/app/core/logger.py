@@ -20,8 +20,9 @@ class StructuredFormatter(logging.Formatter):
             log_entry["correlation_id"] = record.correlation_id
 
         # Include exception info if present
-        if record.exc_info and record.exc_info[1]:
-            log_entry["exception"] = str(record.exc_info[1])
+        if record.exc_info:
+            import traceback
+            log_entry["exception"] = "".join(traceback.format_exception(*record.exc_info))
 
         return json.dumps(log_entry)
 

@@ -1,5 +1,11 @@
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
+from sqlalchemy import and_, delete, func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
+
 from app.core.database import get_db
 from app.core.limiter import limiter
 from app.core.logger import get_logger
@@ -8,11 +14,6 @@ from app.core.websocket import manager as ws_manager
 from app.models.friendship import Friendship
 from app.models.parking import ParkingSession
 from app.models.user import Profile
-from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
-from sqlalchemy import and_, delete, func, or_, select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import aliased
 
 log = get_logger(__name__)
 
@@ -35,9 +36,9 @@ class SharingToggle(BaseModel):
     enabled: bool
 
 
-def _to_uuid_or_401(value: str) -> str:
+def _to_uuid_or_401(value: str) -> UUID:
     try:
-        return str(UUID(str(value)))
+        return UUID(str(value))
     except Exception as exc:
         raise HTTPException(
             status_code=401, detail="Invalid authenticated user id"

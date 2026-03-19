@@ -6,10 +6,11 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Any
 
-from app.core.config import settings
-from app.core.logger import get_logger
 from fastapi import WebSocket
 from redis import asyncio as aioredis
+
+from app.core.config import settings
+from app.core.logger import get_logger
 
 log = get_logger(__name__)
 

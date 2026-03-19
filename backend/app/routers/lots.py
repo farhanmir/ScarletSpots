@@ -9,15 +9,16 @@ This router only handles:
   2. Occupancy    — GET /lots/occupancy  (aggregate for all lots)
 """
 
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi_cache.decorator import cache as fastapi_cache
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.database import get_db
 from app.core.logger import get_logger
 from app.models.parking import LotOccupancy
 from app.services.forecast_provider import ForecastProvider
 from app.services.ml_forecast_provider import MLForecastProvider
-from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi_cache.decorator import cache as fastapi_cache
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 log = get_logger(__name__)
 

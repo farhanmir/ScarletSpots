@@ -1,6 +1,10 @@
 from types import SimpleNamespace
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.database import get_db
 from app.core.limiter import limiter
 from app.core.logger import get_logger
@@ -11,9 +15,6 @@ from app.services.push_notifications import (
     deactivate_device_push_token,
     upsert_device_push_token,
 )
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel
-from sqlalchemy.ext.asyncio import AsyncSession
 from supabase import Client
 
 log = get_logger(__name__)
@@ -39,9 +40,9 @@ def _build_profile_payload(user_id: str, email: str | None, name: str | None) ->
     }
 
 
-def _to_uuid_or_401(user: SimpleNamespace) -> str:
+def _to_uuid_or_401(user: SimpleNamespace) -> UUID:
     try:
-        return str(UUID(str(user.id)))
+        return UUID(str(user.id))
     except Exception as exc:
         raise HTTPException(
             status_code=401, detail="Invalid authenticated user id"
@@ -66,7 +67,7 @@ def _profile_to_response(profile: Profile, fallback_email: str | None = None) ->
 
 
 async def _upsert_profile(db: AsyncSession, payload: dict) -> Profile:
-    profile_id = str(UUID(payload["id"]))
+    profile_id = UUID(payload["id"])
     profile = await db.get(Profile, profile_id)
     if profile is None:
         profile = Profile(id=profile_id)
@@ -137,7 +138,7 @@ async def signup(
                 detail="A user with this email address has already been registered",
             ) from exc
 
-        log.error("Signup failed: %s", exc)
+        log.exception("Signup failed: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Signup failed"
         ) from exc

@@ -1,4 +1,37 @@
-from sqlalchemy import String
-from sqlalchemy.dialects.postgresql import UUID
+import uuid
 
-UUID_SQL = UUID(as_uuid=True).with_variant(String(36), "sqlite")
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.types import CHAR, TypeDecorator
+
+
+class GUID(TypeDecorator):
+    """Platform-independent GUID type.
+    Uses PostgreSQL's UUID type, otherwise uses CHAR(36), returning uuid.UUID objects in Python.
+    """
+    impl = CHAR
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == 'postgresql':
+            return dialect.type_descriptor(PG_UUID(as_uuid=True))
+        else:
+            return dialect.type_descriptor(CHAR(36))
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return value
+        if not isinstance(value, uuid.UUID):
+            try:
+                return str(uuid.UUID(str(value)))
+            except ValueError:
+                return str(value)
+        return str(value)
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return value
+        if not isinstance(value, uuid.UUID):
+            return uuid.UUID(value)
+        return value
+
+UUID_SQL = GUID

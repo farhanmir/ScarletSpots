@@ -2,9 +2,6 @@ import asyncio
 import json
 from urllib.parse import parse_qs
 
-from app.core.logger import get_logger
-from app.core.security import decode_supabase_jwt_token
-from app.core.websocket import manager
 from fastapi import (
     APIRouter,
     WebSocket,
@@ -13,6 +10,10 @@ from fastapi import (
     status,
 )
 from jose.exceptions import JWTError
+
+from app.core.logger import get_logger
+from app.core.security import decode_supabase_jwt_token
+from app.core.websocket import manager
 
 router = APIRouter(tags=["websocket"])
 log = get_logger(__name__)

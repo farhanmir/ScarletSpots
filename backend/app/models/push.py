@@ -1,6 +1,7 @@
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String, func
+
 from app.core.database import Base
 from app.models.types import UUID_SQL
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String, func
 
 
 class DevicePushToken(Base):

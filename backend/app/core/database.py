@@ -1,8 +1,9 @@
 import logging
 
-from app.core.config import settings
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
+
+from app.core.config import settings
 
 # We use an async engine because FastAPI is async.
 engine = create_async_engine(settings.DATABASE_URL, echo=settings.DEBUG)

@@ -8,13 +8,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from contextlib import asynccontextmanager
 
-from app.core.config import settings
-from app.core.limiter import limiter
-from app.core.logger import logger
-from app.core.security import decode_supabase_jwt_token
-from app.core.websocket import manager as websocket_manager
-from app.routers import favorites, friends, lots, park, users
-from app.routers.websocket import router as websocket_router
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -22,6 +15,14 @@ from jose.exceptions import JWTError
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
+
+from app.core.config import settings
+from app.core.limiter import limiter
+from app.core.logger import logger
+from app.core.security import decode_supabase_jwt_token
+from app.core.websocket import manager as websocket_manager
+from app.routers import favorites, friends, lots, park, users
+from app.routers.websocket import router as websocket_router
 
 
 # FastAPI Lifespan for Supabase Client Pooling

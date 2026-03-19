@@ -6,11 +6,12 @@ from typing import Any
 from uuid import UUID
 
 import httpx
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.config import settings
 from app.core.logger import get_logger
 from app.models.push import DevicePushToken
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 log = get_logger(__name__)
 

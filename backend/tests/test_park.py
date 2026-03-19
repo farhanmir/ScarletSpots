@@ -1,8 +1,9 @@
 import pytest
-from app.models.parking import LotOccupancy, ParkingSession
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.parking import LotOccupancy, ParkingSession
 
 
 @pytest.mark.asyncio

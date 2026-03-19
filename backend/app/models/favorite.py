@@ -1,7 +1,8 @@
-from app.core.database import Base
-from app.models.types import UUID_SQL
 from sqlalchemy import Column, DateTime, ForeignKey, PrimaryKeyConstraint, String, func
 from sqlalchemy.orm import relationship
+
+from app.core.database import Base
+from app.models.types import UUID_SQL
 
 
 class UserFavorite(Base):
