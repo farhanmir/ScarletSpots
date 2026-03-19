@@ -46,6 +46,7 @@ export default function LotDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const queryClient = useQueryClient();
   const { user, permitType, secondaryPermitType } = useAuth();
+  const currentUserId = user?.id ?? null;
   const { setIsTabBarHidden } = useTabBar();
 
   useFocusEffect(
@@ -90,15 +91,16 @@ export default function LotDetailsScreen() {
             const ids = (resp?.favorite_lots ?? []).map((l: any) =>
               String(l.lot_id ?? l.id),
             );
-            await cacheFavorites(ids);
+            await cacheFavorites(ids, currentUserId);
             return ids;
           },
           "favorites_cache",
           1000 * 60 * 5,
+          currentUserId,
         );
         return data;
       } catch {
-        return (await getCachedFavorites()) || [];
+        return (await getCachedFavorites(currentUserId)) || [];
       }
     },
     enabled: !!user,
@@ -144,6 +146,7 @@ export default function LotDetailsScreen() {
         },
         "offline_cache_session",
         1000 * 60 * 1,
+        currentUserId,
       );
       return result.data ?? { session: null };
     },
@@ -161,7 +164,7 @@ export default function LotDetailsScreen() {
       : [...favorites, lot.id];
 
     queryClient.setQueryData(["favorites"], newFavorites);
-    cacheFavorites(newFavorites);
+    cacheFavorites(newFavorites, currentUserId);
 
     try {
       if (wasFavorite) {
@@ -172,7 +175,7 @@ export default function LotDetailsScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
       queryClient.setQueryData(["favorites"], favorites);
-      cacheFavorites(favorites);
+      cacheFavorites(favorites, currentUserId);
       Alert.alert("Error", "Failed to update favorites");
     }
   };
@@ -214,7 +217,7 @@ export default function LotDetailsScreen() {
 
       const netState = await NetInfo.fetch();
       if (!netState.isConnected) {
-        await queueParkAction("PARK", payload);
+        await queueParkAction("PARK", payload, undefined, undefined, currentUserId);
         const optimisticSession = {
           id: `offline-${Date.now()}`,
           lotId: lot.id,
@@ -223,7 +226,7 @@ export default function LotDetailsScreen() {
         queryClient.setQueryData(["session", "active"], {
           session: optimisticSession,
         });
-        cacheSession({ session: optimisticSession }).catch(() => {});
+        cacheSession({ session: optimisticSession }, currentUserId).catch(() => {});
         updateOptimisticOccupancy(lot.id, 1);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         router.dismiss();
@@ -243,7 +246,7 @@ export default function LotDetailsScreen() {
           startTime: new Date().toISOString(),
         };
         queryClient.setQueryData(["session", "active"], { session });
-        cacheSession({ session }).catch(() => {});
+        cacheSession({ session }, currentUserId).catch(() => {});
         updateOptimisticOccupancy(lot.id, 1);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         router.dismiss();

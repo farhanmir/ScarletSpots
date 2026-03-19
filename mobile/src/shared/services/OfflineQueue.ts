@@ -30,6 +30,7 @@ export type QueuedActionType =
 
 export interface QueuedParkAction {
   id: string; // UUID generated at queue time
+  ownerId: string;
   type: QueuedActionType;
   payload: Record<string, unknown>;
   endpoint?: string; // Required for GENERIC_MUTATION
@@ -40,7 +41,43 @@ export interface QueuedParkAction {
 
 // ── Storage Key ────────────────────────────────────────────────────────────────
 
-const QUEUE_KEY = "offline_action_queue_v1";
+const QUEUE_KEY_PREFIX = "offline_action_queue_v1";
+const ANONYMOUS_OWNER = "anon";
+
+let activeOwnerId: string | null = null;
+
+function normalizeOwnerId(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function queueKeyForOwner(ownerId: string): string {
+  return `${QUEUE_KEY_PREFIX}:${ownerId}`;
+}
+
+async function resolveOwnerId(
+  ownerId?: string | null,
+): Promise<string | null> {
+  const explicit = normalizeOwnerId(ownerId);
+  if (explicit) return explicit;
+
+  const current = normalizeOwnerId(activeOwnerId);
+  if (current) return current;
+
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    return normalizeOwnerId(session?.user?.id ?? null);
+  } catch {
+    return null;
+  }
+}
+
+export function setOfflineQueueOwner(ownerId: string | null): void {
+  activeOwnerId = normalizeOwnerId(ownerId);
+}
 
 // ── Listeners ──────────────────────────────────────────────────────────────────
 
@@ -92,18 +129,25 @@ export function teardownOfflineQueue(): void {
 
 // ── Queue Persistence ──────────────────────────────────────────────────────────
 
-async function readQueue(): Promise<QueuedParkAction[]> {
+async function readQueue(ownerId?: string | null): Promise<QueuedParkAction[]> {
+  const resolvedOwner = (await resolveOwnerId(ownerId)) ?? ANONYMOUS_OWNER;
+  const storageKey = queueKeyForOwner(resolvedOwner);
   try {
-    const raw = await AsyncStorage.getItem(QUEUE_KEY);
+    const raw = await AsyncStorage.getItem(storageKey);
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
   }
 }
 
-async function writeQueue(queue: QueuedParkAction[]): Promise<void> {
+async function writeQueue(
+  queue: QueuedParkAction[],
+  ownerId?: string | null,
+): Promise<void> {
+  const resolvedOwner = (await resolveOwnerId(ownerId)) ?? ANONYMOUS_OWNER;
+  const storageKey = queueKeyForOwner(resolvedOwner);
   try {
-    await AsyncStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+    await AsyncStorage.setItem(storageKey, JSON.stringify(queue));
   } catch {
     /* swallow — queue failure should never crash the app */
   }
@@ -112,13 +156,15 @@ async function writeQueue(queue: QueuedParkAction[]): Promise<void> {
 // ── Public API ─────────────────────────────────────────────────────────────────
 
 /** Return all currently queued actions. */
-export async function getPendingActions(): Promise<QueuedParkAction[]> {
-  return readQueue();
+export async function getPendingActions(
+  ownerId?: string | null,
+): Promise<QueuedParkAction[]> {
+  return readQueue(ownerId);
 }
 
 /** Return the count of pending actions. */
-export async function getPendingCount(): Promise<number> {
-  const queue = await readQueue();
+export async function getPendingCount(ownerId?: string | null): Promise<number> {
+  const queue = await readQueue(ownerId);
   return queue.length;
 }
 
@@ -133,9 +179,12 @@ export async function queueParkAction(
   payload: Record<string, unknown>,
   endpoint?: string,
   method?: string,
+  ownerId?: string | null,
 ): Promise<QueuedParkAction> {
+  const resolvedOwner = (await resolveOwnerId(ownerId)) ?? ANONYMOUS_OWNER;
   const action: QueuedParkAction = {
     id: generateId(),
+    ownerId: resolvedOwner,
     type,
     payload,
     endpoint,
@@ -144,9 +193,9 @@ export async function queueParkAction(
     attempts: 0,
   };
 
-  const queue = await readQueue();
+  const queue = await readQueue(resolvedOwner);
   queue.push(action);
-  await writeQueue(queue);
+  await writeQueue(queue, resolvedOwner);
   notifyListeners(queue.length);
 
   console.log(
@@ -168,7 +217,8 @@ export async function flushQueue(): Promise<{
   if (isFlushing) return { flushed: 0, failed: 0 };
   isFlushing = true;
   try {
-    const queue = await readQueue();
+    const resolvedOwner = (await resolveOwnerId()) ?? ANONYMOUS_OWNER;
+    const queue = await readQueue(resolvedOwner);
     if (queue.length === 0) return { flushed: 0, failed: 0 };
 
     console.log(`[OfflineQueue] Flushing ${queue.length} queued action(s)...`);
@@ -197,7 +247,7 @@ export async function flushQueue(): Promise<{
       }
     }
 
-    await writeQueue(remaining);
+    await writeQueue(remaining, resolvedOwner);
     notifyListeners(remaining.length);
 
     return { flushed, failed };
@@ -209,18 +259,21 @@ export async function flushQueue(): Promise<{
 /**
  * Remove a specific action from the queue by ID (e.g. user cancelled the pending action).
  */
-export async function removeQueuedAction(id: string): Promise<void> {
-  const queue = await readQueue();
+export async function removeQueuedAction(
+  id: string,
+  ownerId?: string | null,
+): Promise<void> {
+  const queue = await readQueue(ownerId);
   const updated = queue.filter((a) => a.id !== id);
-  await writeQueue(updated);
+  await writeQueue(updated, ownerId);
   notifyListeners(updated.length);
 }
 
 /**
  * Clear all queued actions (use with caution — for user-initiated reset only).
  */
-export async function clearQueue(): Promise<void> {
-  await writeQueue([]);
+export async function clearQueue(ownerId?: string | null): Promise<void> {
+  await writeQueue([], ownerId);
   notifyListeners(0);
 }
 
@@ -236,6 +289,11 @@ async function dispatchAction(action: QueuedParkAction): Promise<void> {
     data: { session },
   } = await supabase.auth.getSession();
   if (!session) throw new Error("No session available to flush queue");
+
+  const currentOwner = normalizeOwnerId(session.user?.id ?? null);
+  if (!currentOwner || currentOwner !== action.ownerId) {
+    throw new Error("Queue ownership mismatch; refusing cross-user dispatch");
+  }
 
   const headers = {
     "Content-Type": "application/json",

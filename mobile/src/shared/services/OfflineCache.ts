@@ -11,6 +11,24 @@ import NetInfo from "@react-native-community/netinfo";
 
 const SESSION_KEY = "offline_cache_session";
 const FAVORITES_KEY = "favorites_cache";
+const ANONYMOUS_OWNER = "anon";
+
+let activeOwnerId: string | null = null;
+
+function normalizeOwnerId(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function scopedKey(baseKey: string, ownerId?: string | null): string {
+  const resolved = normalizeOwnerId(ownerId ?? activeOwnerId) ?? ANONYMOUS_OWNER;
+  return `${baseKey}:${resolved}`;
+}
+
+export function setOfflineCacheOwner(ownerId: string | null): void {
+  activeOwnerId = normalizeOwnerId(ownerId);
+}
 
 /** Session cache entries older than 5 minutes are considered stale. */
 const STALE_THRESHOLD_MS = 1000 * 60 * 5;
@@ -20,10 +38,14 @@ interface CacheEntry<T> {
   cachedAt: string;
 }
 
-async function setCache<T>(key: string, data: T): Promise<void> {
+async function setCache<T>(
+  key: string,
+  data: T,
+  ownerId?: string | null,
+): Promise<void> {
   try {
     const entry: CacheEntry<T> = { data, cachedAt: new Date().toISOString() };
-    await AsyncStorage.setItem(key, JSON.stringify(entry));
+    await AsyncStorage.setItem(scopedKey(key, ownerId), JSON.stringify(entry));
   } catch {
     // Swallow — caching must never crash the app
   }
@@ -31,9 +53,10 @@ async function setCache<T>(key: string, data: T): Promise<void> {
 
 async function getCache<T>(
   key: string,
+  ownerId?: string | null,
 ): Promise<{ data: T; isStale: boolean } | null> {
   try {
-    const raw = await AsyncStorage.getItem(key);
+    const raw = await AsyncStorage.getItem(scopedKey(key, ownerId));
     if (!raw) return null;
     const entry: CacheEntry<T> = JSON.parse(raw);
     const age = Date.now() - new Date(entry.cachedAt).getTime();
@@ -45,17 +68,24 @@ async function getCache<T>(
 
 // ── Session Cache ──────────────────────────────────────────────────────────
 
-export async function cacheSession(session: unknown): Promise<void> {
-  await setCache(SESSION_KEY, session);
+export async function cacheSession(
+  session: unknown,
+  ownerId?: string | null,
+): Promise<void> {
+  await setCache(SESSION_KEY, session, ownerId);
 }
 
-export async function getCachedSession(): Promise<unknown> {
-  const result = await getCache<unknown>(SESSION_KEY);
+export async function getCachedSession(ownerId?: string | null): Promise<unknown> {
+  const result = await getCache<unknown>(SESSION_KEY, ownerId);
   return result?.data ?? null;
 }
 
-export async function clearCachedSession(): Promise<void> {
-  await AsyncStorage.removeItem(SESSION_KEY);
+export async function clearCachedSession(ownerId?: string | null): Promise<void> {
+  await AsyncStorage.removeItem(scopedKey(SESSION_KEY, ownerId));
+}
+
+export async function clearCachedFavorites(ownerId?: string | null): Promise<void> {
+  await AsyncStorage.removeItem(scopedKey(FAVORITES_KEY, ownerId));
 }
 
 // ── Network-Aware Fetch with Fallback ──────────────────────────────────────
@@ -69,12 +99,14 @@ export async function fetchWithOfflineFallback<T>(
   fetchFn: () => Promise<T>,
   cacheKey: string,
   staleThresholdMs?: number,
+  ownerId?: string | null,
 ): Promise<{ data: T; fromCache: boolean; isStale: boolean }> {
   const netState = await NetInfo.fetch();
-  const cached = await getCache<T>(cacheKey);
+  const scopedCacheKey = scopedKey(cacheKey, ownerId);
+  const cached = await getCache<T>(cacheKey, ownerId);
 
   if (netState.isConnected && cached && staleThresholdMs) {
-    const raw = await AsyncStorage.getItem(cacheKey);
+    const raw = await AsyncStorage.getItem(scopedCacheKey);
     if (raw) {
       const entry: CacheEntry<T> = JSON.parse(raw);
       const age = Date.now() - new Date(entry.cachedAt).getTime();
@@ -87,7 +119,7 @@ export async function fetchWithOfflineFallback<T>(
   if (netState.isConnected) {
     try {
       const data = await fetchFn();
-      await setCache(cacheKey, data);
+      await setCache(cacheKey, data, ownerId);
       return { data, fromCache: false, isStale: false };
     } catch {
       // Network error — fall through to cache
@@ -103,11 +135,16 @@ export async function fetchWithOfflineFallback<T>(
 
 // ── Favorites Cache ───────────────────────────────────────────────────────
 
-export async function cacheFavorites(ids: string[]): Promise<void> {
-  await setCache(FAVORITES_KEY, ids);
+export async function cacheFavorites(
+  ids: string[],
+  ownerId?: string | null,
+): Promise<void> {
+  await setCache(FAVORITES_KEY, ids, ownerId);
 }
 
-export async function getCachedFavorites(): Promise<string[] | null> {
-  const result = await getCache<string[]>(FAVORITES_KEY);
+export async function getCachedFavorites(
+  ownerId?: string | null,
+): Promise<string[] | null> {
+  const result = await getCache<string[]>(FAVORITES_KEY, ownerId);
   return result?.data ?? null;
 }

@@ -1,5 +1,4 @@
 import json
-from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Optional
@@ -17,7 +16,8 @@ from app.models.user import Profile
 from app.services.push_notifications import send_push_to_users
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
-from sqlalchemy import or_, select
+from sqlalchemy import case, or_, select, text, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 log = get_logger(__name__)
@@ -108,6 +108,42 @@ async def _get_active_sessions(db: AsyncSession, user_id: str) -> list[ParkingSe
     return (await db.execute(stmt)).scalars().all()
 
 
+async def _decrement_lot_occupancy_atomic(db: AsyncSession, lot_id: str) -> int:
+    await db.execute(
+        update(LotOccupancy)
+        .where(LotOccupancy.lot_id == lot_id)
+        .values(
+            count=case(
+                (LotOccupancy.count > 0, LotOccupancy.count - 1),
+                else_=0,
+            )
+        )
+    )
+    row = await db.get(LotOccupancy, lot_id)
+    return int(row.count or 0) if row is not None else 0
+
+
+async def _increment_lot_occupancy_atomic(db: AsyncSession, lot_id: str) -> int:
+    updated = await db.execute(
+        update(LotOccupancy)
+        .where(LotOccupancy.lot_id == lot_id)
+        .values(count=LotOccupancy.count + 1)
+    )
+    if (updated.rowcount or 0) == 0:
+        try:
+            db.add(LotOccupancy(lot_id=lot_id, count=1))
+            await db.flush()
+        except IntegrityError:
+            await db.execute(
+                update(LotOccupancy)
+                .where(LotOccupancy.lot_id == lot_id)
+                .values(count=LotOccupancy.count + 1)
+            )
+
+    row = await db.get(LotOccupancy, lot_id)
+    return int(row.count or 0) if row is not None else 0
+
+
 async def _get_friend_user_ids(db: AsyncSession, user_id: str) -> list[str]:
     stmt = select(Friendship).where(
         Friendship.status == "accepted",
@@ -150,7 +186,7 @@ async def start_parking_session(
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Start a new parking session and increment local lot occupancy in one transaction."""
+    """Start a new parking session and mutate occupancy with atomic SQL updates."""
     user_id = _to_uuid_or_401(current_user.id)
 
     if not body.lotId or not body.lotId.strip():
@@ -161,15 +197,20 @@ async def start_parking_session(
 
     try:
         async with db.begin():
-            existing_sessions = await _get_active_sessions(db, user_id)
-            for existing in existing_sessions:
-                existing.active = False
-                existing.end_time = datetime.now(timezone.utc)
-
-                old_occ = await db.get(LotOccupancy, existing.lot_id)
-                if old_occ is not None:
-                    old_occ.count = max(0, (old_occ.count or 0) - 1)
-                    changed_lot_counts[existing.lot_id] = old_occ.count
+            ended_sessions = await db.execute(
+                update(ParkingSession)
+                .where(
+                    ParkingSession.user_id == user_id,
+                    ParkingSession.active.is_(True),
+                )
+                .values(active=False, end_time=text("CURRENT_TIMESTAMP"))
+                .returning(ParkingSession.lot_id)
+            )
+            ended_lot_ids = [row[0] for row in ended_sessions.fetchall() if row[0]]
+            for ended_lot_id in ended_lot_ids:
+                changed_lot_counts[ended_lot_id] = (
+                    await _decrement_lot_occupancy_atomic(db, ended_lot_id)
+                )
 
             new_session = ParkingSession(
                 user_id=user_id,
@@ -180,16 +221,13 @@ async def start_parking_session(
                 auto_started=body.autoStarted,
             )
             db.add(new_session)
+            await db.flush()
 
-            occupancy = await db.get(LotOccupancy, lot_id)
-            if occupancy is None:
-                occupancy = LotOccupancy(lot_id=lot_id, count=1)
-                db.add(occupancy)
-            else:
-                occupancy.count = (occupancy.count or 0) + 1
-            changed_lot_counts[lot_id] = occupancy.count or 0
+            changed_lot_counts[lot_id] = await _increment_lot_occupancy_atomic(
+                db, lot_id
+            )
 
-        confirmed_occupancy = occupancy.count if occupancy else None
+        confirmed_occupancy = changed_lot_counts.get(lot_id)
 
         for changed_lot_id, changed_count in changed_lot_counts.items():
             await ws_manager.publish_occupancy_update(changed_lot_id, changed_count)
@@ -233,6 +271,19 @@ async def start_parking_session(
             "session": _session_response(new_session),
             "confirmedOccupancy": confirmed_occupancy,
         }
+    except IntegrityError as exc:
+        log.warning(
+            "Active-session uniqueness conflict for user %s lot %s: %s",
+            user_id,
+            lot_id,
+            exc,
+        )
+        raise HTTPException(
+            status_code=409,
+            detail="An active parking session already exists for this user",
+        ) from exc
+    except HTTPException:
+        raise
     except Exception as exc:
         log.error(
             "Failed to start parking session for user %s lot %s: %s",
@@ -248,28 +299,31 @@ async def end_parking_session(
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """End active parking session(s) and decrement occupancy atomically."""
+    """End active parking sessions and decrement occupancy with atomic SQL updates."""
     user_id = _to_uuid_or_401(current_user.id)
     changed_lot_counts: dict[str, int] = {}
 
     try:
         async with db.begin():
-            active_sessions = await _get_active_sessions(db, user_id)
-            for session in active_sessions:
-                session.active = False
-                session.end_time = datetime.now(timezone.utc)
-
-                occupancy = await db.get(LotOccupancy, session.lot_id)
-                if occupancy is not None:
-                    occupancy.count = max(0, (occupancy.count or 0) - 1)
-                    changed_lot_counts[session.lot_id] = occupancy.count
+            ended_sessions = await db.execute(
+                update(ParkingSession)
+                .where(
+                    ParkingSession.user_id == user_id,
+                    ParkingSession.active.is_(True),
+                )
+                .values(active=False, end_time=text("CURRENT_TIMESTAMP"))
+                .returning(ParkingSession.lot_id)
+            )
+            ended_lot_ids = [row[0] for row in ended_sessions.fetchall() if row[0]]
+            for ended_lot_id in ended_lot_ids:
+                changed_lot_counts[ended_lot_id] = (
+                    await _decrement_lot_occupancy_atomic(db, ended_lot_id)
+                )
 
         for changed_lot_id, changed_count in changed_lot_counts.items():
             await ws_manager.publish_occupancy_update(changed_lot_id, changed_count)
 
-        log.info(
-            "Ended %d active session(s) for user %s", len(active_sessions), user_id
-        )
+        log.info("Ended %d active session(s) for user %s", len(ended_lot_ids), user_id)
         return {"success": True}
     except Exception as exc:
         log.error("Failed to end parking session for user %s: %s", user_id, exc)

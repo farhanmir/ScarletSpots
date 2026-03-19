@@ -5,6 +5,7 @@ import React, {
   useState,
   useCallback,
   useMemo,
+  useRef,
 } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase, authApiCall } from "@/shared/api/supabase";
@@ -14,6 +15,12 @@ import {
   clearPushTokenFromBackend,
   syncPushTokenToBackend,
 } from "@/shared/services/PushRegistration";
+import { clearQueue, setOfflineQueueOwner } from "@/shared/services/OfflineQueue";
+import {
+  clearCachedFavorites,
+  clearCachedSession,
+  setOfflineCacheOwner,
+} from "@/shared/services/OfflineCache";
 
 // ── Permit preference helpers ─────────────────────────────────────────────
 
@@ -113,6 +120,7 @@ export function AuthProvider({
   const [enabledCampuses, setEnabledCampuses] = useState<Set<string>>(
     new Set(NB_CAMPUS_NAMES),
   );
+  const previousUserIdRef = useRef<string | null>(null);
 
   // Load saved campus and secondary permit preferences from AsyncStorage
   useEffect(() => {
@@ -200,7 +208,31 @@ export function AuthProvider({
     }
   }, [session, loadProfile, applyPermitRaw]);
 
+  useEffect(() => {
+    const nextUserId = user?.id ?? null;
+    const previousUserId = previousUserIdRef.current;
+
+    setOfflineQueueOwner(nextUserId);
+    setOfflineCacheOwner(nextUserId);
+
+    if (previousUserId && previousUserId !== nextUserId) {
+      clearQueue(previousUserId).catch(() => {});
+      clearCachedSession(previousUserId).catch(() => {});
+      clearCachedFavorites(previousUserId).catch(() => {});
+    }
+
+    previousUserIdRef.current = nextUserId;
+  }, [user?.id]);
+
   const signOut = async () => {
+    const currentUserId = user?.id ?? null;
+    if (currentUserId) {
+      await Promise.allSettled([
+        clearQueue(currentUserId),
+        clearCachedSession(currentUserId),
+        clearCachedFavorites(currentUserId),
+      ]);
+    }
     await supabase.auth.signOut();
   };
 

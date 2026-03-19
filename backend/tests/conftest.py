@@ -67,21 +67,24 @@ async def db_session() -> AsyncIterator[AsyncSession]:
         yield session
 
 
-@pytest_asyncio.fixture
-async def client(db_session: AsyncSession) -> AsyncIterator[AsyncClient]:
-    _ = db_session
-
+@pytest.fixture(autouse=True)
+def override_get_db_dependency() -> Generator[None, None, None]:
     async def _override_get_db() -> AsyncIterator[AsyncSession]:
         async with TestingSessionLocal() as session:
             yield session
 
     app.dependency_overrides[get_db] = _override_get_db
+    yield
+    app.dependency_overrides.pop(get_db, None)
+
+
+@pytest_asyncio.fixture
+async def client(db_session: AsyncSession) -> AsyncIterator[AsyncClient]:
+    _ = db_session
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
-
-    app.dependency_overrides.pop(get_db, None)
 
 
 @pytest.fixture
@@ -110,3 +113,13 @@ def override_current_user(auth_user: SimpleNamespace) -> Generator[None, None, N
     app.dependency_overrides[get_current_user] = lambda: auth_user
     yield
     app.dependency_overrides.pop(get_current_user, None)
+
+
+@pytest_asyncio.fixture(scope="session", autouse=True)
+async def init_cache_for_tests():
+    """Ensure FastAPICache is initialized for routes using caching in tests."""
+    from app.core.cache import close_cache, init_cache
+
+    await init_cache()
+    yield
+    await close_cache()

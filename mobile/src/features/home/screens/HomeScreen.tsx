@@ -48,9 +48,7 @@ import {
   cacheFavorites,
   getCachedFavorites,
 } from "@/shared/services/OfflineCache";
-import {
-  queueParkAction,
-} from "@/shared/services/OfflineQueue";
+import { queueParkAction } from "@/shared/services/OfflineQueue";
 import {
   getAllLots,
   applyOccupancy,
@@ -189,6 +187,7 @@ export default function MapScreen() {
   const queryClient = useQueryClient();
   const mapRef = useRef<MapView>(null);
   const params = useLocalSearchParams();
+  const currentUserId = user?.id ?? null;
 
   const [location, setLocation] = useState<Location.LocationObject | null>(
     null,
@@ -298,6 +297,7 @@ export default function MapScreen() {
         },
         "offline_cache_session",
         1000 * 60 * 1,
+        currentUserId,
       );
       return result.data ?? { session: null };
     },
@@ -448,20 +448,21 @@ export default function MapScreen() {
           const ids = (resp?.favorite_lots ?? []).map((l: any) =>
             String(l.lot_id ?? l.id),
           );
-          await cacheFavorites(ids);
+          await cacheFavorites(ids, currentUserId);
           return ids;
         },
         "favorites_cache",
         1000 * 60 * 5, // 5-minute staleness threshold
+        currentUserId,
       );
       setFavorites(data);
     } catch (e) {
       // Fall back to local cache even if fetchWithOfflineFallback throws
-      const cached = await getCachedFavorites();
+      const cached = await getCachedFavorites(currentUserId);
       if (cached) setFavorites(cached);
       else console.error("[MapScreen] Failed to fetch favorites:", e);
     }
-  }, [user]);
+  }, [user, currentUserId]);
 
   useEffect(() => {
     if (user) fetchFavorites();
@@ -474,7 +475,7 @@ export default function MapScreen() {
       ? favorites.filter((id) => id !== lot.id)
       : [...favorites, lot.id];
     setFavorites(updated);
-    cacheFavorites(updated);
+    cacheFavorites(updated, currentUserId);
     try {
       if (isFavorite) {
         await authApiCall(`/favorites/${lot.id}`, { method: "DELETE" });
@@ -486,7 +487,7 @@ export default function MapScreen() {
       setFavorites((prev) =>
         isFavorite ? [...prev, lot.id] : prev.filter((id) => id !== lot.id),
       );
-      cacheFavorites(favorites); // rollback cache too
+      cacheFavorites(favorites, currentUserId); // rollback cache too
       Alert.alert("Error", "Failed to update favorites");
     }
   };
@@ -603,7 +604,7 @@ export default function MapScreen() {
       try {
         const netState = await NetInfo.fetch();
         if (!netState.isConnected) {
-          await queueParkAction("CONFIRM_DETECTED", payload);
+          await queueParkAction("CONFIRM_DETECTED", payload, undefined, undefined, currentUserId);
           const optimisticSession = {
             id: `offline-${Date.now()}`,
             lotId: top.lotId,
@@ -615,7 +616,7 @@ export default function MapScreen() {
           queryClient.setQueryData(["session", "active"], {
             session: optimisticSession,
           });
-          await cacheSession({ session: optimisticSession });
+          await cacheSession({ session: optimisticSession }, currentUserId);
           updateOptimisticOccupancy(top.lotId, 1);
           return;
         }
@@ -627,14 +628,14 @@ export default function MapScreen() {
           queryClient.setQueryData(["session", "active"], {
             session: data.session,
           });
-          await cacheSession({ session: data.session });
+          await cacheSession({ session: data.session }, currentUserId);
           updateOptimisticOccupancy(top.lotId, 1);
         } else {
           setPendingCandidates(candidates);
           hasAutoStartedRef.current = false;
         }
       } catch {
-        await queueParkAction("CONFIRM_DETECTED", payload);
+        await queueParkAction("CONFIRM_DETECTED", payload, undefined, undefined, currentUserId);
         const offlineSession = {
           id: `offline-${Date.now()}`,
           lotId: top.lotId,
@@ -646,11 +647,11 @@ export default function MapScreen() {
         queryClient.setQueryData(["session", "active"], {
           session: offlineSession,
         });
-        await cacheSession({ session: offlineSession });
+        await cacheSession({ session: offlineSession }, currentUserId);
         updateOptimisticOccupancy(top.lotId, 1);
       }
     });
-  }, [user, queryClient, updateOptimisticOccupancy]);
+  }, [user, queryClient, updateOptimisticOccupancy, currentUserId]);
 
   // ── Location Permission ────────────────────────────────────────────────
 
@@ -803,7 +804,7 @@ export default function MapScreen() {
 
       const netState = await NetInfo.fetch();
       if (!netState.isConnected) {
-        await queueParkAction("PARK", payload);
+        await queueParkAction("PARK", payload, undefined, undefined, currentUserId);
         const optimisticSession: ParkingSession = {
           id: `offline-${Date.now()}`,
           lotId: lot.id,
@@ -812,7 +813,7 @@ export default function MapScreen() {
         queryClient.setQueryData(["session", "active"], {
           session: optimisticSession,
         });
-        cacheSession({ session: optimisticSession }).catch(() => {});
+        cacheSession({ session: optimisticSession }, currentUserId).catch(() => {});
         updateOptimisticOccupancy(lot.id, 1);
         setSelectedLotId(null);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -835,7 +836,7 @@ export default function MapScreen() {
           startTime: new Date().toISOString(),
         };
         queryClient.setQueryData(["session", "active"], { session });
-        cacheSession({ session }).catch(() => {});
+        cacheSession({ session }, currentUserId).catch(() => {});
         if (!data._offline && data.confirmedOccupancy !== undefined) {
           queryClient.setQueryData(
             ["lots_occupancy"],
@@ -879,7 +880,7 @@ export default function MapScreen() {
           latitude: location?.coords.latitude,
           longitude: location?.coords.longitude,
           confirmed: true,
-        });
+        }, undefined, undefined, currentUserId);
         updateOptimisticOccupancy(lot.id, 1);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       } else {
@@ -904,12 +905,12 @@ export default function MapScreen() {
         const lotIdToRemove = activeSession.lotId;
         queryClient.setQueryData(["session", "active"], { session: null });
         updateOptimisticOccupancy(lotIdToRemove, -1);
-        clearCachedSession().catch(() => {});
+        clearCachedSession(currentUserId).catch(() => {});
         setSelectedLotId(null);
         setSelectedPlace(null);
       } else if (!data) {
         queryClient.setQueryData(["session", "active"], { session: null });
-        clearCachedSession().catch(() => {});
+        clearCachedSession(currentUserId).catch(() => {});
       }
     } catch {
       Alert.alert("Error", "Failed to end session");
@@ -966,7 +967,7 @@ export default function MapScreen() {
       };
       const netState = await NetInfo.fetch();
       if (!netState.isConnected) {
-        await queueParkAction("CONFIRM_DETECTED", payload);
+        await queueParkAction("CONFIRM_DETECTED", payload, undefined, undefined, currentUserId);
         const offlineSession = {
           id: `offline-${Date.now()}`,
           lotId: candidate.lotId,
@@ -975,7 +976,7 @@ export default function MapScreen() {
         queryClient.setQueryData(["session", "active"], {
           session: offlineSession,
         });
-        cacheSession({ session: offlineSession }).catch(() => {});
+        cacheSession({ session: offlineSession }, currentUserId).catch(() => {});
         updateOptimisticOccupancy(candidate.lotId, 1);
         await clearPendingParkingCandidates();
         setPendingCandidates([]);
@@ -990,7 +991,7 @@ export default function MapScreen() {
         queryClient.setQueryData(["session", "active"], {
           session: data.session,
         });
-        cacheSession({ session: data.session }).catch(() => {});
+        cacheSession({ session: data.session }, currentUserId).catch(() => {});
         updateOptimisticOccupancy(candidate.lotId, 1);
         await clearPendingParkingCandidates();
         setPendingCandidates([]);
@@ -1002,7 +1003,7 @@ export default function MapScreen() {
         latitude: candidate.latitude,
         longitude: candidate.longitude,
         confirmed: true,
-      });
+      }, undefined, undefined, currentUserId);
       await clearPendingParkingCandidates();
       setPendingCandidates([]);
       updateOptimisticOccupancy(candidate.lotId, 1);

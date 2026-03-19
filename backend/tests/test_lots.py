@@ -2,9 +2,8 @@
 Tests for the lots router: occupancy aggregate and forecasting.
 """
 
-from fastapi.testclient import TestClient
-
 from app.main import app
+from fastapi.testclient import TestClient
 
 client = TestClient(app)
 
@@ -55,7 +54,6 @@ def test_forecast_curve_ordered():
 def test_get_all_occupancy():
     """GET /lots/occupancy should return a dict (may be empty if no active sessions)."""
     response = client.get("/api/v1/lots/occupancy")
-    assert response.status_code in (200, 500)  # 500 if Supabase not configured in test env
-    if response.status_code == 200:
-        data = response.json()
-        assert isinstance(data, dict)
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, dict)

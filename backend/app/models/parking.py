@@ -11,6 +11,7 @@ from sqlalchemy import (
     Integer,
     String,
     func,
+    text,
 )
 from sqlalchemy.orm import relationship
 
@@ -36,8 +37,13 @@ class ParkingSession(Base):
     longitude = Column(Float, nullable=True)
     start_time = Column(DateTime(timezone=True), server_default=func.now())
     end_time = Column(DateTime(timezone=True), nullable=True)
-    active = Column(Boolean, default=True)
-    auto_started = Column(Boolean, default=False)
+    active = Column(Boolean, default=True, server_default=text("true"), nullable=False)
+    auto_started = Column(
+        Boolean,
+        default=False,
+        server_default=text("false"),
+        nullable=False,
+    )
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

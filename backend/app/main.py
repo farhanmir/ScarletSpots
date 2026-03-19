@@ -11,12 +11,14 @@ from contextlib import asynccontextmanager
 from app.core.config import settings
 from app.core.limiter import limiter
 from app.core.logger import logger
+from app.core.security import decode_supabase_jwt_token
 from app.core.websocket import manager as websocket_manager
 from app.routers import favorites, friends, lots, park, users
 from app.routers.websocket import router as websocket_router
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
+from jose.exceptions import JWTError
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -24,14 +26,14 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 # FastAPI Lifespan for Supabase Client Pooling
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(application: FastAPI):
     # Initialize shared clients once per process
     from app.core.cache import close_cache, init_cache
     from app.core.security import close_supabase_clients, init_supabase_clients
 
     clients = init_supabase_clients()
-    app.state.supabase = clients["supabase"]
-    app.state.admin_supabase = clients["admin_supabase"]
+    application.state.supabase = clients["supabase"]
+    application.state.admin_supabase = clients["admin_supabase"]
     await init_cache()
     await websocket_manager.startup()
     print("!!! BACKEND STARTING UP !!!", flush=True)
@@ -76,16 +78,6 @@ async def generic_exception_handler(request: Request, exc: Exception):
     )
 
 
-# CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.BACKEND_CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
 # Correlation ID Middleware
 class CorrelationIdMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -93,8 +85,6 @@ class CorrelationIdMiddleware(BaseHTTPMiddleware):
         request.state.correlation_id = correlation_id
         msg = f"[{correlation_id}] {request.method} {request.url.path}"
         # Use sys.stderr and flush=True to bypass potential buffering
-        import sys
-
         print(f"\n>>>>> REQUEST: {msg} <<<<<", file=sys.stderr, flush=True)
         logger.info(msg)
         response = await call_next(request)
@@ -102,7 +92,39 @@ class CorrelationIdMiddleware(BaseHTTPMiddleware):
         return response
 
 
+class AuthContextMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        request.state.user_id = None
+
+        auth_header = request.headers.get("Authorization") or request.headers.get(
+            "authorization"
+        )
+        if auth_header and auth_header.lower().startswith("bearer "):
+            token = auth_header[7:].strip()
+            if token:
+                try:
+                    payload = await decode_supabase_jwt_token(token)
+                    user_id = payload.get("sub") if isinstance(payload, dict) else None
+                    if user_id:
+                        request.state.user_id = str(user_id)
+                except JWTError:
+                    # Auth dependencies still enforce auth; limiter just falls back to IP.
+                    request.state.user_id = None
+                except (TypeError, ValueError):
+                    request.state.user_id = None
+
+        return await call_next(request)
+
+
 app.add_middleware(CorrelationIdMiddleware)
+app.add_middleware(AuthContextMiddleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.BACKEND_CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Routers
 app.include_router(users.router, prefix=settings.API_V1_STR)
