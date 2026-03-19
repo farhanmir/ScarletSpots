@@ -96,4 +96,5 @@ services:
 
 volumes:
   postgres_data:
-    # Named Docker volume for postgres - reliable persistence without bind mount conflicts
+    name: scarletspots_postgres_data
+    external: true
