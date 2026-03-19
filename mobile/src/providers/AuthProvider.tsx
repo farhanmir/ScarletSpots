@@ -224,7 +224,7 @@ export function AuthProvider({
     previousUserIdRef.current = nextUserId;
   }, [user?.id]);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     const currentUserId = user?.id ?? null;
     if (currentUserId) {
       await Promise.allSettled([
@@ -234,7 +234,7 @@ export function AuthProvider({
       ]);
     }
     await supabase.auth.signOut();
-  };
+  }, [user?.id]);
 
   const setPermitPreference = useCallback(
     async (raw: string | null) => {
