@@ -14,7 +14,14 @@ from sqlalchemy import engine_from_config, pool
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
-config.set_main_option("sqlalchemy.url", os.environ["DATABASE_URL"])
+
+# Allow using DATABASE_URL from environment
+db_url = os.environ.get("DATABASE_URL")
+if db_url:
+    # Handle asyncpg driver if present (Alembic needs sync for simple env.py)
+    if "asyncpg" in db_url:
+        db_url = db_url.replace("asyncpg", "psycopg2")
+    config.set_main_option("sqlalchemy.url", db_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
