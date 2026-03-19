@@ -79,10 +79,18 @@ make deadcode     # Vulture dead code scan
 
 ## Database migrations
 
-Migrations are in `supabase/migrations/` and should be applied in filename order using the Supabase CLI:
+Migrations are managed by Alembic and located in `migrations/`.
+
+To create a new migration from model changes:
 
 ```bash
-supabase db push
+alembic revision --autogenerate -m "description of changes"
+```
+
+To apply migrations to the database:
+
+```bash
+alembic upgrade head
 ```
 
 ## API prefix

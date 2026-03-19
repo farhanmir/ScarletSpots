@@ -15,8 +15,8 @@ python_version = "3.11"
 warn_unused_configs = true
 ignore_missing_imports = true
 no_strict_optional = true
-exclude = "(supabase/migrations|tests)"
+exclude = "(tests)"
 
 [tool.bandit]
-exclude_dirs = ["tests", "supabase/migrations"]
+exclude_dirs = ["tests"]
 skips = ["B101"]
