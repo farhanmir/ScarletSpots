@@ -4,6 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
+from supabase import Client
 
 from app.core.database import get_db
 from app.core.limiter import limiter
@@ -15,7 +16,6 @@ from app.services.push_notifications import (
     deactivate_device_push_token,
     upsert_device_push_token,
 )
-from supabase import Client
 
 log = get_logger(__name__)
 

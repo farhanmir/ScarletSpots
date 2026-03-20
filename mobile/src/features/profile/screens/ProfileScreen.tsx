@@ -7,6 +7,7 @@ import {
   ScrollView,
   Platform,
   StatusBar,
+  Switch,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "@/providers/AuthProvider";
@@ -28,10 +29,78 @@ import {
   cacheFavorites,
 } from "@/shared/services/OfflineCache";
 
-const FLAT_CARD_BG = "#1c1d21";
-const FLAT_CARD_BORDER = "rgba(255,255,255,0.11)";
+const FLAT_CARD_BG = "#181a1f";
+const FLAT_CARD_BORDER = "rgba(255,255,255,0.09)";
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function getOccupancyColor(rate: number) {
+  if (rate >= 90) return "#ef4444";
+  if (rate >= 65) return "#f59e0b";
+  return "#10b981";
+}
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
+
+function CampusToggleCard({
+  campus,
+  icon,
+  sublabel,
+  enabled,
+  onToggle,
+}: Readonly<{
+  campus: string;
+  icon: string;
+  sublabel: string;
+  enabled: boolean;
+  onToggle: () => void;
+}>) {
+  return (
+    <View style={campusCardStyles.card}>
+      <View style={campusCardStyles.left}>
+        <View style={campusCardStyles.iconWrap}>
+          <IconSymbol name={icon as any} size={20} color="#cc0033" />
+        </View>
+        <View>
+          <Text style={campusCardStyles.name}>{campus}</Text>
+          <Text style={campusCardStyles.sub}>{sublabel}</Text>
+        </View>
+      </View>
+      <Switch
+        value={enabled}
+        onValueChange={onToggle}
+        trackColor={{ false: "#2a2a2e", true: "rgba(204,0,51,0.45)" }}
+        thumbColor={enabled ? "#cc0033" : "#52525b"}
+        ios_backgroundColor="#2a2a2e"
+      />
+    </View>
+  );
+}
+
+const campusCardStyles = StyleSheet.create({
+  card: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255,255,255,0.05)",
+  },
+  left: { flexDirection: "row", alignItems: "center", gap: 14, flex: 1 },
+  iconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: "rgba(204,0,51,0.08)",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(204,0,51,0.18)",
+  },
+  name: { color: "#f0f0f2", fontSize: 15, fontWeight: "700" },
+  sub: { color: GLASS.textMuted, fontSize: 12, marginTop: 2 },
+});
 
 function SettingRow({
   icon,
@@ -56,21 +125,19 @@ function SettingRow({
 }>) {
   return (
     <TouchableOpacity
-      style={[styles.settingRow, last && styles.settingRowLast]}
+      style={[settingStyles.row, last && settingStyles.rowLast]}
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <View style={[styles.settingIconWrap, { backgroundColor: iconBg }]}>
-        <IconSymbol name={icon as any} size={15} color={iconColor} />
+      <View style={[settingStyles.iconWrap, { backgroundColor: iconBg }]}>
+        <IconSymbol name={icon as any} size={16} color={iconColor} />
       </View>
-      <View style={styles.settingText}>
-        <Text
-          style={[styles.settingLabel, destructive && { color: "#ef4444" }]}
-        >
+      <View style={settingStyles.text}>
+        <Text style={[settingStyles.label, destructive && { color: "#ef4444" }]}>
           {label}
         </Text>
         {sublabel ? (
-          <Text style={styles.settingSubtext}>{sublabel}</Text>
+          <Text style={settingStyles.subtext}>{sublabel}</Text>
         ) : null}
       </View>
       {right ?? (
@@ -79,6 +146,127 @@ function SettingRow({
     </TouchableOpacity>
   );
 }
+
+const settingStyles = StyleSheet.create({
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255,255,255,0.05)",
+    gap: 14,
+  },
+  rowLast: { borderBottomWidth: 0 },
+  iconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  text: { flex: 1 },
+  label: { color: "#e0e0e4", fontSize: 15, fontWeight: "600" },
+  subtext: { color: GLASS.textMuted, fontSize: 12, marginTop: 1 },
+});
+
+function SavedLotCard({
+  lot,
+  onPress,
+}: Readonly<{ lot: RutgersLot; onPress: () => void }>) {
+  const rate = lot.occupancyRate;
+  const color = getOccupancyColor(rate);
+  const pct = Math.round(rate);
+  const label = rate >= 90 ? "Full" : "Occupancy";
+
+  return (
+    <TouchableOpacity
+      style={lotCardStyles.card}
+      onPress={onPress}
+      activeOpacity={0.75}
+    >
+      <View style={lotCardStyles.iconWrap}>
+        <IconSymbol name="car.fill" size={22} color="#cc0033" />
+      </View>
+      <View style={lotCardStyles.textGroup}>
+        <Text style={lotCardStyles.name} numberOfLines={1}>
+          {lot.name}
+        </Text>
+        <Text style={lotCardStyles.sub}>{lot.campus} Campus</Text>
+      </View>
+      <View style={lotCardStyles.rightGroup}>
+        <Text style={[lotCardStyles.pct, { color }]}>{pct}%</Text>
+        <Text style={lotCardStyles.pctLabel}>{label}</Text>
+        <View style={lotCardStyles.barBg}>
+          <View
+            style={[
+              lotCardStyles.barFill,
+              { width: `${Math.min(pct, 100)}%` as any, backgroundColor: color },
+            ]}
+          />
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+const lotCardStyles = StyleSheet.create({
+  card: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    gap: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255,255,255,0.05)",
+  },
+  iconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: "rgba(204,0,51,0.08)",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(204,0,51,0.18)",
+  },
+  textGroup: { flex: 1 },
+  name: { color: "#f0f0f2", fontSize: 15, fontWeight: "700", letterSpacing: -0.2 },
+  sub: { color: GLASS.textMuted, fontSize: 12, marginTop: 3 },
+  rightGroup: { alignItems: "flex-end", gap: 2 },
+  pct: { fontSize: 16, fontWeight: "800" },
+  pctLabel: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: GLASS.textMuted,
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+  },
+  barBg: {
+    width: 52,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    overflow: "hidden",
+    marginTop: 2,
+  },
+  barFill: {
+    height: "100%",
+    borderRadius: 2,
+  },
+});
+
+// ─── Campus metadata for the toggle cards ────────────────────────────────────
+
+const CAMPUS_META: Record<string, { icon: string; sublabel: string }> = {
+  Busch: { icon: "building.2.fill", sublabel: "Science & Engineering" },
+  "College Ave": { icon: "building.2.fill", sublabel: "Historic Center & Student Life" },
+  Livingston: { icon: "building.2.fill", sublabel: "Business & Athletics" },
+  Cook: { icon: "building.2.fill", sublabel: "Cook Campus" },
+  Douglass: { icon: "building.2.fill", sublabel: "Douglass Campus" },
+  "Health - Piscataway": { icon: "building.2.fill", sublabel: "Health Sciences" },
+  "Health - New Brunswick": { icon: "building.2.fill", sublabel: "Health Sciences" },
+};
 
 // ─── Main screen ─────────────────────────────────────────────────────────────
 
@@ -96,7 +284,6 @@ export default function ProfileScreen() {
   } = useAuth();
   const router = useRouter();
   const [favorites, setFavorites] = useState<RutgersLot[]>([]);
-  const [showCampuses, setShowCampuses] = useState(false);
 
   const fetchFavorites = React.useCallback(async () => {
     if (!session) return;
@@ -174,6 +361,10 @@ export default function ProfileScreen() {
     return permitType;
   };
 
+  // Only show the 3 main NB campuses in the preference cards;
+  // the rest still appear in the collapsible panel if needed.
+  const primaryCampuses = ["Busch", "College Ave", "Livingston"];
+
   // ── Main profile ───────────────────────────────────────────────────────────
   return (
     <View style={styles.container}>
@@ -185,23 +376,21 @@ export default function ProfileScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Page title ─────────────────────────────────────────────────── */}
-        <Text style={styles.pageTitle}>Profile</Text>
-
         {/* ── Identity hero ──────────────────────────────────────────────── */}
         <GlassCard
           style={styles.heroCard}
           contentStyle={styles.heroContent}
           blurIntensity={GLASS.blurMedium}
-          borderRadius={GLASS.radiusLarge}
+          borderRadius={28}
           borderColor={FLAT_CARD_BORDER}
         >
-          {/* Subtle scarlet glow behind avatar */}
+          {/* Scarlet radial glow behind avatar */}
           <View style={styles.avatarGlow} />
 
+          {/* Avatar */}
           <View style={styles.avatarRing}>
             <LinearGradient
-              colors={["rgba(220,38,38,0.45)", "rgba(220,38,38,0.08)"]}
+              colors={["rgba(204,0,51,0.55)", "rgba(204,0,51,0.10)"]}
               style={StyleSheet.absoluteFill}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
@@ -215,9 +404,8 @@ export default function ProfileScreen() {
           <Text style={styles.heroEmail} numberOfLines={1}>
             {user?.email}
           </Text>
-          <Text style={styles.heroSince}>Member since {memberSince}</Text>
 
-          {/* Permit badge row */}
+          {/* Permit badge */}
           <TouchableOpacity
             style={styles.permitBadge}
             onPress={() =>
@@ -242,6 +430,8 @@ export default function ProfileScreen() {
               color={GLASS.textMuted}
             />
           </TouchableOpacity>
+
+          <Text style={styles.heroSince}>Member since {memberSince}</Text>
         </GlassCard>
 
         {/* ── Stats strip ────────────────────────────────────────────────── */}
@@ -252,7 +442,9 @@ export default function ProfileScreen() {
             blurIntensity={GLASS.blurLight}
             borderColor={FLAT_CARD_BORDER}
           >
-            <Text style={styles.statValue}>{favorites.length}</Text>
+            <Text style={[styles.statValue, { color: "#cc0033" }]}>
+              {favorites.length}
+            </Text>
             <Text style={styles.statLabel}>Saved Lots</Text>
           </GlassCard>
           <GlassCard
@@ -278,12 +470,27 @@ export default function ProfileScreen() {
         </View>
 
         {/* ── Saved Lots ─────────────────────────────────────────────────── */}
-        <Text style={styles.sectionLabel}>SAVED LOTS</Text>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionLabel}>SAVED LOTS</Text>
+          {favorites.length > 0 && (
+            <TouchableOpacity
+              onPress={() =>
+                router.push({
+                  pathname: "/(tabs)" as any,
+                  params: { selectedLotId: favorites[0].id },
+                })
+              }
+            >
+              <Text style={styles.sectionAction}>View Map</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
         <GlassCard
           style={styles.listCard}
           contentStyle={styles.listCardContent}
           blurIntensity={GLASS.blurMedium}
-          borderRadius={GLASS.radiusLarge}
+          borderRadius={24}
           borderColor={FLAT_CARD_BORDER}
         >
           {favorites.length === 0 ? (
@@ -298,117 +505,98 @@ export default function ProfileScreen() {
             </View>
           ) : (
             favorites.map((lot, i) => (
-              <TouchableOpacity
+              <View
                 key={lot.id}
-                style={[
-                  styles.favRow,
-                  i === favorites.length - 1 && styles.favRowLast,
-                ]}
-                onPress={() =>
-                  router.push({
-                    pathname: "/" as any,
-                    params: { selectedLotId: lot.id },
-                  })
-                }
-                activeOpacity={0.75}
+                style={i === favorites.length - 1 ? styles.lastCard : undefined}
               >
-                <View style={styles.favIconWrap}>
-                  <IconSymbol name="car.fill" size={14} color="#f59e0b" />
-                </View>
-                <View style={styles.favTextGroup}>
-                  <Text style={styles.favName}>{lot.name}</Text>
-                  <Text style={styles.favSub}>{lot.campus} Campus</Text>
-                </View>
-                <IconSymbol
-                  name="chevron.right"
-                  size={13}
-                  color={GLASS.textDim}
+                <SavedLotCard
+                  lot={lot}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/(tabs)" as any,
+                      params: { selectedLotId: lot.id },
+                    })
+                  }
                 />
-              </TouchableOpacity>
+              </View>
             ))
           )}
         </GlassCard>
 
         {/* ── Preferences ────────────────────────────────────────────────── */}
-        <Text style={styles.sectionLabel}>PREFERENCES</Text>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionLabel}>PREFERENCES</Text>
+        </View>
+        <Text style={styles.sectionDesc}>
+          Customize your campus parking experience.
+        </Text>
+
+        {/* Campus filter sub-section */}
+        <Text style={styles.prefGroupLabel}>Campus Filter</Text>
         <GlassCard
           style={styles.listCard}
           contentStyle={styles.listCardContent}
           blurIntensity={GLASS.blurMedium}
-          borderRadius={GLASS.radiusLarge}
+          borderRadius={24}
+          borderColor={FLAT_CARD_BORDER}
+        >
+          {primaryCampuses.map((campus, i) => {
+            const meta = CAMPUS_META[campus] ?? {
+              icon: "building.2.fill",
+              sublabel: campus,
+            };
+            const isLast = i === primaryCampuses.length - 1;
+            return (
+              <View
+                key={campus}
+                style={isLast ? styles.lastCard : undefined}
+              >
+                <CampusToggleCard
+                  campus={campus}
+                  icon={meta.icon}
+                  sublabel={meta.sublabel}
+                  enabled={enabledCampuses.has(campus)}
+                  onToggle={() => toggleCampus(campus)}
+                />
+              </View>
+            );
+          })}
+        </GlassCard>
+
+        {/* Notifications sub-section */}
+        <Text style={[styles.prefGroupLabel, { marginTop: 20 }]}>
+          Notifications
+        </Text>
+        <GlassCard
+          style={styles.listCard}
+          contentStyle={styles.listCardContent}
+          blurIntensity={GLASS.blurMedium}
+          borderRadius={24}
           borderColor={FLAT_CARD_BORDER}
         >
           <SettingRow
-            icon="building.2.fill"
-            iconBg="rgba(34,197,94,0.12)"
-            iconColor="#4ade80"
-            label="Campus Filter"
-            sublabel={`${enabledCampuses.size} of ${NB_CAMPUS_NAMES.length} active`}
-            onPress={() => setShowCampuses((p) => !p)}
-            right={
-              <IconSymbol
-                name={showCampuses ? "chevron.up" : "chevron.down"}
-                size={13}
-                color={GLASS.textDim}
-              />
-            }
-          />
-
-          {showCampuses && (
-            <View style={styles.campusPanel}>
-              {NB_CAMPUS_NAMES.map((campus) => {
-                const enabled = enabledCampuses.has(campus);
-                return (
-                  <TouchableOpacity
-                    key={campus}
-                    style={styles.campusRow}
-                    onPress={() => toggleCampus(campus)}
-                    activeOpacity={0.75}
-                  >
-                    <Text
-                      style={[
-                        styles.campusName,
-                        !enabled && styles.campusNameOff,
-                      ]}
-                    >
-                      {campus}
-                    </Text>
-                    <View
-                      style={[
-                        styles.campusToggle,
-                        enabled && styles.campusToggleOn,
-                      ]}
-                    >
-                      <View
-                        style={[
-                          styles.campusThumb,
-                          enabled && styles.campusThumbOn,
-                        ]}
-                      />
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          )}
-
-          <SettingRow
             icon="bell.fill"
-            iconBg="rgba(59,130,246,0.12)"
-            iconColor="#3b82f6"
-            label="Notifications"
+            iconBg="rgba(204,0,51,0.10)"
+            iconColor="#cc0033"
+            label="Push Notifications"
             sublabel="Session alerts & reminders"
             last
           />
         </GlassCard>
 
         {/* ── Account ────────────────────────────────────────────────────── */}
-        <Text style={styles.sectionLabel}>ACCOUNT</Text>
+        <View style={[styles.sectionHeader, { marginTop: 28 }]}>
+          <Text style={styles.sectionLabel}>ACCOUNT</Text>
+        </View>
+        <Text style={styles.sectionDesc}>
+          Manage your security and session.
+        </Text>
+
         <GlassCard
           style={styles.listCard}
           contentStyle={styles.listCardContent}
           blurIntensity={GLASS.blurMedium}
-          borderRadius={GLASS.radiusLarge}
+          borderRadius={24}
           borderColor={FLAT_CARD_BORDER}
         >
           <SettingRow
@@ -435,46 +623,83 @@ export default function ProfileScreen() {
           />
           <IconSymbol
             name="rectangle.portrait.and.arrow.right"
-            size={16}
-            color={GLASS.accent}
+            size={18}
+            color="#cc0033"
           />
           <Text style={styles.signOutText}>Sign Out</Text>
         </TouchableOpacity>
 
-        <View style={{ height: 120 }} />
+        <View style={{ height: 130 }} />
       </ScrollView>
+
+      {/* ── Glass top bar (rendered AFTER ScrollView so blur reads content) ── */}
+      <View style={styles.topBar} pointerEvents="none">
+        <LinearGradient
+          colors={["rgba(10,10,12,0.96)", "rgba(10,10,12,0.80)", "transparent"]}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        />
+        <View style={styles.topBarInner}>
+          <Text style={styles.topBarBrand}>ScarletSpots</Text>
+          <View style={styles.topBarAvatar}>
+            <Text style={styles.topBarAvatarText}>{initials}</Text>
+          </View>
+        </View>
+      </View>
     </View>
   );
 }
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
+const TOP_BAR_HEIGHT = Platform.OS === "ios" ? 96 : 78;
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
+
   scrollView: { flex: 1 },
   scrollContent: {
-    paddingTop: Platform.OS === "ios" ? 64 : 48,
+    paddingTop: TOP_BAR_HEIGHT + 16,
     paddingHorizontal: 16,
   },
 
-  // ── Page title ──
-  pageTitle: {
-    fontSize: 32,
-    fontWeight: "800",
-    color: GLASS.textPrimary,
-    letterSpacing: -0.5,
-    marginBottom: 20,
+  // ── Top bar overlay ──
+  topBar: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: TOP_BAR_HEIGHT,
+    zIndex: 10,
   },
-
-  // ── Section labels ──
-  sectionLabel: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: GLASS.textMuted,
-    letterSpacing: 1,
-    marginBottom: 10,
-    marginTop: 20,
-    marginLeft: 4,
+  topBarInner: {
+    paddingTop: Platform.OS === "ios" ? 56 : 40,
+    paddingHorizontal: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  topBarBrand: {
+    fontSize: 20,
+    fontWeight: "800",
+    fontStyle: "italic",
+    color: "#cc0033",
+    letterSpacing: -0.3,
+  },
+  topBarAvatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#1c1d21",
+    borderWidth: 1.5,
+    borderColor: "rgba(204,0,51,0.35)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  topBarAvatarText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#cc0033",
   },
 
   // ── Not signed in ──
@@ -503,11 +728,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 6,
   },
-  notLoggedInText: {
-    color: GLASS.textPrimary,
-    fontSize: 20,
-    fontWeight: "700",
-  },
+  notLoggedInText: { color: GLASS.textPrimary, fontSize: 20, fontWeight: "700" },
   notLoggedInSub: {
     color: GLASS.textMuted,
     fontSize: 14,
@@ -523,7 +744,7 @@ const styles = StyleSheet.create({
   },
   loginButtonText: { color: "#fff", fontWeight: "700", fontSize: 15 },
 
-  // ── Hero ──
+  // ── Hero card ──
   heroCard: { marginBottom: 0 },
   heroContent: {
     alignItems: "center",
@@ -534,50 +755,52 @@ const styles = StyleSheet.create({
   avatarGlow: {
     position: "absolute",
     top: 16,
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: "rgba(220,38,38,0.07)",
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    backgroundColor: "rgba(204,0,51,0.09)",
   },
   avatarRing: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     overflow: "hidden",
     padding: 2,
-    marginBottom: 16,
+    marginBottom: 18,
   },
   avatarInner: {
     flex: 1,
-    borderRadius: 42,
-    backgroundColor: "#0f0f12",
+    borderRadius: 46,
+    backgroundColor: "#0d0d0f",
     justifyContent: "center",
     alignItems: "center",
   },
   avatarText: {
-    fontSize: 34,
+    fontSize: 38,
     fontWeight: "800",
-    color: GLASS.accent,
+    fontStyle: "italic",
+    color: "#cc0033",
     letterSpacing: -1,
   },
   heroName: {
-    fontSize: 22,
-    fontWeight: "700",
+    fontSize: 26,
+    fontWeight: "800",
     color: GLASS.textPrimary,
-    letterSpacing: -0.3,
+    letterSpacing: -0.5,
   },
   heroEmail: {
     fontSize: 13,
     color: GLASS.textMuted,
-    marginTop: 3,
-    marginBottom: 4,
+    marginTop: 4,
+    marginBottom: 14,
   },
   heroSince: {
-    fontSize: 12,
+    fontSize: 11,
     color: GLASS.textDim,
-    marginBottom: 20,
+    marginTop: 12,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
   },
-  // Permit badge inside hero
   permitBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -587,31 +810,20 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: "hidden",
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: FLAT_CARD_BORDER,
-    backgroundColor: "#24262c",
+    borderColor: "rgba(204,0,51,0.25)",
+    backgroundColor: "rgba(204,0,51,0.08)",
   },
-  permitBadgeText: {
-    color: GLASS.textPrimary,
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  permitBadgeSecondary: {
-    color: GLASS.textMuted,
-    fontSize: 12,
-  },
+  permitBadgeText: { color: "#cc0033", fontSize: 13, fontWeight: "700" },
+  permitBadgeSecondary: { color: GLASS.textMuted, fontSize: 12 },
 
   // ── Stats strip ──
-  statsRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginTop: 8,
-  },
+  statsRow: { flexDirection: "row", gap: 8, marginTop: 8 },
   statCard: { flex: 1 },
   statContent: {
     alignItems: "center",
-    paddingVertical: 14,
+    paddingVertical: 16,
     paddingHorizontal: 8,
-    gap: 3,
+    gap: 4,
     backgroundColor: FLAT_CARD_BG,
   },
   statValue: {
@@ -621,118 +833,62 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   statLabel: {
-    fontSize: 11,
+    fontSize: 10,
     color: GLASS.textMuted,
-    fontWeight: "500",
+    fontWeight: "600",
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+    textAlign: "center",
   },
 
-  // ── List card (shared by Saved Lots, Preferences, Account) ──
-  listCard: {},
-  listCardContent: { padding: 6, backgroundColor: FLAT_CARD_BG },
-
-  // ── Setting row ──
-  settingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 13,
-    paddingHorizontal: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(255,255,255,0.05)",
-    gap: 12,
-  },
-  settingRowLast: { borderBottomWidth: 0 },
-  settingIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 9,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  settingText: { flex: 1 },
-  settingLabel: {
-    color: "#d4d4d8",
-    fontSize: 15,
-    fontWeight: "500",
-  },
-  settingSubtext: {
-    color: GLASS.textMuted,
-    fontSize: 12,
-    marginTop: 1,
-  },
-
-  // ── Campus expand panel ──
-  campusPanel: {
-    marginHorizontal: 10,
-    marginBottom: 4,
-    borderRadius: 10,
-    backgroundColor: "rgba(255,255,255,0.03)",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.06)",
-    overflow: "hidden",
-  },
-  campusRow: {
+  // ── Section headers ──
+  sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(255,255,255,0.04)",
+    marginTop: 26,
+    marginBottom: 6,
+    paddingHorizontal: 4,
   },
-  campusName: {
-    color: "#e4e4e7",
-    fontSize: 14,
-    fontWeight: "500",
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: GLASS.textMuted,
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
   },
-  campusNameOff: { color: GLASS.textMuted },
-  campusToggle: {
-    width: 42,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: "#27272a",
-    justifyContent: "center",
-    paddingHorizontal: 3,
+  sectionAction: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#cc0033",
   },
-  campusToggleOn: { backgroundColor: "rgba(34,197,94,0.3)" },
-  campusThumb: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: GLASS.textMuted,
+  sectionDesc: {
+    fontSize: 13,
+    color: GLASS.textMuted,
+    paddingHorizontal: 4,
+    marginBottom: 12,
+    lineHeight: 18,
   },
-  campusThumbOn: {
-    backgroundColor: "#4ade80",
-    alignSelf: "flex-end",
+  prefGroupLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: GLASS.textDim,
+    letterSpacing: 1.5,
+    textTransform: "uppercase",
+    paddingHorizontal: 4,
+    marginBottom: 10,
   },
 
-  // ── Favorites ──
-  favRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(255,255,255,0.05)",
-    gap: 12,
-  },
-  favRowLast: { borderBottomWidth: 0 },
-  favIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 9,
-    backgroundColor: "rgba(245,158,11,0.1)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  favTextGroup: { flex: 1 },
-  favName: { color: "#e4e4e7", fontSize: 14, fontWeight: "500" },
-  favSub: { color: GLASS.textMuted, fontSize: 12, marginTop: 1 },
+  // ── Card containers ──
+  listCard: {},
+  listCardContent: { padding: 0, backgroundColor: FLAT_CARD_BG },
+  lastCard: { borderBottomWidth: 0 },
 
   // ── Empty state ──
   emptyState: {
     alignItems: "center",
-    paddingVertical: 28,
-    paddingHorizontal: 10,
+    paddingVertical: 32,
+    paddingHorizontal: 12,
     gap: 8,
   },
   emptyIconWrap: {
@@ -757,15 +913,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-    marginTop: 20,
-    marginBottom: 0,
-    paddingVertical: 15,
-    borderRadius: 14,
+    gap: 10,
+    marginTop: 22,
+    paddingVertical: 16,
+    borderRadius: 16,
     overflow: "hidden",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: FLAT_CARD_BORDER,
-    backgroundColor: FLAT_CARD_BG,
+    borderWidth: 1,
+    borderColor: "rgba(204,0,51,0.25)",
+    backgroundColor: "rgba(204,0,51,0.06)",
   },
-  signOutText: { color: GLASS.accent, fontSize: 15, fontWeight: "600" },
+  signOutText: { color: "#cc0033", fontSize: 15, fontWeight: "700" },
 });
