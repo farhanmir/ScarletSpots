@@ -1510,6 +1510,7 @@ export default function MapScreen() {
       >
         {lotSheetData ? (
           <LotDetailsSheetContent
+            key={isLotSheetVisible ? `open-${lotSheetData.id}` : "closed"}
             lot={lotSheetData}
             isFavorite={favorites.includes(lotSheetData.id)}
             onToggleFavorite={() => void toggleFavorite(lotSheetData)}

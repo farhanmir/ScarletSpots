@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   StyleSheet,
   View,
@@ -11,6 +11,13 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import * as Haptics from "expo-haptics";
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import NetInfo from "@react-native-community/netinfo";
 
@@ -49,6 +56,19 @@ export default function LotDetailsScreen() {
   const currentUserId = user?.id ?? null;
   const { setIsTabBarHidden } = useTabBar();
 
+  // ── 67 wobble (one-shot on open) ─────────────────────────────────────────
+  const wobble = useSharedValue(0);
+  const didWobbleForLotIdRef = useRef<string | null>(null);
+
+  const wobbleStyle = useAnimatedStyle(() => ({
+    transform: [
+      // Rotation produces opposite motion on left vs right edges.
+      { rotateZ: `${-wobble.value * 5}deg` },
+      // Small bounce so it feels punchy.
+      { translateY: Math.abs(wobble.value) * 2 },
+    ],
+  }));
+
   useFocusEffect(
     useCallback(() => {
       setIsTabBarHidden(true);
@@ -78,6 +98,23 @@ export default function LotDetailsScreen() {
     const live = lotsOccupancy?.find((l) => l.id === id);
     return live ? { ...lotBase, ...live } : lotBase;
   }, [lotBase, lotsOccupancy, id]);
+
+  useEffect(() => {
+    if (!lot?.id || !lot?.shortName?.includes("67")) return;
+    if (didWobbleForLotIdRef.current === lot.id) return;
+    didWobbleForLotIdRef.current = lot.id;
+
+    // Action-like wobble: right up / left down, then reverse (one-shot).
+    wobble.value = withSequence(
+      withTiming(1, { duration: 120, easing: Easing.linear }),
+      withTiming(-1, { duration: 180, easing: Easing.linear }),
+      withTiming(0.7, { duration: 110, easing: Easing.linear }),
+      withTiming(-0.7, { duration: 160, easing: Easing.linear }),
+      withTiming(0.4, { duration: 100, easing: Easing.linear }),
+      withTiming(-0.4, { duration: 140, easing: Easing.linear }),
+      withTiming(0, { duration: 120, easing: Easing.linear }),
+    );
+  }, [lot?.id, lot?.shortName, wobble]);
 
   // Favorites
   const { data: favorites = [] } = useQuery<string[]>({
@@ -322,7 +359,7 @@ export default function LotDetailsScreen() {
   ].filter(Boolean) as any[];
 
   return (
-    <View style={styles.outerContainer}>
+    <Animated.View style={[styles.outerContainer, wobbleStyle]}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -540,7 +577,7 @@ export default function LotDetailsScreen() {
 
         <View style={{ height: 100 }} />
       </ScrollView>
-    </View>
+    </Animated.View>
   );
 }
 

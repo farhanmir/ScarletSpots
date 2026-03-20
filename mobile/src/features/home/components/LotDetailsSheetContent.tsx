@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import {
   StyleSheet,
   View,
@@ -11,6 +11,13 @@ import {
   ScrollView,
 } from "react-native";
 import { useQuery } from "@tanstack/react-query";
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
 import { IconSymbol } from "@/shared/components/ui/icon-symbol";
 import { publicApiCall } from "@/shared/api/supabase";
 import {
@@ -54,6 +61,36 @@ export default function LotDetailsSheetContent({
   permitType,
   secondaryPermitType,
 }: LotDetailsSheetContentProps) {
+  // ── 67 wobble (one-shot per sheet open) ────────────────────────────────
+  const wobble = useSharedValue(0);
+  const didWobbleForLotIdRef = useRef<string | null>(null);
+
+  const wobbleStyle = useAnimatedStyle(() => ({
+    transform: [
+      // Rotation produces opposite motion on left vs right edges.
+      { rotateZ: `${-wobble.value * 5}deg` },
+      // Small bounce so it feels punchy.
+      { translateY: Math.abs(wobble.value) * 2 },
+    ],
+  }));
+
+  useEffect(() => {
+    if (!lot?.id || !lot?.shortName?.includes("67")) return;
+    if (didWobbleForLotIdRef.current === lot.id) return;
+    didWobbleForLotIdRef.current = lot.id;
+
+    // Action-like wobble: right up / left down, then reverse (one-shot).
+    wobble.value = withSequence(
+      withTiming(1, { duration: 120, easing: Easing.linear }),
+      withTiming(-1, { duration: 180, easing: Easing.linear }),
+      withTiming(0.7, { duration: 110, easing: Easing.linear }),
+      withTiming(-0.7, { duration: 160, easing: Easing.linear }),
+      withTiming(0.4, { duration: 100, easing: Easing.linear }),
+      withTiming(-0.4, { duration: 140, easing: Easing.linear }),
+      withTiming(0, { duration: 120, easing: Easing.linear }),
+    );
+  }, [lot?.id, lot?.shortName, wobble]);
+
   // ── Forecast ────────────────────────────────────────────────────────────
   const { data: forecastData, isLoading: isLoadingForecast } =
     useQuery<ForecastResponse>({
@@ -183,200 +220,205 @@ export default function LotDetailsSheetContent({
   };
 
   return (
-    <ScrollView
-      style={styles.scroll}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-      bounces={false}
-    >
-      {/* ── Header ─────────────────────────────────────────────────────── */}
-      <View style={styles.headerRow}>
-        <View style={styles.headerLeft}>
-          {/* Campus pill */}
-          {lot.campus ? (
-            <View style={styles.campusPill}>
-              <Text style={styles.campusPillText}>{lot.campus} Campus</Text>
-            </View>
-          ) : null}
+    <Animated.View style={wobbleStyle}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
+        {/* ── Header ─────────────────────────────────────────────────────── */}
+        <View style={styles.headerRow}>
+          <View style={styles.headerLeft}>
+            {/* Campus pill */}
+            {lot.campus ? (
+              <View style={styles.campusPill}>
+                <Text style={styles.campusPillText}>{lot.campus} Campus</Text>
+              </View>
+            ) : null}
 
-          {/* Lot name + permit badge */}
-          <View style={styles.nameRow}>
-            <Text style={styles.lotName} numberOfLines={1}>
-              {lot.name}
-            </Text>
-            {permitValidity === true && (
+            {/* Lot name + permit badge */}
+            <View style={styles.nameRow}>
+              <Text style={styles.lotName} numberOfLines={1}>
+                {lot.name}
+              </Text>
+              {permitValidity === true && (
+                <IconSymbol
+                  name="checkmark.circle.fill"
+                  size={20}
+                  color="#4ade80"
+                />
+              )}
+            </View>
+          </View>
+
+          {/* Favorite button */}
+          <View style={styles.headerButtons}>
+            <View style={styles.iconBtnSpacer} />
+            <TouchableOpacity
+              style={styles.iconBtn}
+              onPress={onToggleFavorite}
+              activeOpacity={0.75}
+            >
               <IconSymbol
-                name="checkmark.circle.fill"
-                size={20}
-                color="#4ade80"
+                name={isFavorite ? "star.fill" : "star"}
+                size={18}
+                color={isFavorite ? "#f59e0b" : "#a1a1aa"}
               />
-            )}
+            </TouchableOpacity>
           </View>
         </View>
 
-        {/* Favorite button */}
-        <View style={styles.headerButtons}>
-          <View style={styles.iconBtnSpacer} />
-          <TouchableOpacity
-            style={styles.iconBtn}
-            onPress={onToggleFavorite}
-            activeOpacity={0.75}
-          >
-            <IconSymbol
-              name={isFavorite ? "star.fill" : "star"}
-              size={18}
-              color={isFavorite ? "#f59e0b" : "#a1a1aa"}
-            />
-          </TouchableOpacity>
+        {/* ── Stats (exactly 3) ───────────────────────────────────────────── */}
+        <View style={styles.statsRow}>
+          <View style={styles.statCard}>
+            <Text style={[styles.statVal, { color: valueColor }]}>{rate}%</Text>
+            <Text style={styles.statLab}>Full</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statVal}>{lot.occupiedCount ?? 0}</Text>
+            <Text style={styles.statLab}>Sessions</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statVal}>{lot.capacity ?? 0}</Text>
+            <Text style={styles.statLab}>Capacity</Text>
+          </View>
         </View>
-      </View>
 
-      {/* ── Stats (exactly 3) ───────────────────────────────────────────── */}
-      <View style={styles.statsRow}>
-        <View style={styles.statCard}>
-          <Text style={[styles.statVal, { color: valueColor }]}>{rate}%</Text>
-          <Text style={styles.statLab}>Full</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statVal}>{lot.occupiedCount ?? 0}</Text>
-          <Text style={styles.statLab}>Sessions</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statVal}>{lot.capacity ?? 0}</Text>
-          <Text style={styles.statLab}>Capacity</Text>
-        </View>
-      </View>
-
-      {/* ── Feature pills ───────────────────────────────────────────────── */}
-      {features.length > 0 && (
-        <View style={styles.featureRow}>
-          {features.map((f) => (
-            <View
-              key={f.label}
-              style={[
-                styles.featurePill,
-                { backgroundColor: f.bg, borderColor: f.border },
-              ]}
-            >
-              <IconSymbol name={f.icon as any} size={12} color={f.color} />
-              <Text style={[styles.featurePillText, { color: f.color }]}>
-                {f.label}
-              </Text>
-            </View>
-          ))}
-        </View>
-      )}
-
-      {/* ── Schedule card ───────────────────────────────────────────────── */}
-      {scheduleInfo && (
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <IconSymbol name="clock.fill" size={13} color="#71717a" />
-            <Text style={styles.cardTitle}>SCHEDULE</Text>
-            <View
-              style={[
-                styles.availBadge,
-                lotAvailable ? styles.availOpen : styles.availClosed,
-              ]}
-            >
+        {/* ── Feature pills ───────────────────────────────────────────────── */}
+        {features.length > 0 && (
+          <View style={styles.featureRow}>
+            {features.map((f) => (
               <View
+                key={f.label}
                 style={[
-                  styles.availDot,
-                  { backgroundColor: lotAvailable ? "#4ade80" : "#ef4444" },
-                ]}
-              />
-              <Text
-                style={[
-                  styles.availText,
-                  { color: lotAvailable ? "#4ade80" : "#ef4444" },
+                  styles.featurePill,
+                  { backgroundColor: f.bg, borderColor: f.border },
                 ]}
               >
-                {lotAvailable ? "OPEN" : "CLOSED"}
-              </Text>
-            </View>
+                <IconSymbol name={f.icon as any} size={12} color={f.color} />
+                <Text style={[styles.featurePillText, { color: f.color }]}>
+                  {f.label}
+                </Text>
+              </View>
+            ))}
           </View>
-          {scheduleInfo.time_text_1 ? (
-            <Text style={styles.cardBody}>{scheduleInfo.time_text_1}</Text>
-          ) : null}
-          {scheduleInfo.time_text_2 ? (
-            <Text style={styles.cardBody}>{scheduleInfo.time_text_2}</Text>
-          ) : null}
-        </View>
-      )}
-
-      {/* ── Notes card ──────────────────────────────────────────────────── */}
-      {lot.note ? (
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <IconSymbol name="info.circle.fill" size={13} color="#71717a" />
-            <Text style={styles.cardTitle}>NOTES</Text>
-          </View>
-          <Text style={styles.cardBody}>{lot.note}</Text>
-        </View>
-      ) : null}
-
-      {/* ── Forecast timeline ───────────────────────────────────────────── */}
-      <View style={styles.forecastWrapper}>
-        <ForecastChart curve={forecast} isLoading={isLoadingForecast} />
-      </View>
-
-      {/* ── Actions ─────────────────────────────────────────────────────── */}
-      <View style={styles.actionsRow}>
-        {!isParked && (
-          <TouchableOpacity
-            style={[styles.parkBtn, parkDisabled && styles.parkBtnDisabled]}
-            onPress={() => {
-              if (!parkDisabled) {
-                Alert.alert(
-                  "Confirm Parking",
-                  `Start a session at ${lot.name}?`,
-                  [
-                    { text: "Cancel", style: "cancel" },
-                    {
-                      text: "Park Here",
-                      style: "default",
-                      onPress: () => onPark(lot.id),
-                    },
-                  ],
-                );
-              }
-            }}
-            disabled={loading || parkDisabled}
-            activeOpacity={0.85}
-          >
-            {loading ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <>
-                <IconSymbol name="p.circle.fill" size={20} color="#fff" />
-                <Text style={styles.parkBtnText}>{getParkLabel()}</Text>
-              </>
-            )}
-          </TouchableOpacity>
         )}
 
-        <TouchableOpacity
-          style={[styles.dirBtn, isParked && { flex: 1 }]}
-          onPress={openDirections}
-          activeOpacity={0.8}
-        >
-          <IconSymbol
-            name="arrow.triangle.turn.up.right.diamond.fill"
-            size={18}
-            color="#60a5fa"
-          />
-          {isParked && <Text style={styles.dirBtnText}>Directions</Text>}
-        </TouchableOpacity>
-      </View>
+        {/* ── Schedule card ───────────────────────────────────────────────── */}
+        {scheduleInfo && (
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <IconSymbol name="clock.fill" size={13} color="#71717a" />
+              <Text style={styles.cardTitle}>SCHEDULE</Text>
+              <View
+                style={[
+                  styles.availBadge,
+                  lotAvailable ? styles.availOpen : styles.availClosed,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.availDot,
+                    { backgroundColor: lotAvailable ? "#4ade80" : "#ef4444" },
+                  ]}
+                />
+                <Text
+                  style={[
+                    styles.availText,
+                    { color: lotAvailable ? "#4ade80" : "#ef4444" },
+                  ]}
+                >
+                  {lotAvailable ? "OPEN" : "CLOSED"}
+                </Text>
+              </View>
+            </View>
+            {scheduleInfo.time_text_1 ? (
+              <Text style={styles.cardBody}>{scheduleInfo.time_text_1}</Text>
+            ) : null}
+            {scheduleInfo.time_text_2 ? (
+              <Text style={styles.cardBody}>{scheduleInfo.time_text_2}</Text>
+            ) : null}
+          </View>
+        )}
 
-      {!user && (
-        <Text style={styles.signInNote}>
-          Sign in from the Profile tab to log parking sessions
-        </Text>
-      )}
+        {/* ── Notes card ──────────────────────────────────────────────────── */}
+        {lot.note ? (
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <IconSymbol name="info.circle.fill" size={13} color="#71717a" />
+              <Text style={styles.cardTitle}>NOTES</Text>
+            </View>
+            <Text style={styles.cardBody}>{lot.note}</Text>
+          </View>
+        ) : null}
 
-      <View style={{ height: 20 }} />
-    </ScrollView>
+        {/* ── Forecast timeline ───────────────────────────────────────────── */}
+        <View style={styles.forecastWrapper}>
+          <ForecastChart curve={forecast} isLoading={isLoadingForecast} />
+        </View>
+
+        {/* ── Actions ─────────────────────────────────────────────────────── */}
+        <View style={styles.actionsRow}>
+          {!isParked && (
+            <TouchableOpacity
+              style={[
+                styles.parkBtn,
+                parkDisabled && styles.parkBtnDisabled,
+              ]}
+              onPress={() => {
+                if (!parkDisabled) {
+                  Alert.alert(
+                    "Confirm Parking",
+                    `Start a session at ${lot.name}?`,
+                    [
+                      { text: "Cancel", style: "cancel" },
+                      {
+                        text: "Park Here",
+                        style: "default",
+                        onPress: () => onPark(lot.id),
+                      },
+                    ],
+                  );
+                }
+              }}
+              disabled={loading || parkDisabled}
+              activeOpacity={0.85}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <IconSymbol name="p.circle.fill" size={20} color="#fff" />
+                  <Text style={styles.parkBtnText}>{getParkLabel()}</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+
+          <TouchableOpacity
+            style={[styles.dirBtn, isParked && { flex: 1 }]}
+            onPress={openDirections}
+            activeOpacity={0.8}
+          >
+            <IconSymbol
+              name="arrow.triangle.turn.up.right.diamond.fill"
+              size={18}
+              color="#60a5fa"
+            />
+            {isParked && <Text style={styles.dirBtnText}>Directions</Text>}
+          </TouchableOpacity>
+        </View>
+
+        {!user && (
+          <Text style={styles.signInNote}>
+            Sign in from the Profile tab to log parking sessions
+          </Text>
+        )}
+
+        <View style={{ height: 20 }} />
+      </ScrollView>
+    </Animated.View>
   );
 }
 
