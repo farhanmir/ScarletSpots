@@ -29,8 +29,7 @@ import {
   cacheFavorites,
 } from "@/shared/services/OfflineCache";
 
-const FLAT_CARD_BG = "#181a1f";
-const FLAT_CARD_BORDER = "rgba(255,255,255,0.09)";
+const FLAT_CARD_BORDER = "rgba(72,72,71,0.18)";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -361,9 +360,7 @@ export default function ProfileScreen() {
     return permitType;
   };
 
-  // Only show the 3 main NB campuses in the preference cards;
-  // the rest still appear in the collapsible panel if needed.
-  const primaryCampuses = ["Busch", "College Ave", "Livingston"];
+  const primaryCampuses = NB_CAMPUS_NAMES;
 
   // ── Main profile ───────────────────────────────────────────────────────────
   return (
@@ -631,75 +628,19 @@ export default function ProfileScreen() {
 
         <View style={{ height: 130 }} />
       </ScrollView>
-
-      {/* ── Glass top bar (rendered AFTER ScrollView so blur reads content) ── */}
-      <View style={styles.topBar} pointerEvents="none">
-        <LinearGradient
-          colors={["rgba(10,10,12,0.96)", "rgba(10,10,12,0.80)", "transparent"]}
-          style={StyleSheet.absoluteFill}
-          pointerEvents="none"
-        />
-        <View style={styles.topBarInner}>
-          <Text style={styles.topBarBrand}>ScarletSpots</Text>
-          <View style={styles.topBarAvatar}>
-            <Text style={styles.topBarAvatarText}>{initials}</Text>
-          </View>
-        </View>
-      </View>
     </View>
   );
 }
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
-const TOP_BAR_HEIGHT = Platform.OS === "ios" ? 96 : 78;
-
 const styles = StyleSheet.create({
   container: { flex: 1 },
 
   scrollView: { flex: 1 },
   scrollContent: {
-    paddingTop: TOP_BAR_HEIGHT + 16,
+    paddingTop: Platform.OS === "ios" ? 68 : 50,
     paddingHorizontal: 16,
-  },
-
-  // ── Top bar overlay ──
-  topBar: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: TOP_BAR_HEIGHT,
-    zIndex: 10,
-  },
-  topBarInner: {
-    paddingTop: Platform.OS === "ios" ? 56 : 40,
-    paddingHorizontal: 20,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  topBarBrand: {
-    fontSize: 20,
-    fontWeight: "800",
-    fontStyle: "italic",
-    color: "#cc0033",
-    letterSpacing: -0.3,
-  },
-  topBarAvatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: "#1c1d21",
-    borderWidth: 1.5,
-    borderColor: "rgba(204,0,51,0.35)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  topBarAvatarText: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: "#cc0033",
   },
 
   // ── Not signed in ──
@@ -715,7 +656,6 @@ const styles = StyleSheet.create({
     paddingVertical: 36,
     gap: 10,
     padding: 24,
-    backgroundColor: FLAT_CARD_BG,
   },
   notSignedInAvatar: {
     width: 80,
@@ -750,7 +690,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 32,
     paddingHorizontal: 20,
-    backgroundColor: FLAT_CARD_BG,
   },
   avatarGlow: {
     position: "absolute",
@@ -824,7 +763,6 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 8,
     gap: 4,
-    backgroundColor: FLAT_CARD_BG,
   },
   statValue: {
     fontSize: 20,
@@ -881,7 +819,7 @@ const styles = StyleSheet.create({
 
   // ── Card containers ──
   listCard: {},
-  listCardContent: { padding: 0, backgroundColor: FLAT_CARD_BG },
+  listCardContent: { padding: 0 },
   lastCard: { borderBottomWidth: 0 },
 
   // ── Empty state ──

@@ -18,7 +18,6 @@ import { GlassCard } from "@/shared/components/ui/GlassCard";
 import { GlassSearchBar } from "@/shared/components/ui/GlassSearchBar";
 import { ScarletSpotsBackground } from "@/shared/components/ui/ScarletSpotsBackground";
 import { GLASS } from "@/shared/components/ui/glassTheme";
-import { useAuth } from "@/providers/AuthProvider";
 import * as Location from "expo-location";
 import { RUTGERS_BUILDINGS } from "@/shared/constants/buildings";
 import { getAllLots, type RutgersLot } from "@/shared/constants/lots";
@@ -82,8 +81,6 @@ const FLAT_CARD_BORDER = "rgba(255,255,255,0.11)";
 
 export default function SearchScreen() {
   const router = useRouter();
-  const { user } = useAuth();
-  const initials = user?.email?.charAt(0).toUpperCase() ?? "?";
 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PlaceResult[]>([]);
@@ -398,27 +395,17 @@ export default function SearchScreen() {
         <View style={styles.headerContainer} pointerEvents="box-none">
           <LinearGradient
             colors={[
-              "rgba(10,10,12,0.98)",
-              "rgba(10,10,12,0.88)",
+              "rgba(10,10,12,0.97)",
+              "rgba(10,10,12,0.82)",
               "transparent",
             ]}
             style={StyleSheet.absoluteFill}
             pointerEvents="none"
           />
           <View style={styles.headerInner} pointerEvents="box-none">
-            {/* ── Brand row ────────────────────────────────────────────── */}
-            <View style={styles.brandRow} pointerEvents="none">
-              <Text style={styles.brandText}>ScarletSpots</Text>
-              <View style={styles.avatarCircle}>
-                <Text style={styles.avatarInitial}>{initials}</Text>
-              </View>
-            </View>
-
-            {/* ── Page title ───────────────────────────────────────────── */}
             <Text style={styles.title} pointerEvents="none">
               Search
             </Text>
-
             <GlassSearchBar
               value={query}
               onChangeText={setQuery}
@@ -458,7 +445,7 @@ const occupancyStyles = StyleSheet.create({
   text: { fontSize: 12, fontWeight: "700" },
 });
 
-const HEADER_HEIGHT = Platform.OS === "ios" ? 196 : 186;
+const HEADER_HEIGHT = Platform.OS === "ios" ? 152 : 140;
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -473,39 +460,9 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   headerInner: {
-    paddingTop: Platform.OS === "ios" ? 56 : 40,
+    paddingTop: Platform.OS === "ios" ? 60 : 44,
     paddingHorizontal: 20,
     paddingBottom: 14,
-  },
-
-  // Brand top row
-  brandRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 14,
-  },
-  brandText: {
-    fontSize: 20,
-    fontWeight: "800",
-    fontStyle: "italic",
-    color: "#cc0033",
-    letterSpacing: -0.3,
-  },
-  avatarCircle: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: "#1c1d21",
-    borderWidth: 1.5,
-    borderColor: "rgba(204,0,51,0.35)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  avatarInitial: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: "#cc0033",
   },
 
   title: {
@@ -513,15 +470,10 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: GLASS.textPrimary,
     letterSpacing: -0.5,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: GLASS.textMuted,
-    marginTop: 2,
-    marginBottom: 14,
+    marginBottom: 10,
   },
   searchBar: {
-    marginTop: 8,
+    borderRadius: 999,
   },
 
   // List containers
@@ -560,7 +512,6 @@ const styles = StyleSheet.create({
     gap: 7,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: "#181a1f",
   },
   campusPillText: {
     color: "#e4e4e7",
@@ -579,17 +530,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 14,
     gap: 14,
-    backgroundColor: "#181a1f",
   },
   popularIcon: {
     width: 48,
     height: 48,
     borderRadius: 14,
-    backgroundColor: "#22252c",
+    backgroundColor: "rgba(255,255,255,0.06)",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(255,255,255,0.10)",
   },
   popularText: { flex: 1 },
   popularName: {
@@ -614,13 +564,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 11,
     gap: 12,
-    backgroundColor: FLAT_CARD_BG,
   },
   resultIcon: {
     width: 38,
     height: 38,
     borderRadius: 10,
-    backgroundColor: "#24262c",
+    backgroundColor: "rgba(255,255,255,0.06)",
     justifyContent: "center",
     alignItems: "center",
   },

@@ -1,8 +1,7 @@
-import React, { useEffect } from "react";
+import React from "react";
 import {
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
   type StyleProp,
   type ViewStyle,
@@ -11,8 +10,11 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
+  withTiming,
 } from "react-native-reanimated";
-import { GlassBackground } from "./GlassBackground";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { BlurView } from "expo-blur";
+import * as Haptics from "expo-haptics";
 import { GLASS } from "./glassTheme";
 
 export interface SegmentOption<T extends string = string> {
@@ -27,172 +29,167 @@ export interface GlassSegmentedControlProps<T extends string = string> {
   value: T;
   onChange: (key: T) => void;
   style?: StyleProp<ViewStyle>;
+  /** @deprecated variant is no longer used; kept for API compatibility */
   variant?: "glass" | "flat";
 }
 
+const AnimatedPressable = Animated.createAnimatedComponent(View);
+
 /**
- * A glass segmented control (tab switcher) with a smooth Reanimated sliding pill.
+ * Tab switcher built with:
+ *  - BlurView (expo-blur) for the frosted glass track
+ *  - Individual Reanimated pill buttons with scale + opacity spring
+ *  - Haptic feedback via expo-haptics on selection
  *
- * Usage:
- * ```tsx
- * <GlassSegmentedControl
- *   options={[{ key: "friends", label: "My Crew" }, { key: "requests", label: "Requests", badge: 3 }]}
- *   value={activeTab}
- *   onChange={setActiveTab}
- * />
- * ```
+ * Active tab → scarlet pill, white label.
+ * Inactive   → transparent, muted label.
+ * Badges     → small scarlet bubble (count > 0 only).
  */
 export function GlassSegmentedControl<T extends string = string>({
   options,
   value,
   onChange,
   style,
-  variant = "glass",
 }: Readonly<GlassSegmentedControlProps<T>>) {
-  const segmentCount = options.length;
-  const activeIndex = options.findIndex((o) => o.key === value);
-  const pillX = useSharedValue(0);
+  return (
+    <BlurView
+      intensity={22}
+      tint="systemChromeMaterialDark"
+      style={[styles.track, style]}
+    >
+      {/* Inset border rendered as an absolute View so it clips correctly */}
+      <View style={styles.trackBorder} pointerEvents="none" />
 
-  useEffect(() => {
-    // Spring-animate the pill to the active segment
-    pillX.value = withSpring(activeIndex, {
-      damping: 22,
-      stiffness: 180,
-      mass: 0.5,
+      {options.map((option) => (
+        <PillButton
+          key={option.key}
+          option={option}
+          isActive={option.key === value}
+          onPress={() => {
+            if (option.key !== value) {
+              Haptics.selectionAsync();
+              onChange(option.key);
+            }
+          }}
+        />
+      ))}
+    </BlurView>
+  );
+}
+
+// ── PillButton ────────────────────────────────────────────────────────────────
+
+function PillButton<T extends string>({
+  option,
+  isActive,
+  onPress,
+}: Readonly<{
+  option: SegmentOption<T>;
+  isActive: boolean;
+  onPress: () => void;
+}>) {
+  const scale = useSharedValue(1);
+  const labelOpacity = useSharedValue(isActive ? 1 : 0.45);
+
+  React.useEffect(() => {
+    labelOpacity.value = withTiming(isActive ? 1 : 0.45, { duration: 180 });
+  }, [isActive, labelOpacity]);
+
+  const tap = Gesture.Tap()
+    .runOnJS(true)
+    .onBegin(() => {
+      scale.value = withSpring(0.93, { damping: 18, stiffness: 300 });
+    })
+    .onFinalize(() => {
+      scale.value = withSpring(1, { damping: 18, stiffness: 300 });
+      onPress();
     });
-  }, [activeIndex, pillX]);
 
-  const pillStyle = useAnimatedStyle(() => ({
-    left: `${(pillX.value / segmentCount) * 100}%`,
-    width: `${(1 / segmentCount) * 100}%`,
+  const pillAnim = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const labelAnim = useAnimatedStyle(() => ({
+    opacity: labelOpacity.value,
   }));
 
   return (
-    <View
-      style={[
-        styles.container,
-        variant === "flat" && styles.containerFlat,
-        style,
-      ]}
-    >
-      {/* Track background */}
-      {variant === "glass" ? (
-        <GlassBackground
-          style={StyleSheet.absoluteFill}
-          glassStyle="regular"
-          blurIntensity={GLASS.blurLight}
-          blurTint={GLASS.tintDark}
-          fallbackColor="rgba(14, 14, 16, 0.9)"
-        />
-      ) : (
-        <View style={styles.flatBackground} />
-      )}
-
-      {/* Sliding pill */}
-      <Animated.View style={[styles.pill, pillStyle]}>
-        <View
-          style={[styles.pillInner, variant === "flat" && styles.pillInnerFlat]}
-        />
-      </Animated.View>
-
-      {/* Segment buttons */}
-      <View style={styles.segmentsRow}>
-        {options.map((option) => {
-          const isActive = option.key === value;
-          return (
-            <TouchableOpacity
-              key={option.key}
-              style={styles.segment}
-              onPress={() => onChange(option.key)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.segmentContent}>
-                <Text style={[styles.label, isActive && styles.labelActive]}>
-                  {option.label}
-                </Text>
-                {option.badge !== undefined && option.badge > 0 && (
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>{option.badge}</Text>
-                  </View>
-                )}
-              </View>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-    </View>
+    <GestureDetector gesture={tap}>
+      <AnimatedPressable style={[styles.pill, pillAnim]}>
+        {isActive && <View style={styles.activePill} />}
+        <Animated.View style={[styles.pillContent, labelAnim]}>
+          <Text
+            style={[styles.label, isActive && styles.labelActive]}
+            numberOfLines={1}
+          >
+            {option.label}
+          </Text>
+          {option.badge !== undefined && option.badge > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{option.badge}</Text>
+            </View>
+          )}
+        </Animated.View>
+      </AnimatedPressable>
+    </GestureDetector>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    height: 44,
-    borderRadius: 14,
+  track: {
+    flexDirection: "row",
+    height: 46,
+    borderRadius: 23,
     overflow: "hidden",
-    borderWidth: 1,
-    borderColor: GLASS.borderColor,
-    position: "relative",
+    alignItems: "center",
+    paddingHorizontal: 4,
+    gap: 2,
   },
-  containerFlat: {
-    borderColor: "rgba(255,255,255,0.11)",
-    backgroundColor: "#1c1d21",
-  },
-  flatBackground: {
+  trackBorder: {
     position: "absolute",
     top: 0,
+    left: 0,
     right: 0,
     bottom: 0,
-    left: 0,
-    backgroundColor: "#1c1d21",
+    borderRadius: 23,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
   },
   pill: {
-    position: "absolute",
-    top: 4,
-    bottom: 4,
-    borderRadius: 11,
-    padding: 4,
-  },
-  pillInner: {
     flex: 1,
-    borderRadius: 9,
-    backgroundColor: "rgba(255, 255, 255, 0.07)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.12)",
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
   },
-  pillInnerFlat: {
-    backgroundColor: "#2b2d33",
-    borderColor: "rgba(255,255,255,0.14)",
-  },
-  segmentsRow: {
+  activePill: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    flexDirection: "row",
-    alignItems: "center",
+    borderRadius: 18,
+    backgroundColor: "rgba(204, 0, 51, 0.20)",
+    borderWidth: 1,
+    borderColor: "rgba(204, 0, 51, 0.40)",
   },
-  segment: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    height: "100%",
-  },
-  segmentContent: {
+  pillContent: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
   },
   label: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 13,
+    fontWeight: "700",
     color: GLASS.textMuted,
+    letterSpacing: 0.1,
   },
   labelActive: {
-    color: GLASS.textPrimary,
+    color: "#ffffff",
   },
   badge: {
-    backgroundColor: GLASS.accent,
+    backgroundColor: "#cc0033",
     borderRadius: 9,
     minWidth: 18,
     height: 18,
@@ -203,6 +200,6 @@ const styles = StyleSheet.create({
   badgeText: {
     color: "#fff",
     fontSize: 10,
-    fontWeight: "700",
+    fontWeight: "800",
   },
 });
