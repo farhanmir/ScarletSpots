@@ -76,7 +76,7 @@ services:
 
   # 4. THE NERVOUS SYSTEM: Redis
   redis:
-    image: redis:7-alpine
+    image: redis:8.0-alpine
     container_name: scarletspots-redis
     restart: always
 

@@ -14,10 +14,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -50,7 +50,7 @@ jobs:
 
       - name: Restore prebuild cache
         id: prebuild-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: mobile/ios
           key: ios-prebuild-${{ hashFiles('mobile/package-lock.json', 'mobile/app.json') }}
@@ -71,7 +71,7 @@ jobs:
 
       - name: Save prebuild cache
         if: steps.prebuild-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: mobile/ios
           key: ios-prebuild-${{ hashFiles('mobile/package-lock.json', 'mobile/app.json') }}
@@ -152,7 +152,7 @@ jobs:
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
 
       - name: Upload IPA artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ${{ steps.xcode_info.outputs.scheme }}-${{ github.run_number }}
           path: ${{ steps.xcode_info.outputs.scheme }}.ipa
