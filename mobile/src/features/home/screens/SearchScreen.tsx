@@ -43,33 +43,6 @@ interface LocationEntry {
 
 const STATIC_LOTS = getAllLots(ENABLE_ALL_CAMPUSES);
 
-const CAMPUSES = [
-  {
-    name: "Busch",
-    icon: "building.2.fill" as const,
-    lat: 40.5231,
-    lng: -74.4588,
-  },
-  {
-    name: "College Ave",
-    icon: "building.columns.fill" as const,
-    lat: 40.5008,
-    lng: -74.4474,
-  },
-  {
-    name: "Livingston",
-    icon: "leaf.fill" as const,
-    lat: 40.5238,
-    lng: -74.4368,
-  },
-  {
-    name: "Cook/Doug",
-    icon: "fork.knife" as const,
-    lat: 40.4851,
-    lng: -74.4373,
-  },
-];
-
 const getOccupancyColor = (rate: number) => {
   if (rate >= 90) return "#ef4444";
   if (rate >= 70) return "#f59e0b";
@@ -207,38 +180,7 @@ export default function SearchScreen() {
       contentContainerStyle={styles.emptyBody}
       ListHeaderComponent={
         <>
-          <Text style={styles.sectionLabel}>CAMPUSES</Text>
-          <View style={styles.campusRow}>
-            {CAMPUSES.map((c) => (
-              <TouchableOpacity
-                key={c.name}
-                onPress={() =>
-                  handleSelect({
-                    id: `c-${c.name}`,
-                    name: c.name,
-                    latitude: c.lat,
-                    longitude: c.lng,
-                    type: "place",
-                  })
-                }
-                activeOpacity={0.75}
-              >
-                <GlassCard
-                  style={styles.campusPill}
-                  contentStyle={styles.campusPillContent}
-                  blurIntensity={12}
-                  borderColor={FLAT_CARD_BORDER}
-                >
-                  <IconSymbol name={c.icon} size={15} color={GLASS.iconColor} />
-                  <Text style={styles.campusPillText}>{c.name}</Text>
-                </GlassCard>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <Text style={[styles.sectionLabel, { marginTop: 28 }]}>
-            POPULAR LOTS
-          </Text>
+          <Text style={styles.sectionLabel}>POPULAR LOTS</Text>
           {STATIC_LOTS.slice(0, 6).map((lot) => (
             <TouchableOpacity
               key={lot.id}
@@ -495,29 +437,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginBottom: 12,
     marginTop: 4,
-  },
-
-  // Campus pills row
-  campusRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  campusPill: {
-    borderRadius: 24,
-  },
-  campusPillContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 7,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
-  campusPillText: {
-    color: "#e4e4e7",
-    fontSize: 13,
-    fontWeight: "700",
-    letterSpacing: 0.1,
   },
 
   // Popular lots

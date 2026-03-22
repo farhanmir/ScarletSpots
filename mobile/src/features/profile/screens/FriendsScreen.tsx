@@ -445,6 +445,13 @@ export default function FriendsScreen() {
               onPress={() => setIsAddModalVisible(true)}
               activeOpacity={0.8}
             >
+              <GlassBackground
+                style={StyleSheet.absoluteFill}
+                glassStyle="clear"
+                blurIntensity={14}
+                blurTint={GLASS.tintDark}
+                fallbackColor="rgba(28,29,33,0.85)"
+              />
               <IconSymbol
                 name="person.badge.plus"
                 size={20}
@@ -589,7 +596,6 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     borderWidth: 1,
     borderColor: FLAT_CARD_BORDER,
-    backgroundColor: FLAT_CARD_BG,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -612,7 +618,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 14,
     gap: 12,
-    backgroundColor: FLAT_CARD_BG,
   },
   avatarWrap: {
     width: 46,

@@ -68,7 +68,6 @@ export function GlassSearchBar({
       focusProgress.value === 1
         ? "rgba(220, 38, 38, 0.45)"
         : "rgba(255,255,255,0.12)",
-    backgroundColor: focusProgress.value === 1 ? "#222429" : "#1b1d22",
   }));
 
   const iconColor = focusProgress.value === 1 ? GLASS.accent : GLASS.textMuted;
@@ -104,7 +103,7 @@ export function GlassSearchBar({
         ref={inputRef}
         style={[styles.input, inputStyle]}
         placeholder={placeholder}
-        placeholderTextColor={GLASS.textDim}
+        placeholderTextColor={GLASS.textMuted}
         value={value}
         onChangeText={onChangeText}
         onFocus={handleFocus}

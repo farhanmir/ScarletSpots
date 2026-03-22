@@ -69,7 +69,7 @@ function CampusToggleCard({
         value={enabled}
         onValueChange={onToggle}
         trackColor={{ false: "#2a2a2e", true: "rgba(204,0,51,0.45)" }}
-        thumbColor={enabled ? "#cc0033" : "#52525b"}
+        thumbColor={enabled ? "#ffffff" : "#52525b"}
         ios_backgroundColor="#2a2a2e"
       />
     </View>

@@ -8,8 +8,8 @@ import {
   TextInput,
   Platform,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { IconSymbol } from "@/shared/components/ui/icon-symbol";
+import { ScarletSpotsBackground } from "@/shared/components/ui/ScarletSpotsBackground";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useAuth } from "@/providers/AuthProvider";
 import { ALL_PERMIT_TYPES } from "@/shared/constants/lots";
@@ -187,12 +187,7 @@ export default function PermitScreen() {
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={["#0f0f12", "#09090b"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-        style={StyleSheet.absoluteFill}
-      />
+      <ScarletSpotsBackground />
 
       {/* Header */}
       <View style={styles.header}>
@@ -445,7 +440,7 @@ export default function PermitScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#09090b",
+    backgroundColor: "#000000",
     paddingTop: Platform.OS === "ios" ? 60 : 32,
   },
 
@@ -487,10 +482,10 @@ const styles = StyleSheet.create({
   // No permit card
   noPermitCard: {
     marginHorizontal: 16,
-    backgroundColor: "#18181b",
+    backgroundColor: "rgba(20,20,24,0.75)",
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#27272a",
+    borderColor: "rgba(255,255,255,0.1)",
     overflow: "hidden",
   },
   noPermitRow: {
@@ -501,7 +496,7 @@ const styles = StyleSheet.create({
   },
   noPermitRowActive: {
     borderBottomWidth: 1,
-    borderBottomColor: "#27272a",
+    borderBottomColor: "rgba(255,255,255,0.08)",
   },
   noPermitLeft: {
     flexDirection: "row",
@@ -534,7 +529,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#27272a",
+    borderBottomColor: "rgba(255,255,255,0.08)",
   },
   subOptionLast: {
     borderBottomWidth: 0,
@@ -569,10 +564,10 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: "#27272a",
+    backgroundColor: "rgba(255,255,255,0.08)",
   },
   dividerText: {
-    color: "#3f3f46",
+    color: "#52525b",
     fontSize: 12,
   },
 
@@ -582,10 +577,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginHorizontal: 16,
     marginBottom: 8,
-    backgroundColor: "#18181b",
-    borderRadius: 10,
+    backgroundColor: "rgba(20,20,24,0.75)",
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#27272a",
+    borderColor: "rgba(255,255,255,0.1)",
     paddingHorizontal: 12,
     paddingVertical: Platform.OS === "ios" ? 9 : 4,
     gap: 8,
@@ -619,9 +614,9 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     borderRadius: 10,
     marginBottom: 2,
-    backgroundColor: "#18181b",
+    backgroundColor: "rgba(20,20,24,0.7)",
     borderWidth: 1,
-    borderColor: "#27272a",
+    borderColor: "rgba(255,255,255,0.08)",
   },
   permitRowActive: {
     borderColor: "rgba(220, 38, 38, 0.5)",
@@ -651,7 +646,7 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     gap: 8,
     borderTopWidth: 1,
-    borderTopColor: "#18181b",
+    borderTopColor: "rgba(255,255,255,0.07)",
   },
   confirmButton: {
     height: 50,
