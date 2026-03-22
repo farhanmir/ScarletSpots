@@ -6,7 +6,7 @@ import Animated, {
   FadeOut,
 } from "react-native-reanimated";
 import { GlassBackground } from "./GlassBackground";
-import { GLASS } from "./glassTheme";
+import { useGlassTheme } from "./glassTheme";
 
 export interface GlassCardProps {
   children: React.ReactNode;
@@ -26,7 +26,7 @@ export interface GlassCardProps {
   entering?: AnimatedProps<object>["entering"];
   /** Reanimated exiting preset override */
   exiting?: AnimatedProps<object>["exiting"];
-  /** Extra border color override */
+  /** Extra border color override — defaults to current theme's borderColor */
   borderColor?: string;
 }
 
@@ -47,24 +47,31 @@ export function GlassCard({
   children,
   style,
   contentStyle,
-  borderRadius = GLASS.radius,
+  borderRadius,
   glassStyle = "regular",
-  blurIntensity = GLASS.blurMedium,
+  blurIntensity,
   animated = false,
   entering = FadeIn.duration(200),
   exiting = FadeOut.duration(150),
-  borderColor = GLASS.borderColor,
+  borderColor,
 }: Readonly<GlassCardProps>) {
-  const containerStyle = [styles.card, { borderRadius, borderColor }, style];
+  const theme = useGlassTheme();
+  const resolvedBorderRadius = borderRadius ?? theme.radius;
+  const resolvedBlurIntensity = blurIntensity ?? theme.blurMedium;
+  const resolvedBorderColor = borderColor ?? theme.borderColor;
+
+  const containerStyle = [
+    styles.card,
+    { borderRadius: resolvedBorderRadius, borderColor: resolvedBorderColor },
+    style,
+  ];
 
   const inner = (
     <>
       <GlassBackground
         style={StyleSheet.absoluteFill}
         glassStyle={glassStyle}
-        blurIntensity={blurIntensity}
-        blurTint={GLASS.tintDark}
-        fallbackColor={GLASS.fallbackCard}
+        blurIntensity={resolvedBlurIntensity}
       />
       <View style={[styles.content, contentStyle]}>{children}</View>
     </>
@@ -91,6 +98,6 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   content: {
-    padding: 14,
+    padding: 16,
   },
 });

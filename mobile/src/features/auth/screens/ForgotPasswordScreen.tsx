@@ -7,6 +7,7 @@ import {
   TextInput,
   ActivityIndicator,
   Alert,
+  useColorScheme,
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -17,6 +18,8 @@ const RESEND_COOLDOWN_S = 60;
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
+  const scheme = useColorScheme();
+  const isDark = scheme !== "light";
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
@@ -97,12 +100,15 @@ export default function ForgotPasswordScreen() {
     }
   };
 
+  const accent = isDark ? "#dc2626" : "#cc0033";
+  const resendDisabledBg = isDark ? "#27272a" : "#d4d4d8";
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: isDark ? "#09090b" : "#ffffff" }]}>
       <Stack.Screen options={{ headerShown: false }} />
 
       <LinearGradient
-        colors={["#09090b", "#18181b", "#450a0a"]}
+        colors={isDark ? ["#09090b", "#18181b", "#450a0a"] : ["#ffffff", "#fef7f7", "#fff5f5"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFill}
@@ -110,30 +116,30 @@ export default function ForgotPasswordScreen() {
 
       <View style={styles.content}>
         <TouchableOpacity
-          style={styles.backButton}
+          style={[styles.backButton, { backgroundColor: isDark ? "rgba(39,39,42,0.8)" : "rgba(0,0,0,0.06)" }]}
           onPress={() => router.back()}
         >
-          <Ionicons name="arrow-back" size={24} color="#a1a1aa" />
+          <Ionicons name="arrow-back" size={24} color={isDark ? "#a1a1aa" : "#52525b"} />
         </TouchableOpacity>
 
-        <View style={styles.iconBox}>
+        <View style={[styles.iconBox, { backgroundColor: accent, shadowColor: accent }]}>
           <Ionicons name="lock-open-outline" size={40} color="white" />
         </View>
 
-        <Text style={styles.title}>Reset Password</Text>
+        <Text style={[styles.title, { color: isDark ? "white" : "#111111" }]}>Reset Password</Text>
 
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: isDark ? "rgba(24,24,27,0.5)" : "rgba(245,245,247,0.8)", borderColor: isDark ? "rgba(39,39,42,1)" : "rgba(0,0,0,0.08)" }]}>
           {sent ? (
             <>
               <Ionicons name="mail-open-outline" size={48} color="#22c55e" />
-              <Text style={styles.cardTitle}>Check your inbox</Text>
-              <Text style={styles.cardText}>
+              <Text style={[styles.cardTitle, { color: isDark ? "#d4d4d8" : "#111111" }]}>Check your inbox</Text>
+              <Text style={[styles.cardText, { color: isDark ? "#71717a" : "#52525b" }]}>
                 A reset link was sent to{"\n"}
-                <Text style={{ color: "#d4d4d8", fontWeight: "600" }}>
+                <Text style={{ color: isDark ? "#d4d4d8" : "#111111", fontWeight: "600" }}>
                   {email.trim()}
                 </Text>
               </Text>
-              <Text style={[styles.cardText, { marginTop: 8 }]}>
+              <Text style={[styles.cardText, { color: isDark ? "#71717a" : "#52525b", marginTop: 8 }]}>
                 Check your spam folder if you don&apos;t see it.
               </Text>
 
@@ -142,7 +148,7 @@ export default function ForgotPasswordScreen() {
                   styles.button,
                   {
                     marginTop: 20,
-                    backgroundColor: cooldown > 0 ? "#27272a" : "#dc2626",
+                    backgroundColor: cooldown > 0 ? resendDisabledBg : accent,
                   },
                 ]}
                 onPress={handleResend}
@@ -159,14 +165,14 @@ export default function ForgotPasswordScreen() {
             </>
           ) : (
             <>
-              <Text style={styles.subtitle}>
+              <Text style={[styles.subtitle, { color: isDark ? "#a1a1aa" : "#71717a" }]}>
                 Enter your Rutgers email and we&apos;ll send password reset
                 instructions.
               </Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { borderColor: isDark ? "#3f3f46" : "rgba(0,0,0,0.12)", backgroundColor: isDark ? "#27272a" : "rgba(0,0,0,0.04)", color: isDark ? "#fff" : "#111111" }]}
                 placeholder="netid@rutgers.edu"
-                placeholderTextColor="#71717a"
+                placeholderTextColor={isDark ? "#71717a" : "#a1a1aa"}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -176,7 +182,7 @@ export default function ForgotPasswordScreen() {
                 returnKeyType="send"
               />
               <TouchableOpacity
-                style={[styles.button, loading && styles.buttonDisabled]}
+                style={[styles.button, { backgroundColor: accent }, loading && styles.buttonDisabled]}
                 onPress={handleSend}
                 disabled={loading}
               >
@@ -191,10 +197,10 @@ export default function ForgotPasswordScreen() {
         </View>
 
         <TouchableOpacity
-          style={styles.secondaryButton}
+          style={[styles.secondaryButton, { backgroundColor: isDark ? "#27272a" : "rgba(0,0,0,0.05)", borderColor: isDark ? "#3f3f46" : "rgba(0,0,0,0.1)" }]}
           onPress={() => router.push("/auth/login" as any)}
         >
-          <Text style={styles.secondaryButtonText}>Back to Sign In</Text>
+          <Text style={[styles.secondaryButtonText, { color: isDark ? "#d4d4d8" : "#3f3f46" }]}>Back to Sign In</Text>
         </TouchableOpacity>
       </View>
     </View>

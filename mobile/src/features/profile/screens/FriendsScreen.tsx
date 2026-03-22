@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   StyleSheet,
   View,
@@ -19,7 +19,7 @@ import { GlassCard } from "@/shared/components/ui/GlassCard";
 import { GlassSegmentedControl } from "@/shared/components/ui/GlassSegmentedControl";
 import { GlassBackground } from "@/shared/components/ui/GlassBackground";
 import { ScarletSpotsBackground } from "@/shared/components/ui/ScarletSpotsBackground";
-import { GLASS } from "@/shared/components/ui/glassTheme";
+import { GLASS_DARK, useGlassTheme } from "@/shared/components/ui/glassTheme";
 import { useRouter } from "expo-router";
 import { useIsFocused } from "@react-navigation/native";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -38,8 +38,6 @@ const TAB_OPTIONS: { key: TabKey; label: string }[] = [
   { key: "blocked", label: "Blocked" },
 ];
 
-const FLAT_CARD_BG = "#1c1d21";
-const FLAT_CARD_BORDER = "rgba(255,255,255,0.11)";
 
 type PermitMappingEntry = { id: string; name: string };
 const LOT_NAME_BY_ID = new Map<string, string>(
@@ -57,9 +55,12 @@ function resolveLotDisplayName(lotId: string | null | undefined): string {
 }
 
 export default function FriendsScreen() {
+  const theme = useGlassTheme();
+  const isDark = theme === GLASS_DARK;
   const router = useRouter();
   const { user, session } = useAuth();
   const isFocused = useIsFocused();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [activeTab, setActiveTab] = useState<TabKey>("friends");
   const [isAddModalVisible, setIsAddModalVisible] = useState(false);
   const [friendEmail, setFriendEmail] = useState("");
@@ -239,8 +240,7 @@ export default function FriendsScreen() {
     <GlassCard
       style={styles.card}
       contentStyle={styles.cardContent}
-      blurIntensity={GLASS.blurMedium}
-      borderColor={FLAT_CARD_BORDER}
+      blurIntensity={theme.blurMedium}
     >
       <View style={[styles.avatarWrap, item.parked && styles.avatarWrapParked]}>
         <Text style={styles.avatarText}>{getInitial(item.name)}</Text>
@@ -253,7 +253,7 @@ export default function FriendsScreen() {
           {item.parked ? (
             <IconSymbol name="car.fill" size={11} color="#10b981" />
           ) : (
-            <IconSymbol name="moon.fill" size={11} color={GLASS.textMuted} />
+            <IconSymbol name="moon.fill" size={11} color={theme.textMuted} />
           )}
           <Text
             style={[styles.cardStatus, item.parked && styles.cardStatusParked]}
@@ -271,7 +271,7 @@ export default function FriendsScreen() {
             <IconSymbol
               name="eye.slash.fill"
               size={12}
-              color={GLASS.textMuted}
+              color={theme.textMuted}
             />
           </View>
         )}
@@ -291,13 +291,12 @@ export default function FriendsScreen() {
             <IconSymbol name="location.fill" size={14} color="#fff" />
           </TouchableOpacity>
         )}
-        {/* Visible menu button so long-press actions are discoverable */}
         <TouchableOpacity
           style={styles.menuBtn}
           onPress={() => handleFriendActions(item)}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <IconSymbol name="ellipsis" size={16} color={GLASS.textMuted} />
+          <IconSymbol name="ellipsis" size={16} color={theme.textMuted} />
         </TouchableOpacity>
       </View>
     </GlassCard>
@@ -307,8 +306,7 @@ export default function FriendsScreen() {
     <GlassCard
       style={styles.card}
       contentStyle={styles.cardContent}
-      blurIntensity={GLASS.blurMedium}
-      borderColor={FLAT_CARD_BORDER}
+      blurIntensity={theme.blurMedium}
     >
       <View style={styles.avatarWrap}>
         <Text style={styles.avatarText}>{getInitial(item.name)}</Text>
@@ -328,7 +326,7 @@ export default function FriendsScreen() {
           style={styles.declineBtn}
           onPress={() => declineMutation.mutate(item.id)}
         >
-          <IconSymbol name="xmark" size={15} color={GLASS.textSecondary} />
+          <IconSymbol name="xmark" size={15} color={theme.textSecondary} />
         </TouchableOpacity>
       </View>
     </GlassCard>
@@ -338,8 +336,7 @@ export default function FriendsScreen() {
     <GlassCard
       style={styles.card}
       contentStyle={styles.cardContent}
-      blurIntensity={GLASS.blurMedium}
-      borderColor={FLAT_CARD_BORDER}
+      blurIntensity={theme.blurMedium}
     >
       <View style={styles.avatarWrap}>
         <Text style={styles.avatarText}>{getInitial(item.name)}</Text>
@@ -347,7 +344,7 @@ export default function FriendsScreen() {
       <View style={styles.cardBody}>
         <Text style={styles.cardName}>{item.name}</Text>
         <View style={styles.cardStatusRow}>
-          <IconSymbol name="nosign" size={11} color={GLASS.textMuted} />
+          <IconSymbol name="nosign" size={11} color={theme.textMuted} />
           <Text style={styles.cardStatus}>Blocked</Text>
         </View>
       </View>
@@ -370,7 +367,7 @@ export default function FriendsScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle={theme === GLASS_DARK ? "light-content" : "dark-content"} />
       <ScarletSpotsBackground />
 
       {/* ── List (rendered before glass header so blur works) ── */}
@@ -407,7 +404,7 @@ export default function FriendsScreen() {
                     : "nosign"
               }
               size={40}
-              color="#27272a"
+              color={theme.textDim}
             />
             <Text style={styles.emptyTitle}>
               {activeTab === "friends"
@@ -430,7 +427,11 @@ export default function FriendsScreen() {
       {/* ── Glass header (after content so blur reads list below) ── */}
       <View style={styles.headerContainer} pointerEvents="box-none">
         <LinearGradient
-          colors={["rgba(15,15,18,0.98)", "rgba(15,15,18,0.85)", "transparent"]}
+          colors={
+            theme === GLASS_DARK
+              ? ["rgba(15,15,18,0.98)", "rgba(15,15,18,0.85)", "transparent"]
+              : ["rgba(245,245,247,0.98)", "rgba(245,245,247,0.85)", "transparent"]
+          }
           style={StyleSheet.absoluteFill}
           pointerEvents="none"
         />
@@ -449,13 +450,11 @@ export default function FriendsScreen() {
                 style={StyleSheet.absoluteFill}
                 glassStyle="clear"
                 blurIntensity={14}
-                blurTint={GLASS.tintDark}
-                fallbackColor="rgba(28,29,33,0.85)"
               />
               <IconSymbol
                 name="person.badge.plus"
                 size={20}
-                color={GLASS.accent}
+                color={theme.accent}
               />
             </TouchableOpacity>
           </View>
@@ -488,21 +487,19 @@ export default function FriendsScreen() {
               glassStyle="clear"
               preferLiquidGlass={false}
               blurIntensity={28}
-              blurTint="dark"
-              fallbackColor="rgba(0,0,0,0.65)"
+              fallbackColor={isDark ? "rgba(0,0,0,0.65)" : "rgba(0,0,0,0.3)"}
             />
             <GlassCard
               style={styles.modalCard}
               contentStyle={styles.modalCardContent}
-              blurIntensity={GLASS.blurMedium}
-              borderColor="rgba(255,255,255,0.1)"
+              blurIntensity={theme.blurMedium}
             >
               <View style={styles.modalIconRow}>
                 <View style={styles.modalIcon}>
                   <IconSymbol
                     name="person.badge.plus"
                     size={22}
-                    color={GLASS.accent}
+                    color={theme.accent}
                   />
                 </View>
               </View>
@@ -514,7 +511,7 @@ export default function FriendsScreen() {
               <TextInput
                 style={styles.modalInput}
                 placeholder="friend@scarletmail.rutgers.edu"
-                placeholderTextColor={GLASS.textDim}
+                placeholderTextColor={theme.textDim}
                 autoCapitalize="none"
                 keyboardType="email-address"
                 value={friendEmail}
@@ -559,237 +556,232 @@ export default function FriendsScreen() {
 
 const HEADER_HEIGHT = Platform.OS === "ios" ? 150 : 130;
 
-const styles = StyleSheet.create({
-  container: { flex: 1 },
+function createStyles(theme: typeof GLASS_DARK) {
+  const isDark = theme === GLASS_DARK;
+  return StyleSheet.create({
+    container: { flex: 1 },
 
-  // Glass header overlay
-  headerContainer: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: HEADER_HEIGHT,
-    zIndex: 10,
-  },
-  headerInner: {
-    paddingTop: Platform.OS === "ios" ? 64 : 44,
-    paddingHorizontal: 20,
-    paddingBottom: 14,
-  },
-  headerRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  headerTitle: {
-    fontSize: 32,
-    fontWeight: "800",
-    color: GLASS.textPrimary,
-    letterSpacing: -0.5,
-  },
-  headerSub: { fontSize: 13, color: GLASS.textMuted, marginTop: 2 },
-  addBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: FLAT_CARD_BORDER,
-    justifyContent: "center",
-    alignItems: "center",
-  },
+    headerContainer: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      height: HEADER_HEIGHT,
+      zIndex: 10,
+    },
+    headerInner: {
+      paddingTop: Platform.OS === "ios" ? 64 : 44,
+      paddingHorizontal: 20,
+      paddingBottom: 14,
+    },
+    headerRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 20,
+    },
+    headerTitle: {
+      fontSize: 32,
+      fontWeight: "800",
+      color: theme.textPrimary,
+      letterSpacing: -0.5,
+    },
+    headerSub: { fontSize: 13, color: theme.textMuted, marginTop: 2 },
+    addBtn: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      overflow: "hidden",
+      borderWidth: 1,
+      borderColor: theme.borderColor,
+      justifyContent: "center",
+      alignItems: "center",
+    },
 
-  // Segmented control
-  segmentedControl: {},
+    segmentedControl: {},
 
-  // List
-  listContent: {
-    paddingTop: HEADER_HEIGHT + 52,
-    paddingHorizontal: 16,
-    paddingBottom: 120,
-  },
+    listContent: {
+      paddingTop: HEADER_HEIGHT + 52,
+      paddingHorizontal: 16,
+      paddingBottom: 120,
+    },
 
-  // Cards
-  card: { marginBottom: 10 },
-  cardContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    gap: 12,
-  },
-  avatarWrap: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: "#1c1c1f",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1.5,
-    borderColor: "#2a2a2e",
-  },
-  avatarWrapParked: { borderColor: "rgba(16,185,129,0.5)" },
-  avatarText: { color: GLASS.textSecondary, fontSize: 18, fontWeight: "700" },
-  parkedBadge: {
-    position: "absolute",
-    bottom: 1,
-    right: 1,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: "#10b981",
-    borderWidth: 2,
-    borderColor: "#111113",
-  },
-  cardBody: { flex: 1 },
-  cardName: { color: "#f4f4f5", fontSize: 15, fontWeight: "600" },
-  cardStatusRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginTop: 3,
-  },
-  cardStatus: { color: GLASS.textMuted, fontSize: 12 },
-  cardStatusParked: { color: "#10b981" },
-  cardActions: { flexDirection: "row", alignItems: "center", gap: 8 },
-  hiddenBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#24262c",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  locateBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: "rgba(59,130,246,0.7)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  menuBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    justifyContent: "center",
-    alignItems: "center",
-  },
+    card: { marginBottom: 10 },
+    cardContent: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 14,
+      paddingVertical: 14,
+      gap: 12,
+    },
+    avatarWrap: {
+      width: 46,
+      height: 46,
+      borderRadius: 23,
+      backgroundColor: isDark ? "#1c1c1f" : "#e4e4e7",
+      justifyContent: "center",
+      alignItems: "center",
+      borderWidth: 1.5,
+      borderColor: isDark ? "#2a2a2e" : "#d4d4d8",
+    },
+    avatarWrapParked: { borderColor: "rgba(16,185,129,0.5)" },
+    avatarText: { color: theme.textSecondary, fontSize: 18, fontWeight: "700" },
+    parkedBadge: {
+      position: "absolute",
+      bottom: 1,
+      right: 1,
+      width: 12,
+      height: 12,
+      borderRadius: 6,
+      backgroundColor: "#10b981",
+      borderWidth: 2,
+      borderColor: isDark ? "#111113" : "#f5f5f7",
+    },
+    cardBody: { flex: 1 },
+    cardName: { color: theme.textPrimary, fontSize: 15, fontWeight: "600" },
+    cardStatusRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      marginTop: 3,
+    },
+    cardStatus: { color: theme.textMuted, fontSize: 12 },
+    cardStatusParked: { color: "#10b981" },
+    cardActions: { flexDirection: "row", alignItems: "center", gap: 8 },
+    hiddenBadge: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: isDark ? "#24262c" : "#e4e4e7",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    locateBtn: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      backgroundColor: "rgba(59,130,246,0.7)",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    menuBtn: {
+      width: 30,
+      height: 30,
+      borderRadius: 15,
+      justifyContent: "center",
+      alignItems: "center",
+    },
 
-  // Request actions
-  reqActions: { flexDirection: "row", gap: 8 },
-  acceptBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#10b981",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  declineBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#1c1c1f",
-    borderWidth: 1,
-    borderColor: "#2a2a2e",
-    justifyContent: "center",
-    alignItems: "center",
-  },
+    reqActions: { flexDirection: "row", gap: 8 },
+    acceptBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: "#10b981",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    declineBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: isDark ? "#1c1c1f" : "#e4e4e7",
+      borderWidth: 1,
+      borderColor: isDark ? "#2a2a2e" : "#d4d4d8",
+      justifyContent: "center",
+      alignItems: "center",
+    },
 
-  // Unblock button
-  unblockBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: "rgba(220,38,38,0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(220,38,38,0.25)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  unblockText: {
-    color: GLASS.accent,
-    fontSize: 13,
-    fontWeight: "600",
-  },
+    unblockBtn: {
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 10,
+      backgroundColor: "rgba(220,38,38,0.12)",
+      borderWidth: 1,
+      borderColor: "rgba(220,38,38,0.25)",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    unblockText: {
+      color: theme.accent,
+      fontSize: 13,
+      fontWeight: "600",
+    },
 
-  // Empty state
-  emptyState: { alignItems: "center", marginTop: 64, gap: 10 },
-  emptyTitle: { color: "#3f3f46", fontSize: 17, fontWeight: "700" },
-  emptySub: { color: "#27272a", fontSize: 13 },
+    emptyState: { alignItems: "center", marginTop: 64, gap: 10 },
+    emptyTitle: { color: theme.textMuted, fontSize: 17, fontWeight: "700" },
+    emptySub: { color: theme.textDim, fontSize: 13 },
 
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 24,
-    paddingBottom: 60,
-  },
-  modalCard: {
-    width: "100%",
-    maxWidth: 400,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 16 },
-    shadowOpacity: 0.6,
-    shadowRadius: 24,
-    elevation: 12,
-  },
-  modalCardContent: { padding: 24 },
-  modalIconRow: { alignItems: "center", marginBottom: 14 },
-  modalIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: GLASS.accentSubtle,
-    borderWidth: 1,
-    borderColor: GLASS.accentBorder,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalTitle: {
-    color: GLASS.textPrimary,
-    fontSize: 20,
-    fontWeight: "800",
-    textAlign: "center",
-    marginBottom: 6,
-  },
-  modalSub: {
-    color: GLASS.textMuted,
-    fontSize: 13,
-    textAlign: "center",
-    marginBottom: 20,
-  },
-  modalInput: {
-    backgroundColor: "#0d0d0f",
-    borderWidth: 1.5,
-    borderColor: "#27272a",
-    borderRadius: 13,
-    padding: 15,
-    color: "#f4f4f5",
-    fontSize: 15,
-    marginBottom: 20,
-  },
-  modalBtns: { flexDirection: "row", gap: 10 },
-  modalCancel: {
-    flex: 1,
-    height: 48,
-    borderRadius: 13,
-    backgroundColor: "#1c1c1f",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalCancelText: { color: "#71717a", fontWeight: "600", fontSize: 15 },
-  modalSend: {
-    flex: 1,
-    height: 48,
-    borderRadius: 13,
-    backgroundColor: GLASS.accent,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalSendDisabled: { backgroundColor: "#27272a" },
-  modalSendText: { color: "#fff", fontWeight: "700", fontSize: 15 },
-});
+    modalOverlay: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      padding: 24,
+      paddingBottom: 60,
+    },
+    modalCard: {
+      width: "100%",
+      maxWidth: 400,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 16 },
+      shadowOpacity: 0.6,
+      shadowRadius: 24,
+      elevation: 12,
+    },
+    modalCardContent: { padding: 24 },
+    modalIconRow: { alignItems: "center", marginBottom: 14 },
+    modalIcon: {
+      width: 52,
+      height: 52,
+      borderRadius: 26,
+      backgroundColor: theme.accentSubtle,
+      borderWidth: 1,
+      borderColor: theme.accentBorder,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    modalTitle: {
+      color: theme.textPrimary,
+      fontSize: 20,
+      fontWeight: "800",
+      textAlign: "center",
+      marginBottom: 6,
+    },
+    modalSub: {
+      color: theme.textMuted,
+      fontSize: 13,
+      textAlign: "center",
+      marginBottom: 20,
+    },
+    modalInput: {
+      backgroundColor: isDark ? "#0d0d0f" : "#ffffff",
+      borderWidth: 1.5,
+      borderColor: isDark ? "#27272a" : "#d4d4d8",
+      borderRadius: 13,
+      padding: 15,
+      color: theme.textPrimary,
+      fontSize: 15,
+      marginBottom: 20,
+    },
+    modalBtns: { flexDirection: "row", gap: 10 },
+    modalCancel: {
+      flex: 1,
+      height: 48,
+      borderRadius: 13,
+      backgroundColor: isDark ? "#1c1c1f" : "#e4e4e7",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    modalCancelText: { color: theme.textMuted, fontWeight: "600", fontSize: 15 },
+    modalSend: {
+      flex: 1,
+      height: 48,
+      borderRadius: 13,
+      backgroundColor: theme.accent,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    modalSendDisabled: { backgroundColor: isDark ? "#27272a" : "#d4d4d8" },
+    modalSendText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  });
+}

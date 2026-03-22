@@ -8,7 +8,7 @@ import {
   type ViewStyle,
 } from "react-native";
 import { GlassBackground } from "./GlassBackground";
-import { GLASS } from "./glassTheme";
+import { useGlassTheme } from "./glassTheme";
 
 export interface GlassHeaderProps {
   title: string;
@@ -46,6 +46,7 @@ export function GlassHeader({
   showBorder = true,
   paddingTop,
 }: Readonly<GlassHeaderProps>) {
+  const theme = useGlassTheme();
   const topPad = paddingTop ?? (Platform.OS === "ios" ? 60 : 44);
 
   return (
@@ -53,7 +54,10 @@ export function GlassHeader({
       style={[
         styles.container,
         { paddingTop: topPad },
-        showBorder && styles.borderBottom,
+        showBorder && {
+          borderBottomWidth: StyleSheet.hairlineWidth,
+          borderBottomColor: theme.borderColor,
+        },
         style,
       ]}
       pointerEvents="box-none"
@@ -62,15 +66,19 @@ export function GlassHeader({
       <GlassBackground
         style={StyleSheet.absoluteFill}
         glassStyle="regular"
-        blurIntensity={GLASS.blurHeavy}
-        blurTint={GLASS.tintDark}
-        fallbackColor={GLASS.fallbackDark}
+        blurIntensity={theme.blurHeavy}
       />
 
       <View style={styles.row}>
         <View style={styles.titleGroup}>
-          <Text style={styles.title}>{title}</Text>
-          {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+          <Text style={[styles.title, { color: theme.textPrimary }]}>
+            {title}
+          </Text>
+          {subtitle ? (
+            <Text style={[styles.subtitle, { color: theme.textMuted }]}>
+              {subtitle}
+            </Text>
+          ) : null}
         </View>
         {right ? <View style={styles.right}>{right}</View> : null}
       </View>
@@ -88,10 +96,6 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     zIndex: 10,
   },
-  borderBottom: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: GLASS.borderColor,
-  },
   row: {
     flexDirection: "row",
     alignItems: "flex-end",
@@ -101,12 +105,10 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: "800",
-    color: GLASS.textPrimary,
     letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 14,
-    color: GLASS.textMuted,
     marginTop: 2,
   },
   right: {

@@ -7,6 +7,7 @@ import {
   SectionList,
   TextInput,
   Platform,
+  useColorScheme,
 } from "react-native";
 import { IconSymbol } from "@/shared/components/ui/icon-symbol";
 import { ScarletSpotsBackground } from "@/shared/components/ui/ScarletSpotsBackground";
@@ -66,6 +67,8 @@ function groupPermits(permits: string[], query: string): PermitSection[] {
 
 export default function PermitScreen() {
   const router = useRouter();
+  const scheme = useColorScheme();
+  const isDark = scheme !== "light";
   const { fromProfile } = useLocalSearchParams<{ fromProfile?: string }>();
   const isFromProfile = fromProfile === "true";
 
@@ -185,6 +188,11 @@ export default function PermitScreen() {
 
   const activeSections = step === 1 ? sections : secondarySections;
 
+  const accent = isDark ? "#dc2626" : "#cc0033";
+  const cardBg = isDark ? "rgba(20,20,24,0.75)" : "rgba(245,245,247,0.85)";
+  const cardBorder = isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)";
+  const subBorder = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.07)";
+
   return (
     <View style={styles.container}>
       <ScarletSpotsBackground />
@@ -196,7 +204,7 @@ export default function PermitScreen() {
             onPress={step === 2 ? goBackStep : skip}
             style={styles.backButton}
           >
-            <IconSymbol name="chevron.left" size={22} color="#a1a1aa" />
+            <IconSymbol name="chevron.left" size={22} color={isDark ? "#a1a1aa" : "#52525b"} />
           </TouchableOpacity>
         )}
         <Animated.View
@@ -206,18 +214,18 @@ export default function PermitScreen() {
           exiting={FadeOutLeft}
         >
           {!isFromProfile && step === 1 && (
-            <View style={styles.iconCircle}>
+            <View style={[styles.iconCircle, { backgroundColor: `${accent}20` }]}>
               <IconSymbol
                 name="parkingsign.circle.fill"
                 size={40}
-                color="#dc2626"
+                color={accent}
               />
             </View>
           )}
-          <Text style={styles.title}>
+          <Text style={[styles.title, { color: isDark ? "#ffffff" : "#111111" }]}>
             {step === 1 ? "Your Parking Permit" : "Secondary Permit"}
           </Text>
-          <Text style={styles.subtitle}>
+          <Text style={[styles.subtitle, { color: isDark ? "#a1a1aa" : "#71717a" }]}>
             {step === 1
               ? isFromProfile
                 ? "Update your permit to filter lots on the map."
@@ -229,18 +237,17 @@ export default function PermitScreen() {
 
       {/* No Permit option (Step 1 only) */}
       {step === 1 && (
-        <View style={styles.noPermitCard}>
+        <View style={[styles.noPermitCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
           <TouchableOpacity
             style={[
               styles.noPermitRow,
-              noPermitExpanded && styles.noPermitRowActive,
+              noPermitExpanded && { borderBottomWidth: 1, borderBottomColor: subBorder },
             ]}
             onPress={() => {
               const expanding = !noPermitExpanded;
               setNoPermitExpanded(expanding);
               if (!expanding) {
                 setNoPermitSubMode(null);
-                // Only deselect if currently in no-permit mode
                 if (isNoPermitSelected) setSelected(null);
               } else {
                 setSelected(null);
@@ -251,10 +258,10 @@ export default function PermitScreen() {
             <View style={styles.noPermitLeft}>
               <Text style={styles.noPermitIcon}>🚫</Text>
               <View>
-                <Text style={styles.noPermitTitle}>
+                <Text style={[styles.noPermitTitle, { color: isDark ? "#e4e4e7" : "#111111" }]}>
                   I don&apos;t have a permit
                 </Text>
-                <Text style={styles.noPermitSub}>
+                <Text style={[styles.noPermitSub, { color: isDark ? "#52525b" : "#71717a" }]}>
                   Choose what to show on the map
                 </Text>
               </View>
@@ -262,7 +269,7 @@ export default function PermitScreen() {
             <IconSymbol
               name={noPermitExpanded ? "chevron.up" : "chevron.down"}
               size={16}
-              color="#71717a"
+              color={isDark ? "#71717a" : "#a1a1aa"}
             />
           </TouchableOpacity>
 
@@ -272,6 +279,7 @@ export default function PermitScreen() {
               <TouchableOpacity
                 style={[
                   styles.subOption,
+                  { borderBottomColor: subBorder },
                   noPermitSubMode === "all" && styles.subOptionActive,
                 ]}
                 onPress={() =>
@@ -280,8 +288,8 @@ export default function PermitScreen() {
                 activeOpacity={0.8}
               >
                 <View style={styles.subOptionLeft}>
-                  <Text style={styles.subOptionTitle}>🗺️ Show all lots</Text>
-                  <Text style={styles.subOptionSub}>
+                  <Text style={[styles.subOptionTitle, { color: isDark ? "#d4d4d8" : "#111111" }]}>🗺️ Show all lots</Text>
+                  <Text style={[styles.subOptionSub, { color: isDark ? "#52525b" : "#71717a" }]}>
                     Display every parking lot on the map with no filter
                   </Text>
                 </View>
@@ -309,10 +317,10 @@ export default function PermitScreen() {
                 activeOpacity={0.8}
               >
                 <View style={styles.subOptionLeft}>
-                  <Text style={styles.subOptionTitle}>
+                  <Text style={[styles.subOptionTitle, { color: isDark ? "#d4d4d8" : "#111111" }]}>
                     🚗 All commuter lots
                   </Text>
-                  <Text style={styles.subOptionSub}>
+                  <Text style={[styles.subOptionSub, { color: isDark ? "#52525b" : "#71717a" }]}>
                     Every lot accessible with any commuter permit across all
                     campuses
                   </Text>
@@ -333,19 +341,19 @@ export default function PermitScreen() {
       {/* Divider */}
       {step === 1 && (
         <View style={styles.dividerRow}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>or choose a permit</Text>
-          <View style={styles.dividerLine} />
+          <View style={[styles.dividerLine, { backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }]} />
+          <Text style={[styles.dividerText, { color: isDark ? "#52525b" : "#a1a1aa" }]}>or choose a permit</Text>
+          <View style={[styles.dividerLine, { backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }]} />
         </View>
       )}
 
       {/* Search */}
-      <View style={styles.searchRow}>
-        <IconSymbol name="magnifyingglass" size={16} color="#52525b" />
+      <View style={[styles.searchRow, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+        <IconSymbol name="magnifyingglass" size={16} color={isDark ? "#52525b" : "#a1a1aa"} />
         <TextInput
-          style={styles.searchInput}
+          style={[styles.searchInput, { color: isDark ? "#e4e4e7" : "#111111" }]}
           placeholder="Search permits..."
-          placeholderTextColor="#52525b"
+          placeholderTextColor={isDark ? "#52525b" : "#a1a1aa"}
           value={query}
           onChangeText={setQuery}
           autoCorrect={false}
@@ -366,7 +374,7 @@ export default function PermitScreen() {
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           renderSectionHeader={({ section: { title } }) => (
-            <Text style={styles.sectionHeader}>{title}</Text>
+            <Text style={[styles.sectionHeader, { color: isDark ? "#52525b" : "#a1a1aa" }]}>{title}</Text>
           )}
           renderItem={({ item }) => {
             const isActive =
@@ -375,27 +383,32 @@ export default function PermitScreen() {
                 : secondarySelected === item;
             return (
               <TouchableOpacity
-                style={[styles.permitRow, isActive && styles.permitRowActive]}
+                style={[
+                  styles.permitRow,
+                  { backgroundColor: cardBg, borderColor: cardBorder },
+                  isActive && { borderColor: `${accent}80`, backgroundColor: `${accent}12` },
+                ]}
                 onPress={() => selectRealPermit(item)}
                 activeOpacity={0.75}
               >
                 <Text
                   style={[
                     styles.permitLabel,
-                    isActive && styles.permitLabelActive,
+                    { color: isDark ? "#a1a1aa" : "#52525b" },
+                    isActive && { color: isDark ? "#fca5a5" : accent, fontWeight: "500" },
                   ]}
                   numberOfLines={1}
                 >
                   {item}
                 </Text>
                 {isActive && (
-                  <IconSymbol name="checkmark" size={14} color="#dc2626" />
+                  <IconSymbol name="checkmark" size={14} color={accent} />
                 )}
               </TouchableOpacity>
             );
           }}
           ListEmptyComponent={
-            <Text style={styles.emptyText}>
+            <Text style={[styles.emptyText, { color: isDark ? "#3f3f46" : "#a1a1aa" }]}>
               No permits match &quot;{query}&quot;
             </Text>
           }
@@ -403,11 +416,12 @@ export default function PermitScreen() {
       </Animated.ScrollView>
 
       {/* Footer actions */}
-      <View style={styles.footer}>
+      <View style={[styles.footer, { borderTopColor: isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)" }]}>
         <TouchableOpacity
           style={[
             styles.confirmButton,
-            !canConfirm && styles.confirmButtonDisabled,
+            { backgroundColor: accent, shadowColor: accent },
+            !canConfirm && { backgroundColor: isDark ? "#27272a" : "#d4d4d8", shadowOpacity: 0, elevation: 0 },
           ]}
           onPress={handleNext}
           disabled={!canConfirm}
@@ -422,7 +436,7 @@ export default function PermitScreen() {
           </Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={skip} style={styles.skipButton}>
-          <Text style={styles.skipText}>
+          <Text style={[styles.skipText, { color: isDark ? "#52525b" : "#a1a1aa" }]}>
             {step === 2
               ? "Skip (No secondary set)"
               : isFromProfile
@@ -440,7 +454,6 @@ export default function PermitScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000000",
     paddingTop: Platform.OS === "ios" ? 60 : 32,
   },
 
@@ -460,7 +473,6 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: "rgba(220, 38, 38, 0.12)",
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 14,
@@ -468,13 +480,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: "700",
-    color: "#ffffff",
     marginBottom: 6,
     textAlign: "center",
   },
   subtitle: {
     fontSize: 14,
-    color: "#71717a",
     textAlign: "center",
     lineHeight: 20,
   },
@@ -482,10 +492,8 @@ const styles = StyleSheet.create({
   // No permit card
   noPermitCard: {
     marginHorizontal: 16,
-    backgroundColor: "rgba(20,20,24,0.75)",
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
     overflow: "hidden",
   },
   noPermitRow: {
@@ -493,10 +501,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     padding: 14,
-  },
-  noPermitRowActive: {
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.08)",
   },
   noPermitLeft: {
     flexDirection: "row",
@@ -508,12 +512,10 @@ const styles = StyleSheet.create({
     fontSize: 22,
   },
   noPermitTitle: {
-    color: "#e4e4e7",
     fontSize: 14,
     fontWeight: "600",
   },
   noPermitSub: {
-    color: "#52525b",
     fontSize: 12,
     marginTop: 2,
   },
@@ -529,7 +531,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.08)",
   },
   subOptionLast: {
     borderBottomWidth: 0,
@@ -542,13 +543,11 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   subOptionTitle: {
-    color: "#d4d4d8",
     fontSize: 13,
     fontWeight: "500",
     marginBottom: 2,
   },
   subOptionSub: {
-    color: "#52525b",
     fontSize: 12,
     lineHeight: 17,
   },
@@ -564,10 +563,8 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: "rgba(255,255,255,0.08)",
   },
   dividerText: {
-    color: "#52525b",
     fontSize: 12,
   },
 
@@ -577,17 +574,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginHorizontal: 16,
     marginBottom: 8,
-    backgroundColor: "rgba(20,20,24,0.75)",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
     paddingHorizontal: 12,
     paddingVertical: Platform.OS === "ios" ? 9 : 4,
     gap: 8,
   },
   searchInput: {
     flex: 1,
-    color: "#e4e4e7",
     fontSize: 14,
   },
 
@@ -597,7 +591,6 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   sectionHeader: {
-    color: "#52525b",
     fontSize: 11,
     fontWeight: "600",
     textTransform: "uppercase",
@@ -614,26 +607,14 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     borderRadius: 10,
     marginBottom: 2,
-    backgroundColor: "rgba(20,20,24,0.7)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-  },
-  permitRowActive: {
-    borderColor: "rgba(220, 38, 38, 0.5)",
-    backgroundColor: "rgba(220, 38, 38, 0.08)",
   },
   permitLabel: {
-    color: "#a1a1aa",
     fontSize: 13,
     flex: 1,
     marginRight: 8,
   },
-  permitLabelActive: {
-    color: "#fca5a5",
-    fontWeight: "500",
-  },
   emptyText: {
-    color: "#3f3f46",
     fontSize: 13,
     textAlign: "center",
     marginTop: 20,
@@ -646,24 +627,16 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     gap: 8,
     borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.07)",
   },
   confirmButton: {
     height: 50,
     borderRadius: 14,
-    backgroundColor: "#dc2626",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#dc2626",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 5,
-  },
-  confirmButtonDisabled: {
-    backgroundColor: "#27272a",
-    shadowOpacity: 0,
-    elevation: 0,
   },
   confirmButtonText: {
     color: "white",
@@ -675,7 +648,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   skipText: {
-    color: "#52525b",
     fontSize: 14,
   },
 });

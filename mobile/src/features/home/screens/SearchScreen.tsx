@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   StyleSheet,
   View,
@@ -17,7 +17,7 @@ import { IconSymbol } from "@/shared/components/ui/icon-symbol";
 import { GlassCard } from "@/shared/components/ui/GlassCard";
 import { GlassSearchBar } from "@/shared/components/ui/GlassSearchBar";
 import { ScarletSpotsBackground } from "@/shared/components/ui/ScarletSpotsBackground";
-import { GLASS } from "@/shared/components/ui/glassTheme";
+import { GLASS_DARK, useGlassTheme } from "@/shared/components/ui/glassTheme";
 import * as Location from "expo-location";
 import { RUTGERS_BUILDINGS } from "@/shared/constants/buildings";
 import { getAllLots, type RutgersLot } from "@/shared/constants/lots";
@@ -49,11 +49,11 @@ const getOccupancyColor = (rate: number) => {
   return "#10b981";
 };
 
-const FLAT_CARD_BG = "#1c1d21";
-const FLAT_CARD_BORDER = "rgba(255,255,255,0.11)";
 
 export default function SearchScreen() {
+  const theme = useGlassTheme();
   const router = useRouter();
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PlaceResult[]>([]);
@@ -200,14 +200,13 @@ export default function SearchScreen() {
               <GlassCard
                 style={styles.popularCard}
                 contentStyle={styles.popularCardContent}
-                blurIntensity={GLASS.blurMedium}
-                borderColor={FLAT_CARD_BORDER}
+                blurIntensity={theme.blurMedium}
               >
                 <View style={styles.popularIcon}>
                   <IconSymbol
                     name="car.fill"
                     size={15}
-                    color={GLASS.iconColor}
+                    color={theme.iconColor}
                   />
                 </View>
                 <View style={styles.popularText}>
@@ -227,7 +226,7 @@ export default function SearchScreen() {
 
   const renderNoResults = () => (
     <View style={styles.noResultsWrap}>
-      <IconSymbol name="magnifyingglass" size={40} color="#27272a" />
+      <IconSymbol name="magnifyingglass" size={40} color={theme.textDim} />
       <Text style={styles.noResultsTitle}>No results</Text>
       <Text style={styles.noResultsSub}>
         Try a lot name, campus, or building
@@ -248,7 +247,7 @@ export default function SearchScreen() {
     const showPlaceHeader =
       item.type === "place" && (index === 0 || prevItem?.type !== "place");
     const iconName = item.type === "lot" ? "car.fill" : "mappin.and.ellipse";
-    const iconColor = item.type === "lot" ? GLASS.iconColor : "#3b82f6";
+    const iconColor = item.type === "lot" ? theme.iconColor : "#3b82f6";
     return (
       <>
         {showLotHeader && lotResults.length > 0 && (
@@ -271,8 +270,7 @@ export default function SearchScreen() {
           <GlassCard
             style={styles.resultCard}
             contentStyle={styles.resultCardContent}
-            blurIntensity={GLASS.blurMedium}
-            borderColor={FLAT_CARD_BORDER}
+            blurIntensity={theme.blurMedium}
           >
             <View
               style={[
@@ -297,7 +295,7 @@ export default function SearchScreen() {
               <IconSymbol
                 name="chevron.right"
                 size={14}
-                color={GLASS.textDim}
+                color={theme.textDim}
               />
             )}
           </GlassCard>
@@ -320,7 +318,7 @@ export default function SearchScreen() {
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
       <View style={styles.container}>
-        <StatusBar barStyle="light-content" />
+        <StatusBar barStyle={theme === GLASS_DARK ? "light-content" : "dark-content"} />
         <ScarletSpotsBackground />
 
         {/* ── Main content (rendered before the glass header so blur works) ── */}
@@ -336,11 +334,11 @@ export default function SearchScreen() {
         {/* ── Glass header (rendered AFTER content so blur updates correctly) ── */}
         <View style={styles.headerContainer} pointerEvents="box-none">
           <LinearGradient
-            colors={[
-              "rgba(10,10,12,0.97)",
-              "rgba(10,10,12,0.82)",
-              "transparent",
-            ]}
+            colors={
+              theme === GLASS_DARK
+                ? ["rgba(10,10,12,0.97)", "rgba(10,10,12,0.82)", "transparent"]
+                : ["rgba(245,245,247,0.97)", "rgba(245,245,247,0.82)", "transparent"]
+            }
             style={StyleSheet.absoluteFill}
             pointerEvents="none"
           />
@@ -389,139 +387,133 @@ const occupancyStyles = StyleSheet.create({
 
 const HEADER_HEIGHT = Platform.OS === "ios" ? 152 : 140;
 
-const styles = StyleSheet.create({
-  container: { flex: 1 },
+function createStyles(theme: typeof GLASS_DARK) {
+  const isDark = theme === GLASS_DARK;
+  return StyleSheet.create({
+    container: { flex: 1 },
 
-  // Glass header overlay
-  headerContainer: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: HEADER_HEIGHT,
-    zIndex: 10,
-  },
-  headerInner: {
-    paddingTop: Platform.OS === "ios" ? 60 : 44,
-    paddingHorizontal: 20,
-    paddingBottom: 14,
-  },
+    headerContainer: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      height: HEADER_HEIGHT,
+      zIndex: 10,
+    },
+    headerInner: {
+      paddingTop: Platform.OS === "ios" ? 60 : 44,
+      paddingHorizontal: 20,
+      paddingBottom: 14,
+    },
 
-  title: {
-    fontSize: 32,
-    fontWeight: "800",
-    color: GLASS.textPrimary,
-    letterSpacing: -0.5,
-    marginBottom: 10,
-  },
-  searchBar: {
-    borderRadius: 999,
-  },
+    title: {
+      fontSize: 32,
+      fontWeight: "800",
+      color: theme.textPrimary,
+      letterSpacing: -0.5,
+      marginBottom: 10,
+    },
+    searchBar: {
+      borderRadius: 999,
+    },
 
-  // List containers
-  emptyBody: {
-    paddingTop: HEADER_HEIGHT + 24,
-    paddingHorizontal: 20,
-    paddingBottom: 120,
-  },
-  resultsList: {
-    paddingTop: HEADER_HEIGHT + 16,
-    paddingHorizontal: 20,
-    paddingBottom: 120,
-  },
+    emptyBody: {
+      paddingTop: HEADER_HEIGHT + 24,
+      paddingHorizontal: 20,
+      paddingBottom: 120,
+    },
+    resultsList: {
+      paddingTop: HEADER_HEIGHT + 16,
+      paddingHorizontal: 20,
+      paddingBottom: 120,
+    },
 
-  sectionLabel: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: GLASS.textMuted,
-    letterSpacing: 1,
-    marginBottom: 12,
-    marginTop: 4,
-  },
+    sectionLabel: {
+      fontSize: 11,
+      fontWeight: "700",
+      color: theme.textMuted,
+      letterSpacing: 1,
+      marginBottom: 12,
+      marginTop: 4,
+    },
 
-  // Popular lots
-  popularCard: {
-    marginBottom: 10,
-  },
-  popularCardContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    gap: 14,
-  },
-  popularIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.10)",
-  },
-  popularText: { flex: 1 },
-  popularName: {
-    color: "#f0f0f2",
-    fontSize: 15,
-    fontWeight: "700",
-    letterSpacing: -0.2,
-  },
-  popularSub: {
-    color: GLASS.textMuted,
-    fontSize: 12,
-    marginTop: 3,
-  },
+    popularCard: { marginBottom: 10 },
+    popularCardContent: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 14,
+      paddingVertical: 14,
+      gap: 14,
+    },
+    popularIcon: {
+      width: 48,
+      height: 48,
+      borderRadius: 14,
+      backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)",
+      justifyContent: "center",
+      alignItems: "center",
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)",
+    },
+    popularText: { flex: 1 },
+    popularName: {
+      color: theme.textPrimary,
+      fontSize: 15,
+      fontWeight: "700",
+      letterSpacing: -0.2,
+    },
+    popularSub: {
+      color: theme.textMuted,
+      fontSize: 12,
+      marginTop: 3,
+    },
 
-  // Result cards
-  resultCard: {
-    marginBottom: 8,
-  },
-  resultCardContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 11,
-    gap: 12,
-  },
-  resultIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  resultIconPlace: {
-    backgroundColor: "rgba(59, 130, 246, 0.15)",
-  },
-  resultText: { flex: 1 },
-  resultName: {
-    color: "#f4f4f5",
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  resultAddr: {
-    color: GLASS.textMuted,
-    fontSize: 12,
-    marginTop: 2,
-  },
+    resultCard: { marginBottom: 8 },
+    resultCardContent: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 12,
+      paddingVertical: 11,
+      gap: 12,
+    },
+    resultIcon: {
+      width: 38,
+      height: 38,
+      borderRadius: 10,
+      backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    resultIconPlace: {
+      backgroundColor: "rgba(59, 130, 246, 0.15)",
+    },
+    resultText: { flex: 1 },
+    resultName: {
+      color: theme.textPrimary,
+      fontSize: 15,
+      fontWeight: "600",
+    },
+    resultAddr: {
+      color: theme.textMuted,
+      fontSize: 12,
+      marginTop: 2,
+    },
 
-  // Empty state
-  noResultsWrap: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: -80,
-    gap: 10,
-  },
-  noResultsTitle: {
-    color: GLASS.textMuted,
-    fontSize: 17,
-    fontWeight: "600",
-  },
-  noResultsSub: {
-    color: GLASS.textDim,
-    fontSize: 13,
-  },
-});
+    noResultsWrap: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: -80,
+      gap: 10,
+    },
+    noResultsTitle: {
+      color: theme.textMuted,
+      fontSize: 17,
+      fontWeight: "600",
+    },
+    noResultsSub: {
+      color: theme.textDim,
+      fontSize: 13,
+    },
+  });
+}

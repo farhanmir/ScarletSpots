@@ -1,11 +1,19 @@
 import React from "react";
-import { Platform, StyleProp, StyleSheet, View, ViewStyle } from "react-native";
+import {
+  Platform,
+  StyleProp,
+  StyleSheet,
+  View,
+  ViewStyle,
+  useColorScheme,
+} from "react-native";
 import { BlurView, BlurTint } from "expo-blur";
 import {
   GlassView,
   isGlassEffectAPIAvailable,
   isLiquidGlassAvailable,
 } from "expo-glass-effect";
+import { GLASS_DARK, GLASS_LIGHT } from "./glassTheme";
 
 export interface GlassBackgroundProps {
   style?: StyleProp<ViewStyle>;
@@ -16,10 +24,12 @@ export interface GlassBackgroundProps {
   glassStyle?: "regular" | "clear";
   /**
    * Background color for Android and other non-glass fallbacks.
+   * Defaults to the current theme's `fallbackDark` value.
    */
   fallbackColor?: string;
   /**
    * Blur intensity / tint for iOS fallback when Liquid Glass is not available.
+   * Defaults to the current theme's `blurTint`.
    */
   blurIntensity?: number;
   blurTint?: BlurTint;
@@ -41,13 +51,20 @@ export interface GlassBackgroundProps {
 export function GlassBackground({
   style,
   glassStyle = "regular",
-  fallbackColor = "rgba(10,10,12,0.35)",
+  fallbackColor,
   blurIntensity = 80,
-  blurTint = "systemChromeMaterialDark",
+  blurTint,
   tintColor,
   tintOpacity = 0.5,
   preferLiquidGlass = true,
 }: Readonly<GlassBackgroundProps>) {
+  const scheme = useColorScheme();
+  const gl = scheme === "light" ? GLASS_LIGHT : GLASS_DARK;
+
+  // Use caller-provided values when present; otherwise fall back to theme.
+  const resolvedTint = blurTint ?? gl.blurTint;
+  const resolvedFallback = fallbackColor ?? gl.fallbackDark;
+
   if (Platform.OS === "ios") {
     // Prefer true Liquid Glass on iOS 26+ when the API is available.
     if (
@@ -58,7 +75,7 @@ export function GlassBackground({
       return (
         <GlassView
           style={style}
-          colorScheme="dark"
+          colorScheme={scheme === "light" ? "light" : "dark"}
           glassEffectStyle={glassStyle}
           tintColor={tintColor}
         />
@@ -71,7 +88,7 @@ export function GlassBackground({
       <View style={style}>
         <BlurView
           intensity={blurIntensity}
-          tint={blurTint}
+          tint={resolvedTint}
           style={StyleSheet.absoluteFill}
         />
         {tintColor && (
@@ -86,10 +103,9 @@ export function GlassBackground({
     );
   }
 
-  // Android / other platforms: solid, slightly translucent surface that matches
-  // our existing design language.
+  // Android / other platforms: solid, slightly translucent surface.
   return (
-    <View style={[{ backgroundColor: fallbackColor }, style]}>
+    <View style={[{ backgroundColor: resolvedFallback }, style]}>
       {tintColor && (
         <View
           style={[

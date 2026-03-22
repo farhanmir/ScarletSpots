@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 import {
   StyleSheet,
   TextInput,
@@ -15,7 +15,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { GlassBackground } from "./GlassBackground";
-import { GLASS } from "./glassTheme";
+import { useGlassTheme } from "./glassTheme";
 import { IconSymbol } from "./icon-symbol";
 
 export interface GlassSearchBarProps {
@@ -62,23 +62,28 @@ export function GlassSearchBar({
 }: Readonly<GlassSearchBarProps>) {
   const inputRef = useRef<TextInput>(null);
   const focusProgress = useSharedValue(0);
+  const theme = useGlassTheme();
+  const [isFocused, setIsFocused] = useState(false);
+
+  const focusedBorderColor = theme.borderColorFocused;
+  const unfocusedBorderColor = theme.borderColor;
 
   const borderStyle = useAnimatedStyle(() => ({
     borderColor:
-      focusProgress.value === 1
-        ? "rgba(220, 38, 38, 0.45)"
-        : "rgba(255,255,255,0.12)",
+      focusProgress.value === 1 ? focusedBorderColor : unfocusedBorderColor,
   }));
 
-  const iconColor = focusProgress.value === 1 ? GLASS.accent : GLASS.textMuted;
+  const iconColor = isFocused ? theme.accent : theme.textMuted;
 
   const handleFocus = () => {
     focusProgress.value = withTiming(1, { duration: 180 });
+    setIsFocused(true);
     onFocus?.();
   };
 
   const handleBlur = () => {
     focusProgress.value = withTiming(0, { duration: 180 });
+    setIsFocused(false);
     onBlur?.();
   };
 
@@ -87,9 +92,7 @@ export function GlassSearchBar({
       <GlassBackground
         style={StyleSheet.absoluteFill}
         glassStyle="clear"
-        blurIntensity={8}
-        blurTint={GLASS.tintDark}
-        fallbackColor="#1b1d22"
+        blurIntensity={theme.blurLight}
       />
 
       <IconSymbol
@@ -101,9 +104,9 @@ export function GlassSearchBar({
 
       <TextInput
         ref={inputRef}
-        style={[styles.input, inputStyle]}
+        style={[styles.input, { color: theme.textPrimary }, inputStyle]}
         placeholder={placeholder}
-        placeholderTextColor={GLASS.textMuted}
+        placeholderTextColor={theme.textMuted}
         value={value}
         onChangeText={onChangeText}
         onFocus={handleFocus}
@@ -127,12 +130,14 @@ export function GlassSearchBar({
           <IconSymbol
             name="xmark.circle.fill"
             size={17}
-            color={GLASS.textMuted}
+            color={theme.textMuted}
           />
         </TouchableOpacity>
       )}
 
-      {loading && <View style={styles.loadingDot} />}
+      {loading && (
+        <View style={[styles.loadingDot, { backgroundColor: theme.accent }]} />
+      )}
     </Animated.View>
   );
 }
@@ -151,7 +156,6 @@ const styles = StyleSheet.create({
   icon: {},
   input: {
     flex: 1,
-    color: "#f4f4f5",
     fontSize: 16,
     padding: 0,
   },
@@ -159,7 +163,6 @@ const styles = StyleSheet.create({
     width: 7,
     height: 7,
     borderRadius: 4,
-    backgroundColor: GLASS.accent,
     opacity: 0.7,
   },
 });

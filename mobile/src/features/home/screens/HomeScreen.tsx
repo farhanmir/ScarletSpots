@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   AppState,
   Linking,
+  useColorScheme,
 } from "react-native";
 import Animated, {
   useSharedValue,
@@ -176,6 +177,8 @@ const STATIC_LOTS = getAllLots(ENABLE_ALL_CAMPUSES);
 // ── Component ──────────────────────────────────────────────────────────────
 
 export default function MapScreen() {
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme !== "light";
   const {
     user,
     session,
@@ -1127,7 +1130,7 @@ export default function MapScreen() {
     chipHeading,
   ]);
 
-  // ── Dark Map Style ────────────────────────────────────────────────────
+  // ── Map Styles ────────────────────────────────────────────────────────
 
   const darkMapStyle = [
     { elementType: "geometry", stylers: [{ color: "#101012" }] },
@@ -1210,6 +1213,79 @@ export default function MapScreen() {
     },
   ];
 
+  const lightMapStyle = [
+    { elementType: "geometry", stylers: [{ color: "#f5f5f5" }] },
+    { elementType: "labels.text.fill", stylers: [{ color: "#616161" }] },
+    { elementType: "labels.text.stroke", stylers: [{ color: "#f5f5f5" }] },
+    {
+      featureType: "administrative.land_parcel",
+      elementType: "labels.text.fill",
+      stylers: [{ color: "#bdbdbd" }],
+    },
+    {
+      featureType: "landscape.natural",
+      elementType: "geometry",
+      stylers: [{ color: "#e8f0e8" }],
+    },
+    {
+      featureType: "poi",
+      elementType: "geometry",
+      stylers: [{ color: "#eeeeee" }],
+    },
+    {
+      featureType: "poi.park",
+      elementType: "geometry",
+      stylers: [{ color: "#d5e8d4" }],
+    },
+    {
+      featureType: "poi.park",
+      elementType: "labels.text.fill",
+      stylers: [{ color: "#9e9e9e" }],
+    },
+    {
+      featureType: "road",
+      elementType: "geometry",
+      stylers: [{ color: "#ffffff" }],
+    },
+    {
+      featureType: "road",
+      elementType: "labels.text.fill",
+      stylers: [{ color: "#9e9e9e" }],
+    },
+    {
+      featureType: "road.highway",
+      elementType: "geometry",
+      stylers: [{ color: "#dadada" }],
+    },
+    {
+      featureType: "road.highway",
+      elementType: "geometry.stroke",
+      stylers: [{ color: "#b0b0b0" }],
+    },
+    {
+      featureType: "road.highway",
+      elementType: "labels.text.fill",
+      stylers: [{ color: "#616161" }],
+    },
+    {
+      featureType: "transit",
+      elementType: "geometry",
+      stylers: [{ color: "#f2f2f2" }],
+    },
+    {
+      featureType: "water",
+      elementType: "geometry",
+      stylers: [{ color: "#c9d9e8" }],
+    },
+    {
+      featureType: "water",
+      elementType: "labels.text.fill",
+      stylers: [{ color: "#9e9e9e" }],
+    },
+  ];
+
+  const activeMapStyle = isDark ? darkMapStyle : lightMapStyle;
+
   const mapProvider =
     Platform.OS === "android" ? PROVIDER_GOOGLE : PROVIDER_DEFAULT;
 
@@ -1221,8 +1297,8 @@ export default function MapScreen() {
         ref={mapRef}
         provider={mapProvider}
         style={styles.map}
-        customMapStyle={darkMapStyle}
-        userInterfaceStyle="dark"
+        customMapStyle={activeMapStyle}
+        userInterfaceStyle={isDark ? "dark" : "light"}
         showsUserLocation={true}
         showsMyLocationButton={false}
         showsTraffic={false}
@@ -1351,7 +1427,7 @@ export default function MapScreen() {
                         {isDimmed ? "—" : `${Math.round(lot.occupancyRate)}%`}
                       </Text>
                       {isFavorite && (
-                        <View style={styles.favoriteBadge}>
+                        <View style={[styles.favoriteBadge, { backgroundColor: isDark ? "#18181b" : "#ffffff" }]}>
                           <IconSymbol
                             name="star.fill"
                             size={10}
@@ -1440,26 +1516,22 @@ export default function MapScreen() {
       </MapView>
 
       {/* Center-on-me button */}
-      <Animated.View style={[styles.centerButtonContainer, centerButtonStyle]}>
+      <Animated.View style={[styles.centerButtonContainer, centerButtonStyle, !isDark && { borderColor: "rgba(0,0,0,0.1)", shadowOpacity: 0.2 }]}>
         <GlassBackground
           style={StyleSheet.absoluteFill}
           glassStyle="regular"
           blurIntensity={80}
-          blurTint="systemChromeMaterialDark"
-          tintColor="rgba(0, 0, 0, 0.4)"
+          tintColor={isDark ? "rgba(0, 0, 0, 0.4)" : undefined}
           tintOpacity={0.8}
-          fallbackColor={
-            Platform.OS === "android"
-              ? "rgba(8, 8, 10, 0.95)"
-              : "rgba(10, 10, 12, 0.85)"
-          }
         />
-        <TouchableOpacity
+          <TouchableOpacity
           style={[
             styles.centerButton,
             styles.centerButtonActive,
             isCenterButtonPressed && styles.centerButtonPressed,
             Platform.OS === "android" && styles.centerButtonAndroid,
+            !isDark && { backgroundColor: "rgba(0,0,0,0.05)" },
+            !isDark && isCenterButtonPressed && { backgroundColor: "rgba(0,0,0,0.10)" },
           ]}
           onPressIn={() => {
             setIsCenterButtonPressed(true);
@@ -1495,7 +1567,11 @@ export default function MapScreen() {
           accessibilityState={{ selected: isCenteredOnUser }}
           activeOpacity={1}
         >
-          <IconSymbol name="location.north.fill" size={20} color="#ffffff" />
+          <IconSymbol
+            name="location.north.fill"
+            size={20}
+            color={isDark ? "#ffffff" : "#3f3f46"}
+          />
         </TouchableOpacity>
       </Animated.View>
 
@@ -1531,26 +1607,37 @@ export default function MapScreen() {
             style={StyleSheet.absoluteFill}
             glassStyle="regular"
             blurIntensity={90}
-            blurTint="systemThickMaterialDark"
-            fallbackColor={
-              Platform.OS === "android"
-                ? "rgba(18,18,20,0.97)"
-                : "rgba(20, 20, 22, 0.55)"
-            }
           />
-          <View style={styles.sessionChipContent}>
+          <View style={[styles.sessionChipContent, !isDark && { backgroundColor: "rgba(245,245,247,0.6)" }]}>
             <View style={styles.sessionChipDot} />
             <View style={styles.sessionChipTitleRow}>
-              <Text style={styles.sessionChipText} numberOfLines={1}>
+              <Text
+                style={[
+                  styles.sessionChipText,
+                  !isDark && { color: "#111111" },
+                ]}
+                numberOfLines={1}
+              >
                 {activeSessionLotName ?? "Parked"}
               </Text>
               {activeSession?.autoStarted && (
-                <Text style={styles.sessionChipSubtitle} numberOfLines={1}>
+                <Text
+                  style={[
+                    styles.sessionChipSubtitle,
+                    !isDark && { color: "rgba(0,0,0,0.5)" },
+                  ]}
+                  numberOfLines={1}
+                >
                   We detected you parked here. Wrong? Tap End to remove.
                 </Text>
               )}
             </View>
-            <View style={styles.sessionChipDivider} />
+            <View
+              style={[
+                styles.sessionChipDivider,
+                !isDark && { backgroundColor: "rgba(0,0,0,0.12)" },
+              ]}
+            />
             {chipFindCarState != null ? (
               <TouchableOpacity
                 style={styles.sessionChipFindCar}

@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, useColorScheme } from "react-native";
 import { useNetInfo } from "@react-native-community/netinfo";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -14,6 +14,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 export default function OfflineBanner() {
   const netInfo = useNetInfo();
   const insets = useSafeAreaInsets();
+  const scheme = useColorScheme();
+  const isDark = scheme !== "light";
 
   // Only show when we explicitly know the device is disconnected.
   // null = still loading, true = connected — don't show in either case.
@@ -22,10 +24,23 @@ export default function OfflineBanner() {
   }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View
+      style={[
+        styles.container,
+        {
+          paddingTop: insets.top,
+          backgroundColor: isDark ? "#27272a" : "#e4e4e7",
+          borderBottomColor: isDark ? "#3f3f46" : "#d4d4d8",
+        },
+      ]}
+    >
       <View style={styles.banner}>
-        <Ionicons name="wifi-outline" size={13} color="rgba(255,255,255,0.8)" />
-        <Text style={styles.text}>
+        <Ionicons
+          name="wifi-outline"
+          size={13}
+          color={isDark ? "rgba(255,255,255,0.8)" : "rgba(0,0,0,0.6)"}
+        />
+        <Text style={[styles.text, !isDark && { color: "rgba(0,0,0,0.7)" }]}>
           Offline — parking actions will sync when reconnected
         </Text>
       </View>
@@ -35,11 +50,9 @@ export default function OfflineBanner() {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: "#27272a",
     width: "100%",
     zIndex: 999,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#3f3f46",
   },
   banner: {
     flexDirection: "row",

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   StyleSheet,
   View,
@@ -16,7 +16,11 @@ import { IconSymbol } from "@/shared/components/ui/icon-symbol";
 import { GlassCard } from "@/shared/components/ui/GlassCard";
 import { GlassBackground } from "@/shared/components/ui/GlassBackground";
 import { ScarletSpotsBackground } from "@/shared/components/ui/ScarletSpotsBackground";
-import { GLASS } from "@/shared/components/ui/glassTheme";
+import { GLASS_DARK, useGlassTheme } from "@/shared/components/ui/glassTheme";
+import {
+  useThemePreference,
+  type ThemePreference,
+} from "@/providers/ThemePreferenceProvider";
 import { authApiCall } from "@/shared/api/supabase";
 import { useFocusEffect } from "@react-navigation/native";
 import {
@@ -29,7 +33,6 @@ import {
   cacheFavorites,
 } from "@/shared/services/OfflineCache";
 
-const FLAT_CARD_BORDER = "rgba(72,72,71,0.18)";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -54,23 +57,36 @@ function CampusToggleCard({
   enabled: boolean;
   onToggle: () => void;
 }>) {
+  const theme = useGlassTheme();
   return (
-    <View style={campusCardStyles.card}>
+    <View
+      style={[
+        campusCardStyles.card,
+        { borderBottomColor: theme.borderColor },
+      ]}
+    >
       <View style={campusCardStyles.left}>
-        <View style={campusCardStyles.iconWrap}>
-          <IconSymbol name={icon as any} size={20} color="#cc0033" />
+        <View style={[campusCardStyles.iconWrap, { backgroundColor: theme.accentSubtle, borderColor: theme.accentBorder }]}>
+          <IconSymbol name={icon as any} size={20} color={theme.accent} />
         </View>
         <View>
-          <Text style={campusCardStyles.name}>{campus}</Text>
-          <Text style={campusCardStyles.sub}>{sublabel}</Text>
+          <Text style={[campusCardStyles.name, { color: theme.textPrimary }]}>
+            {campus}
+          </Text>
+          <Text style={[campusCardStyles.sub, { color: theme.textMuted }]}>
+            {sublabel}
+          </Text>
         </View>
       </View>
       <Switch
         value={enabled}
         onValueChange={onToggle}
-        trackColor={{ false: "#2a2a2e", true: "rgba(204,0,51,0.45)" }}
+        trackColor={{
+          false: theme === GLASS_DARK ? "#2a2a2e" : "#e4e4e7",
+          true: theme === GLASS_DARK ? "rgba(220,38,38,0.45)" : "rgba(204,0,51,0.45)",
+        }}
         thumbColor="#ffffff"
-        ios_backgroundColor="#2a2a2e"
+        ios_backgroundColor={theme === GLASS_DARK ? "#2a2a2e" : "#e4e4e7"}
       />
     </View>
   );
@@ -84,21 +100,18 @@ const campusCardStyles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(255,255,255,0.05)",
   },
   left: { flexDirection: "row", alignItems: "center", gap: 14, flex: 1 },
   iconWrap: {
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: "rgba(204,0,51,0.08)",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(204,0,51,0.18)",
   },
-  name: { color: "#f0f0f2", fontSize: 15, fontWeight: "700" },
-  sub: { color: GLASS.textMuted, fontSize: 12, marginTop: 2 },
+  name: { fontSize: 15, fontWeight: "700" },
+  sub: { fontSize: 12, marginTop: 2 },
 });
 
 function SettingRow({
@@ -122,9 +135,14 @@ function SettingRow({
   last?: boolean;
   right?: React.ReactNode;
 }>) {
+  const theme = useGlassTheme();
   return (
     <TouchableOpacity
-      style={[settingStyles.row, last && settingStyles.rowLast]}
+      style={[
+        settingStyles.row,
+        { borderBottomColor: theme.borderColor },
+        last && settingStyles.rowLast,
+      ]}
       onPress={onPress}
       activeOpacity={0.7}
     >
@@ -132,15 +150,23 @@ function SettingRow({
         <IconSymbol name={icon as any} size={16} color={iconColor} />
       </View>
       <View style={settingStyles.text}>
-        <Text style={[settingStyles.label, destructive && { color: "#ef4444" }]}>
+        <Text
+          style={[
+            settingStyles.label,
+            { color: theme.textPrimary },
+            destructive && { color: "#ef4444" },
+          ]}
+        >
           {label}
         </Text>
         {sublabel ? (
-          <Text style={settingStyles.subtext}>{sublabel}</Text>
+          <Text style={[settingStyles.subtext, { color: theme.textMuted }]}>
+            {sublabel}
+          </Text>
         ) : null}
       </View>
       {right ?? (
-        <IconSymbol name="chevron.right" size={13} color={GLASS.textDim} />
+        <IconSymbol name="chevron.right" size={13} color={theme.textDim} />
       )}
     </TouchableOpacity>
   );
@@ -153,7 +179,6 @@ const settingStyles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(255,255,255,0.05)",
     gap: 14,
   },
   rowLast: { borderBottomWidth: 0 },
@@ -165,14 +190,15 @@ const settingStyles = StyleSheet.create({
     alignItems: "center",
   },
   text: { flex: 1 },
-  label: { color: "#e0e0e4", fontSize: 15, fontWeight: "600" },
-  subtext: { color: GLASS.textMuted, fontSize: 12, marginTop: 1 },
+  label: { fontSize: 15, fontWeight: "600" },
+  subtext: { fontSize: 12, marginTop: 1 },
 });
 
 function SavedLotCard({
   lot,
   onPress,
 }: Readonly<{ lot: RutgersLot; onPress: () => void }>) {
+  const theme = useGlassTheme();
   const rate = lot.occupancyRate;
   const color = getOccupancyColor(rate);
   const pct = Math.round(rate);
@@ -180,23 +206,35 @@ function SavedLotCard({
 
   return (
     <TouchableOpacity
-      style={lotCardStyles.card}
+      style={[lotCardStyles.card, { borderBottomColor: theme.borderColor }]}
       onPress={onPress}
       activeOpacity={0.75}
     >
-      <View style={lotCardStyles.iconWrap}>
-        <IconSymbol name="car.fill" size={22} color="#cc0033" />
+      <View style={[lotCardStyles.iconWrap, { backgroundColor: theme.accentSubtle, borderColor: theme.accentBorder }]}>
+        <IconSymbol name="car.fill" size={22} color={theme.accent} />
       </View>
       <View style={lotCardStyles.textGroup}>
-        <Text style={lotCardStyles.name} numberOfLines={1}>
+        <Text
+          style={[lotCardStyles.name, { color: theme.textPrimary }]}
+          numberOfLines={1}
+        >
           {lot.name}
         </Text>
-        <Text style={lotCardStyles.sub}>{lot.campus} Campus</Text>
+        <Text style={[lotCardStyles.sub, { color: theme.textMuted }]}>
+          {lot.campus} Campus
+        </Text>
       </View>
       <View style={lotCardStyles.rightGroup}>
         <Text style={[lotCardStyles.pct, { color }]}>{pct}%</Text>
-        <Text style={lotCardStyles.pctLabel}>{label}</Text>
-        <View style={lotCardStyles.barBg}>
+        <Text style={[lotCardStyles.pctLabel, { color: theme.textMuted }]}>
+          {label}
+        </Text>
+        <View
+          style={[
+            lotCardStyles.barBg,
+            { backgroundColor: theme === GLASS_DARK ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" },
+          ]}
+        >
           <View
             style={[
               lotCardStyles.barFill,
@@ -217,27 +255,23 @@ const lotCardStyles = StyleSheet.create({
     paddingVertical: 16,
     gap: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(255,255,255,0.05)",
   },
   iconWrap: {
     width: 48,
     height: 48,
     borderRadius: 14,
-    backgroundColor: "rgba(204,0,51,0.08)",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(204,0,51,0.18)",
   },
   textGroup: { flex: 1 },
-  name: { color: "#f0f0f2", fontSize: 15, fontWeight: "700", letterSpacing: -0.2 },
-  sub: { color: GLASS.textMuted, fontSize: 12, marginTop: 3 },
+  name: { fontSize: 15, fontWeight: "700", letterSpacing: -0.2 },
+  sub: { fontSize: 12, marginTop: 3 },
   rightGroup: { alignItems: "flex-end", gap: 2 },
   pct: { fontSize: 16, fontWeight: "800" },
   pctLabel: {
     fontSize: 9,
     fontWeight: "700",
-    color: GLASS.textMuted,
     letterSpacing: 0.6,
     textTransform: "uppercase",
   },
@@ -245,7 +279,6 @@ const lotCardStyles = StyleSheet.create({
     width: 52,
     height: 4,
     borderRadius: 2,
-    backgroundColor: "rgba(255,255,255,0.08)",
     overflow: "hidden",
     marginTop: 2,
   },
@@ -270,6 +303,8 @@ const CAMPUS_META: Record<string, { icon: string; sublabel: string }> = {
 // ─── Main screen ─────────────────────────────────────────────────────────────
 
 export default function ProfileScreen() {
+  const theme = useGlassTheme();
+  const { preference, setPreference } = useThemePreference();
   const {
     session,
     user,
@@ -283,6 +318,8 @@ export default function ProfileScreen() {
   } = useAuth();
   const router = useRouter();
   const [favorites, setFavorites] = useState<RutgersLot[]>([]);
+
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const fetchFavorites = React.useCallback(async () => {
     if (!session) return;
@@ -323,11 +360,10 @@ export default function ProfileScreen() {
           <GlassCard
             style={styles.notSignedInCard}
             contentStyle={styles.notSignedInCardContent}
-            borderRadius={GLASS.radiusLarge}
-            borderColor={FLAT_CARD_BORDER}
+            borderRadius={theme.radiusLarge}
           >
             <View style={styles.notSignedInAvatar}>
-              <IconSymbol name="person.fill" size={40} color={GLASS.textDim} />
+              <IconSymbol name="person.fill" size={40} color={theme.textDim} />
             </View>
             <Text style={styles.notLoggedInText}>Not signed in</Text>
             <Text style={styles.notLoggedInSub}>
@@ -365,7 +401,7 @@ export default function ProfileScreen() {
   // ── Main profile ───────────────────────────────────────────────────────────
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle={theme === GLASS_DARK ? "light-content" : "dark-content"} />
       <ScarletSpotsBackground />
 
       <ScrollView
@@ -377,9 +413,8 @@ export default function ProfileScreen() {
         <GlassCard
           style={styles.heroCard}
           contentStyle={styles.heroContent}
-          blurIntensity={GLASS.blurMedium}
+          blurIntensity={theme.blurMedium}
           borderRadius={28}
-          borderColor={FLAT_CARD_BORDER}
         >
           {/* Scarlet radial glow behind avatar */}
           <View style={styles.avatarGlow} />
@@ -387,7 +422,7 @@ export default function ProfileScreen() {
           {/* Avatar */}
           <View style={styles.avatarRing}>
             <LinearGradient
-              colors={["rgba(204,0,51,0.55)", "rgba(204,0,51,0.10)"]}
+              colors={theme === GLASS_DARK ? ["rgba(220,38,38,0.55)", "rgba(220,38,38,0.10)"] : ["rgba(204,0,51,0.55)", "rgba(204,0,51,0.10)"]}
               style={StyleSheet.absoluteFill}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
@@ -413,7 +448,7 @@ export default function ProfileScreen() {
             <IconSymbol
               name="parkingsign.circle.fill"
               size={14}
-              color={GLASS.accent}
+              color={theme.accent}
             />
             <Text style={styles.permitBadgeText}>{getPermitLabel()}</Text>
             {secondaryPermitType ? (
@@ -424,7 +459,7 @@ export default function ProfileScreen() {
             <IconSymbol
               name="chevron.right"
               size={11}
-              color={GLASS.textMuted}
+              color={theme.textMuted}
             />
           </TouchableOpacity>
 
@@ -436,10 +471,9 @@ export default function ProfileScreen() {
           <GlassCard
             style={styles.statCard}
             contentStyle={styles.statContent}
-            blurIntensity={GLASS.blurLight}
-            borderColor={FLAT_CARD_BORDER}
+            blurIntensity={theme.blurLight}
           >
-            <Text style={[styles.statValue, { color: "#cc0033" }]}>
+            <Text style={[styles.statValue, { color: theme.accent }]}>
               {favorites.length}
             </Text>
             <Text style={styles.statLabel}>Saved Lots</Text>
@@ -447,8 +481,7 @@ export default function ProfileScreen() {
           <GlassCard
             style={styles.statCard}
             contentStyle={styles.statContent}
-            blurIntensity={GLASS.blurLight}
-            borderColor={FLAT_CARD_BORDER}
+            blurIntensity={theme.blurLight}
           >
             <Text style={styles.statValue}>
               {enabledCampuses.size}/{NB_CAMPUS_NAMES.length}
@@ -458,8 +491,7 @@ export default function ProfileScreen() {
           <GlassCard
             style={styles.statCard}
             contentStyle={styles.statContent}
-            blurIntensity={GLASS.blurLight}
-            borderColor={FLAT_CARD_BORDER}
+            blurIntensity={theme.blurLight}
           >
             <Text style={styles.statValue}>NB</Text>
             <Text style={styles.statLabel}>Campus</Text>
@@ -486,14 +518,13 @@ export default function ProfileScreen() {
         <GlassCard
           style={styles.listCard}
           contentStyle={styles.listCardContent}
-          blurIntensity={GLASS.blurMedium}
+          blurIntensity={theme.blurMedium}
           borderRadius={24}
-          borderColor={FLAT_CARD_BORDER}
         >
           {favorites.length === 0 ? (
             <View style={styles.emptyState}>
               <View style={styles.emptyIconWrap}>
-                <IconSymbol name="star" size={24} color={GLASS.textDim} />
+                <IconSymbol name="star" size={24} color={theme.textDim} />
               </View>
               <Text style={styles.emptyTitle}>No saved lots</Text>
               <Text style={styles.emptySub}>
@@ -528,14 +559,51 @@ export default function ProfileScreen() {
           Customize your campus parking experience.
         </Text>
 
-        {/* Campus filter sub-section */}
-        <Text style={styles.prefGroupLabel}>Campus Filter</Text>
+        {/* Appearance sub-section */}
+        <Text style={styles.prefGroupLabel}>Appearance</Text>
         <GlassCard
           style={styles.listCard}
           contentStyle={styles.listCardContent}
-          blurIntensity={GLASS.blurMedium}
+          blurIntensity={theme.blurMedium}
           borderRadius={24}
-          borderColor={FLAT_CARD_BORDER}
+        >
+          {(
+            [
+              { key: "system", label: "System Default", icon: "circle.lefthalf.filled" },
+              { key: "light", label: "Light", icon: "sun.max.fill" },
+              { key: "dark", label: "Dark", icon: "moon.fill" },
+            ] as { key: ThemePreference; label: string; icon: string }[]
+          ).map(({ key, label, icon }, i) => (
+            <TouchableOpacity
+              key={key}
+              style={[
+                appearanceStyles.row,
+                { borderBottomColor: theme.borderColor },
+                i === 2 && appearanceStyles.rowLast,
+              ]}
+              onPress={() => setPreference(key)}
+              activeOpacity={0.7}
+            >
+              <View style={[appearanceStyles.iconWrap, { backgroundColor: theme.iconBg }]}>
+                <IconSymbol name={icon as any} size={16} color={theme.iconColor} />
+              </View>
+              <Text style={[appearanceStyles.label, { color: theme.textPrimary }]}>
+                {label}
+              </Text>
+              {preference === key && (
+                <IconSymbol name="checkmark" size={15} color={theme.accent} />
+              )}
+            </TouchableOpacity>
+          ))}
+        </GlassCard>
+
+        {/* Campus filter sub-section */}
+        <Text style={[styles.prefGroupLabel, { marginTop: 20 }]}>Campus Filter</Text>
+        <GlassCard
+          style={styles.listCard}
+          contentStyle={styles.listCardContent}
+          blurIntensity={theme.blurMedium}
+          borderRadius={24}
         >
           {primaryCampuses.map((campus, i) => {
             const meta = CAMPUS_META[campus] ?? {
@@ -567,14 +635,13 @@ export default function ProfileScreen() {
         <GlassCard
           style={styles.listCard}
           contentStyle={styles.listCardContent}
-          blurIntensity={GLASS.blurMedium}
+          blurIntensity={theme.blurMedium}
           borderRadius={24}
-          borderColor={FLAT_CARD_BORDER}
         >
           <SettingRow
             icon="bell.fill"
-            iconBg="rgba(204,0,51,0.10)"
-            iconColor="#cc0033"
+            iconBg={theme.accentSubtle}
+            iconColor={theme.accent}
             label="Push Notifications"
             sublabel="Session alerts & reminders"
             last
@@ -592,9 +659,8 @@ export default function ProfileScreen() {
         <GlassCard
           style={styles.listCard}
           contentStyle={styles.listCardContent}
-          blurIntensity={GLASS.blurMedium}
+          blurIntensity={theme.blurMedium}
           borderRadius={24}
-          borderColor={FLAT_CARD_BORDER}
         >
           <SettingRow
             icon="lock.fill"
@@ -614,14 +680,12 @@ export default function ProfileScreen() {
           <GlassBackground
             style={StyleSheet.absoluteFill}
             glassStyle="clear"
-            blurIntensity={GLASS.blurLight}
-            blurTint={GLASS.tintDark}
-            fallbackColor="rgba(12,12,14,0.6)"
+            blurIntensity={theme.blurLight}
           />
           <IconSymbol
             name="rectangle.portrait.and.arrow.right"
             size={18}
-            color="#cc0033"
+            color={theme.accent}
           />
           <Text style={styles.signOutText}>Sign Out</Text>
         </TouchableOpacity>
@@ -634,231 +698,253 @@ export default function ProfileScreen() {
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-
-  scrollView: { flex: 1 },
-  scrollContent: {
-    paddingTop: Platform.OS === "ios" ? 68 : 50,
-    paddingHorizontal: 16,
-  },
-
-  // ── Not signed in ──
-  centerContent: {
-    flex: 1,
-    justifyContent: "center",
+const appearanceStyles = StyleSheet.create({
+  row: {
+    flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 24,
-  },
-  notSignedInCard: { width: "100%" },
-  notSignedInCardContent: {
-    alignItems: "center",
-    paddingVertical: 36,
-    gap: 10,
-    padding: 24,
-  },
-  notSignedInAvatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "#18181b",
-    borderWidth: 1,
-    borderColor: "#27272a",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 6,
-  },
-  notLoggedInText: { color: GLASS.textPrimary, fontSize: 20, fontWeight: "700" },
-  notLoggedInSub: {
-    color: GLASS.textMuted,
-    fontSize: 14,
-    textAlign: "center",
-    lineHeight: 20,
-  },
-  loginButton: {
-    marginTop: 10,
-    backgroundColor: GLASS.accent,
     paddingVertical: 14,
-    paddingHorizontal: 48,
-    borderRadius: 14,
-  },
-  loginButtonText: { color: "#fff", fontWeight: "700", fontSize: 15 },
-
-  // ── Hero card ──
-  heroCard: { marginBottom: 0 },
-  heroContent: {
-    alignItems: "center",
-    paddingVertical: 32,
-    paddingHorizontal: 20,
-  },
-  avatarGlow: {
-    position: "absolute",
-    top: 16,
-    width: 130,
-    height: 130,
-    borderRadius: 65,
-    backgroundColor: "rgba(204,0,51,0.09)",
-  },
-  avatarRing: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    overflow: "hidden",
-    padding: 2,
-    marginBottom: 18,
-  },
-  avatarInner: {
-    flex: 1,
-    borderRadius: 46,
-    backgroundColor: "#0d0d0f",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  avatarText: {
-    fontSize: 38,
-    fontWeight: "800",
-    fontStyle: "italic",
-    color: "#cc0033",
-    letterSpacing: -1,
-  },
-  heroName: {
-    fontSize: 26,
-    fontWeight: "800",
-    color: GLASS.textPrimary,
-    letterSpacing: -0.5,
-  },
-  heroEmail: {
-    fontSize: 13,
-    color: GLASS.textMuted,
-    marginTop: 4,
-    marginBottom: 14,
-  },
-  heroSince: {
-    fontSize: 11,
-    color: GLASS.textDim,
-    marginTop: 12,
-    letterSpacing: 0.5,
-    textTransform: "uppercase",
-  },
-  permitBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
     paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 20,
-    overflow: "hidden",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(204,0,51,0.25)",
-    backgroundColor: "rgba(204,0,51,0.08)",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: 12,
   },
-  permitBadgeText: { color: "#cc0033", fontSize: 13, fontWeight: "700" },
-  permitBadgeSecondary: { color: GLASS.textMuted, fontSize: 12 },
-
-  // ── Stats strip ──
-  statsRow: { flexDirection: "row", gap: 8, marginTop: 8 },
-  statCard: { flex: 1 },
-  statContent: {
-    alignItems: "center",
-    paddingVertical: 16,
-    paddingHorizontal: 8,
-    gap: 4,
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: GLASS.textPrimary,
-    letterSpacing: -0.5,
-  },
-  statLabel: {
-    fontSize: 10,
-    color: GLASS.textMuted,
-    fontWeight: "600",
-    letterSpacing: 0.3,
-    textTransform: "uppercase",
-    textAlign: "center",
-  },
-
-  // ── Section headers ──
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 26,
-    marginBottom: 6,
-    paddingHorizontal: 4,
-  },
-  sectionLabel: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: GLASS.textMuted,
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
-  },
-  sectionAction: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#cc0033",
-  },
-  sectionDesc: {
-    fontSize: 13,
-    color: GLASS.textMuted,
-    paddingHorizontal: 4,
-    marginBottom: 12,
-    lineHeight: 18,
-  },
-  prefGroupLabel: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: GLASS.textDim,
-    letterSpacing: 1.5,
-    textTransform: "uppercase",
-    paddingHorizontal: 4,
-    marginBottom: 10,
-  },
-
-  // ── Card containers ──
-  listCard: {},
-  listCardContent: { padding: 0 },
-  lastCard: { borderBottomWidth: 0 },
-
-  // ── Empty state ──
-  emptyState: {
-    alignItems: "center",
-    paddingVertical: 32,
-    paddingHorizontal: 12,
-    gap: 8,
-  },
-  emptyIconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.04)",
+  rowLast: { borderBottomWidth: 0 },
+  iconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 4,
   },
-  emptyTitle: { color: GLASS.textMuted, fontSize: 15, fontWeight: "600" },
-  emptySub: {
-    color: GLASS.textDim,
-    fontSize: 13,
-    textAlign: "center",
-    lineHeight: 18,
-  },
-
-  // ── Sign out ──
-  signOutBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    marginTop: 22,
-    paddingVertical: 16,
-    borderRadius: 16,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "rgba(204,0,51,0.25)",
-    backgroundColor: "rgba(204,0,51,0.06)",
-  },
-  signOutText: { color: "#cc0033", fontSize: 15, fontWeight: "700" },
+  label: { flex: 1, fontSize: 15, fontWeight: "600" },
 });
+
+function createStyles(theme: typeof GLASS_DARK) {
+  return StyleSheet.create({
+    container: { flex: 1 },
+
+    scrollView: { flex: 1 },
+    scrollContent: {
+      paddingTop: Platform.OS === "ios" ? 68 : 50,
+      paddingHorizontal: 16,
+    },
+
+    // ── Not signed in ──
+    centerContent: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      paddingHorizontal: 24,
+    },
+    notSignedInCard: { width: "100%" },
+    notSignedInCardContent: {
+      alignItems: "center",
+      paddingVertical: 36,
+      gap: 10,
+      padding: 24,
+    },
+    notSignedInAvatar: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      backgroundColor: theme === GLASS_DARK ? "#18181b" : "#e4e4e7",
+      borderWidth: 1,
+      borderColor: theme === GLASS_DARK ? "#27272a" : "#d4d4d8",
+      justifyContent: "center",
+      alignItems: "center",
+      marginBottom: 6,
+    },
+    notLoggedInText: { color: theme.textPrimary, fontSize: 20, fontWeight: "700" },
+    notLoggedInSub: {
+      color: theme.textMuted,
+      fontSize: 14,
+      textAlign: "center",
+      lineHeight: 20,
+    },
+    loginButton: {
+      marginTop: 10,
+      backgroundColor: theme.accent,
+      paddingVertical: 14,
+      paddingHorizontal: 48,
+      borderRadius: 14,
+    },
+    loginButtonText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+
+    // ── Hero card ──
+    heroCard: { marginBottom: 0 },
+    heroContent: {
+      alignItems: "center",
+      paddingVertical: 32,
+      paddingHorizontal: 20,
+    },
+    avatarGlow: {
+      position: "absolute",
+      top: 16,
+      width: 130,
+      height: 130,
+      borderRadius: 65,
+      backgroundColor: theme.accentSubtle,
+    },
+    avatarRing: {
+      width: 96,
+      height: 96,
+      borderRadius: 48,
+      overflow: "hidden",
+      padding: 2,
+      marginBottom: 18,
+    },
+    avatarInner: {
+      flex: 1,
+      borderRadius: 46,
+      backgroundColor: theme === GLASS_DARK ? "#0d0d0f" : "#f0f0f2",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    avatarText: {
+      fontSize: 38,
+      fontWeight: "800",
+      fontStyle: "italic",
+      color: theme.accent,
+      letterSpacing: -1,
+    },
+    heroName: {
+      fontSize: 26,
+      fontWeight: "800",
+      color: theme.textPrimary,
+      letterSpacing: -0.5,
+    },
+    heroEmail: {
+      fontSize: 13,
+      color: theme.textMuted,
+      marginTop: 4,
+      marginBottom: 14,
+    },
+    heroSince: {
+      fontSize: 11,
+      color: theme.textDim,
+      marginTop: 12,
+      letterSpacing: 0.5,
+      textTransform: "uppercase",
+    },
+    permitBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      paddingHorizontal: 14,
+      paddingVertical: 9,
+      borderRadius: 20,
+      overflow: "hidden",
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.accentBorder,
+      backgroundColor: theme.accentSubtle,
+    },
+    permitBadgeText: { color: theme.accent, fontSize: 13, fontWeight: "700" },
+    permitBadgeSecondary: { color: theme.textMuted, fontSize: 12 },
+
+    // ── Stats strip ──
+    statsRow: { flexDirection: "row", gap: 8, marginTop: 8 },
+    statCard: { flex: 1 },
+    statContent: {
+      alignItems: "center",
+      paddingVertical: 16,
+      paddingHorizontal: 8,
+      gap: 4,
+    },
+    statValue: {
+      fontSize: 20,
+      fontWeight: "800",
+      color: theme.textPrimary,
+      letterSpacing: -0.5,
+    },
+    statLabel: {
+      fontSize: 10,
+      color: theme.textMuted,
+      fontWeight: "600",
+      letterSpacing: 0.3,
+      textTransform: "uppercase",
+      textAlign: "center",
+    },
+
+    // ── Section headers ──
+    sectionHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginTop: 26,
+      marginBottom: 6,
+      paddingHorizontal: 4,
+    },
+    sectionLabel: {
+      fontSize: 11,
+      fontWeight: "700",
+      color: theme.textMuted,
+      letterSpacing: 1.2,
+      textTransform: "uppercase",
+    },
+    sectionAction: {
+      fontSize: 13,
+      fontWeight: "700",
+      color: theme.accent,
+    },
+    sectionDesc: {
+      fontSize: 13,
+      color: theme.textMuted,
+      paddingHorizontal: 4,
+      marginBottom: 12,
+      lineHeight: 18,
+    },
+    prefGroupLabel: {
+      fontSize: 10,
+      fontWeight: "700",
+      color: theme.textDim,
+      letterSpacing: 1.5,
+      textTransform: "uppercase",
+      paddingHorizontal: 4,
+      marginBottom: 10,
+    },
+
+    // ── Card containers ──
+    listCard: {},
+    listCardContent: { padding: 0 },
+    lastCard: { borderBottomWidth: 0 },
+
+    // ── Empty state ──
+    emptyState: {
+      alignItems: "center",
+      paddingVertical: 32,
+      paddingHorizontal: 12,
+      gap: 8,
+    },
+    emptyIconWrap: {
+      width: 52,
+      height: 52,
+      borderRadius: 16,
+      backgroundColor: theme === GLASS_DARK ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)",
+      justifyContent: "center",
+      alignItems: "center",
+      marginBottom: 4,
+    },
+    emptyTitle: { color: theme.textMuted, fontSize: 15, fontWeight: "600" },
+    emptySub: {
+      color: theme.textDim,
+      fontSize: 13,
+      textAlign: "center",
+      lineHeight: 18,
+    },
+
+    // ── Sign out ──
+    signOutBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 10,
+      marginTop: 22,
+      paddingVertical: 16,
+      borderRadius: 16,
+      overflow: "hidden",
+      borderWidth: 1,
+      borderColor: theme.accentBorder,
+      backgroundColor: theme.accentSubtle,
+    },
+    signOutText: { color: theme.accent, fontSize: 15, fontWeight: "700" },
+  });
+}

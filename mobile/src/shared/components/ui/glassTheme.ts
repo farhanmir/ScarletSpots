@@ -1,13 +1,17 @@
 /**
  * Shared design tokens for the glass / translucent UI system.
  *
- * Use these constants throughout Glass* components and screens so the
- * visual language stays consistent across Search, Friends, and Profile.
+ * Two palettes are provided — dark (the original design) and light.
+ * Use `useGlassTheme()` to get the palette that matches the current color
+ * scheme; prefer that over the static `GLASS` export in new code.
  */
 
 import type { BlurTint } from "expo-blur";
+import { useColorScheme } from "react-native";
 
-export const GLASS = {
+// ── Dark palette ───────────────────────────────────────────────────────────────
+
+export const GLASS_DARK = {
   /** Blur intensity for heavy overlays (modals, sticky headers) */
   blurHeavy: 80,
   /** Blur intensity for mid-weight surfaces (cards, sections) */
@@ -15,11 +19,13 @@ export const GLASS = {
   /** Blur intensity for light touches (search bar, pills) */
   blurLight: 14,
 
-  /** BlurTint for dark backgrounds */
+  /** Primary blur tint for this palette */
+  blurTint: "systemChromeMaterialDark" as BlurTint,
+  /** @deprecated Kept for legacy callers — use blurTint */
   tintDark: "systemChromeMaterialDark" as BlurTint,
 
   /** Thin edge border that catches light on glass surfaces */
-  borderColor: "rgba(255, 255, 255, 0.04)",
+  borderColor: "rgba(255, 255, 255, 0.06)",
   /** Slightly brighter border for interactive / focused elements */
   borderColorFocused: "rgba(220, 38, 38, 0.55)",
 
@@ -45,11 +51,55 @@ export const GLASS = {
   radiusSmall: 10,
 
   /**
-   * Neutral icon container background — use this for list-row icons that are
-   * informational (car, building, map pin). Reserve accentSubtle for primary
-   * CTAs and brand-identity spots only.
+   * Neutral icon container background and icon tint for list-row icons.
    */
   iconBg: "rgba(255, 255, 255, 0.07)",
-  /** Neutral tint for list-row icons (pairs with iconBg) */
   iconColor: "#a1a1aa",
 } as const;
+
+// ── Light palette ──────────────────────────────────────────────────────────────
+
+export const GLASS_LIGHT = {
+  blurHeavy: 80,
+  blurMedium: 22,
+  blurLight: 14,
+
+  blurTint: "systemChromeMaterialLight" as BlurTint,
+  /** @deprecated Kept for legacy callers — use blurTint */
+  tintDark: "systemChromeMaterialLight" as BlurTint,
+
+  borderColor: "rgba(0, 0, 0, 0.08)",
+  borderColorFocused: "rgba(204, 0, 51, 0.45)",
+
+  fallbackDark: "rgba(245, 245, 247, 0.92)",
+  fallbackCard: "rgba(252, 252, 254, 0.95)",
+
+  accent: "#cc0033",
+  accentSubtle: "rgba(204, 0, 51, 0.08)",
+  accentBorder: "rgba(204, 0, 51, 0.18)",
+
+  textPrimary: "#111111",
+  textSecondary: "#3f3f46",
+  textMuted: "#71717a",
+  textDim: "#a1a1aa",
+
+  radius: 16,
+  radiusLarge: 20,
+  radiusSmall: 10,
+
+  iconBg: "rgba(0, 0, 0, 0.06)",
+  iconColor: "#52525b",
+} as const;
+
+// ── Backward-compatible default export (always dark) ──────────────────────────
+
+/** @deprecated Prefer `useGlassTheme()` for theme-aware components. */
+export const GLASS = GLASS_DARK;
+
+// ── Hook ──────────────────────────────────────────────────────────────────────
+
+/** Returns the correct glass palette for the active color scheme. */
+export function useGlassTheme() {
+  const scheme = useColorScheme();
+  return scheme === "light" ? GLASS_LIGHT : GLASS_DARK;
+}

@@ -17,9 +17,12 @@ import { Stack, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { IconSymbol } from "@/shared/components/ui/icon-symbol";
 import { GlassBackground } from "@/shared/components/ui/GlassBackground";
+import { useColorScheme } from "react-native";
 
 export default function LoginScreen() {
   const router = useRouter();
+  const scheme = useColorScheme();
+  const isDark = scheme !== "light";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -63,14 +66,17 @@ export default function LoginScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: isDark ? "#000" : "#fff" }]}>
       <Stack.Screen options={{ headerShown: false }} />
 
       {/* Gradient background */}
-      {/* Sweeping background gradient from top-center */}
       <View style={StyleSheet.absoluteFill}>
         <LinearGradient
-          colors={["#450a0a", "#18181b", "#000000"]}
+          colors={
+            isDark
+              ? ["#450a0a", "#18181b", "#000000"]
+              : ["#fff5f5", "#fef7f7", "#ffffff"]
+          }
           start={{ x: 0.5, y: 0.1 }}
           end={{ x: 0.5, y: 0.8 }}
           style={StyleSheet.absoluteFill}
@@ -93,34 +99,32 @@ export default function LoginScreen() {
               onPress={() => router.back()}
               hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
             >
-              <View style={styles.backButtonInner}>
-                <IconSymbol name="chevron.left" size={20} color="#e4e4e7" />
+              <View style={[styles.backButtonInner, { backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)", borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)" }]}>
+                <IconSymbol name="chevron.left" size={20} color={isDark ? "#e4e4e7" : "#111111"} />
               </View>
             </TouchableOpacity>
 
             <View style={styles.headerTextWrap}>
-              <Text style={styles.title}>Welcome Back</Text>
-              <Text style={styles.subtitle}>Sign in to continue</Text>
+                <Text style={[styles.title, { color: isDark ? "#ffffff" : "#111111" }]}>Welcome Back</Text>
+              <Text style={[styles.subtitle, { color: isDark ? "#a1a1aa" : "#71717a" }]}>Sign in to continue</Text>
             </View>
           </View>
 
           {/* Form Card */}
-          <View style={styles.cardContainer}>
+          <View style={[styles.cardContainer, { borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }]}>
             <GlassBackground
               style={StyleSheet.absoluteFill}
               glassStyle="regular"
               blurIntensity={30}
-              blurTint="dark"
-              fallbackColor="rgba(24,24,27,0.8)"
             />
             <View style={styles.cardInner}>
               {/* Email */}
               <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Rutgers Email</Text>
+                <Text style={[styles.label, { color: isDark ? "#d4d4d8" : "#3f3f46" }]}>Rutgers Email</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { backgroundColor: isDark ? "rgba(0,0,0,0.2)" : "rgba(0,0,0,0.04)", borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)", color: isDark ? "#ffffff" : "#111111" }]}
                   placeholder="netid@rutgers.edu"
-                  placeholderTextColor="#71717a"
+                  placeholderTextColor={isDark ? "#71717a" : "#a1a1aa"}
                   autoCapitalize="none"
                   keyboardType="email-address"
                   value={email}
@@ -130,11 +134,11 @@ export default function LoginScreen() {
 
               {/* Password */}
               <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Password</Text>
+                <Text style={[styles.label, { color: isDark ? "#d4d4d8" : "#3f3f46" }]}>Password</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { backgroundColor: isDark ? "rgba(0,0,0,0.2)" : "rgba(0,0,0,0.04)", borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)", color: isDark ? "#ffffff" : "#111111" }]}
                   placeholder="••••••••"
-                  placeholderTextColor="#71717a"
+                  placeholderTextColor={isDark ? "#71717a" : "#a1a1aa"}
                   secureTextEntry={true}
                   value={password}
                   onChangeText={setPassword}
@@ -164,9 +168,9 @@ export default function LoginScreen() {
               </TouchableOpacity>
 
               {/* Demo hint */}
-              <View style={styles.demoBox}>
-                <Text style={styles.demoText}>
-                  <Text style={styles.demoBold}>Tip: </Text>
+              <View style={[styles.demoBox, { backgroundColor: isDark ? "rgba(0,0,0,0.25)" : "rgba(0,0,0,0.04)", borderColor: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.06)" }]}>
+                <Text style={[styles.demoText, { color: isDark ? "#a1a1aa" : "#71717a" }]}>
+                  <Text style={[styles.demoBold, { color: isDark ? "#e4e4e7" : "#3f3f46" }]}>Tip: </Text>
                   Use your NetID or ScarletMail credentials.
                 </Text>
               </View>

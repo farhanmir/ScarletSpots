@@ -1,5 +1,12 @@
 import React, { useEffect } from "react";
-import { StyleSheet, View, Text, TouchableOpacity, Image } from "react-native";
+import {
+  StyleSheet,
+  View,
+  Text,
+  TouchableOpacity,
+  Image,
+  useColorScheme,
+} from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
@@ -16,6 +23,8 @@ import { IconSymbol } from "@/shared/components/ui/icon-symbol";
 
 export default function AuthChoiceScreen() {
   const router = useRouter();
+  const scheme = useColorScheme();
+  const isDark = scheme !== "light";
   const breathScale = useSharedValue(1);
 
   useEffect(() => {
@@ -34,13 +43,17 @@ export default function AuthChoiceScreen() {
   }));
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: isDark ? "#000" : "#ffffff" }]}>
       <Stack.Screen options={{ headerShown: false }} />
 
       {/* Sweeping background gradient from top-center */}
       <View style={StyleSheet.absoluteFill}>
         <LinearGradient
-          colors={["#450a0a", "#18181b", "#000000"]}
+          colors={
+            isDark
+              ? ["#450a0a", "#18181b", "#000000"]
+              : ["#fff5f5", "#fef7f7", "#ffffff"]
+          }
           start={{ x: 0.5, y: 0.1 }}
           end={{ x: 0.5, y: 0.8 }}
           style={StyleSheet.absoluteFill}
@@ -68,8 +81,8 @@ export default function AuthChoiceScreen() {
             entering={FadeInDown.duration(800).delay(200)}
             style={[styles.textContainer, breathStyle]}
           >
-            <Text style={styles.appName}>ScarletSpots</Text>
-            <Text style={styles.tagline}>Parking at Rutgers, solved.</Text>
+            <Text style={[styles.appName, { color: isDark ? "#ffffff" : "#111111" }]}>ScarletSpots</Text>
+            <Text style={[styles.tagline, { color: isDark ? "#a1a1aa" : "#71717a" }]}>Parking at Rutgers, solved.</Text>
           </Animated.View>
         </View>
 
@@ -82,13 +95,11 @@ export default function AuthChoiceScreen() {
             style={StyleSheet.absoluteFill}
             glassStyle="regular"
             blurIntensity={30}
-            blurTint="dark"
-            fallbackColor="rgba(10,10,12,0.8)"
           />
 
           <View style={styles.actionsInner}>
             <TouchableOpacity
-              style={styles.primaryButton}
+              style={[styles.primaryButton, { backgroundColor: isDark ? "#dc2626" : "#cc0033", shadowColor: isDark ? "#dc2626" : "#cc0033" }]}
               onPress={() => router.push("/auth/sign-up" as any)}
               activeOpacity={0.8}
             >
@@ -97,18 +108,24 @@ export default function AuthChoiceScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.secondaryButton}
+              style={[
+                styles.secondaryButton,
+                {
+                  backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
+                  borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)",
+                },
+              ]}
               onPress={() => router.push("/auth/login" as any)}
               activeOpacity={0.8}
             >
-              <Text style={styles.secondaryButtonText}>Sign In</Text>
+              <Text style={[styles.secondaryButtonText, { color: isDark ? "#e4e4e7" : "#111111" }]}>Sign In</Text>
             </TouchableOpacity>
 
-            <Text style={styles.termsText}>
+            <Text style={[styles.termsText, { color: isDark ? "#52525b" : "#71717a" }]}>
               By continuing, you agree to our{" "}
-              <Text style={styles.termsLink}>Terms</Text> &{" "}
-              <Text style={styles.termsLink}>Privacy Policy</Text>.{"\n"}
-              <Text style={{ color: "#71717a" }}>
+              <Text style={[styles.termsLink, { color: isDark ? "#a1a1aa" : "#52525b" }]}>Terms</Text> &{" "}
+              <Text style={[styles.termsLink, { color: isDark ? "#a1a1aa" : "#52525b" }]}>Privacy Policy</Text>.{"\n"}
+              <Text style={{ color: isDark ? "#71717a" : "#a1a1aa" }}>
                 Rutgers students & staff only.
               </Text>
             </Text>
@@ -162,13 +179,11 @@ const styles = StyleSheet.create({
   appName: {
     fontSize: 40,
     fontWeight: "800",
-    color: "#ffffff",
     letterSpacing: -1,
     marginBottom: 10,
   },
   tagline: {
     fontSize: 18,
-    color: "#a1a1aa",
     fontWeight: "500",
   },
 
@@ -210,28 +225,23 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     height: 58,
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
     borderRadius: 18,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
   },
   secondaryButtonText: {
-    color: "#e4e4e7",
     fontSize: 17,
     fontWeight: "600",
     letterSpacing: 0.3,
   },
   termsText: {
     textAlign: "center",
-    color: "#52525b",
     fontSize: 12,
     marginTop: 16,
     lineHeight: 18,
   },
   termsLink: {
-    color: "#a1a1aa",
     textDecorationLine: "underline",
   },
 });

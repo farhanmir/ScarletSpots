@@ -8,6 +8,7 @@ import {
   Linking,
   Alert,
   ScrollView,
+  useColorScheme,
 } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import * as Haptics from "expo-haptics";
@@ -22,6 +23,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import NetInfo from "@react-native-community/netinfo";
 
 import { IconSymbol } from "@/shared/components/ui/icon-symbol";
+import { useGlassTheme, GLASS_DARK } from "@/shared/components/ui/glassTheme";
 import { useAuth } from "@/providers/AuthProvider";
 import { useTabBar } from "@/providers/TabBarProvider";
 import { authApiCall, publicApiCall } from "@/shared/api/supabase";
@@ -49,6 +51,10 @@ import {
 import { queueParkAction } from "@/shared/services/OfflineQueue";
 
 export default function LotDetailsScreen() {
+  const theme = useGlassTheme();
+  const scheme = useColorScheme();
+  const isDark = scheme !== "light";
+  const lotStyles = useMemo(() => createLotStyles(theme, isDark), [theme, isDark]);
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const queryClient = useQueryClient();
@@ -295,14 +301,14 @@ export default function LotDetailsScreen() {
 
   const openDirections = () => {
     if (!lot) return;
-    const scheme = Platform.select({
+    const mapsScheme = Platform.select({
       ios: "maps:0,0?q=",
       android: "geo:0,0?q=",
     });
     const latLng = `${lot.latitude},${lot.longitude}`;
     const url = Platform.select({
-      ios: `${scheme}${lot.name}@${latLng}`,
-      android: `${scheme}${latLng}(${lot.name})`,
+      ios: `${mapsScheme}${lot.name}@${latLng}`,
+      android: `${mapsScheme}${latLng}(${lot.name})`,
     });
     if (url) Linking.openURL(url);
   };
@@ -359,27 +365,27 @@ export default function LotDetailsScreen() {
   ].filter(Boolean) as any[];
 
   return (
-    <Animated.View style={[styles.outerContainer, wobbleStyle]}>
+    <Animated.View style={[lotStyles.outerContainer, wobbleStyle]}>
       <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        style={lotStyles.scroll}
+        contentContainerStyle={lotStyles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.headerRow}>
-          <View style={styles.headerLeft}>
+        <View style={lotStyles.headerRow}>
+          <View style={lotStyles.headerLeft}>
             {lot.campus ? (
-              <View style={styles.campusPill}>
-                <Text style={styles.campusPillText}>{lot.campus} Campus</Text>
+              <View style={lotStyles.campusPill}>
+                <Text style={lotStyles.campusPillText}>{lot.campus} Campus</Text>
               </View>
             ) : null}
             <View
               style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
             >
-              <Text style={styles.lotName}>{lot.name}</Text>
+              <Text style={lotStyles.lotName}>{lot.name}</Text>
               {permitValidity !== null && (
                 <View
                   style={[
-                    styles.permitBadge,
+                    lotStyles.permitBadge,
                     {
                       backgroundColor: permitValidity
                         ? "rgba(34,197,94,0.12)"
@@ -393,52 +399,52 @@ export default function LotDetailsScreen() {
                   <IconSymbol
                     name={permitValidity ? "checkmark" : "xmark"}
                     size={10}
-                    color={permitValidity ? "#4ade80" : "#52525b"}
+                    color={permitValidity ? "#4ade80" : theme.textMuted}
                   />
                 </View>
               )}
             </View>
           </View>
-          <View style={styles.headerRight}>
+          <View style={lotStyles.headerRight}>
             {user && (
-              <TouchableOpacity onPress={toggleFavorite} style={styles.iconBtn}>
+              <TouchableOpacity onPress={toggleFavorite} style={lotStyles.iconBtn}>
                 <IconSymbol
                   name={isFavorite ? "star.fill" : "star"}
                   size={20}
-                  color={isFavorite ? "#f59e0b" : "#71717a"}
+                  color={isFavorite ? "#f59e0b" : theme.textMuted}
                 />
               </TouchableOpacity>
             )}
             <TouchableOpacity
               onPress={() => router.dismiss()}
-              style={styles.iconBtn}
+              style={lotStyles.iconBtn}
             >
-              <IconSymbol name="xmark" size={14} color="#71717a" />
+              <IconSymbol name="xmark" size={14} color={theme.textMuted} />
             </TouchableOpacity>
           </View>
         </View>
 
-        <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <Text style={[styles.statVal, { color: occColor }]}>
+        <View style={lotStyles.statsRow}>
+          <View style={lotStyles.statCard}>
+            <Text style={[lotStyles.statVal, { color: occColor }]}>
               {Math.round(lot.occupancyRate)}%
             </Text>
-            <Text style={styles.statLab}>Full</Text>
+            <Text style={lotStyles.statLab}>Full</Text>
           </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statVal}>{lot.occupiedCount}</Text>
-            <Text style={styles.statLab}>Sessions</Text>
+          <View style={lotStyles.statCard}>
+            <Text style={lotStyles.statVal}>{lot.occupiedCount}</Text>
+            <Text style={lotStyles.statLab}>Sessions</Text>
           </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statVal}>{lot.capacity}</Text>
-            <Text style={styles.statLab}>Capacity</Text>
+          <View style={lotStyles.statCard}>
+            <Text style={lotStyles.statVal}>{lot.capacity}</Text>
+            <Text style={lotStyles.statLab}>Capacity</Text>
           </View>
         </View>
 
-        <View style={styles.barTrack}>
+        <View style={lotStyles.barTrack}>
           <View
             style={[
-              styles.barFill,
+              lotStyles.barFill,
               {
                 width: `${Math.min(100, lot.occupancyRate)}%` as any,
                 backgroundColor: occColor,
@@ -448,17 +454,17 @@ export default function LotDetailsScreen() {
         </View>
 
         {features.length > 0 && (
-          <View style={styles.featureRow}>
+          <View style={lotStyles.featureRow}>
             {features.map((f) => (
               <View
                 key={f.label}
                 style={[
-                  styles.featurePill,
+                  lotStyles.featurePill,
                   { backgroundColor: f.bg, borderColor: f.border },
                 ]}
               >
                 <IconSymbol name={f.icon as any} size={11} color={f.color} />
-                <Text style={[styles.featurePillText, { color: f.color }]}>
+                <Text style={[lotStyles.featurePillText, { color: f.color }]}>
                   {f.label}
                 </Text>
               </View>
@@ -467,28 +473,28 @@ export default function LotDetailsScreen() {
         )}
 
         {scheduleInfo && (
-          <View style={styles.scheduleSection}>
-            <View style={styles.scheduleHeader}>
-              <IconSymbol name="clock.fill" size={13} color="#71717a" />
-              <Text style={styles.scheduleTitle}>SCHEDULE</Text>
+          <View style={lotStyles.scheduleSection}>
+            <View style={lotStyles.scheduleHeader}>
+              <IconSymbol name="clock.fill" size={13} color={theme.textMuted} />
+              <Text style={lotStyles.scheduleTitle}>SCHEDULE</Text>
               {lotAvailable !== null && (
                 <View
                   style={[
-                    styles.availBadge,
+                    lotStyles.availBadge,
                     lotAvailable
-                      ? styles.availBadgeOpen
-                      : styles.availBadgeClosed,
+                      ? lotStyles.availBadgeOpen
+                      : lotStyles.availBadgeClosed,
                   ]}
                 >
                   <View
                     style={[
-                      styles.availDot,
+                      lotStyles.availDot,
                       { backgroundColor: lotAvailable ? "#4ade80" : "#ef4444" },
                     ]}
                   />
                   <Text
                     style={[
-                      styles.availText,
+                      lotStyles.availText,
                       { color: lotAvailable ? "#4ade80" : "#ef4444" },
                     ]}
                   >
@@ -498,12 +504,12 @@ export default function LotDetailsScreen() {
               )}
             </View>
             {scheduleInfo.time_text_1 ? (
-              <Text style={styles.scheduleText}>
+              <Text style={lotStyles.scheduleText}>
                 {scheduleInfo.time_text_1}
               </Text>
             ) : null}
             {scheduleInfo.time_text_2 ? (
-              <Text style={styles.scheduleText}>
+              <Text style={lotStyles.scheduleText}>
                 {scheduleInfo.time_text_2}
               </Text>
             ) : null}
@@ -511,23 +517,23 @@ export default function LotDetailsScreen() {
         )}
 
         {lot.note ? (
-          <View style={styles.notesSection}>
-            <View style={styles.notesHeader}>
-              <IconSymbol name="info.circle.fill" size={13} color="#71717a" />
-              <Text style={styles.notesTitle}>NOTES</Text>
+          <View style={lotStyles.notesSection}>
+            <View style={lotStyles.notesHeader}>
+              <IconSymbol name="info.circle.fill" size={13} color={theme.textMuted} />
+              <Text style={lotStyles.notesTitle}>NOTES</Text>
             </View>
-            <Text style={styles.notesText}>{lot.note}</Text>
+            <Text style={lotStyles.notesText}>{lot.note}</Text>
           </View>
         ) : null}
 
         <ForecastChart curve={forecast} isLoading={isLoadingForecast} />
 
-        <View style={styles.actionsRow}>
+        <View style={lotStyles.actionsRow}>
           {!activeSession && (
             <TouchableOpacity
               style={[
-                styles.parkBtn,
-                (!user || lot.occupancyRate >= 100) && styles.parkBtnDisabled,
+                lotStyles.parkBtn,
+                (!user || lot.occupancyRate >= 100) && lotStyles.parkBtnDisabled,
               ]}
               onPress={() => {
                 if (user && lot.occupancyRate < 100) {
@@ -544,7 +550,7 @@ export default function LotDetailsScreen() {
               activeOpacity={0.8}
             >
               <IconSymbol name="p.circle.fill" size={20} color="#fff" />
-              <Text style={styles.parkBtnText}>
+              <Text style={lotStyles.parkBtnText}>
                 {!user
                   ? "Sign in to Park"
                   : activeSession
@@ -558,7 +564,7 @@ export default function LotDetailsScreen() {
 
           <TouchableOpacity
             style={[
-              styles.dirBtn,
+              lotStyles.dirBtn,
               !activeSession && { flex: 0, paddingHorizontal: 20 },
             ]}
             onPress={openDirections}
@@ -570,7 +576,7 @@ export default function LotDetailsScreen() {
               color="#60a5fa"
             />
             {!!activeSession && (
-              <Text style={styles.dirBtnText}>Directions</Text>
+              <Text style={lotStyles.dirBtnText}>Directions</Text>
             )}
           </TouchableOpacity>
         </View>
@@ -581,205 +587,210 @@ export default function LotDetailsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  outerContainer: {
-    flex: 1,
-    backgroundColor: "#111317",
-  },
-  scroll: { flex: 1 },
-  scrollContent: { padding: 20, paddingTop: 30 },
-  headerRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 20,
-    gap: 12,
-  },
-  headerLeft: { flex: 1, gap: 6 },
-  headerRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingTop: 2,
-  },
-  campusPill: {
-    alignSelf: "flex-start",
-    backgroundColor: "rgba(220,38,38,0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(220,38,38,0.25)",
-    paddingHorizontal: 9,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  campusPillText: {
-    color: "#f87171",
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 0.4,
-  },
-  lotName: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#fafafa",
-    letterSpacing: -0.3,
-    lineHeight: 30,
-  },
-  iconBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  statsRow: { flexDirection: "row", gap: 10, marginBottom: 14 },
-  statCard: {
-    flex: 1,
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderRadius: 16,
-    paddingVertical: 14,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-    gap: 4,
-  },
-  statVal: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#f4f4f5",
-    fontVariant: ["tabular-nums"],
-  },
-  statLab: { fontSize: 12, color: "#71717a", fontWeight: "500" },
-  barTrack: {
-    height: 4,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderRadius: 2,
-    marginBottom: 20,
-    overflow: "hidden",
-  },
-  barFill: { height: 4, borderRadius: 2 },
-  featureRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 16,
-  },
-  featurePill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 10,
-    borderWidth: 1,
-  },
-  featurePillText: { fontSize: 12, fontWeight: "700" },
-  permitBadge: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  scheduleSection: {
-    marginBottom: 16,
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-  },
-  scheduleHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginBottom: 8,
-  },
-  scheduleTitle: {
-    color: "#71717a",
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 1,
-    flex: 1,
-  },
-  availBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  availBadgeOpen: {
-    backgroundColor: "rgba(34,197,94,0.08)",
-    borderColor: "rgba(34,197,94,0.25)",
-  },
-  availBadgeClosed: {
-    backgroundColor: "rgba(239,68,68,0.08)",
-    borderColor: "rgba(239,68,68,0.25)",
-  },
-  availDot: { width: 5, height: 5, borderRadius: 2.5 },
-  availText: { fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
-  scheduleText: {
-    color: "#a1a1aa",
-    fontSize: 13,
-    fontWeight: "500",
-    lineHeight: 20,
-  },
-  notesSection: {
-    marginBottom: 16,
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-  },
-  notesHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginBottom: 8,
-  },
-  notesTitle: {
-    color: "#71717a",
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 1,
-  },
-  notesText: {
-    color: "#a1a1aa",
-    fontSize: 13,
-    fontWeight: "500",
-    lineHeight: 20,
-  },
-  actionsRow: { flexDirection: "row", gap: 10, marginTop: 8, marginBottom: 12 },
-  parkBtn: {
-    flex: 1,
-    height: 54,
-    borderRadius: 17,
-    backgroundColor: "#dc2626",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
-  parkBtnDisabled: { backgroundColor: "#3f3f46", opacity: 0.6 },
-  parkBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
-  dirBtn: {
-    height: 54,
-    borderRadius: 17,
-    backgroundColor: "rgba(255,255,255,0.1)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.16)",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    flex: 1,
-  },
-  dirBtnText: { color: "#fff", fontSize: 16, fontWeight: "600" },
-});
+function createLotStyles(theme: typeof GLASS_DARK, isDark: boolean) {
+  return StyleSheet.create({
+    outerContainer: {
+      flex: 1,
+      backgroundColor: isDark ? "#111317" : "#f5f5f7",
+    },
+    scroll: { flex: 1 },
+    scrollContent: { padding: 20, paddingTop: 30 },
+    headerRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      marginBottom: 20,
+      gap: 12,
+    },
+    headerLeft: { flex: 1, gap: 6 },
+    headerRight: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      paddingTop: 2,
+    },
+    campusPill: {
+      alignSelf: "flex-start",
+      backgroundColor: "rgba(220,38,38,0.12)",
+      borderWidth: 1,
+      borderColor: "rgba(220,38,38,0.25)",
+      paddingHorizontal: 9,
+      paddingVertical: 3,
+      borderRadius: 8,
+    },
+    campusPillText: {
+      color: isDark ? "#f87171" : "#cc0033",
+      fontSize: 11,
+      fontWeight: "700",
+      letterSpacing: 0.4,
+    },
+    lotName: {
+      fontSize: 24,
+      fontWeight: "700",
+      color: theme.textPrimary,
+      letterSpacing: -0.3,
+      lineHeight: 30,
+    },
+    iconBtn: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)",
+      borderWidth: 1,
+      borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    statsRow: { flexDirection: "row", gap: 10, marginBottom: 14 },
+    statCard: {
+      flex: 1,
+      backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
+      borderRadius: 16,
+      paddingVertical: 14,
+      alignItems: "center",
+      borderWidth: 1,
+      borderColor: isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)",
+      gap: 4,
+    },
+    statVal: {
+      fontSize: 22,
+      fontWeight: "800",
+      color: theme.textPrimary,
+      fontVariant: ["tabular-nums"],
+    },
+    statLab: { fontSize: 12, color: theme.textMuted, fontWeight: "500" },
+    barTrack: {
+      height: 4,
+      backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
+      borderRadius: 2,
+      marginBottom: 20,
+      overflow: "hidden",
+    },
+    barFill: { height: 4, borderRadius: 2 },
+    featureRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 8,
+      marginBottom: 16,
+    },
+    featurePill: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 10,
+      borderWidth: 1,
+    },
+    featurePillText: { fontSize: 12, fontWeight: "700" },
+    permitBadge: {
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      borderWidth: 1,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    scheduleSection: {
+      marginBottom: 16,
+      backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
+      borderRadius: 14,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)",
+    },
+    scheduleHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      marginBottom: 8,
+    },
+    scheduleTitle: {
+      color: theme.textMuted,
+      fontSize: 11,
+      fontWeight: "700",
+      letterSpacing: 1,
+      flex: 1,
+    },
+    availBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 8,
+      borderWidth: 1,
+    },
+    availBadgeOpen: {
+      backgroundColor: "rgba(34,197,94,0.08)",
+      borderColor: "rgba(34,197,94,0.25)",
+    },
+    availBadgeClosed: {
+      backgroundColor: "rgba(239,68,68,0.08)",
+      borderColor: "rgba(239,68,68,0.25)",
+    },
+    availDot: { width: 5, height: 5, borderRadius: 2.5 },
+    availText: { fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
+    scheduleText: {
+      color: theme.textSecondary,
+      fontSize: 13,
+      fontWeight: "500",
+      lineHeight: 20,
+    },
+    notesSection: {
+      marginBottom: 16,
+      backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
+      borderRadius: 14,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)",
+    },
+    notesHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      marginBottom: 8,
+    },
+    notesTitle: {
+      color: theme.textMuted,
+      fontSize: 11,
+      fontWeight: "700",
+      letterSpacing: 1,
+    },
+    notesText: {
+      color: theme.textSecondary,
+      fontSize: 13,
+      fontWeight: "500",
+      lineHeight: 20,
+    },
+    actionsRow: { flexDirection: "row", gap: 10, marginTop: 8, marginBottom: 12 },
+    parkBtn: {
+      flex: 1,
+      height: 54,
+      borderRadius: 17,
+      backgroundColor: isDark ? "#dc2626" : "#cc0033",
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+    },
+    parkBtnDisabled: {
+      backgroundColor: isDark ? "#3f3f46" : "#d4d4d8",
+      opacity: 0.6,
+    },
+    parkBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+    dirBtn: {
+      height: 54,
+      borderRadius: 17,
+      backgroundColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)",
+      borderWidth: 1,
+      borderColor: isDark ? "rgba(255,255,255,0.16)" : "rgba(0,0,0,0.12)",
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      flex: 1,
+    },
+    dirBtnText: { color: theme.textPrimary, fontSize: 16, fontWeight: "600" },
+  });
+}

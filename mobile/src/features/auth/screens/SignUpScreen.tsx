@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  useColorScheme,
 } from "react-native";
 import { publicApiCall, supabase } from "@/shared/api/supabase";
 import { Stack, useRouter } from "expo-router";
@@ -19,6 +20,8 @@ import { GlassBackground } from "@/shared/components/ui/GlassBackground";
 
 export default function SignUpScreen() {
   const router = useRouter();
+  const scheme = useColorScheme();
+  const isDark = scheme !== "light";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -81,13 +84,18 @@ export default function SignUpScreen() {
     }
   };
 
+  const inputStyle = {
+    backgroundColor: isDark ? "rgba(0,0,0,0.2)" : "rgba(0,0,0,0.04)",
+    borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
+    color: isDark ? "#ffffff" : "#111111",
+  };
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: isDark ? "#000" : "#ffffff" }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      {/* Sweeping background gradient from top-center */}
       <View style={StyleSheet.absoluteFill}>
         <LinearGradient
-          colors={["#450a0a", "#18181b", "#000000"]}
+          colors={isDark ? ["#450a0a", "#18181b", "#000000"] : ["#fff5f5", "#fef7f7", "#ffffff"]}
           start={{ x: 0.5, y: 0.1 }}
           end={{ x: 0.5, y: 0.8 }}
           style={StyleSheet.absoluteFill}
@@ -106,45 +114,43 @@ export default function SignUpScreen() {
               onPress={() => router.back()}
               hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
             >
-              <View style={styles.backButtonInner}>
-                <IconSymbol name="chevron.left" size={20} color="#e4e4e7" />
+              <View style={[styles.backButtonInner, { backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)", borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)" }]}>
+                <IconSymbol name="chevron.left" size={20} color={isDark ? "#e4e4e7" : "#111111"} />
               </View>
             </TouchableOpacity>
 
             <View style={styles.headerTextWrap}>
-              <Text style={styles.title}>Create Account</Text>
-              <Text style={styles.subtitle}>
+              <Text style={[styles.title, { color: isDark ? "#ffffff" : "#111111" }]}>Create Account</Text>
+              <Text style={[styles.subtitle, { color: isDark ? "#a1a1aa" : "#71717a" }]}>
                 Join the ScarletSpots community
               </Text>
             </View>
           </View>
 
-          <View style={styles.cardContainer}>
+          <View style={[styles.cardContainer, { borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }]}>
             <GlassBackground
               style={StyleSheet.absoluteFill}
               glassStyle="regular"
               blurIntensity={30}
-              blurTint="dark"
-              fallbackColor="rgba(24,24,27,0.8)"
             />
             <View style={styles.cardInner}>
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Full Name</Text>
+                <Text style={[styles.label, { color: isDark ? "#d4d4d8" : "#3f3f46" }]}>Full Name</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, inputStyle]}
                   placeholder="Scarlet Knight"
-                  placeholderTextColor="#52525b"
+                  placeholderTextColor={isDark ? "#52525b" : "#a1a1aa"}
                   value={name}
                   onChangeText={setName}
                 />
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Rutgers Email</Text>
+                <Text style={[styles.label, { color: isDark ? "#d4d4d8" : "#3f3f46" }]}>Rutgers Email</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, inputStyle]}
                   placeholder="netid@rutgers.edu"
-                  placeholderTextColor="#52525b"
+                  placeholderTextColor={isDark ? "#52525b" : "#a1a1aa"}
                   autoCapitalize="none"
                   keyboardType="email-address"
                   value={email}
@@ -153,11 +159,11 @@ export default function SignUpScreen() {
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Password</Text>
+                <Text style={[styles.label, { color: isDark ? "#d4d4d8" : "#3f3f46" }]}>Password</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, inputStyle]}
                   placeholder="Min 6 characters"
-                  placeholderTextColor="#52525b"
+                  placeholderTextColor={isDark ? "#52525b" : "#a1a1aa"}
                   secureTextEntry
                   value={password}
                   onChangeText={setPassword}
@@ -165,11 +171,11 @@ export default function SignUpScreen() {
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Confirm Password</Text>
+                <Text style={[styles.label, { color: isDark ? "#d4d4d8" : "#3f3f46" }]}>Confirm Password</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, inputStyle]}
                   placeholder="Re-enter password"
-                  placeholderTextColor="#52525b"
+                  placeholderTextColor={isDark ? "#52525b" : "#a1a1aa"}
                   secureTextEntry
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
@@ -177,7 +183,7 @@ export default function SignUpScreen() {
               </View>
 
               <TouchableOpacity
-                style={styles.submitButton}
+                style={[styles.submitButton, { backgroundColor: isDark ? "#dc2626" : "#cc0033", shadowColor: isDark ? "#dc2626" : "#cc0033" }]}
                 onPress={handleSignUp}
                 disabled={loading}
               >

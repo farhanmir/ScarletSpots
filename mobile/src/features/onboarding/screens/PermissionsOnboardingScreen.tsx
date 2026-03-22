@@ -8,6 +8,7 @@ import {
   Linking,
   ActivityIndicator,
   Alert,
+  useColorScheme,
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import * as Location from "expo-location";
@@ -73,6 +74,8 @@ function getLocationRecoveryPlatformLabel(platformOS: string): string {
 
 export default function PermissionsScreen() {
   const router = useRouter();
+  const scheme = useColorScheme();
+  const isDark = scheme !== "light";
   const [loading, setLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState<PermissionStep>("location");
   const [denied, setDenied] = useState(false);
@@ -255,12 +258,14 @@ export default function PermissionsScreen() {
   const locationRecoverySteps = getLocationRecoverySteps(Platform.OS);
   const recoveryPlatformLabel = getLocationRecoveryPlatformLabel(Platform.OS);
 
+  const accent = isDark ? "#dc2626" : "#cc0033";
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: isDark ? "#09090b" : "#ffffff" }]}>
       <Stack.Screen options={{ headerShown: false }} />
 
       <LinearGradient
-        colors={["#09090b", "#18181b", "#450a0a"]}
+        colors={isDark ? ["#09090b", "#18181b", "#450a0a"] : ["#ffffff", "#fef7f7", "#fff5f5"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFill}
@@ -269,30 +274,30 @@ export default function PermissionsScreen() {
       {denied ? (
         /* ── DENIED RECOVERY UI (Mostly for Location) ── */
         <View style={styles.content}>
-          <View style={[styles.iconCircle, styles.iconCircleDenied]}>
+          <View style={[styles.iconCircle, { backgroundColor: "rgba(248,113,113,0.12)" }]}>
             <IconSymbol name="location.slash.fill" size={48} color="#f87171" />
           </View>
 
-          <Text style={styles.title}>Permission Denied</Text>
-          <Text style={styles.subtitle}>
+          <Text style={[styles.title, { color: isDark ? "white" : "#111111" }]}>Permission Denied</Text>
+          <Text style={[styles.subtitle, { color: isDark ? "#a1a1aa" : "#71717a" }]}>
             ScarletSpots needs Precise + Always Location for background parking
             detection. Please enable it in Settings, then return and tap
             I&apos;ve Enabled It.
           </Text>
 
-          <View style={styles.hintList}>
+          <View style={[styles.hintList, { backgroundColor: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)", borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }]}>
             <View style={styles.hintBadge}>
               <Text style={styles.hintBadgeText}>{recoveryPlatformLabel}</Text>
             </View>
             {locationRecoverySteps.map((step) => (
-              <Text key={step} style={styles.hintItem}>
+              <Text key={step} style={[styles.hintItem, { color: isDark ? "#d4d4d8" : "#3f3f46" }]}>
                 • {step}
               </Text>
             ))}
           </View>
 
           <TouchableOpacity
-            style={styles.primaryButton}
+            style={[styles.primaryButton, { backgroundColor: accent, shadowColor: accent }]}
             onPress={openSettings}
             activeOpacity={0.85}
           >
@@ -300,15 +305,15 @@ export default function PermissionsScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.secondaryButton}
+            style={[styles.secondaryButton, { borderColor: isDark ? "rgba(220,38,38,0.4)" : "rgba(204,0,51,0.35)" }]}
             onPress={recheckPermission}
             disabled={loading}
             activeOpacity={0.85}
           >
             {loading ? (
-              <ActivityIndicator color="#dc2626" />
+              <ActivityIndicator color={accent} />
             ) : (
-              <Text style={styles.secondaryButtonText}>
+              <Text style={[styles.secondaryButtonText, { color: accent }]}>
                 I&apos;ve Enabled It
               </Text>
             )}
@@ -321,35 +326,38 @@ export default function PermissionsScreen() {
             <View
               style={[
                 styles.dot,
-                currentStep === "location" && styles.activeDot,
-                (currentStep === "motion" || currentStep === "notifications") &&
-                  styles.completedDot,
+                { backgroundColor: isDark ? "#3f3f46" : "#d4d4d8" },
+                currentStep === "location" && { backgroundColor: isDark ? "#fff" : "#111111", transform: [{ scale: 1.2 }] },
+                (currentStep === "motion" || currentStep === "notifications") && { backgroundColor: "#22c55e" },
               ]}
             />
             <View
               style={[
                 styles.line,
-                (currentStep === "motion" || currentStep === "notifications") &&
-                  styles.completedLine,
+                { backgroundColor: isDark ? "#3f3f46" : "#d4d4d8" },
+                (currentStep === "motion" || currentStep === "notifications") && { backgroundColor: "#22c55e" },
               ]}
             />
             <View
               style={[
                 styles.dot,
-                currentStep === "motion" && styles.activeDot,
-                currentStep === "notifications" && styles.completedDot,
+                { backgroundColor: isDark ? "#3f3f46" : "#d4d4d8" },
+                currentStep === "motion" && { backgroundColor: isDark ? "#fff" : "#111111", transform: [{ scale: 1.2 }] },
+                currentStep === "notifications" && { backgroundColor: "#22c55e" },
               ]}
             />
             <View
               style={[
                 styles.line,
-                currentStep === "notifications" && styles.completedLine,
+                { backgroundColor: isDark ? "#3f3f46" : "#d4d4d8" },
+                currentStep === "notifications" && { backgroundColor: "#22c55e" },
               ]}
             />
             <View
               style={[
                 styles.dot,
-                currentStep === "notifications" && styles.activeDot,
+                { backgroundColor: isDark ? "#3f3f46" : "#d4d4d8" },
+                currentStep === "notifications" && { backgroundColor: isDark ? "#fff" : "#111111", transform: [{ scale: 1.2 }] },
               ]}
             />
           </View>
@@ -367,8 +375,8 @@ export default function PermissionsScreen() {
             />
           </View>
 
-          <Text style={styles.title}>{content.title}</Text>
-          <Text style={styles.subtitle}>{content.subtitle}</Text>
+          <Text style={[styles.title, { color: isDark ? "white" : "#111111" }]}>{content.title}</Text>
+          <Text style={[styles.subtitle, { color: isDark ? "#a1a1aa" : "#71717a" }]}>{content.subtitle}</Text>
 
           <TouchableOpacity
             style={[
@@ -397,7 +405,7 @@ export default function PermissionsScreen() {
               }
               style={styles.skipButton}
             >
-              <Text style={styles.skipText}>Skip for now</Text>
+              <Text style={[styles.skipText, { color: isDark ? "#71717a" : "#a1a1aa" }]}>Skip for now</Text>
             </TouchableOpacity>
           )}
         </View>

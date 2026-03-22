@@ -13,6 +13,9 @@ import "@/shared/services/BackgroundTasks"; // Register background tasks globall
 
 import { useColorScheme } from "@/shared/hooks/use-color-scheme";
 import { AuthProvider, useAuth } from "@/providers/AuthProvider";
+import {
+  ThemePreferenceProvider,
+} from "@/providers/ThemePreferenceProvider";
 import { isSupabaseConfigValid } from "@/shared/api/supabase-client";
 import { IconSymbol } from "@/shared/components/ui/icon-symbol";
 
@@ -96,7 +99,7 @@ function InitialLayout() {
   }, [loading, session]);
 
   return (
-    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+    <ThemeProvider value={colorScheme === "light" ? DefaultTheme : DarkTheme}>
       <TabBarProvider>
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" />
@@ -113,7 +116,10 @@ function InitialLayout() {
               sheetCornerRadius: 30,
               sheetLargestUndimmedDetentIndex: 1,
               sheetExpandsWhenScrolledToEdge: true,
-              contentStyle: { backgroundColor: "#000000" },
+              contentStyle: {
+                backgroundColor:
+                  colorScheme === "light" ? "#f5f5f7" : "#000000",
+              },
             }}
           />
           <Stack.Screen
@@ -132,11 +138,13 @@ function InitialLayout() {
 }
 
 function ConfigErrorScreen() {
+  const scheme = useColorScheme();
+  const isDark = scheme !== "light";
   return (
     <View
       style={{
         flex: 1,
-        backgroundColor: "#000000",
+        backgroundColor: isDark ? "#000000" : "#f5f5f7",
         justifyContent: "center",
         alignItems: "center",
         padding: 40,
@@ -145,11 +153,11 @@ function ConfigErrorScreen() {
       <IconSymbol
         name="exclamationmark.triangle.fill"
         size={64}
-        color="#dc2626"
+        color={isDark ? "#dc2626" : "#cc0033"}
       />
       <Text
         style={{
-          color: "#fff",
+          color: isDark ? "#ffffff" : "#111111",
           fontSize: 24,
           fontWeight: "bold",
           marginTop: 24,
@@ -160,7 +168,7 @@ function ConfigErrorScreen() {
       </Text>
       <Text
         style={{
-          color: "#a1a1aa",
+          color: isDark ? "#a1a1aa" : "#71717a",
           fontSize: 16,
           marginTop: 12,
           textAlign: "center",
@@ -173,7 +181,7 @@ function ConfigErrorScreen() {
       <TouchableOpacity
         style={{
           marginTop: 40,
-          backgroundColor: "#27272a",
+          backgroundColor: isDark ? "#27272a" : "rgba(0,0,0,0.07)",
           paddingHorizontal: 24,
           paddingVertical: 12,
           borderRadius: 12,
@@ -182,7 +190,7 @@ function ConfigErrorScreen() {
           /* Could add a reload functionality here if desired */
         }}
       >
-        <Text style={{ color: "#fff", fontWeight: "bold" }}>
+        <Text style={{ color: isDark ? "#ffffff" : "#111111", fontWeight: "bold" }}>
           See Documentation
         </Text>
       </TouchableOpacity>
@@ -214,10 +222,12 @@ export default function RootLayout() {
       client={queryClient}
       persistOptions={{ persister: asyncStoragePersister }}
     >
-      <AuthProvider>
-        <OfflineBanner />
-        <InitialLayout />
-      </AuthProvider>
+      <ThemePreferenceProvider>
+        <AuthProvider>
+          <OfflineBanner />
+          <InitialLayout />
+        </AuthProvider>
+      </ThemePreferenceProvider>
     </PersistQueryClientProvider>
   );
 }
