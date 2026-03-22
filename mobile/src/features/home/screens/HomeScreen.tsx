@@ -9,8 +9,8 @@ import {
   ActivityIndicator,
   AppState,
   Linking,
-  useColorScheme,
 } from "react-native";
+import { useResolvedColorScheme } from "@/shared/hooks/use-resolved-color-scheme";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -177,8 +177,8 @@ const STATIC_LOTS = getAllLots(ENABLE_ALL_CAMPUSES);
 // ── Component ──────────────────────────────────────────────────────────────
 
 export default function MapScreen() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme !== "light";
+  const colorScheme = useResolvedColorScheme();
+  const isDark = colorScheme === "dark";
   const {
     user,
     session,

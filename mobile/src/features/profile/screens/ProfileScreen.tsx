@@ -16,7 +16,11 @@ import { IconSymbol } from "@/shared/components/ui/icon-symbol";
 import { GlassCard } from "@/shared/components/ui/GlassCard";
 import { GlassBackground } from "@/shared/components/ui/GlassBackground";
 import { ScarletSpotsBackground } from "@/shared/components/ui/ScarletSpotsBackground";
-import { GLASS_DARK, useGlassTheme } from "@/shared/components/ui/glassTheme";
+import {
+  GLASS_DARK,
+  type GlassThemePalette,
+  useGlassTheme,
+} from "@/shared/components/ui/glassTheme";
 import {
   useThemePreference,
   type ThemePreference,
@@ -718,7 +722,7 @@ const appearanceStyles = StyleSheet.create({
   label: { flex: 1, fontSize: 15, fontWeight: "600" },
 });
 
-function createStyles(theme: typeof GLASS_DARK) {
+function createStyles(theme: GlassThemePalette) {
   return StyleSheet.create({
     container: { flex: 1 },
 

@@ -8,7 +8,6 @@ import {
   Linking,
   Alert,
   ScrollView,
-  useColorScheme,
 } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import * as Haptics from "expo-haptics";
@@ -23,7 +22,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import NetInfo from "@react-native-community/netinfo";
 
 import { IconSymbol } from "@/shared/components/ui/icon-symbol";
-import { useGlassTheme, GLASS_DARK } from "@/shared/components/ui/glassTheme";
+import {
+  useGlassTheme,
+  GLASS_DARK,
+  type GlassThemePalette,
+} from "@/shared/components/ui/glassTheme";
 import { useAuth } from "@/providers/AuthProvider";
 import { useTabBar } from "@/providers/TabBarProvider";
 import { authApiCall, publicApiCall } from "@/shared/api/supabase";
@@ -52,8 +55,7 @@ import { queueParkAction } from "@/shared/services/OfflineQueue";
 
 export default function LotDetailsScreen() {
   const theme = useGlassTheme();
-  const scheme = useColorScheme();
-  const isDark = scheme !== "light";
+  const isDark = theme === GLASS_DARK;
   const lotStyles = useMemo(() => createLotStyles(theme, isDark), [theme, isDark]);
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -590,7 +592,7 @@ export default function LotDetailsScreen() {
   );
 }
 
-function createLotStyles(theme: typeof GLASS_DARK, isDark: boolean) {
+function createLotStyles(theme: GlassThemePalette, isDark: boolean) {
   return StyleSheet.create({
     outerContainer: {
       flex: 1,

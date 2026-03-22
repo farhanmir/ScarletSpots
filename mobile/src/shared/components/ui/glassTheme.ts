@@ -7,7 +7,7 @@
  */
 
 import type { BlurTint } from "expo-blur";
-import { useColorScheme } from "react-native";
+import { useResolvedColorScheme } from "@/shared/hooks/use-resolved-color-scheme";
 
 // ── Dark palette ───────────────────────────────────────────────────────────────
 
@@ -96,10 +96,13 @@ export const GLASS_LIGHT = {
 /** @deprecated Prefer `useGlassTheme()` for theme-aware components. */
 export const GLASS = GLASS_DARK;
 
+/** Either glass palette — use for `createStyles(theme)` / `createLotStyles(theme)` params. */
+export type GlassThemePalette = typeof GLASS_DARK | typeof GLASS_LIGHT;
+
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
 /** Returns the correct glass palette for the active color scheme. */
 export function useGlassTheme() {
-  const scheme = useColorScheme();
-  return scheme === "light" ? GLASS_LIGHT : GLASS_DARK;
+  const mode = useResolvedColorScheme();
+  return mode === "light" ? GLASS_LIGHT : GLASS_DARK;
 }

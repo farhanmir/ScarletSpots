@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { StyleSheet, View, Dimensions } from "react-native";
-import { useColorScheme } from "react-native";
+import { useResolvedColorScheme } from "@/shared/hooks/use-resolved-color-scheme";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 
@@ -24,8 +24,8 @@ interface Spot {
  * Light mode uses an off-white base with lighter, more transparent glows.
  */
 export function ScarletSpotsBackground() {
-  const scheme = useColorScheme();
-  const isDark = scheme !== "light";
+  const mode = useResolvedColorScheme();
+  const isDark = mode === "dark";
 
   const spots = useMemo<Spot[]>(() => {
     const list: Spot[] = [];
@@ -120,8 +120,8 @@ function GlowBlob({
   right,
   opacity = 1,
 }: Readonly<GlowBlobProps>) {
-  const scheme = useColorScheme();
-  const layers = scheme === "light" ? LAYERS_LIGHT : LAYERS_DARK;
+  const mode = useResolvedColorScheme();
+  const layers = mode === "light" ? LAYERS_LIGHT : LAYERS_DARK;
 
   return (
     <View

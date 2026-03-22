@@ -19,7 +19,11 @@ import { GlassCard } from "@/shared/components/ui/GlassCard";
 import { GlassSegmentedControl } from "@/shared/components/ui/GlassSegmentedControl";
 import { GlassBackground } from "@/shared/components/ui/GlassBackground";
 import { ScarletSpotsBackground } from "@/shared/components/ui/ScarletSpotsBackground";
-import { GLASS_DARK, useGlassTheme } from "@/shared/components/ui/glassTheme";
+import {
+  GLASS_DARK,
+  type GlassThemePalette,
+  useGlassTheme,
+} from "@/shared/components/ui/glassTheme";
 import { useRouter } from "expo-router";
 import { useIsFocused } from "@react-navigation/native";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -556,7 +560,7 @@ export default function FriendsScreen() {
 
 const HEADER_HEIGHT = Platform.OS === "ios" ? 150 : 130;
 
-function createStyles(theme: typeof GLASS_DARK) {
+function createStyles(theme: GlassThemePalette) {
   const isDark = theme === GLASS_DARK;
   return StyleSheet.create({
     container: { flex: 1 },

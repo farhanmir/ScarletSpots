@@ -35,14 +35,15 @@ export function ThemePreferenceProvider({
     AsyncStorage.getItem(STORAGE_KEY).then((raw) => {
       if (raw === "light" || raw === "dark" || raw === "system") {
         setPreferenceState(raw);
-        Appearance.setColorScheme(raw === "system" ? null : raw);
+        // RN accepts `null` to follow the OS scheme; typings are incomplete.
+        Appearance.setColorScheme((raw === "system" ? null : raw) as never);
       }
     });
   }, []);
 
   const setPreference = useCallback((p: ThemePreference) => {
     setPreferenceState(p);
-    Appearance.setColorScheme(p === "system" ? null : p);
+    Appearance.setColorScheme((p === "system" ? null : p) as never);
     AsyncStorage.setItem(STORAGE_KEY, p).catch(() => {
       // Storage write failure is non-critical; preference stays correct in memory.
     });

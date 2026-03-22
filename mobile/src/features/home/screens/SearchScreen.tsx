@@ -17,7 +17,11 @@ import { IconSymbol } from "@/shared/components/ui/icon-symbol";
 import { GlassCard } from "@/shared/components/ui/GlassCard";
 import { GlassSearchBar } from "@/shared/components/ui/GlassSearchBar";
 import { ScarletSpotsBackground } from "@/shared/components/ui/ScarletSpotsBackground";
-import { GLASS_DARK, useGlassTheme } from "@/shared/components/ui/glassTheme";
+import {
+  GLASS_DARK,
+  type GlassThemePalette,
+  useGlassTheme,
+} from "@/shared/components/ui/glassTheme";
 import * as Location from "expo-location";
 import { RUTGERS_BUILDINGS } from "@/shared/constants/buildings";
 import { getAllLots, type RutgersLot } from "@/shared/constants/lots";
@@ -387,7 +391,7 @@ const occupancyStyles = StyleSheet.create({
 
 const HEADER_HEIGHT = Platform.OS === "ios" ? 152 : 140;
 
-function createStyles(theme: typeof GLASS_DARK) {
+function createStyles(theme: GlassThemePalette) {
   const isDark = theme === GLASS_DARK;
   return StyleSheet.create({
     container: { flex: 1 },

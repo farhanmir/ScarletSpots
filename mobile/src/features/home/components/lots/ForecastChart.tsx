@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
-import { View, Text, StyleSheet, ActivityIndicator, useColorScheme } from "react-native";
+import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
+import { useResolvedColorScheme } from "@/shared/hooks/use-resolved-color-scheme";
 import { ForecastPoint } from "@/features/home/types/types";
 import {
   getOccupancyGradientColor,
@@ -20,8 +21,8 @@ export default function ForecastChart({
   curve,
   isLoading,
 }: ForecastChartProps) {
-  const scheme = useColorScheme();
-  const isDark = scheme !== "light";
+  const mode = useResolvedColorScheme();
+  const isDark = mode === "dark";
 
   const labelBaseTime = useMemo(() => {
     const now = new Date();

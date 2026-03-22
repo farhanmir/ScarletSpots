@@ -15,8 +15,8 @@ import Animated, {
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
+import { useResolvedColorScheme } from "@/shared/hooks/use-resolved-color-scheme";
 import { useGlassTheme } from "./glassTheme";
-import { useColorScheme } from "react-native";
 
 export interface SegmentOption<T extends string = string> {
   key: T;
@@ -53,7 +53,7 @@ export function GlassSegmentedControl<T extends string = string>({
   style,
 }: Readonly<GlassSegmentedControlProps<T>>) {
   const theme = useGlassTheme();
-  const scheme = useColorScheme();
+  const mode = useResolvedColorScheme();
 
   return (
     <BlurView
@@ -72,7 +72,7 @@ export function GlassSegmentedControl<T extends string = string>({
           key={option.key}
           option={option}
           isActive={option.key === value}
-          isDark={scheme !== "light"}
+          isDark={mode === "dark"}
           onPress={() => {
             if (option.key !== value) {
               Haptics.selectionAsync();

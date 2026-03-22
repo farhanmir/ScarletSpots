@@ -1,18 +1,12 @@
 import React from "react";
-import {
-  Platform,
-  StyleProp,
-  StyleSheet,
-  View,
-  ViewStyle,
-  useColorScheme,
-} from "react-native";
+import { Platform, StyleProp, StyleSheet, View, ViewStyle } from "react-native";
 import { BlurView, BlurTint } from "expo-blur";
 import {
   GlassView,
   isGlassEffectAPIAvailable,
   isLiquidGlassAvailable,
 } from "expo-glass-effect";
+import { useResolvedColorScheme } from "@/shared/hooks/use-resolved-color-scheme";
 import { GLASS_DARK, GLASS_LIGHT } from "./glassTheme";
 
 export interface GlassBackgroundProps {
@@ -58,8 +52,8 @@ export function GlassBackground({
   tintOpacity = 0.5,
   preferLiquidGlass = true,
 }: Readonly<GlassBackgroundProps>) {
-  const scheme = useColorScheme();
-  const gl = scheme === "light" ? GLASS_LIGHT : GLASS_DARK;
+  const mode = useResolvedColorScheme();
+  const gl = mode === "light" ? GLASS_LIGHT : GLASS_DARK;
 
   // Use caller-provided values when present; otherwise fall back to theme.
   const resolvedTint = blurTint ?? gl.blurTint;
@@ -75,7 +69,7 @@ export function GlassBackground({
       return (
         <GlassView
           style={style}
-          colorScheme={scheme === "light" ? "light" : "dark"}
+          colorScheme={mode === "light" ? "light" : "dark"}
           glassEffectStyle={glassStyle}
           tintColor={tintColor}
         />

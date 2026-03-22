@@ -1,14 +1,14 @@
 import { NativeTabs } from "expo-router/unstable-native-tabs";
 import React from "react";
-import { useColorScheme } from "react-native";
+import { useResolvedColorScheme } from "@/shared/hooks/use-resolved-color-scheme";
 import { useTabBar } from "@/providers/TabBarProvider";
 
 export default function TabLayout() {
   const { isTabBarHidden } = useTabBar();
-  const scheme = useColorScheme();
+  const mode = useResolvedColorScheme();
 
   const tabBarBg =
-    scheme === "light"
+    mode === "light"
       ? "rgba(245, 245, 247, 0.5)"
       : "rgba(10, 10, 12, 0.4)";
 

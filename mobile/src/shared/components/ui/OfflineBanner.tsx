@@ -1,5 +1,6 @@
 import React from "react";
-import { View, Text, StyleSheet, useColorScheme } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
+import { useResolvedColorScheme } from "@/shared/hooks/use-resolved-color-scheme";
 import { useNetInfo } from "@react-native-community/netinfo";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -14,8 +15,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 export default function OfflineBanner() {
   const netInfo = useNetInfo();
   const insets = useSafeAreaInsets();
-  const scheme = useColorScheme();
-  const isDark = scheme !== "light";
+  const mode = useResolvedColorScheme();
+  const isDark = mode === "dark";
 
   // Only show when we explicitly know the device is disconnected.
   // null = still loading, true = connected — don't show in either case.

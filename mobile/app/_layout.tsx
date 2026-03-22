@@ -11,7 +11,7 @@ import { useEffect, useRef } from "react";
 import { QueryClient } from "@tanstack/react-query";
 import "@/shared/services/BackgroundTasks"; // Register background tasks globally
 
-import { useColorScheme } from "@/shared/hooks/use-color-scheme";
+import { useResolvedColorScheme } from "@/shared/hooks/use-resolved-color-scheme";
 import { AuthProvider, useAuth } from "@/providers/AuthProvider";
 import {
   ThemePreferenceProvider,
@@ -68,7 +68,7 @@ function InitialLayout() {
   const { session, loading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
-  const colorScheme = useColorScheme();
+  const colorScheme = useResolvedColorScheme();
   const hasBootstrappedGeofences = useRef(false);
 
   useEffect(() => {
@@ -138,8 +138,8 @@ function InitialLayout() {
 }
 
 function ConfigErrorScreen() {
-  const scheme = useColorScheme();
-  const isDark = scheme !== "light";
+  const scheme = useResolvedColorScheme();
+  const isDark = scheme === "dark";
   return (
     <View
       style={{
