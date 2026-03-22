@@ -143,11 +143,12 @@ uvicorn app.main:app --reload --port 8000
 
 ### Running migrations
 
+Migrations are managed by **Alembic** in the `backend/` directory.
+
 ```bash
-# Apply all migrations in order
-supabase db push
-# Or run individual migration file against the DB
-psql $DATABASE_URL -f backend/supabase/migrations/20260310_pivot_static_lots.sql
+cd backend
+# Apply all migrations
+alembic upgrade head
 ```
 
 ---
@@ -178,8 +179,8 @@ Supabase (PostgreSQL)
 - Load lot data: **0 calls** (bundled in app)
 - Typical park + leave: **2 write calls/day**
 - Occupancy updates: **0 polling** (backend WebSocket push)
-- Friends check: **1 read on tab open**
-- Total: ~3–4 calls/day per user — well within Supabase free tier
+- Friends check: **1 read on tab open** (Friends tab only)
+- Total: ~3–4 calls/day per user
 
 ---
 
@@ -235,4 +236,4 @@ Core features are functional:
 In progress:
 - Inference & ground truth (SOC oracle + “Vulture” demand + confidence intervals; sampling-bias correction)
 - CI/CD pipeline
-- iOS glanceable surfaces plan (Live Activities/Dynamic Island + widgets + StandBy) documented in ROADMAP backlog
+- iOS glanceable surfaces plan (Live Activities/Dynamic Island) documented in ROADMAP backlog

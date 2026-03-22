@@ -41,7 +41,6 @@ lot_occupancy
   lot_id      TEXT PRIMARY KEY  -- JSON mapId e.g. "10001"
   count       INTEGER DEFAULT 0 CHECK (count >= 0)
   updated_at  TIMESTAMPTZ
-  -- Realtime enabled (REPLICA IDENTITY FULL)
 
 friendships
   id              UUID DEFAULT gen_random_uuid() PRIMARY KEY
@@ -195,7 +194,7 @@ Response:
        └── 193 NB lots pre-computed
 
 2. useQuery(['lots_occupancy'])
-   └── supabase.from('lot_occupancy').select('lot_id, count')
+   └── GET /lots/occupancy
        └── 1 small HTTP request
        └── applyOccupancy(STATIC_LOTS, map)
 
@@ -205,19 +204,17 @@ Response:
 
 ### Session Lifecycle
 ```
-User taps Park
-  └── POST /park/session {lotId: "10001"}
-      └── Backend: rpc('increment_lot_occupancy', {p_lot_id: "10001"})
-          └── lot_occupancy.count++ (atomic, UPSERT)
-      └── Backend publishes occupancy update to websocket subscribers
+    └── Backend: Atomic count update (SQL)
+      └── lot_occupancy.count++
+      └── Backend publishes occupancy update to redis → websocket
       └── INSERT parking_sessions {user_id, lot_id: "10001", active: true}
   └── Mobile: optimistic update → anchor to confirmedOccupancy
 
 User taps End
   └── POST /park/session/end
-      └── Backend: rpc('decrement_lot_occupancy', {p_lot_id: "10001"})
-          └── lot_occupancy.count = MAX(0, count-1) (atomic)
-      └── Backend publishes occupancy update to websocket subscribers
+      └── Backend: Atomic count decrement (SQL)
+          └── lot_occupancy.count = MAX(0, count-1)
+      └── Backend publishes occupancy update to redis → websocket
       └── UPDATE parking_sessions SET active=false
 ```
 
@@ -375,4 +372,4 @@ See [INFERENCE_GROUND_TRUTH.md](INFERENCE_GROUND_TRUTH.md).
 - `session_feedback` write-only for the owning user
 - Rutgers-only email validation on signup and password reset
 - Rate limiting via SlowAPI on sensitive endpoints (signup, park, password reset)
-- **Planned**: Migration to Rutgers CAS SSO to eliminate Supabase Auth costs (detailed in [RU_SSO_GUIDE.md](RU_SSO_GUIDE.md)).
+- **Pending**: Migration to Rutgers CAS SSO to eliminate Supabase Auth costs (detailed in [RU_SSO_GUIDE.md](RU_SSO_GUIDE.md)).

@@ -5,10 +5,8 @@ This list covers UI that is **manually implemented** (custom components or RN pr
 ---
 
 ## 1. **Tab bar** — DONE
-
-- **Was**: Custom `LiquidGlassTabBar` (Reanimated sliding pill + `GlassBackground` + `TouchableOpacity`) in `src/navigation/components/LiquidGlassTabBar.tsx`.
-- **Status**: **Decommissioned** (file removed).
-- **Now**: **Native liquid glass tabs** via `expo-router/unstable-native-tabs` (`NativeTabs`). Tab order: **Search | Map | Friends | Profile** (Search leftmost).
+- Native liquid glass tabs via `expo-router/unstable-native-tabs` (`NativeTabs`).
+- Tab order: **Search | Map | Friends | Profile**.
 
 ---
 
@@ -115,9 +113,7 @@ This list covers UI that is **manually implemented** (custom components or RN pr
 ---
 
 ## 16. **Haptics** (expo-haptics)
-
-- **What**: Used on custom buttons (e.g. favorite toggle, confirm) and previously in the custom tab bar.
-- **Alternatives**: Keep for custom pressables; native tabs handle their own haptics.
+- Used on custom buttons and throughout the detection flow.
 
 ---
 

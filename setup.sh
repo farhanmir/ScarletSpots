@@ -12,8 +12,9 @@ sudo ufw allow 443/tcp
 sudo ufw --force enable
 
 # 3. Restore Postgres Tuning Config
-mkdir -p ~/ScarletSpots/postgres_config
-cat <<EOF > ~/ScarletSpots/postgres_config/postgresql.conf
+mkdir -p ./postgres_config
+if [ ! -f ./postgres_config/postgresql.conf ]; then
+cat <<EOF > ./postgres_config/postgresql.conf
 max_connections = 500
 shared_buffers = 6GB
 effective_cache_size = 18GB
@@ -21,17 +22,17 @@ maintenance_work_mem = 1GB
 work_mem = 32MB
 listen_addresses = '*'
 EOF
+fi
 
 # 4. Ignition
-cd ~/ScarletSpots
 sudo docker compose up -d --build
 
 # 5. Data Injection (First time only)
 echo "Waiting for DB to wake up..."
 sleep 10
 
-if [ -f ~/ScarletSpots/backups/latest_prod_data.sql ]; then
-	cat ~/ScarletSpots/backups/latest_prod_data.sql | sudo docker exec -i scarletspots-db psql -U scarlet_admin -d scarletspots
+if [ -f ./backups/latest_prod_data.sql ]; then
+	cat ./backups/latest_prod_data.sql | sudo docker exec -i scarletspots-db psql -U scarlet_admin -d scarletspots
 	echo "Imported latest_prod_data.sql"
 else
 	echo "No latest_prod_data.sql found; skipping data import"
