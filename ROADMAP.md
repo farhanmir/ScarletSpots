@@ -110,7 +110,6 @@ These are real ideas, just not for v1:
 - **Push notifications**: "Your lot is almost full" / "Your friend just parked nearby"
 - **Account deletion**: Full GDPR-compliant flow (export + delete data)
 - **All campuses by default**: Enable Newark, Camden, Piscataway in the main build
-- **Permit validation**: Cross-reference Rutgers Parking Services data for permit type (✅ started — onboarding + profile screen added in Feb 2026)
 - **Event integration**: Boost forecasts during football games, graduation, etc.
 - **Common Commuter Spots database**: Pre-populate high-traffic Rutgers buildings (student centers, athletic facilities, lecture halls, admin buildings) for destination-based parking suggestions
 - **ScarletSpots Premium** (post-launch, monetization):

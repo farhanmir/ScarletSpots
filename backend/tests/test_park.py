@@ -42,9 +42,7 @@ async def test_parking_session_lifecycle(
     assert session_row.active is False
 
     occupancy_row = (
-        await db_session.execute(
-            select(LotOccupancy).where(LotOccupancy.lot_id == lot_id)
-        )
+        await db_session.execute(select(LotOccupancy).where(LotOccupancy.lot_id == lot_id))
     ).scalar_one()
     assert occupancy_row.count == 0
 

@@ -27,11 +27,7 @@ router = APIRouter(prefix="/park/session", tags=["parking_session"])
 
 
 def _load_lot_display_name_map() -> dict[str, str]:
-    data_file = (
-        Path(__file__).resolve().parent.parent
-        / "services"
-        / "rutgers_parking_data.json"
-    )
+    data_file = Path(__file__).resolve().parent.parent / "services" / "rutgers_parking_data.json"
     try:
         with data_file.open("r", encoding="utf-8") as fh:
             lots = json.load(fh)
@@ -84,9 +80,7 @@ def _to_uuid_or_401(value: str) -> UUID:
     try:
         return UUID(str(value))
     except Exception as exc:
-        raise HTTPException(
-            status_code=401, detail="Invalid authenticated user id"
-        ) from exc
+        raise HTTPException(status_code=401, detail="Invalid authenticated user id") from exc
 
 
 def _session_response(session: ParkingSession) -> dict:
@@ -106,7 +100,7 @@ async def _get_active_sessions(db: AsyncSession, user_id: str) -> list[ParkingSe
         ParkingSession.user_id == user_id,
         ParkingSession.active.is_(True),
     )
-    return (await db.execute(stmt)).scalars().all()
+    return list((await db.execute(stmt)).scalars().all())
 
 
 async def _decrement_lot_occupancy_atomic(db: AsyncSession, lot_id: str) -> int:
@@ -130,7 +124,7 @@ async def _increment_lot_occupancy_atomic(db: AsyncSession, lot_id: str) -> int:
         .where(LotOccupancy.lot_id == lot_id)
         .values(count=LotOccupancy.count + 1)
     )
-    if (updated.rowcount or 0) == 0:
+    if getattr(updated, "rowcount", 0) == 0:
         try:
             db.add(LotOccupancy(lot_id=lot_id, count=1))
             await db.flush()
@@ -155,9 +149,7 @@ async def _get_friend_user_ids(db: AsyncSession, user_id: str) -> list[str]:
     friend_ids: list[str] = []
     for friendship in rows:
         friend_ids.append(
-            friendship.friend_id
-            if friendship.user_id == user_id
-            else friendship.user_id
+            str(friendship.friend_id) if friendship.user_id == user_id else str(friendship.user_id)
         )
     return friend_ids
 
@@ -170,7 +162,7 @@ async def get_active_session(
     """Get the active parking session for the current user."""
     try:
         user_id = _to_uuid_or_401(current_user.id)
-        sessions = await _get_active_sessions(db, user_id)
+        sessions = await _get_active_sessions(db, str(user_id))
         if sessions:
             return {"session": _session_response(sessions[0])}
         return {"session": None}
@@ -209,8 +201,8 @@ async def start_parking_session(
             )
             ended_lot_ids = [row[0] for row in ended_sessions.fetchall() if row[0]]
             for ended_lot_id in ended_lot_ids:
-                changed_lot_counts[ended_lot_id] = (
-                    await _decrement_lot_occupancy_atomic(db, ended_lot_id)
+                changed_lot_counts[ended_lot_id] = await _decrement_lot_occupancy_atomic(
+                    db, ended_lot_id
                 )
 
             new_session = ParkingSession(
@@ -224,9 +216,7 @@ async def start_parking_session(
             db.add(new_session)
             await db.flush()
 
-            changed_lot_counts[lot_id] = await _increment_lot_occupancy_atomic(
-                db, lot_id
-            )
+            changed_lot_counts[lot_id] = await _increment_lot_occupancy_atomic(db, lot_id)
 
         confirmed_occupancy = changed_lot_counts.get(lot_id)
 
@@ -238,13 +228,13 @@ async def start_parking_session(
         if profile is not None:
             display_name = profile.full_name or profile.first_name or profile.email
 
-        friend_targets = list(dict.fromkeys(await _get_friend_user_ids(db, user_id)))
+        friend_targets = list(dict.fromkeys(await _get_friend_user_ids(db, str(user_id))))
         if friend_targets:
             actor = display_name or "Your friend"
             lot_display = LOT_DISPLAY_NAME_BY_ID.get(lot_id, f"Lot {lot_id}")
             await send_push_to_users(
                 db,
-                friend_targets,
+                [UUID(tid) for tid in friend_targets],
                 title="ScarletSpots",
                 body=f"{actor} parked at {lot_display}.",
                 data={
@@ -317,8 +307,8 @@ async def end_parking_session(
             )
             ended_lot_ids = [row[0] for row in ended_sessions.fetchall() if row[0]]
             for ended_lot_id in ended_lot_ids:
-                changed_lot_counts[ended_lot_id] = (
-                    await _decrement_lot_occupancy_atomic(db, ended_lot_id)
+                changed_lot_counts[ended_lot_id] = await _decrement_lot_occupancy_atomic(
+                    db, ended_lot_id
                 )
 
         for changed_lot_id, changed_count in changed_lot_counts.items():

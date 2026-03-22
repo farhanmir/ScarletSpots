@@ -40,9 +40,7 @@ def _to_uuid_or_401(value: str) -> UUID:
     try:
         return UUID(str(value))
     except Exception as exc:
-        raise HTTPException(
-            status_code=401, detail="Invalid authenticated user id"
-        ) from exc
+        raise HTTPException(status_code=401, detail="Invalid authenticated user id") from exc
 
 
 @router.get("")
@@ -89,9 +87,9 @@ async def get_friends(
             .where(Friendship.friend_id == user_id, Friendship.status == "accepted")
         )
 
-        accepted_rows = (await db.execute(accepted_a_stmt)).all() + (
-            await db.execute(accepted_b_stmt)
-        ).all()
+        accepted_rows = list((await db.execute(accepted_a_stmt)).all()) + list(
+            (await db.execute(accepted_b_stmt)).all()
+        )
 
         friend_ids: list[str] = []
         for _, profile in accepted_rows:
@@ -189,9 +187,7 @@ async def send_friend_request(
     try:
         user_id = _to_uuid_or_401(current_user.id)
 
-        friend_stmt = select(Profile).where(
-            func.lower(Profile.email) == body.friend_email.lower()
-        )
+        friend_stmt = select(Profile).where(func.lower(Profile.email) == body.friend_email.lower())
         friend = (await db.execute(friend_stmt)).scalar_one_or_none()
         if friend is None:
             raise HTTPException(status_code=404, detail="User not found")
@@ -227,9 +223,7 @@ async def send_friend_request(
                     },
                 }
             if existing.status == "blocked":
-                raise HTTPException(
-                    status_code=403, detail="Cannot send request to this user"
-                )
+                raise HTTPException(status_code=403, detail="Cannot send request to this user")
 
         friendship = Friendship(user_id=user_id, friend_id=friend.id, status="pending")
         db.add(friendship)
@@ -275,7 +269,7 @@ async def accept_friend_request(
         if friendship is None or friendship.friend_id != user_id:
             raise HTTPException(status_code=404, detail="Request not found")
 
-        friendship.status = "accepted"
+        friendship.status = "accepted"  # type: ignore[assignment]
         await db.commit()
         return {"success": True}
     except HTTPException:
@@ -322,12 +316,8 @@ async def block_user(
         await db.execute(
             delete(Friendship).where(
                 or_(
-                    and_(
-                        Friendship.user_id == user_id, Friendship.friend_id == target_id
-                    ),
-                    and_(
-                        Friendship.user_id == target_id, Friendship.friend_id == user_id
-                    ),
+                    and_(Friendship.user_id == user_id, Friendship.friend_id == target_id),
+                    and_(Friendship.user_id == target_id, Friendship.friend_id == user_id),
                 )
             )
         )
@@ -379,7 +369,7 @@ async def toggle_sharing(
         if friendship is None or friendship.user_id != user_id:
             raise HTTPException(status_code=404, detail="Friendship not found")
 
-        friendship.sharing_enabled = body.enabled
+        friendship.sharing_enabled = body.enabled  # type: ignore[assignment]
         await db.commit()
 
         return {"success": True, "sharing_enabled": body.enabled}

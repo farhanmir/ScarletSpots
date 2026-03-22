@@ -8,9 +8,7 @@ from app.models.types import UUID_SQL
 class UserFavorite(Base):
     __tablename__ = "user_favorites"
 
-    user_id = Column(
-        UUID_SQL, ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False
-    )
+    user_id = Column(UUID_SQL, ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False)
     lot_id = Column(String, nullable=False)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())

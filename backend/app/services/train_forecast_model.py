@@ -67,9 +67,7 @@ def train():
         import numpy as np
         from sklearn.ensemble import GradientBoostingRegressor
     except ImportError:
-        print(
-            "ERROR: scikit-learn and joblib are required. Run: pip install scikit-learn joblib"
-        )
+        print("ERROR: scikit-learn and joblib are required. Run: pip install scikit-learn joblib")
         sys.exit(1)
 
     from app.core.security import get_supabase

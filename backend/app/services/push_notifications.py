@@ -69,16 +69,14 @@ async def upsert_device_push_token(
         await db.commit()
         return
 
-    row.user_id = user_id
-    row.platform = platform
-    row.active = True
-    row.last_seen_at = datetime.now(timezone.utc)
+    row.user_id = user_id  # type: ignore[assignment]
+    row.platform = platform  # type: ignore[assignment]
+    row.active = True  # type: ignore[assignment]
+    row.last_seen_at = datetime.now(timezone.utc)  # type: ignore[assignment]
     await db.commit()
 
 
-async def deactivate_device_push_token(
-    db: AsyncSession, user_id: UUID, token: str
-) -> bool:
+async def deactivate_device_push_token(db: AsyncSession, user_id: UUID, token: str) -> bool:
     stmt = select(DevicePushToken).where(
         DevicePushToken.user_id == user_id,
         DevicePushToken.token == token,
@@ -87,7 +85,7 @@ async def deactivate_device_push_token(
     if row is None:
         return False
 
-    row.active = False
+    row.active = False  # type: ignore[assignment]
     await db.commit()
     return True
 
@@ -150,7 +148,8 @@ async def send_push_to_users(
         if isinstance(result, Exception):
             log.warning("Push batch dispatch failed for users=%s: %s", user_ids, result)
             continue
-        results.append(result)
+        if isinstance(result, dict):
+            results.append(result)
 
     invalid_tokens: set[str] = set()
     for result in results:
@@ -161,5 +160,5 @@ async def send_push_to_users(
         )
         rows = (await db.execute(invalid_stmt)).scalars().all()
         for row in rows:
-            row.active = False
+            row.active = False  # type: ignore[assignment]
         await db.commit()

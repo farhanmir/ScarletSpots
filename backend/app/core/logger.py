@@ -22,6 +22,7 @@ class StructuredFormatter(logging.Formatter):
         # Include exception info if present
         if record.exc_info:
             import traceback
+
             log_entry["exception"] = "".join(traceback.format_exception(*record.exc_info))
 
         return json.dumps(log_entry)

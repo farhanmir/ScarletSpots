@@ -12,7 +12,7 @@ if settings.DEBUG:
     logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)
 
 AsyncSessionLocal = sessionmaker(
-    bind=engine,
+    bind=engine,  # type: ignore[call-overload]
     class_=AsyncSession,
     expire_on_commit=False,
 )

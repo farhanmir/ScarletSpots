@@ -44,9 +44,7 @@ def _to_uuid_or_401(user: SimpleNamespace) -> UUID:
     try:
         return UUID(str(user.id))
     except Exception as exc:
-        raise HTTPException(
-            status_code=401, detail="Invalid authenticated user id"
-        ) from exc
+        raise HTTPException(status_code=401, detail="Invalid authenticated user id") from exc
 
 
 def _profile_to_response(profile: Profile, fallback_email: str | None = None) -> dict:
@@ -104,9 +102,7 @@ async def signup(
     Mirrors the logic from the legacy Edge Function.
     """
     email = body.email.lower()
-    if not (
-        email.endswith("@rutgers.edu") or email.endswith("@scarletmail.rutgers.edu")
-    ):
+    if not (email.endswith("@rutgers.edu") or email.endswith("@scarletmail.rutgers.edu")):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Only Rutgers email addresses are allowed (@rutgers.edu or @scarletmail.rutgers.edu)",
@@ -123,9 +119,7 @@ async def signup(
             }
         )
 
-        await _upsert_profile(
-            db, _build_profile_payload(str(res.user.id), email, body.name)
-        )
+        await _upsert_profile(db, _build_profile_payload(str(res.user.id), email, body.name))
 
         return SignupResponse(success=True, id=str(res.user.id), email=res.user.email)
     except Exception as exc:
@@ -159,9 +153,7 @@ async def read_user_me(
         email = getattr(current_user, "email", None)
         meta = getattr(current_user, "user_metadata", {}) or {}
         name = meta.get("name", "")
-        profile = await _upsert_profile(
-            db, _build_profile_payload(str(user_id), email, name)
-        )
+        profile = await _upsert_profile(db, _build_profile_payload(str(user_id), email, name))
         return _profile_to_response(profile, fallback_email=email)
     except HTTPException:
         raise
@@ -184,9 +176,7 @@ async def update_user_me(
     try:
         profile = await db.get(Profile, user_id)
         if profile is None:
-            profile = Profile(
-                id=user_id, email=getattr(current_user, "email", None), role="user"
-            )
+            profile = Profile(id=user_id, email=getattr(current_user, "email", None), role="user")
             db.add(profile)
 
         for key, value in update_data.items():
@@ -228,9 +218,7 @@ async def request_password_reset(
     Always returns success to avoid email enumeration.
     """
     email = body.email.lower().strip()
-    if not (
-        email.endswith("@rutgers.edu") or email.endswith("@scarletmail.rutgers.edu")
-    ):
+    if not (email.endswith("@rutgers.edu") or email.endswith("@scarletmail.rutgers.edu")):
         # Reject non-Rutgers emails but still return 200 to avoid enumeration
         return {
             "success": True,
@@ -271,15 +259,13 @@ async def update_location(
     try:
         profile = await db.get(Profile, user_id)
         if profile is None:
-            profile = Profile(
-                id=user_id, email=getattr(current_user, "email", None), role="user"
-            )
+            profile = Profile(id=user_id, email=getattr(current_user, "email", None), role="user")
             db.add(profile)
 
         if "latitude" in update_data:
-            profile.latitude = update_data["latitude"]
+            profile.latitude = update_data["latitude"]  # type: ignore[assignment]
         if "longitude" in update_data:
-            profile.longitude = update_data["longitude"]
+            profile.longitude = update_data["longitude"]  # type: ignore[assignment]
 
         await db.commit()
         return {"success": True}

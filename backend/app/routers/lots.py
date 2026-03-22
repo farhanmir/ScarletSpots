@@ -56,12 +56,8 @@ async def get_all_occupancy(db: AsyncSession = Depends(get_db)):
 @router.get("/{lot_id}/forecast")
 def get_lot_forecast(
     lot_id: str,
-    capacity: int = Query(
-        default=100, ge=0, description="Total lot capacity (from bundled JSON)"
-    ),
-    current_occupancy: int = Query(
-        default=0, ge=0, description="Current occupied count"
-    ),
+    capacity: int = Query(default=100, ge=0, description="Total lot capacity (from bundled JSON)"),
+    current_occupancy: int = Query(default=0, ge=0, description="Current occupied count"),
     provider: ForecastProvider = Depends(_get_forecast_provider),
 ):
     """

@@ -97,9 +97,7 @@ class AuthContextMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         request.state.user_id = None
 
-        auth_header = request.headers.get("Authorization") or request.headers.get(
-            "authorization"
-        )
+        auth_header = request.headers.get("Authorization") or request.headers.get("authorization")
         if auth_header and auth_header.lower().startswith("bearer "):
             token = auth_header[7:].strip()
             if token:

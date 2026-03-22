@@ -1,0 +1,7 @@
+app\services\ml_forecast_provider.py:41: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+app\services\push_notifications.py:88: error: Incompatible types in assignment (expression has type "bool", variable has type "Column[bool]")  [assignment]
+app\services\push_notifications.py:151: error: Argument 1 to "append" of "list" has incompatible type "dict[str, Any] | BaseException"; expected "dict[str, Any]"  [arg-type]
+app\routers\park.py:237: error: Argument 2 to "send_push_to_users" has incompatible type "list[str]"; expected "list[UUID]"  [arg-type]
+app\services\train_forecast_model.py:106: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+app\services\train_forecast_model.py:130: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+Found 3 errors in 2 files (checked 32 source files)

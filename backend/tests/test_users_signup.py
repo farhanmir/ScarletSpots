@@ -48,9 +48,7 @@ async def test_signup_creates_profile_via_sqlalchemy_upsert(
 @pytest.mark.asyncio
 async def test_signup_returns_409_when_email_already_registered(client: AsyncClient):
     admin_auth = MagicMock()
-    admin_auth.auth.admin.create_user.side_effect = Exception(
-        "User with email already registered"
-    )
+    admin_auth.auth.admin.create_user.side_effect = Exception("User with email already registered")
 
     app.dependency_overrides[get_admin_auth_client] = lambda: admin_auth
     try:
@@ -66,7 +64,4 @@ async def test_signup_returns_409_when_email_already_registered(client: AsyncCli
         app.dependency_overrides.pop(get_admin_auth_client, None)
 
     assert response.status_code == 409
-    assert (
-        response.json()["detail"]
-        == "A user with this email address has already been registered"
-    )
+    assert response.json()["detail"] == "A user with this email address has already been registered"

@@ -33,9 +33,5 @@ class Friendship(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
-    initiator = relationship(
-        "Profile", foreign_keys=[user_id], backref="initiated_friendships"
-    )
-    friend = relationship(
-        "Profile", foreign_keys=[friend_id], backref="received_friendships"
-    )
+    initiator = relationship("Profile", foreign_keys=[user_id], backref="initiated_friendships")
+    friend = relationship("Profile", foreign_keys=[friend_id], backref="received_friendships")

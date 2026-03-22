@@ -18,9 +18,7 @@ def _to_uuid_or_401(user_id: str) -> UUID:
     try:
         return UUID(str(user_id))
     except Exception as exc:
-        raise HTTPException(
-            status_code=401, detail="Invalid authenticated user id"
-        ) from exc
+        raise HTTPException(status_code=401, detail="Invalid authenticated user id") from exc
 
 
 @router.get("")
@@ -36,11 +34,7 @@ async def get_favorites(
     try:
         user_id = _to_uuid_or_401(current_user.id)
         rows = (
-            (
-                await db.execute(
-                    select(UserFavorite.lot_id).where(UserFavorite.user_id == user_id)
-                )
-            )
+            (await db.execute(select(UserFavorite.lot_id).where(UserFavorite.user_id == user_id)))
             .scalars()
             .all()
         )

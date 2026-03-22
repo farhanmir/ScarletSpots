@@ -20,9 +20,7 @@ def test_friends_requires_auth():
 
 def test_send_request_requires_auth():
     """POST /friends/request without auth should fail."""
-    response = client.post(
-        "/api/v1/friends/request", json={"friend_email": "test@test.com"}
-    )
+    response = client.post("/api/v1/friends/request", json={"friend_email": "test@test.com"})
     assert response.status_code in (401, 403)
 
 
@@ -100,8 +98,8 @@ async def test_accept_friend_request():
 
     friendship = Friendship(
         id=request_id,
-        user_id=UUID("00000000-0000-0000-0000-000000000123"), # sender
-        friend_id=recipient_id, # recipient
+        user_id=UUID("00000000-0000-0000-0000-000000000123"),  # sender
+        friend_id=recipient_id,  # recipient
         status="pending",
     )
     db_mock.get = AsyncMock(return_value=friendship)
@@ -137,8 +135,8 @@ async def test_accept_friend_request_unauthorized():
 
     friendship = Friendship(
         id=request_id,
-        user_id=UUID("00000000-0000-0000-0000-000000000123"), # sender
-        friend_id=recipient_id, # recipient
+        user_id=UUID("00000000-0000-0000-0000-000000000123"),  # sender
+        friend_id=recipient_id,  # recipient
         status="pending",
     )
     db_mock.get = AsyncMock(return_value=friendship)

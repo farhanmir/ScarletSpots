@@ -72,9 +72,7 @@ class ConnectionManager:
 
     async def _close_async_resource(self, resource: Any) -> None:
         """Close redis resources across redis-py versions (aclose vs close)."""
-        close_method = getattr(resource, "aclose", None) or getattr(
-            resource, "close", None
-        )
+        close_method = getattr(resource, "aclose", None) or getattr(resource, "close", None)
         if close_method is None:
             return
 
@@ -82,14 +80,10 @@ class ConnectionManager:
         if inspect.isawaitable(result):
             await result
 
-    async def register_occupancy(
-        self, websocket: WebSocket, lot_ids: list[str]
-    ) -> None:
+    async def register_occupancy(self, websocket: WebSocket, lot_ids: list[str]) -> None:
         async with self._lock:
             self._clear_occupancy_locked(websocket)
-            clean_lot_ids = {
-                lot_id.strip() for lot_id in lot_ids if lot_id and lot_id.strip()
-            }
+            clean_lot_ids = {lot_id.strip() for lot_id in lot_ids if lot_id and lot_id.strip()}
             self._socket_lot_map[websocket] = clean_lot_ids
             for lot_id in clean_lot_ids:
                 self._occupancy_clients[lot_id].add(websocket)
@@ -149,9 +143,7 @@ class ConnectionManager:
             return
 
         while True:
-            message = await self._pubsub.get_message(
-                ignore_subscribe_messages=True, timeout=1.0
-            )
+            message = await self._pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
             if not message:
                 await asyncio.sleep(0.05)
                 continue
@@ -191,15 +183,11 @@ class ConnectionManager:
         async with self._lock:
             sockets = list(self._notification_clients.get(user_id, set()))
 
-        log.info(
-            "WS broadcast notification: user_id=%s sockets=%d", user_id, len(sockets)
-        )
+        log.info("WS broadcast notification: user_id=%s sockets=%d", user_id, len(sockets))
 
         await self._send_to_sockets(sockets, payload)
 
-    async def _send_to_sockets(
-        self, sockets: list[WebSocket], payload: dict[str, Any]
-    ) -> None:
+    async def _send_to_sockets(self, sockets: list[WebSocket], payload: dict[str, Any]) -> None:
         for ws in sockets:
             try:
                 await ws.send_json(payload)

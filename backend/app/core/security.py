@@ -26,11 +26,7 @@ _jwks_cache_lock = asyncio.Lock()
 def _normalize_key_material(value: str) -> str:
     """Normalize env-provided key material (escaped newlines, surrounding quotes)."""
     normalized = (value or "").strip()
-    if (
-        len(normalized) >= 2
-        and normalized[0] == normalized[-1]
-        and normalized[0] in {'"', "'"}
-    ):
+    if len(normalized) >= 2 and normalized[0] == normalized[-1] and normalized[0] in {'"', "'"}:
         normalized = normalized[1:-1].strip()
     return normalized.replace("\\n", "\n")
 
@@ -190,9 +186,7 @@ def init_supabase_clients():
             detail="SUPABASE_SERVICE_ROLE_KEY is not configured in environment variables.",
         )
     user_supa = create_client(settings.SUPABASE_URL, settings.SUPABASE_ANON_KEY)
-    admin_supa = create_client(
-        settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY
-    )
+    admin_supa = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
 
     return {"supabase": user_supa, "admin_supabase": admin_supa}
 
@@ -261,13 +255,7 @@ def require_admin(current_user=Depends(get_current_user)):
     """
     try:
         db = get_supabase()
-        row = (
-            db.table("profiles")
-            .select("role")
-            .eq("id", current_user.id)
-            .single()
-            .execute()
-        )
+        row = db.table("profiles").select("role").eq("id", current_user.id).single().execute()
         if not row.data or row.data.get("role") != "admin":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

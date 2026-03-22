@@ -31,9 +31,7 @@ class ParkingSession(Base):
         ForeignKey("profiles.id", ondelete="CASCADE"),
         nullable=False,
     )
-    lot_id = Column(
-        String, nullable=False
-    )  # MapId string from rutgers_parking_data.json
+    lot_id = Column(String, nullable=False)  # MapId string from rutgers_parking_data.json
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
     start_time = Column(DateTime(timezone=True), server_default=func.now())
@@ -58,9 +56,7 @@ class LotOccupancy(Base):
 
     lot_id = Column(String, primary_key=True)  # MapId string
     count = Column(Integer, default=0)
-    updated_at = Column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
-    )
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 class SessionFeedback(Base):
@@ -83,9 +79,7 @@ class SessionFeedback(Base):
         nullable=True,
     )
     lot_id = Column(String, nullable=False)
-    quality = Column(
-        String, nullable=False
-    )  # correct, wrong_lot, false_positive, missed
+    quality = Column(String, nullable=False)  # correct, wrong_lot, false_positive, missed
     correct_lot_id = Column(String, nullable=True)
     notes = Column(String, nullable=True)
 
