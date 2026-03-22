@@ -315,6 +315,9 @@ export default function LotDetailsScreen() {
 
   if (!lot) return null;
 
+  const greenOk = isDark ? "#4ade80" : "#16a34a";
+  const redAlert = isDark ? "#ef4444" : "#b91c1c";
+
   const permitValidity = permitType
     ? permitType === "__commuter_all"
       ? ALL_COMMUTER_LOT_IDS.has(lot.id)
@@ -330,37 +333,37 @@ export default function LotDetailsScreen() {
     lot.student && {
       icon: "graduationcap.fill",
       label: "Student",
-      color: "#818cf8",
-      bg: "rgba(99,102,241,0.15)",
-      border: "rgba(99,102,241,0.35)",
+      color: isDark ? "#818cf8" : "#4f46e5",
+      bg: isDark ? "rgba(99,102,241,0.15)" : "rgba(99,102,241,0.10)",
+      border: isDark ? "rgba(99,102,241,0.35)" : "rgba(99,102,241,0.30)",
     },
     lot.employee && {
       icon: "briefcase.fill",
       label: "Employee",
-      color: "#34d399",
-      bg: "rgba(16,185,129,0.12)",
-      border: "rgba(16,185,129,0.3)",
+      color: isDark ? "#34d399" : "#059669",
+      bg: isDark ? "rgba(16,185,129,0.12)" : "rgba(16,185,129,0.10)",
+      border: isDark ? "rgba(16,185,129,0.3)" : "rgba(16,185,129,0.30)",
     },
     (lot.regularGate || lot.smartGate) && {
       icon: "lock.fill",
       label: "Gated",
-      color: "#fbbf24",
-      bg: "rgba(245,158,11,0.12)",
-      border: "rgba(245,158,11,0.3)",
+      color: isDark ? "#fbbf24" : "#d97706",
+      bg: isDark ? "rgba(245,158,11,0.12)" : "rgba(245,158,11,0.10)",
+      border: isDark ? "rgba(245,158,11,0.3)" : "rgba(245,158,11,0.30)",
     },
     lot.evCharging > 0 && {
       icon: "bolt.car.fill",
       label: "EV Charging",
-      color: "#60a5fa",
-      bg: "rgba(59,130,246,0.12)",
-      border: "rgba(59,130,246,0.3)",
+      color: isDark ? "#60a5fa" : "#2563eb",
+      bg: isDark ? "rgba(59,130,246,0.12)" : "rgba(59,130,246,0.10)",
+      border: isDark ? "rgba(59,130,246,0.3)" : "rgba(59,130,246,0.30)",
     },
     lot.handicapped > 0 && {
       icon: "figure.roll",
       label: "Accessible",
-      color: "#c084fc",
-      bg: "rgba(168,85,247,0.12)",
-      border: "rgba(168,85,247,0.3)",
+      color: isDark ? "#c084fc" : "#7c3aed",
+      bg: isDark ? "rgba(168,85,247,0.12)" : "rgba(168,85,247,0.10)",
+      border: isDark ? "rgba(168,85,247,0.3)" : "rgba(168,85,247,0.30)",
     },
   ].filter(Boolean) as any[];
 
@@ -399,7 +402,7 @@ export default function LotDetailsScreen() {
                   <IconSymbol
                     name={permitValidity ? "checkmark" : "xmark"}
                     size={10}
-                    color={permitValidity ? "#4ade80" : theme.textMuted}
+                    color={permitValidity ? greenOk : theme.textMuted}
                   />
                 </View>
               )}
@@ -489,13 +492,13 @@ export default function LotDetailsScreen() {
                   <View
                     style={[
                       lotStyles.availDot,
-                      { backgroundColor: lotAvailable ? "#4ade80" : "#ef4444" },
+                      { backgroundColor: lotAvailable ? greenOk : redAlert },
                     ]}
                   />
                   <Text
                     style={[
                       lotStyles.availText,
-                      { color: lotAvailable ? "#4ade80" : "#ef4444" },
+                      { color: lotAvailable ? greenOk : redAlert },
                     ]}
                   >
                     {lotAvailable ? "OPEN" : "CLOSED"}
@@ -573,7 +576,7 @@ export default function LotDetailsScreen() {
             <IconSymbol
               name="arrow.triangle.turn.up.right.diamond.fill"
               size={18}
-              color="#60a5fa"
+              color={isDark ? "#60a5fa" : "#2563eb"}
             />
             {!!activeSession && (
               <Text style={lotStyles.dirBtnText}>Directions</Text>
@@ -611,9 +614,9 @@ function createLotStyles(theme: typeof GLASS_DARK, isDark: boolean) {
     },
     campusPill: {
       alignSelf: "flex-start",
-      backgroundColor: "rgba(220,38,38,0.12)",
+      backgroundColor: isDark ? "rgba(220,38,38,0.12)" : "rgba(204,0,51,0.08)",
       borderWidth: 1,
-      borderColor: "rgba(220,38,38,0.25)",
+      borderColor: isDark ? "rgba(220,38,38,0.25)" : "rgba(204,0,51,0.20)",
       paddingHorizontal: 9,
       paddingVertical: 3,
       borderRadius: 8,

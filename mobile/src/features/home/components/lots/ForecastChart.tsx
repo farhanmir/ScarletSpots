@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, ActivityIndicator, useColorScheme } from "react-native";
 import { ForecastPoint } from "@/features/home/types/types";
 import {
   getOccupancyGradientColor,
@@ -20,6 +20,9 @@ export default function ForecastChart({
   curve,
   isLoading,
 }: ForecastChartProps) {
+  const scheme = useColorScheme();
+  const isDark = scheme !== "light";
+
   const labelBaseTime = useMemo(() => {
     const now = new Date();
     now.setSeconds(0, 0);
@@ -43,7 +46,7 @@ export default function ForecastChart({
   return (
     <View style={styles.wrapper}>
       {isLoading ? (
-        <ActivityIndicator size="small" color="#52525b" />
+        <ActivityIndicator size="small" color={isDark ? "#52525b" : "#a1a1aa"} />
       ) : curve.length > 0 ? (
         <View style={styles.row}>
           {curve.map((point: ForecastPoint, index: number) => {
@@ -54,10 +57,18 @@ export default function ForecastChart({
             const pointDate = getPointDateForIndex(index);
             const currentTimeLabel = formatTime(pointDate.toISOString());
             const showLabel = isNow || pointDate.getMinutes() === 0;
+            const labelColor = isNow
+              ? isDark ? "#ffffff" : "#111111"
+              : isDark ? "#71717a" : "#a1a1aa";
 
             return (
               <View key={index} style={styles.item}>
-                <Text style={[styles.label, isNow && styles.nowLabel]}>
+                <Text
+                  style={[
+                    styles.label,
+                    { color: labelColor, fontWeight: isNow ? "700" : "500" },
+                  ]}
+                >
                   {isNow ? "Now" : showLabel ? currentTimeLabel : ""}
                 </Text>
                 <View style={styles.barContainer}>
@@ -76,7 +87,7 @@ export default function ForecastChart({
           })}
         </View>
       ) : (
-        <Text style={styles.empty}>Forecast unavailable</Text>
+        <Text style={[styles.empty, { color: isDark ? "#71717a" : "#a1a1aa" }]}>Forecast unavailable</Text>
       )}
     </View>
   );
@@ -99,14 +110,9 @@ const styles = StyleSheet.create({
     gap: 7,
   },
   label: {
-    color: "#71717a",
     fontSize: 11,
     fontWeight: "500",
     textAlign: "center",
-  },
-  nowLabel: {
-    color: "#ffffff",
-    fontWeight: "700",
   },
   barContainer: {
     width: BAR_WIDTH,
@@ -120,7 +126,6 @@ const styles = StyleSheet.create({
     minHeight: 6,
   },
   empty: {
-    color: "#71717a",
     fontSize: 12,
     textAlign: "center",
   },
