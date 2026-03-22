@@ -107,18 +107,12 @@ These are real ideas, just not for v1:
 - **Phase D**: add confidence confirmation and exit nudges once reliability metrics are stable
 - **Privacy defaults**: show lot labels by default (not raw coordinates), and keep location-rich updates opt-in
 
-- **Admin portal** (web): Occupancy dashboard, session monitoring, lot management — geofence editor with visual draw/edit of lot polygons, "Test Mode" to simulate entering/exiting geofences, user management (ban/unban)
-- **Google OAuth**: Add as a sign-in option alongside email/password
 - **Push notifications**: "Your lot is almost full" / "Your friend just parked nearby"
 - **Account deletion**: Full GDPR-compliant flow (export + delete data)
 - **All campuses by default**: Enable Newark, Camden, Piscataway in the main build
 - **Permit validation**: Cross-reference Rutgers Parking Services data for permit type (✅ started — onboarding + profile screen added in Feb 2026)
 - **Event integration**: Boost forecasts during football games, graduation, etc.
-- **Friend markers on map**: Show pins where friends are parked (currently friends-tab only)
 - **Common Commuter Spots database**: Pre-populate high-traffic Rutgers buildings (student centers, athletic facilities, lecture halls, admin buildings) for destination-based parking suggestions
-- **Navigation hand-off**: Deep-link to Google Maps / Apple Maps for turn-by-turn directions to a parking lot
-- **Heat map overlays**: Visualize per-lot density by zone (red = near-full sub-areas), updated in real-time from active sessions
-- **Virtual Grid — Park Flow**: Geofence triggers session, accelerometer detects driving→walking transition, app highlights 3 closest plausible spots for confirmation
 - **ScarletSpots Premium** (post-launch, monetization):
   - Ticket reporting system: report tickets with lot/time/date/agency
   - Real-time enforcement alerts for users currently parked in flagged lots
