@@ -23,6 +23,7 @@ import { loadActivityBoost, markWalkingActivityNow } from "./activitySignals";
 import { getSensorBudgetRemainingMs } from "./autoParkGeofenceKeys";
 import { cacheSession } from "./OfflineCache";
 import { PARKING_CONFIDENCE_THRESHOLD } from "../constants/featureFlags";
+import { BackgroundLogger } from "../utils/Logger";
 
 export const PARKING_DETECTION_TASK = "SCARLETSPOTS_PARKING_DETECTION";
 const CANDIDATES_STORAGE_KEY = "parking_candidates";
@@ -152,9 +153,10 @@ async function maybeStopSensorsAfterFailedAttempt(): Promise<void> {
   }
 }
 
-async function runParkingDetectionFromLocation(
+export async function runParkingDetectionFromLocation(
   latestLocation: Location.LocationObject,
 ): Promise<void> {
+  BackgroundLogger.info(`[BackgroundTask] Checking location: lat=${latestLocation.coords.latitude.toFixed(5)}, lon=${latestLocation.coords.longitude.toFixed(5)}, speed=${latestLocation.coords.speed}, accuracy=${latestLocation.coords.accuracy}`);
   try {
     const rawBuffers = await AsyncStorage.getItem("parking_detection_buffers");
     if (rawBuffers) restoreDetectionBuffersSnapshot(JSON.parse(rawBuffers));
@@ -172,6 +174,7 @@ async function runParkingDetectionFromLocation(
 
   const lots = getLotsForDetection();
   if (lots.length === 0) {
+    BackgroundLogger.info("[BackgroundTask] No lots returned for detection area.");
     try {
       await AsyncStorage.setItem("parking_detection_buffers", JSON.stringify(getDetectionBuffersSnapshot()));
     } catch {}
@@ -190,6 +193,11 @@ async function runParkingDetectionFromLocation(
     { recentDrivingPersisted, activityBoost, transitPatternDetected },
   );
 
+  BackgroundLogger.info(`[BackgroundTask] Detection yielded ${candidates.length} candidates.`, { 
+    recentDrivingPersisted, activityBoost, transitPatternDetected, 
+    topCandidate: candidates[0] ? candidates[0].lotName + ` (${candidates[0].confidence})` : 'none'
+  });
+
   if (candidates.length === 0) {
     await maybeStopSensorsAfterFailedAttempt();
     try {
@@ -201,6 +209,7 @@ async function runParkingDetectionFromLocation(
   const topCandidate = candidates[0];
 
   if (topCandidate.confidence < PARKING_CONFIDENCE_THRESHOLD) {
+    BackgroundLogger.info(`[BackgroundTask] Top candidate ${topCandidate.lotName} confidence ${topCandidate.confidence} < threshold ${PARKING_CONFIDENCE_THRESHOLD}`);
     await maybeStopSensorsAfterFailedAttempt();
     try {
       await AsyncStorage.setItem("parking_detection_buffers", JSON.stringify(getDetectionBuffersSnapshot()));
@@ -208,6 +217,7 @@ async function runParkingDetectionFromLocation(
     return;
   }
 
+  BackgroundLogger.info(`[BackgroundTask] High confidence parking detected at ${topCandidate.lotName} (${topCandidate.confidence}). Halting sensors.`);
   resetSensorMissCount();
   stopSensorTracking();
   clearAllDetectionBuffers();
@@ -253,14 +263,17 @@ async function runParkingDetectionFromLocation(
             await cacheSession({ session: data.session });
           }
           await AsyncStorage.removeItem(CANDIDATES_STORAGE_KEY);
+          BackgroundLogger.info(`[BackgroundTask] Auto-confirm successful on backend for lot ${topCandidate.lotId}`);
           return;
         }
       }
-    } catch {
+    } catch (e) {
+      BackgroundLogger.error(`[BackgroundTask] Auto-confirm API hit failed`, e);
       // Fall through to the notification path if the API attempt fails.
     }
   }
 
+  BackgroundLogger.info(`[BackgroundTask] Falling back to high-priority Local Notification for lot ${topCandidate.lotId}`);
   await Notifications.scheduleNotificationAsync({
     content: {
       title: "🚗 ScarletSpots",
@@ -280,7 +293,7 @@ async function runParkingDetectionFromLocation(
 
 TaskManager.defineTask(PARKING_DETECTION_TASK, async ({ data, error }: any) => {
   if (error) {
-    console.error("[BackgroundTask] Error:", error.message);
+    BackgroundLogger.error("[BackgroundTask] Manager Error:", error.message);
     return;
   }
   if (!data) return;

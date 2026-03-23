@@ -1,0 +1,5 @@
+src/shared/utils/Logger.ts(4,34): error TS2339: Property 'documentDirectory' does not exist on type 'typeof import("C:/Users/Farhan Mir/Desktop/Projects/ScarletSpots/mobile/node_modules/expo-file-system/build/index")'.
+src/shared/utils/Logger.ts(22,32): error TS2339: Property 'EncodingType' does not exist on type 'typeof import("C:/Users/Farhan Mir/Desktop/Projects/ScarletSpots/mobile/node_modules/expo-file-system/build/index")'.
+src/shared/utils/Logger.ts(28,34): error TS2339: Property 'EncodingType' does not exist on type 'typeof import("C:/Users/Farhan Mir/Desktop/Projects/ScarletSpots/mobile/node_modules/expo-file-system/build/index")'.
+src/shared/utils/Logger.ts(33,34): error TS2339: Property 'EncodingType' does not exist on type 'typeof import("C:/Users/Farhan Mir/Desktop/Projects/ScarletSpots/mobile/node_modules/expo-file-system/build/index")'.
+src/shared/utils/Logger.ts(36,34): error TS2339: Property 'EncodingType' does not exist on type 'typeof import("C:/Users/Farhan Mir/Desktop/Projects/ScarletSpots/mobile/node_modules/expo-file-system/build/index")'.

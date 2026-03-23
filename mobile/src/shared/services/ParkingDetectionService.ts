@@ -88,7 +88,7 @@ export interface DetectParkingOptions {
 
 /** m/s (~11 mph) — considered driving; shared with background task sensor gating. */
 export const DRIVING_SPEED_THRESHOLD = 5;
-const STOPPED_SPEED_THRESHOLD = 1; // m/s (~2 mph) — considered stopped/walking
+const STOPPED_SPEED_THRESHOLD = 2.5; // m/s (~5.5 mph) — encompasses walking speed
 const STILLNESS_VARIANCE_THRESHOLD = 0.2; // g² — accelerometer variance threshold
 const GPS_ACCURACY_GOOD = 10; // meters
 const GPS_ACCURACY_ACCEPTABLE = 30; // meters

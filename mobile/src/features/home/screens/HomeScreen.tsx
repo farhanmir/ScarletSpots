@@ -192,6 +192,7 @@ export default function MapScreen() {
     secondaryPermitType,
     noPermitMode,
     enabledCampuses,
+    loading: authLoading,
   } = useAuth();
   const queryClient = useQueryClient();
   const mapRef = useRef<MapView>(null);
@@ -590,6 +591,7 @@ export default function MapScreen() {
 
   const hasAutoStartedRef = useRef(false);
   useEffect(() => {
+    if (authLoading) return;
     if (!user) {
       queryClient.setQueryData(["session", "active"], { session: null });
       setPendingCandidates([]);

@@ -21,7 +21,7 @@ from app.core.limiter import limiter
 from app.core.logger import logger
 from app.core.security import decode_supabase_jwt_token
 from app.core.websocket import manager as websocket_manager
-from app.routers import favorites, friends, lots, park, users
+from app.routers import favorites, friends, lots, park, users, system
 from app.routers.websocket import router as websocket_router
 
 
@@ -131,6 +131,7 @@ app.include_router(lots.router, prefix=settings.API_V1_STR)
 app.include_router(friends.router, prefix=settings.API_V1_STR)
 app.include_router(park.router, prefix=settings.API_V1_STR)
 app.include_router(favorites.router, prefix=settings.API_V1_STR)
+app.include_router(system.router, prefix=settings.API_V1_STR)
 app.include_router(websocket_router)
 
 

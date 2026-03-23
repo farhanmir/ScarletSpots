@@ -19,8 +19,7 @@ import {
 import { isSupabaseConfigValid } from "@/shared/api/supabase-client";
 import { IconSymbol } from "@/shared/components/ui/icon-symbol";
 
-import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
-import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
+import { QueryClientProvider } from "@tanstack/react-query";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import OfflineBanner from "@/shared/components/ui/OfflineBanner";
@@ -57,9 +56,7 @@ const queryClient = new QueryClient({
   },
 });
 
-const asyncStoragePersister = createAsyncStoragePersister({
-  storage: AsyncStorage,
-});
+
 
 export const unstable_settings = {
   anchor: "(tabs)",
@@ -239,16 +236,13 @@ export default function RootLayout() {
   }
 
   return (
-    <PersistQueryClientProvider
-      client={queryClient}
-      persistOptions={{ persister: asyncStoragePersister }}
-    >
+    <QueryClientProvider client={queryClient}>
       <ThemePreferenceProvider>
         <AuthProvider>
           <OfflineBanner />
           <InitialLayout />
         </AuthProvider>
       </ThemePreferenceProvider>
-    </PersistQueryClientProvider>
+    </QueryClientProvider>
   );
 }

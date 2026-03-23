@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { fetchBackend } from "@/shared/api/api-base";
 
 const CRASH_LOG_KEY = "crash_logs";
 const MAX_LOGS = 50;
@@ -19,7 +20,16 @@ export async function logCrash(
 ): Promise<void> {
   try {
     const existing = await getCrashLogs();
-    existing.push({ ...entry, timestamp: new Date().toISOString() });
+    const fullEntry = { ...entry, timestamp: new Date().toISOString() };
+    existing.push(fullEntry);
+    
+    // Best-effort remote telemetry before process termination
+    fetchBackend("/system/crash", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(fullEntry)
+    }).catch(() => {});
+
     // Keep only the most recent entries
     const trimmed = existing.slice(-MAX_LOGS);
     await AsyncStorage.setItem(CRASH_LOG_KEY, JSON.stringify(trimmed));

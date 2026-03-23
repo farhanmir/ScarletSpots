@@ -18,6 +18,7 @@ import { getCachedSession, clearCachedSession } from "./OfflineCache";
 import { queueParkAction } from "./OfflineQueue";
 import { supabase } from "@/shared/api/supabase-client";
 import { fetchBackend } from "@/shared/api/api-base";
+import { BackgroundLogger } from "../utils/Logger";
 
 export const GEOFENCE_TASK_NAME = "SCARLETSPOTS_GEOFENCE_TASK";
 
@@ -87,7 +88,7 @@ export async function registerLotGeofences(
     }
 
     if (bgStatus !== "granted") {
-      console.warn(
+      BackgroundLogger.warn(
         "[GeofenceManager] Background location permission not granted. Geofencing will not work.",
       );
       return; // lock released by outer finally
@@ -145,9 +146,9 @@ export async function registerLotGeofences(
     if (resolvedUserLocation) {
       _lastRegistrationPoint = resolvedUserLocation;
     }
-    console.log(`[GeofenceManager] Registered ${regions.length} regions.`);
+    BackgroundLogger.info(`[GeofenceManager] Registered ${regions.length} regions.`);
   } catch (err) {
-    console.error("[GeofenceManager] Registration failed:", err);
+    BackgroundLogger.error("[GeofenceManager] Registration failed:", err);
   } finally {
     isRegistering = false;
   }
@@ -179,7 +180,7 @@ AppState.addEventListener("change", (nextState) => {
 
 TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }: any) => {
   if (error) {
-    console.error("[GeofenceManager] Task error:", error);
+    BackgroundLogger.error("[GeofenceManager] Task error:", error);
     return;
   }
   if (!data) return;
@@ -187,7 +188,7 @@ TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }: any) => {
 
   if (region.identifier === MACRO_GEOFENCE_ID) {
     if (eventType === Location.GeofencingEventType.Exit) {
-      console.log(
+      BackgroundLogger.info(
         `[GeofenceManager] Exited MACRO_GEOFENCE. Re-registering lots.`,
       );
       try {
@@ -209,7 +210,7 @@ TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }: any) => {
   }
 
   if (eventType === Location.GeofencingEventType.Enter) {
-    console.log(
+    BackgroundLogger.info(
       `[GeofenceManager] Entered region: ${region.identifier}. Starting active tracking.`,
     );
     // Save the lot ID we are near
@@ -244,7 +245,7 @@ TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }: any) => {
       },
     });
   } else if (eventType === Location.GeofencingEventType.Exit) {
-    console.log(
+    BackgroundLogger.info(
       `[GeofenceManager] Exited region: ${region.identifier}. Stopping active tracking.`,
     );
     await AsyncStorage.removeItem("current_geofence_lot_id");
@@ -270,7 +271,7 @@ TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }: any) => {
       const recentlyDrivingInMemory = wasRecentlyDriving();
       const recentlyDrivingPersisted = await wasDrivingRecentlyForAutoEnd();
       if (!recentlyDrivingInMemory && !recentlyDrivingPersisted) {
-        console.log(
+        BackgroundLogger.info(
           "[GeofenceManager] Exited on foot — keeping session active. End manually or drive out.",
         );
         return;
@@ -297,15 +298,14 @@ TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }: any) => {
             });
             if (response.ok) {
               await clearCachedSession();
-              console.log(
-                "[GeofenceManager] Auto-ended session for lot",
-                region.identifier,
+              BackgroundLogger.info(
+                "[GeofenceManager] Auto-ended session for lot " + region.identifier,
               );
             }
           } else {
             await queueParkAction("END_PARK", {});
             await clearCachedSession();
-            console.log(
+            BackgroundLogger.info(
               "[GeofenceManager] Offline: queued END_PARK and cleared cache",
             );
           }
@@ -314,7 +314,7 @@ TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }: any) => {
         }
       }
     } catch (err) {
-      console.warn("[GeofenceManager] Auto-end session failed:", err);
+      BackgroundLogger.error("[GeofenceManager] Auto-end session failed:", err);
     }
   }
 });

@@ -36,7 +36,7 @@ import {
   fetchWithOfflineFallback,
   cacheFavorites,
 } from "@/shared/services/OfflineCache";
-
+import { BackgroundLogger } from "@/shared/utils/Logger";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -648,6 +648,51 @@ export default function ProfileScreen() {
             iconColor={theme.accent}
             label="Push Notifications"
             sublabel="Session alerts & reminders"
+            last
+          />
+        </GlassCard>
+
+        {/* Debug sub-section */}
+        <Text style={[styles.prefGroupLabel, { marginTop: 20 }]}>
+          Debug Options
+        </Text>
+        <GlassCard
+          style={styles.listCard}
+          contentStyle={styles.listCardContent}
+          blurIntensity={theme.blurMedium}
+          borderRadius={24}
+        >
+          <SettingRow
+            icon="car.fill"
+            iconBg={theme === GLASS_DARK ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)"}
+            iconColor={theme.accent}
+            label="Simulate Auto-Park"
+            sublabel="Trigger detection pipeline"
+            onPress={() => {
+              import('@/shared/utils/Simulator').then(m => {
+                const { getLotById } = require('@/shared/constants/lots');
+                // Simulate Lot 67 - Busch
+                const lot = getLotById('67');
+                if (lot) m.simulateAutoParkDriveInAndWalkOut(lot);
+              });
+            }}
+          />
+          <SettingRow
+            icon="doc.text.fill"
+            iconBg={theme === GLASS_DARK ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)"}
+            iconColor={theme.textPrimary}
+            label="Export Auto-Park Logs"
+            sublabel="Share algorithm data"
+            onPress={() => BackgroundLogger.exportLogs()}
+          />
+          <SettingRow
+            icon="trash.fill"
+            iconBg="rgba(239,68,68,0.12)"
+            iconColor="#ef4444"
+            label="Clear Auto-Park Logs"
+            sublabel="Frees up space"
+            onPress={() => BackgroundLogger.clearLogs()}
+            destructive
             last
           />
         </GlassCard>
