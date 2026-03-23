@@ -21,6 +21,11 @@ import Animated, {
 import { IconSymbol } from "@/shared/components/ui/icon-symbol";
 import { publicApiCall } from "@/shared/api/supabase";
 import {
+  useGlassTheme,
+  GLASS_DARK,
+  type GlassThemePalette,
+} from "@/shared/components/ui/glassTheme";
+import {
   type RutgersLot,
   getPermitLotIdsUnion,
   ALL_COMMUTER_LOT_IDS,
@@ -61,6 +66,10 @@ export default function LotDetailsSheetContent({
   permitType,
   secondaryPermitType,
 }: LotDetailsSheetContentProps) {
+  const theme = useGlassTheme();
+  const isDark = theme === GLASS_DARK;
+  const styles = useMemo(() => createStyles(theme, isDark), [theme, isDark]);
+
   // ── 67 wobble (one-shot per sheet open) ────────────────────────────────
   const wobble = useSharedValue(0);
   const didWobbleForLotIdRef = useRef<string | null>(null);
@@ -151,37 +160,37 @@ export default function LotDetailsSheetContent({
     lot.student && {
       icon: "graduationcap.fill",
       label: "Student",
-      color: "#818cf8",
-      bg: "rgba(99,102,241,0.15)",
-      border: "rgba(99,102,241,0.35)",
+      color: isDark ? "#818cf8" : "#4f46e5",
+      bg: isDark ? "rgba(99,102,241,0.15)" : "rgba(99,102,241,0.10)",
+      border: isDark ? "rgba(99,102,241,0.35)" : "rgba(99,102,241,0.30)",
     },
     lot.employee && {
       icon: "briefcase.fill",
       label: "Employee",
-      color: "#34d399",
-      bg: "rgba(16,185,129,0.12)",
-      border: "rgba(16,185,129,0.3)",
+      color: isDark ? "#34d399" : "#059669",
+      bg: isDark ? "rgba(16,185,129,0.12)" : "rgba(16,185,129,0.10)",
+      border: isDark ? "rgba(16,185,129,0.3)" : "rgba(16,185,129,0.30)",
     },
     (lot.regularGate || lot.smartGate) && {
       icon: "lock.fill",
       label: "Gated",
-      color: "#fbbf24",
-      bg: "rgba(245,158,11,0.12)",
-      border: "rgba(245,158,11,0.3)",
+      color: isDark ? "#fbbf24" : "#d97706",
+      bg: isDark ? "rgba(245,158,11,0.12)" : "rgba(245,158,11,0.10)",
+      border: isDark ? "rgba(245,158,11,0.3)" : "rgba(245,158,11,0.30)",
     },
     (lot.evCharging ?? 0) > 0 && {
       icon: "bolt.car.fill",
       label: "EV Charging",
-      color: "#60a5fa",
-      bg: "rgba(59,130,246,0.12)",
-      border: "rgba(59,130,246,0.3)",
+      color: isDark ? "#60a5fa" : "#2563eb",
+      bg: isDark ? "rgba(59,130,246,0.12)" : "rgba(59,130,246,0.10)",
+      border: isDark ? "rgba(59,130,246,0.3)" : "rgba(59,130,246,0.30)",
     },
     (lot.handicapped ?? 0) > 0 && {
       icon: "figure.roll",
       label: "Accessible",
-      color: "#c084fc",
-      bg: "rgba(168,85,247,0.12)",
-      border: "rgba(168,85,247,0.3)",
+      color: isDark ? "#c084fc" : "#7c3aed",
+      bg: isDark ? "rgba(168,85,247,0.12)" : "rgba(168,85,247,0.10)",
+      border: isDark ? "rgba(168,85,247,0.3)" : "rgba(168,85,247,0.30)",
     },
   ].filter(Boolean) as {
     icon: string;
@@ -246,7 +255,7 @@ export default function LotDetailsSheetContent({
                 <IconSymbol
                   name="checkmark.circle.fill"
                   size={20}
-                  color="#4ade80"
+                  color={isDark ? "#4ade80" : "#16a34a"}
                 />
               )}
             </View>
@@ -263,7 +272,7 @@ export default function LotDetailsSheetContent({
               <IconSymbol
                 name={isFavorite ? "star.fill" : "star"}
                 size={18}
-                color={isFavorite ? "#f59e0b" : "#a1a1aa"}
+                color={isFavorite ? "#f59e0b" : theme.textMuted}
               />
             </TouchableOpacity>
           </View>
@@ -309,7 +318,7 @@ export default function LotDetailsSheetContent({
         {scheduleInfo && (
           <View style={styles.card}>
             <View style={styles.cardHeader}>
-              <IconSymbol name="clock.fill" size={13} color="#71717a" />
+              <IconSymbol name="clock.fill" size={13} color={theme.textMuted} />
               <Text style={styles.cardTitle}>SCHEDULE</Text>
               <View
                 style={[
@@ -320,13 +329,13 @@ export default function LotDetailsSheetContent({
                 <View
                   style={[
                     styles.availDot,
-                    { backgroundColor: lotAvailable ? "#4ade80" : "#ef4444" },
+                    { backgroundColor: lotAvailable ? (isDark ? "#4ade80" : "#16a34a") : (isDark ? "#ef4444" : "#b91c1c") },
                   ]}
                 />
                 <Text
                   style={[
                     styles.availText,
-                    { color: lotAvailable ? "#4ade80" : "#ef4444" },
+                    { color: lotAvailable ? (isDark ? "#4ade80" : "#16a34a") : (isDark ? "#ef4444" : "#b91c1c") },
                   ]}
                 >
                   {lotAvailable ? "OPEN" : "CLOSED"}
@@ -346,7 +355,7 @@ export default function LotDetailsSheetContent({
         {lot.note ? (
           <View style={styles.card}>
             <View style={styles.cardHeader}>
-              <IconSymbol name="info.circle.fill" size={13} color="#71717a" />
+              <IconSymbol name="info.circle.fill" size={13} color={theme.textMuted} />
               <Text style={styles.cardTitle}>NOTES</Text>
             </View>
             <Text style={styles.cardBody}>{lot.note}</Text>
@@ -404,7 +413,7 @@ export default function LotDetailsSheetContent({
             <IconSymbol
               name="arrow.triangle.turn.up.right.diamond.fill"
               size={18}
-              color="#60a5fa"
+              color={isDark ? "#60a5fa" : "#2563eb"}
             />
             {isParked && <Text style={styles.dirBtnText}>Directions</Text>}
           </TouchableOpacity>
@@ -422,7 +431,8 @@ export default function LotDetailsSheetContent({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: GlassThemePalette, isDark: boolean) {
+  return StyleSheet.create({
   scroll: { width: "100%" },
   content: { paddingHorizontal: 18, paddingTop: 20, paddingBottom: 8 },
 
@@ -448,15 +458,15 @@ const styles = StyleSheet.create({
 
   campusPill: {
     alignSelf: "flex-start",
-    backgroundColor: "rgba(220,38,38,0.12)",
+    backgroundColor: isDark ? "rgba(220,38,38,0.12)" : "rgba(204,0,51,0.08)",
     borderWidth: 1,
-    borderColor: "rgba(220,38,38,0.25)",
+    borderColor: isDark ? "rgba(220,38,38,0.25)" : "rgba(204,0,51,0.20)",
     paddingHorizontal: 9,
     paddingVertical: 3,
     borderRadius: 8,
   },
   campusPillText: {
-    color: "#f87171",
+    color: isDark ? "#f87171" : "#cc0033",
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 0.4,
@@ -470,7 +480,7 @@ const styles = StyleSheet.create({
   lotName: {
     fontSize: 24,
     fontWeight: "700",
-    color: "#fafafa",
+    color: theme.textPrimary,
     letterSpacing: -0.3,
     lineHeight: 30,
     flexShrink: 1,
@@ -479,9 +489,9 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: "rgba(255,255,255,0.06)",
+    backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
+    borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -494,24 +504,24 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.3)",
+    backgroundColor: isDark ? "rgba(0,0,0,0.3)" : "rgba(0,0,0,0.04)",
     borderRadius: 14,
     paddingVertical: 12,
     paddingHorizontal: 6,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
     gap: 3,
   },
   statVal: {
     fontSize: 22,
     fontWeight: "800",
-    color: "#f4f4f5",
+    color: theme.textPrimary,
     fontVariant: ["tabular-nums"],
   },
   statLab: {
     fontSize: 12,
-    color: "#71717a",
+    color: theme.textMuted,
     fontWeight: "500",
   },
 
@@ -538,10 +548,10 @@ const styles = StyleSheet.create({
 
   // ── Cards (Schedule / Notes) ─────────────────────────────────────────────
   card: {
-    backgroundColor: "rgba(0,0,0,0.3)",
+    backgroundColor: isDark ? "rgba(0,0,0,0.3)" : "rgba(0,0,0,0.04)",
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)",
     padding: 14,
     marginBottom: 10,
   },
@@ -553,13 +563,13 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     flex: 1,
-    color: "#71717a",
+    color: theme.textMuted,
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 1,
   },
   cardBody: {
-    color: "#a1a1aa",
+    color: theme.textSecondary,
     fontSize: 13,
     fontWeight: "500",
     lineHeight: 20,
@@ -576,12 +586,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   availOpen: {
-    backgroundColor: "rgba(74,222,128,0.08)",
-    borderColor: "rgba(74,222,128,0.25)",
+    backgroundColor: isDark ? "rgba(74,222,128,0.08)" : "rgba(34,197,94,0.08)",
+    borderColor: isDark ? "rgba(74,222,128,0.25)" : "rgba(34,197,94,0.25)",
   },
   availClosed: {
-    backgroundColor: "rgba(239,68,68,0.08)",
-    borderColor: "rgba(239,68,68,0.25)",
+    backgroundColor: isDark ? "rgba(239,68,68,0.08)" : "rgba(239,68,68,0.08)",
+    borderColor: isDark ? "rgba(239,68,68,0.25)" : "rgba(239,68,68,0.25)",
   },
   availDot: { width: 5, height: 5, borderRadius: 3 },
   availText: { fontSize: 10, fontWeight: "700", letterSpacing: 0.5 },
@@ -597,7 +607,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 54,
     borderRadius: 17,
-    backgroundColor: "#dc2626",
+    backgroundColor: isDark ? "#dc2626" : "#cc0033",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -609,7 +619,7 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   parkBtnDisabled: {
-    backgroundColor: "#27272a",
+    backgroundColor: isDark ? "#27272a" : "#d4d4d8",
     shadowOpacity: 0,
     elevation: 0,
   },
@@ -619,18 +629,18 @@ const styles = StyleSheet.create({
     width: 54,
     height: 54,
     borderRadius: 17,
-    backgroundColor: "rgba(59,130,246,0.08)",
+    backgroundColor: isDark ? "rgba(59,130,246,0.08)" : "rgba(0,0,0,0.04)",
     borderWidth: 1,
-    borderColor: "rgba(59,130,246,0.25)",
+    borderColor: isDark ? "rgba(59,130,246,0.25)" : "rgba(0,0,0,0.08)",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
   },
-  dirBtnText: { color: "#60a5fa", fontWeight: "600", fontSize: 16 },
+  dirBtnText: { color: isDark ? "#60a5fa" : "#2563eb", fontWeight: "600", fontSize: 16 },
 
   signInNote: {
-    color: "#3f3f46",
+    color: theme.textSecondary,
     textAlign: "center",
     fontSize: 12,
     marginTop: 4,
@@ -643,3 +653,4 @@ const styles = StyleSheet.create({
     minHeight: 60,
   },
 });
+}
