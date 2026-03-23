@@ -14,32 +14,53 @@ class Logger {
     return msg + "\n";
   }
 
+  private isWriting = false;
+  private queue: string[] = [];
+
   private async appendToFile(logLine: string) {
-    try {
-      const info = await FileSystem.getInfoAsync(LOG_FILE_PATH);
-      if (!info.exists) {
-        await FileSystem.writeAsStringAsync(LOG_FILE_PATH, logLine, {
-          encoding: 'utf8',
-        });
-      } else {
-        if (info.size > MAX_LOG_SIZE_BYTES) {
-          // If file gets too big, clear it or rotate. For simplicity, clear and start fresh.
-          await FileSystem.writeAsStringAsync(LOG_FILE_PATH, "=== Log Rotated ===\n" + logLine, {
-            encoding: 'utf8',
+    this.queue.push(logLine);
+    this.processQueue();
+  }
+
+  private async processQueue() {
+    if (this.isWriting || this.queue.length === 0) return;
+    this.isWriting = true;
+
+    while (this.queue.length > 0) {
+      const line = this.queue.shift();
+      if (!line) continue;
+
+      try {
+        const info = await FileSystem.getInfoAsync(LOG_FILE_PATH);
+        if (!info.exists) {
+          await FileSystem.writeAsStringAsync(LOG_FILE_PATH, line, {
+            encoding: "utf8",
           });
         } else {
-          // Append to existing file
-          const currentContent = await FileSystem.readAsStringAsync(LOG_FILE_PATH, {
-            encoding: 'utf8',
-          });
-          await FileSystem.writeAsStringAsync(LOG_FILE_PATH, currentContent + logLine, {
-            encoding: 'utf8',
-          });
+          if (info.size > MAX_LOG_SIZE_BYTES) {
+            await FileSystem.writeAsStringAsync(
+              LOG_FILE_PATH,
+              "=== Log Rotated ===\n" + line,
+              { encoding: "utf8" }
+            );
+          } else {
+            const currentContent = await FileSystem.readAsStringAsync(
+              LOG_FILE_PATH,
+              { encoding: "utf8" }
+            );
+            await FileSystem.writeAsStringAsync(
+              LOG_FILE_PATH,
+              currentContent + line,
+              { encoding: "utf8" }
+            );
+          }
         }
+      } catch (e) {
+        console.error("[BackgroundLogger] Failed to write to log file", e);
       }
-    } catch (e) {
-      console.error("[BackgroundLogger] Failed to write to log file", e);
     }
+
+    this.isWriting = false;
   }
 
   public log(message: string, data?: any) {

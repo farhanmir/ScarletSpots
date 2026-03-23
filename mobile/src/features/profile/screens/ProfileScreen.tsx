@@ -669,11 +669,13 @@ export default function ProfileScreen() {
             label="Simulate Auto-Park"
             sublabel="Trigger detection pipeline"
             onPress={() => {
-              import('@/shared/utils/Simulator').then(m => {
-                const { getLotById } = require('@/shared/constants/lots');
-                // Simulate Lot 67 - Busch
-                const lot = getLotById('67');
-                if (lot) m.simulateAutoParkDriveInAndWalkOut(lot);
+              import("@/shared/utils/Simulator").then((m) => {
+                const lot = getLotById("10016");
+                if (lot) {
+                  m.simulateAutoParkDriveInAndWalkOut(lot);
+                } else {
+                  BackgroundLogger.error("[Profile] Simulation failed: Lot 10016 (Lot 67) not found in local data.");
+                }
               });
             }}
           />
