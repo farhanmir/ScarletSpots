@@ -61,7 +61,12 @@ import {
 } from "@/shared/constants/lots";
 import { ENABLE_ALL_CAMPUSES } from "@/shared/constants/featureFlags";
 import { GlassBackground } from "@/shared/components/ui/GlassBackground";
+import {
+  getAutoParkCapability,
+  type AutoParkCapabilityStatus,
+} from "@/shared/services/AutoParkCapability";
 import { createAuthedWebSocket } from "@/shared/services/authedWebSocket";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -177,6 +182,7 @@ const STATIC_LOTS = getAllLots(ENABLE_ALL_CAMPUSES);
 // ── Component ──────────────────────────────────────────────────────────────
 
 export default function MapScreen() {
+  const insets = useSafeAreaInsets();
   const colorScheme = useResolvedColorScheme();
   const isDark = colorScheme === "dark";
   const {
@@ -215,6 +221,8 @@ export default function MapScreen() {
     longitude: number;
   } | null>(null);
   const [chipHeading, setChipHeading] = useState<number | null>(null);
+  const [autoParkCap, setAutoParkCap] =
+    useState<AutoParkCapabilityStatus | null>(null);
 
   // ── Animations ────────────────────────────────────────────────────────
 
@@ -230,6 +238,17 @@ export default function MapScreen() {
   const [isLotSheetVisible, setIsLotSheetVisible] = useState(false);
 
   const isFocused = useIsFocused();
+
+  useEffect(() => {
+    const refreshCap = () => {
+      getAutoParkCapability().then(setAutoParkCap);
+    };
+    refreshCap();
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next === "active") refreshCap();
+    });
+    return () => sub.remove();
+  }, []);
 
   // ── Occupancy Data (from Supabase lot_occupancy table) ────────────────
   //
@@ -607,7 +626,13 @@ export default function MapScreen() {
       try {
         const netState = await NetInfo.fetch();
         if (!netState.isConnected) {
-          await queueParkAction("CONFIRM_DETECTED", payload, undefined, undefined, currentUserId);
+          await queueParkAction(
+            "CONFIRM_DETECTED",
+            payload,
+            undefined,
+            undefined,
+            currentUserId,
+          );
           const optimisticSession = {
             id: `offline-${Date.now()}`,
             lotId: top.lotId,
@@ -638,7 +663,13 @@ export default function MapScreen() {
           hasAutoStartedRef.current = false;
         }
       } catch {
-        await queueParkAction("CONFIRM_DETECTED", payload, undefined, undefined, currentUserId);
+        await queueParkAction(
+          "CONFIRM_DETECTED",
+          payload,
+          undefined,
+          undefined,
+          currentUserId,
+        );
         const offlineSession = {
           id: `offline-${Date.now()}`,
           lotId: top.lotId,
@@ -807,7 +838,13 @@ export default function MapScreen() {
 
       const netState = await NetInfo.fetch();
       if (!netState.isConnected) {
-        await queueParkAction("PARK", payload, undefined, undefined, currentUserId);
+        await queueParkAction(
+          "PARK",
+          payload,
+          undefined,
+          undefined,
+          currentUserId,
+        );
         const optimisticSession: ParkingSession = {
           id: `offline-${Date.now()}`,
           lotId: lot.id,
@@ -816,7 +853,9 @@ export default function MapScreen() {
         queryClient.setQueryData(["session", "active"], {
           session: optimisticSession,
         });
-        cacheSession({ session: optimisticSession }, currentUserId).catch(() => {});
+        cacheSession({ session: optimisticSession }, currentUserId).catch(
+          () => {},
+        );
         updateOptimisticOccupancy(lot.id, 1);
         setSelectedLotId(null);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -878,12 +917,18 @@ export default function MapScreen() {
         e?.message?.toLowerCase().includes("timeout") ||
         e?.code === "ECONNABORTED"
       ) {
-        await queueParkAction("PARK", {
-          lotId: lot.id,
-          latitude: location?.coords.latitude,
-          longitude: location?.coords.longitude,
-          confirmed: true,
-        }, undefined, undefined, currentUserId);
+        await queueParkAction(
+          "PARK",
+          {
+            lotId: lot.id,
+            latitude: location?.coords.latitude,
+            longitude: location?.coords.longitude,
+            confirmed: true,
+          },
+          undefined,
+          undefined,
+          currentUserId,
+        );
         updateOptimisticOccupancy(lot.id, 1);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       } else {
@@ -970,7 +1015,13 @@ export default function MapScreen() {
       };
       const netState = await NetInfo.fetch();
       if (!netState.isConnected) {
-        await queueParkAction("CONFIRM_DETECTED", payload, undefined, undefined, currentUserId);
+        await queueParkAction(
+          "CONFIRM_DETECTED",
+          payload,
+          undefined,
+          undefined,
+          currentUserId,
+        );
         const offlineSession = {
           id: `offline-${Date.now()}`,
           lotId: candidate.lotId,
@@ -979,7 +1030,9 @@ export default function MapScreen() {
         queryClient.setQueryData(["session", "active"], {
           session: offlineSession,
         });
-        cacheSession({ session: offlineSession }, currentUserId).catch(() => {});
+        cacheSession({ session: offlineSession }, currentUserId).catch(
+          () => {},
+        );
         updateOptimisticOccupancy(candidate.lotId, 1);
         await clearPendingParkingCandidates();
         setPendingCandidates([]);
@@ -1001,12 +1054,18 @@ export default function MapScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch {
-      await queueParkAction("CONFIRM_DETECTED", {
-        lotId: candidate.lotId,
-        latitude: candidate.latitude,
-        longitude: candidate.longitude,
-        confirmed: true,
-      }, undefined, undefined, currentUserId);
+      await queueParkAction(
+        "CONFIRM_DETECTED",
+        {
+          lotId: candidate.lotId,
+          latitude: candidate.latitude,
+          longitude: candidate.longitude,
+          confirmed: true,
+        },
+        undefined,
+        undefined,
+        currentUserId,
+      );
       await clearPendingParkingCandidates();
       setPendingCandidates([]);
       updateOptimisticOccupancy(candidate.lotId, 1);
@@ -1289,10 +1348,50 @@ export default function MapScreen() {
   const mapProvider =
     Platform.OS === "android" ? PROVIDER_GOOGLE : PROVIDER_DEFAULT;
 
+  let autoParkBannerMessage: string | null = null;
+  if (autoParkCap && !autoParkCap.ok) {
+    if (!autoParkCap.backgroundLocationOk) {
+      autoParkBannerMessage =
+        "Auto-park paused: enable Precise location and Always in Settings.";
+    } else if (!autoParkCap.motionOk) {
+      autoParkBannerMessage =
+        "Motion is off — auto-park is less accurate. Enable in Settings.";
+    }
+  }
+
+  const openAppSettings = () => {
+    if (Platform.OS === "ios") {
+      Linking.openURL("app-settings:");
+    } else {
+      Linking.openSettings();
+    }
+  };
+
   // ── Render ────────────────────────────────────────────────────────────
 
   return (
     <View style={styles.container}>
+      {autoParkBannerMessage ? (
+        <TouchableOpacity
+          activeOpacity={0.88}
+          onPress={openAppSettings}
+          style={[
+            styles.autoParkBanner,
+            { paddingTop: insets.top + 8 },
+            !autoParkCap?.backgroundLocationOk
+              ? styles.autoParkBannerCritical
+              : styles.autoParkBannerWarn,
+          ]}
+        >
+          <IconSymbol
+            name="exclamationmark.triangle.fill"
+            size={18}
+            color="#fff"
+          />
+          <Text style={styles.autoParkBannerText}>{autoParkBannerMessage}</Text>
+          <Text style={styles.autoParkBannerCta}>Open Settings</Text>
+        </TouchableOpacity>
+      ) : null}
       <MapView
         ref={mapRef}
         provider={mapProvider}
@@ -1427,7 +1526,12 @@ export default function MapScreen() {
                         {isDimmed ? "—" : `${Math.round(lot.occupancyRate)}%`}
                       </Text>
                       {isFavorite && (
-                        <View style={[styles.favoriteBadge, { backgroundColor: isDark ? "#18181b" : "#ffffff" }]}>
+                        <View
+                          style={[
+                            styles.favoriteBadge,
+                            { backgroundColor: isDark ? "#18181b" : "#ffffff" },
+                          ]}
+                        >
                           <IconSymbol
                             name="star.fill"
                             size={10}
@@ -1516,7 +1620,13 @@ export default function MapScreen() {
       </MapView>
 
       {/* Center-on-me button */}
-      <Animated.View style={[styles.centerButtonContainer, centerButtonStyle, !isDark && { borderColor: "rgba(0,0,0,0.1)", shadowOpacity: 0.2 }]}>
+      <Animated.View
+        style={[
+          styles.centerButtonContainer,
+          centerButtonStyle,
+          !isDark && { borderColor: "rgba(0,0,0,0.1)", shadowOpacity: 0.2 },
+        ]}
+      >
         <GlassBackground
           style={StyleSheet.absoluteFill}
           glassStyle="regular"
@@ -1524,14 +1634,15 @@ export default function MapScreen() {
           tintColor={isDark ? "rgba(0, 0, 0, 0.4)" : undefined}
           tintOpacity={0.8}
         />
-          <TouchableOpacity
+        <TouchableOpacity
           style={[
             styles.centerButton,
             styles.centerButtonActive,
             isCenterButtonPressed && styles.centerButtonPressed,
             Platform.OS === "android" && styles.centerButtonAndroid,
             !isDark && { backgroundColor: "rgba(0,0,0,0.05)" },
-            !isDark && isCenterButtonPressed && { backgroundColor: "rgba(0,0,0,0.10)" },
+            !isDark &&
+              isCenterButtonPressed && { backgroundColor: "rgba(0,0,0,0.10)" },
           ]}
           onPressIn={() => {
             setIsCenterButtonPressed(true);
@@ -1608,7 +1719,12 @@ export default function MapScreen() {
             glassStyle="regular"
             blurIntensity={90}
           />
-          <View style={[styles.sessionChipContent, !isDark && { backgroundColor: "rgba(245,245,247,0.6)" }]}>
+          <View
+            style={[
+              styles.sessionChipContent,
+              !isDark && { backgroundColor: "rgba(245,245,247,0.6)" },
+            ]}
+          >
             <View style={styles.sessionChipDot} />
             <View style={styles.sessionChipTitleRow}>
               <Text
@@ -1722,6 +1838,25 @@ export default function MapScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  autoParkBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingBottom: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255,255,255,0.12)",
+  },
+  autoParkBannerCritical: { backgroundColor: "#991b1b" },
+  autoParkBannerWarn: { backgroundColor: "#a16207" },
+  autoParkBannerText: {
+    flex: 1,
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "500",
+    lineHeight: 18,
+  },
+  autoParkBannerCta: { color: "#fde68a", fontSize: 13, fontWeight: "700" },
   map: { width: "100%", height: "100%" },
 
   // ── Session chip ──────────────────────────────────────────────────────
@@ -1763,6 +1898,7 @@ const styles = StyleSheet.create({
     maxWidth: 130,
     gap: 2,
   },
+
   sessionChipText: {
     color: "#f4f4f5",
     fontSize: 14,

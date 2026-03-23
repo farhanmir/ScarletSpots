@@ -5,26 +5,32 @@ import { Accelerometer, Pedometer } from "expo-sensors";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@/shared/api/supabase-client";
 import { fetchBackend, safeJson } from "@/shared/api/api-base";
+import { getLotsForDetection } from "@/shared/constants/lotDetectionData";
 import {
   pushSpeed,
   pushAccel,
   pushHeading,
   pushSteps,
   detectParking,
-  type LotForDetection,
+  clearAllDetectionBuffers,
+  isTransitStopGoPattern,
+  DRIVING_SPEED_THRESHOLD,
+  getDetectionBuffersSnapshot,
+  restoreDetectionBuffersSnapshot,
   type ParkingCandidate,
 } from "./ParkingDetectionService";
+import { loadActivityBoost, markWalkingActivityNow } from "./activitySignals";
+import { getSensorBudgetRemainingMs } from "./autoParkGeofenceKeys";
 import { cacheSession } from "./OfflineCache";
 import { PARKING_CONFIDENCE_THRESHOLD } from "../constants/featureFlags";
 
 export const PARKING_DETECTION_TASK = "SCARLETSPOTS_PARKING_DETECTION";
 const CANDIDATES_STORAGE_KEY = "parking_candidates";
 const RECENT_DRIVING_TS_KEY = "recent_driving_ts";
-const DRIVING_SPEED_SIGNAL_MPS = 5;
 const RECENT_DRIVING_WINDOW_MS = 1000 * 60 * 20;
 
 async function markRecentDrivingSignal(speed: number | null): Promise<void> {
-  if (speed == null || speed < DRIVING_SPEED_SIGNAL_MPS) return;
+  if (speed == null || speed < DRIVING_SPEED_THRESHOLD) return;
   try {
     await AsyncStorage.setItem(RECENT_DRIVING_TS_KEY, String(Date.now()));
   } catch {
@@ -46,24 +52,56 @@ export async function wasDrivingRecentlyForAutoEnd(): Promise<boolean> {
 
 // ── Sensor Tracking Listeners ──────────────────────────────────────────────────
 
-let accelSubscription: any = null;
-let pedometerSubscription: any = null;
+let accelSubscription: { remove: () => void } | null = null;
+let pedometerSubscription: { remove: () => void } | null = null;
+let lastStepCountForWalking: number | null = null;
 
-const startSensorTracking = async () => {
-  // Accelerometer
+/**
+ * Tracks consecutive task invocations that produced no parking candidate.
+ * After SENSOR_MAX_MISSES consecutive misses we stop sensors proactively to
+ * avoid keeping the accelerometer alive for the full 3-minute budget window.
+ */
+let consecutiveSensorMisses = 0;
+const SENSOR_MAX_MISSES = 3;
+
+/** Reset the consecutive-miss counter (call on every successful detection). */
+export function resetSensorMissCount(): void {
+  consecutiveSensorMisses = 0;
+}
+
+/**
+ * Speed below which pedometer step increases are treated as genuine walking
+ * (not steps taken while on a moving bus / train).
+ */
+const WALKING_MAX_SPEED_MPS = 2.5;
+
+const startSensorTracking = async (currentSpeed: number | null) => {
+  if ((await getSensorBudgetRemainingMs()) <= 0) {
+    return;
+  }
+
   if (!accelSubscription) {
-    Accelerometer.setUpdateInterval(500);
+    Accelerometer.setUpdateInterval(1000);
     accelSubscription = Accelerometer.addListener((data) => {
       pushAccel(data);
     });
   }
 
-  // Pedometer
   if (!pedometerSubscription) {
     const isAvailable = await Pedometer.isAvailableAsync();
-    // Re-check after await in case stopSensorTracking was called concurrently
-    if (isAvailable && !pedometerSubscription) {
+    if (isAvailable) {
       pedometerSubscription = Pedometer.watchStepCount((result) => {
+        // Only attribute steps to walking when the device is genuinely still /
+        // slow — avoids inflating the walking boost for bus/train passengers.
+        const speed = currentSpeed ?? 0;
+        if (
+          lastStepCountForWalking != null &&
+          result.steps > lastStepCountForWalking &&
+          speed < WALKING_MAX_SPEED_MPS
+        ) {
+          markWalkingActivityNow().catch(() => {});
+        }
+        lastStepCountForWalking = result.steps;
         pushSteps(result.steps);
       });
     }
@@ -79,110 +117,150 @@ export const stopSensorTracking = () => {
     pedometerSubscription.remove();
     pedometerSubscription = null;
   }
+  lastStepCountForWalking = null;
 };
 
-// ── Background Task Definition ─────────────────────────────────────────────────
-
-TaskManager.defineTask(PARKING_DETECTION_TASK, async ({ data, error }: any) => {
-  if (error) {
-    console.error("[BackgroundTask] Error:", error.message);
+/**
+ * While driving (speed ≥ threshold), tear sensors down. Only subscribe when GPS
+ * reports a valid sub-threshold speed; unknown/invalid speed → location-only.
+ */
+async function syncSensorTrackingForSpeed(
+  speed: number | null,
+): Promise<void> {
+  const valid = speed != null && speed >= 0;
+  if (valid && speed >= DRIVING_SPEED_THRESHOLD) {
+    stopSensorTracking();
     return;
   }
-  if (!data) return;
+  if (valid && speed < DRIVING_SPEED_THRESHOLD) {
+    await startSensorTracking(speed);
+    return;
+  }
+  stopSensorTracking();
+}
 
-  const { locations } = data as { locations: Location.LocationObject[] };
-  if (!locations || locations.length === 0) return;
-
-  const latestLocation = locations.at(-1)!;
-  const speed = latestLocation.coords.speed;
-  const heading = latestLocation.coords.heading; // degrees 0–360, or -1 if unavailable
-
-  // Start sensors when we are in active tracking mode
-  await startSensorTracking();
-
-  // Feed signals into the rolling buffers
-  pushSpeed(speed);
-  await markRecentDrivingSignal(speed);
-  pushHeading(heading);
-
-  // Load cached lots for comparison
-  let lots: LotForDetection[] = [];
-  try {
-    const cachedLotsStr = await AsyncStorage.getItem("cached_lots");
-    if (cachedLotsStr) {
-      lots = JSON.parse(cachedLotsStr);
+async function maybeStopSensorsAfterFailedAttempt(): Promise<void> {
+  consecutiveSensorMisses += 1;
+  const budgetExhausted = (await getSensorBudgetRemainingMs()) <= 0;
+  const tooManyMisses = consecutiveSensorMisses >= SENSOR_MAX_MISSES;
+  if (budgetExhausted || tooManyMisses) {
+    stopSensorTracking();
+    if (tooManyMisses) {
+      // Reset so the next geofence enter starts fresh.
+      consecutiveSensorMisses = 0;
     }
-  } catch {
+  }
+}
+
+async function runParkingDetectionFromLocation(
+  latestLocation: Location.LocationObject,
+): Promise<void> {
+  try {
+    const rawBuffers = await AsyncStorage.getItem("parking_detection_buffers");
+    if (rawBuffers) restoreDetectionBuffersSnapshot(JSON.parse(rawBuffers));
+  } catch {}
+
+  const speed = latestLocation.coords.speed;
+  const heading = latestLocation.coords.heading;
+  const ts = latestLocation.timestamp;
+
+  await syncSensorTrackingForSpeed(speed);
+
+  pushSpeed(speed, ts);
+  await markRecentDrivingSignal(speed);
+  pushHeading(heading, ts);
+
+  const lots = getLotsForDetection();
+  if (lots.length === 0) {
+    try {
+      await AsyncStorage.setItem("parking_detection_buffers", JSON.stringify(getDetectionBuffersSnapshot()));
+    } catch {}
     return;
   }
 
-  if (lots.length === 0) return;
+  const recentDrivingPersisted = await wasDrivingRecentlyForAutoEnd();
+  const activityBoost = await loadActivityBoost();
+  const transitPatternDetected = isTransitStopGoPattern();
 
-  // Run the multi-signal detection pipeline
   const candidates = detectParking(
     latestLocation.coords.latitude,
     latestLocation.coords.longitude,
     latestLocation.coords.accuracy,
     lots,
+    { recentDrivingPersisted, activityBoost, transitPatternDetected },
   );
 
-  if (candidates.length === 0) return;
-
-  const topCandidate = candidates[0];
-
-  // Only proceed when confidence is high enough
-  if (topCandidate.confidence < PARKING_CONFIDENCE_THRESHOLD) {
+  if (candidates.length === 0) {
+    await maybeStopSensorsAfterFailedAttempt();
+    try {
+      await AsyncStorage.setItem("parking_detection_buffers", JSON.stringify(getDetectionBuffersSnapshot()));
+    } catch {}
     return;
   }
 
-  // Once detected, we can stop expensive sensor tracking for this session
-  stopSensorTracking();
+  const topCandidate = candidates[0];
 
-  // Persist candidates so the UI can prompt the user on app foreground
+  if (topCandidate.confidence < PARKING_CONFIDENCE_THRESHOLD) {
+    await maybeStopSensorsAfterFailedAttempt();
+    try {
+      await AsyncStorage.setItem("parking_detection_buffers", JSON.stringify(getDetectionBuffersSnapshot()));
+    } catch {}
+    return;
+  }
+
+  resetSensorMissCount();
+  stopSensorTracking();
+  clearAllDetectionBuffers();
+  try {
+    await AsyncStorage.removeItem("parking_detection_buffers");
+  } catch {}
+
   await AsyncStorage.setItem(
     CANDIDATES_STORAGE_KEY,
     JSON.stringify(candidates),
   );
 
-  // Try true background auto-start first so parking can begin even when the
-  // app UI is closed. If this fails, we keep pending candidates for foreground.
-  try {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
+  // Only auto-confirm (silent server POST) when the candidate is firmly inside
+  // a lot polygon. Nearby-only candidates require explicit user confirmation via
+  // the notification → confirm sheet path to prevent false positives.
+  if (topCandidate.autoConfirmable) {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-    if (session?.access_token) {
-      const response = await fetchBackend("/park/session", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          apikey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "",
-          Authorization: `Bearer ${session.access_token}`,
-          "x-user-token": session.access_token,
-        },
-        body: JSON.stringify({
-          lotId: topCandidate.lotId,
-          latitude: topCandidate.latitude,
-          longitude: topCandidate.longitude,
-          confirmed: true,
-          autoStarted: true,
-        }),
-      });
+      if (session?.access_token) {
+        const response = await fetchBackend("/park/session", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "",
+            Authorization: `Bearer ${session.access_token}`,
+            "x-user-token": session.access_token,
+          },
+          body: JSON.stringify({
+            lotId: topCandidate.lotId,
+            latitude: topCandidate.latitude,
+            longitude: topCandidate.longitude,
+            confirmed: true,
+            autoStarted: true,
+          }),
+        });
 
-      if (response.ok) {
-        const data = await safeJson(response);
-        if (data?.session) {
-          await cacheSession({ session: data.session });
+        if (response.ok) {
+          const data = await safeJson(response);
+          if (data?.session) {
+            await cacheSession({ session: data.session });
+          }
+          await AsyncStorage.removeItem(CANDIDATES_STORAGE_KEY);
+          return;
         }
-        await AsyncStorage.removeItem(CANDIDATES_STORAGE_KEY);
-        return;
       }
+    } catch {
+      // Fall through to the notification path if the API attempt fails.
     }
-  } catch {
-    // Keep fallback candidate prompt path if background API attempt fails.
   }
 
-  // Send immediate local notification
   await Notifications.scheduleNotificationAsync({
     content: {
       title: "🚗 ScarletSpots",
@@ -196,13 +274,25 @@ TaskManager.defineTask(PARKING_DETECTION_TASK, async ({ data, error }: any) => {
     },
     trigger: null,
   });
+}
+
+// ── Background Task Definition ─────────────────────────────────────────────────
+
+TaskManager.defineTask(PARKING_DETECTION_TASK, async ({ data, error }: any) => {
+  if (error) {
+    console.error("[BackgroundTask] Error:", error.message);
+    return;
+  }
+  if (!data) return;
+
+  const { locations } = data as { locations: Location.LocationObject[] };
+  if (!locations || locations.length === 0) return;
+
+  await runParkingDetectionFromLocation(locations.at(-1)!);
 });
 
 // ── Public API ─────────────────────────────────────────────────────────────────
 
-/**
- * Retrieve persisted parking candidates (set by background task).
- */
 export async function getPendingParkingCandidates(): Promise<
   ParkingCandidate[]
 > {
@@ -214,9 +304,6 @@ export async function getPendingParkingCandidates(): Promise<
   }
 }
 
-/**
- * Clear pending candidates (after user confirms or dismisses).
- */
 export async function clearPendingParkingCandidates(): Promise<void> {
   await AsyncStorage.removeItem(CANDIDATES_STORAGE_KEY);
 }

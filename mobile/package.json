@@ -14,6 +14,7 @@
     "typecheck": "tsc --noEmit",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
+    "test": "vitest run",
     "check": "npm run typecheck && npm run lint && npm run format:check",
     "check:strict": "tsc --noEmit && eslint . --max-warnings=0 && prettier . --check",
     "fix": "npm run lint:fix && npm run format",
@@ -80,7 +81,8 @@
     "madge": "^8.0.0",
     "prettier": "^3.6.2",
     "ts-prune": "^0.10.3",
-    "typescript": "~5.9.3"
+    "typescript": "~5.9.3",
+    "vitest": "^3.0.5"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx}": [

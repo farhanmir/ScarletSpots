@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   StyleSheet,
   View,
@@ -8,6 +8,7 @@ import {
   Linking,
   ActivityIndicator,
   Alert,
+  AppState,
   useColorScheme,
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
@@ -79,10 +80,20 @@ export default function PermissionsScreen() {
   const [loading, setLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState<PermissionStep>("location");
   const [denied, setDenied] = useState(false);
+  const appStateRef = useRef(AppState.currentState);
 
-  // Check initial status on mount
+  // Check initial status on mount and whenever the app returns from Settings.
   useEffect(() => {
     checkInitialStatus();
+
+    const sub = AppState.addEventListener("change", (nextState) => {
+      if (appStateRef.current !== "active" && nextState === "active") {
+        checkInitialStatus();
+      }
+      appStateRef.current = nextState;
+    });
+
+    return () => sub.remove();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

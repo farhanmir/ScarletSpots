@@ -8,7 +8,12 @@ import {
   stopSensorTracking,
   wasDrivingRecentlyForAutoEnd,
 } from "./BackgroundTasks";
-import { haversineDistance, wasRecentlyDriving } from "./ParkingDetectionService";
+import { GEOFENCE_ACTIVE_TRACKING_START_KEY } from "./autoParkGeofenceKeys";
+import {
+  clearAllDetectionBuffers,
+  haversineDistance,
+  wasRecentlyDriving,
+} from "./ParkingDetectionService";
 import { getCachedSession, clearCachedSession } from "./OfflineCache";
 import { queueParkAction } from "./OfflineQueue";
 import { supabase } from "@/shared/api/supabase-client";
@@ -36,9 +41,8 @@ let isRegistering = false;
 /** Last lot set passed to registerLotGeofences — used by the retry listener. */
 let _lastLots: LotGeoPoint[] = [];
 let _lastRegistrationPoint: GeoPoint | null = null;
-let _locationWatcher: Location.LocationSubscription | null = null;
-const REREGISTER_DISTANCE_METERS = 2000;
-
+const REREGISTER_DISTANCE_METERS = 3000;
+const MACRO_GEOFENCE_ID = "MACRO_GEOFENCE";
 
 async function _resolveUserLocation(
   userLocation?: GeoPoint,
@@ -110,7 +114,7 @@ export async function registerLotGeofences(
 
     const regions = sortedLots
       .filter((lot) => lot.latitude && lot.longitude)
-      .slice(0, 20) // iOS has a strict hard limit of 20 monitored regions per app
+      .slice(0, 19) // iOS has a strict hard limit of 20 monitored regions per app; save 1 for macro
       .map((lot) => ({
         identifier: String(lot.id),
         latitude: Number(lot.latitude),
@@ -119,6 +123,17 @@ export async function registerLotGeofences(
         notifyOnEntry: true,
         notifyOnExit: true,
       }));
+
+    if (resolvedUserLocation) {
+      regions.push({
+        identifier: MACRO_GEOFENCE_ID,
+        latitude: resolvedUserLocation.latitude,
+        longitude: resolvedUserLocation.longitude,
+        radius: REREGISTER_DISTANCE_METERS,
+        notifyOnEntry: false,
+        notifyOnExit: true,
+      });
+    }
 
     const isRegistered =
       await Location.hasStartedGeofencingAsync(GEOFENCE_TASK_NAME);
@@ -138,55 +153,14 @@ export async function registerLotGeofences(
   }
 }
 
-async function _maybeReregisterOnMovement(nextPoint: GeoPoint) {
-  if (!_lastRegistrationPoint || _lastLots.length === 0) {
-    return;
-  }
-
-  const traveledMeters = haversineDistance(
-    _lastRegistrationPoint.latitude,
-    _lastRegistrationPoint.longitude,
-    nextPoint.latitude,
-    nextPoint.longitude,
-  );
-  if (traveledMeters < REREGISTER_DISTANCE_METERS) {
-    return;
-  }
-
-  await registerLotGeofences(_lastLots, nextPoint);
-}
-
 export async function bootstrapLotGeofenceRegistration(lots: LotGeoPoint[]) {
   await registerLotGeofences(lots);
-
-  if (_locationWatcher) {
-    return;
-  }
-
-  try {
-    _locationWatcher = await Location.watchPositionAsync(
-      {
-        accuracy: Location.Accuracy.Balanced,
-        distanceInterval: 500,
-        timeInterval: 60000,
-      },
-      (location) => {
-        _maybeReregisterOnMovement({
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-        }).catch((err) =>
-          console.warn("[GeofenceManager] Movement re-registration failed:", err),
-        );
-      },
-    );
-  } catch (err) {
-    console.warn("[GeofenceManager] Failed to start movement watcher:", err);
-  }
 }
 
 export function teardownLotGeofenceRegistration() {
-  _locationWatcher?.remove();
-  _locationWatcher = null;
+  Location.hasStartedGeofencingAsync(GEOFENCE_TASK_NAME).then((isRegistered) => {
+    if (isRegistered) Location.stopGeofencingAsync(GEOFENCE_TASK_NAME);
+  });
 }
 
 /**
@@ -211,18 +185,57 @@ TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }: any) => {
   if (!data) return;
   const { eventType, region } = data;
 
+  if (region.identifier === MACRO_GEOFENCE_ID) {
+    if (eventType === Location.GeofencingEventType.Exit) {
+      console.log(
+        `[GeofenceManager] Exited MACRO_GEOFENCE. Re-registering lots.`,
+      );
+      try {
+        const loc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        await registerLotGeofences(_lastLots, {
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+        });
+      } catch (err) {
+        console.warn(
+          "[GeofenceManager] Failed to re-register on macro exit:",
+          err,
+        );
+      }
+    }
+    return;
+  }
+
   if (eventType === Location.GeofencingEventType.Enter) {
     console.log(
       `[GeofenceManager] Entered region: ${region.identifier}. Starting active tracking.`,
     );
     // Save the lot ID we are near
     await AsyncStorage.setItem("current_geofence_lot_id", region.identifier);
+    await AsyncStorage.setItem(
+      GEOFENCE_ACTIVE_TRACKING_START_KEY,
+      String(Date.now()),
+    );
 
-    // Start active location tracking with higher accuracy
+    try {
+      const already = await Location.hasStartedLocationUpdatesAsync(
+        PARKING_DETECTION_TASK,
+      );
+      if (already) {
+        await Location.stopLocationUpdatesAsync(PARKING_DETECTION_TASK);
+      }
+    } catch {
+      /* ignore */
+    }
+
+    // Balanced updates: geofence already woke the app; avoid 5 m / 2 s + High accuracy churn.
     await Location.startLocationUpdatesAsync(PARKING_DETECTION_TASK, {
-      accuracy: Location.Accuracy.High,
-      distanceInterval: 5,
-      timeInterval: 2000,
+      accuracy: Location.Accuracy.Balanced,
+      distanceInterval: 15,
+      deferredUpdatesDistance: 15,
+      deferredUpdatesInterval: 5000,
       showsBackgroundLocationIndicator: true,
       foregroundService: {
         notificationTitle: "ScarletSpots",
@@ -235,10 +248,12 @@ TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }: any) => {
       `[GeofenceManager] Exited region: ${region.identifier}. Stopping active tracking.`,
     );
     await AsyncStorage.removeItem("current_geofence_lot_id");
+    await AsyncStorage.removeItem(GEOFENCE_ACTIVE_TRACKING_START_KEY);
 
     // Stop active tracking and sensors to save battery/memory.
     // Do not let this throw block the auto-end flow.
     stopSensorTracking();
+    clearAllDetectionBuffers();
     try {
       const isTracking = await Location.hasStartedLocationUpdatesAsync(
         PARKING_DETECTION_TASK,

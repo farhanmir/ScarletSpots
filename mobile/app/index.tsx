@@ -2,7 +2,7 @@ import { Redirect } from "expo-router";
 import { useAuth } from "@/providers/AuthProvider";
 import { useEffect, useState } from "react";
 import { View, ActivityIndicator } from "react-native";
-import * as Location from "expo-location";
+import { needsOnboardingRedirect } from "@/shared/services/AutoParkCapability";
 
 export default function Index() {
   const { loading: authLoading } = useAuth();
@@ -11,15 +11,8 @@ export default function Index() {
 
   useEffect(() => {
     (async () => {
-      // Check strict requirements without auto-requesting from this splash route.
-      const fg = await Location.getForegroundPermissionsAsync();
-      const bg = await Location.getBackgroundPermissionsAsync();
-      const preciseOk =
-        (fg.ios?.accuracy ? fg.ios.accuracy === "full" : true) &&
-        (fg.android?.accuracy ? fg.android.accuracy === "fine" : true);
-      const needsLocationSetup =
-        fg.status !== "granted" || bg.status !== "granted" || !preciseOk;
-      setNeedsPermissions(needsLocationSetup);
+      const redirect = await needsOnboardingRedirect();
+      setNeedsPermissions(redirect);
       setCheckingPerms(false);
     })();
   }, []);

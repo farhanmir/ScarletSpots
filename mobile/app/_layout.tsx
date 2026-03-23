@@ -5,7 +5,7 @@ import {
 } from "@react-navigation/native";
 import { Stack, useSegments, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { View, Text, TouchableOpacity } from "react-native";
+import { View, Text, TouchableOpacity, AppState } from "react-native";
 import "react-native-reanimated";
 import { useEffect, useRef } from "react";
 import { QueryClient } from "@tanstack/react-query";
@@ -36,6 +36,7 @@ import {
 } from "@/shared/services/GeofenceManager";
 import { getAllLots } from "@/shared/constants/lots";
 import { ENABLE_ALL_CAMPUSES } from "@/shared/constants/featureFlags";
+import { needsOnboardingRedirect } from "@/shared/services/AutoParkCapability";
 
 // Global Error Boundary
 export { ErrorBoundary } from "expo-router";
@@ -97,6 +98,26 @@ function InitialLayout() {
       teardownLotGeofenceRegistration();
     };
   }, [loading, session]);
+
+  useEffect(() => {
+    if (loading || !session) return;
+
+    const redirectIfPermissionsBroken = async () => {
+      const needs = await needsOnboardingRedirect();
+      if (!needs) return;
+      const onPermissionsOnboarding =
+        segments[0] === "onboarding" && segments.includes("permissions");
+      if (onPermissionsOnboarding) return;
+      router.replace("/onboarding/permissions" as any);
+    };
+
+    void redirectIfPermissionsBroken();
+
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next === "active") void redirectIfPermissionsBroken();
+    });
+    return () => sub.remove();
+  }, [loading, session, segments, router]);
 
   return (
     <ThemeProvider value={colorScheme === "light" ? DefaultTheme : DarkTheme}>
