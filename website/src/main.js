@@ -34,3 +34,11 @@ faqTriggers.forEach((trigger) => {
     panel.hidden = isExpanded
   })
 })
+
+const waitlistForm = document.querySelector('.waitlist-form')
+
+if (waitlistForm) {
+  waitlistForm.addEventListener('submit', (event) => {
+    event.preventDefault()
+  })
+}

@@ -127,7 +127,7 @@ main {
 .eyebrow {
   display: inline-flex;
   margin: 0 0 0.9rem;
-  font-size: 0.78rem;
+  font-size: 0.875rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: #d2d8e7;
@@ -201,6 +201,11 @@ main {
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 18px 40px rgba(0, 0, 0, 0.45), 0 0 44px var(--scarlet-glow);
 }
 
+.app-store-btn--disabled {
+  opacity: 0.72;
+  pointer-events: none;
+}
+
 .app-store-btn__badge {
   width: 2.05rem;
   height: 2.05rem;
@@ -240,7 +245,7 @@ main {
   color: #ccd1e0;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
 }
 
 .ticker {
@@ -373,7 +378,7 @@ main {
 .app-store-btn:focus {
   outline: 2px solid var(--scarlet);
   outline-offset: 2px;
-  box-shadow: 0 0 0 2px rgba(7, 9, 13, 0.95), 0 0 0 4px rgba(255, 255, 255, 0.32);
+  box-shadow: 0 0 0 2px #07090d, 0 0 0 4px #ffffff;
 }
 
 .waitlist-form button {
