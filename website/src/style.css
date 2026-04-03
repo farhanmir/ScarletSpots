@@ -500,7 +500,6 @@ main {
   .insights-grid,
   .waitlist-form {
     grid-template-columns: 1fr;
-    display: grid;
   }
 
   .feature-card--large {
