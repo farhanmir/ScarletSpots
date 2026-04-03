@@ -4,14 +4,169 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ScarletSpots | Intelligent Auto-Parking</title>
-    <meta name="description" content="ScarletSpots automatically parks your vehicle using real-time predictive modeling." />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <title>ScarletSpots | Never guess your parking spot again</title>
+    <meta
+      name="description"
+      content="ScarletSpots is a real-time, crowd-sourced parking availability app for Rutgers with live occupancy forecasting and offline-ready maps."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap"
+      rel="stylesheet"
+    />
   </head>
   <body>
-    <div id="app"></div>
+    <div class="ambient ambient--one" aria-hidden="true"></div>
+    <div class="ambient ambient--two" aria-hidden="true"></div>
+
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="ScarletSpots Home">
+        <span class="brand__dot" aria-hidden="true"></span>
+        ScarletSpots
+      </a>
+      <a class="header-cta" href="#waitlist">Join Waitlist</a>
+    </header>
+
+    <main id="top">
+      <section class="hero section">
+        <div class="hero__content reveal">
+          <p class="eyebrow">Rutgers • Live Parking Intelligence</p>
+          <h1>Never guess your parking spot again.</h1>
+          <p class="hero__lead">
+            ScarletSpots gives Rutgers students live lot occupancy with physics-driven forecasting and smart background heuristics.
+          </p>
+          <div class="hero__stats" aria-label="Trust metrics">
+            <article class="stat-card">
+              <p class="stat-card__value">245+</p>
+              <p class="stat-card__label">Lots Tracked</p>
+            </article>
+            <article class="stat-card">
+              <p class="stat-card__value">Instant</p>
+              <p class="stat-card__label">Offline Maps via Bundled Data</p>
+            </article>
+            <article class="stat-card">
+              <p class="stat-card__value">100%</p>
+              <p class="stat-card__label">Student Powered</p>
+            </article>
+          </div>
+          <a class="app-store-btn" href="#" aria-label="Download ScarletSpots on the App Store">
+            <span class="app-store-btn__badge" aria-hidden="true"></span>
+            <span>
+              <small>Download on the</small>
+              <strong>App Store</strong>
+            </span>
+          </a>
+        </div>
+        <aside class="hero__device reveal" aria-label="Device mockup placeholder">
+          <div class="hero__device-inner">
+            <p>iPhone Mockup Placeholder</p>
+          </div>
+        </aside>
+      </section>
+
+      <section class="ticker" aria-label="Live capability ticker">
+        <div class="ticker__track">
+          <span>LIVE OCCUPANCY</span>
+          <span>BACKGROUND DETECTION</span>
+          <span>CROWD-SOURCED ETA</span>
+          <span>NATIVE CAMPUS COMPASS</span>
+          <span>LIVE OCCUPANCY</span>
+          <span>BACKGROUND DETECTION</span>
+          <span>CROWD-SOURCED ETA</span>
+          <span>NATIVE CAMPUS COMPASS</span>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section__heading reveal">
+          <p class="eyebrow">Core Features</p>
+          <h2>Campus parking, engineered end-to-end.</h2>
+        </div>
+        <div class="features-grid">
+          <article class="feature-card reveal">
+            <h3>Real-time Tracking</h3>
+            <p>Live lot pressure updates with minute-to-minute occupancy confidence.</p>
+          </article>
+          <article class="feature-card feature-card--large reveal">
+            <h3>Smart Background Detection</h3>
+            <p>Auto-ends sessions using movement, geofences, and passive device context—no manual taps required.</p>
+          </article>
+          <article class="feature-card reveal">
+            <h3>Friend Finder</h3>
+            <p>Coordinate arrival with friends and converge on open parking zones faster.</p>
+          </article>
+          <article class="feature-card reveal">
+            <h3>Native Compass Integration</h3>
+            <p>On-foot directional guidance from lot edge to your exact destination route.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section__heading reveal">
+          <p class="eyebrow">Under the Hood</p>
+          <h2>Engineering notes from the ScarletSpots lab.</h2>
+        </div>
+        <div class="insights-grid">
+          <article class="insight-card reveal">
+            <p class="insight-card__type">Technical Article</p>
+            <h3>Building a Physics-Based Lot Pressure Engine</h3>
+            <p>How we model arrival and departure gradients to forecast lot saturation before drivers hit campus roads.</p>
+          </article>
+          <article class="insight-card reveal">
+            <p class="insight-card__type">Technical Article</p>
+            <h3>The “Vulture” Metric: Correcting Arrival Sampling Bias</h3>
+            <p>Why repeated lot-circling behavior skews naive estimates and how our metric recalibrates confidence in real time.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section section--waitlist" id="waitlist">
+        <div class="waitlist reveal">
+          <p class="eyebrow">Campus Expansion</p>
+          <h2>Live at Rutgers. Expanding next.</h2>
+          <p>Don’t see your campus? Request ScarletSpots at your university.</p>
+          <form class="waitlist-form" action="#" method="post">
+            <label class="sr-only" for="email">Email address</label>
+            <input id="email" type="email" name="email" autocomplete="email" placeholder="you@university.edu" required />
+            <button type="submit">Request Access</button>
+          </form>
+        </div>
+      </section>
+
+      <section class="section faq">
+        <div class="section__heading reveal">
+          <p class="eyebrow">FAQ</p>
+          <h2>Questions from campus drivers.</h2>
+        </div>
+        <div class="faq-list reveal">
+          <article class="faq-item">
+            <h3>
+              <button class="faq-trigger" type="button" aria-expanded="false" aria-controls="faq-battery" id="faq-battery-trigger">
+                Will it drain my battery?
+              </button>
+            </h3>
+            <div class="faq-panel" id="faq-battery" role="region" aria-labelledby="faq-battery-trigger" hidden>
+              <p>No. ScarletSpots uses smart geofences and low-power background heuristics to minimize battery impact.</p>
+            </div>
+          </article>
+          <article class="faq-item">
+            <h3>
+              <button class="faq-trigger" type="button" aria-expanded="false" aria-controls="faq-official" id="faq-official-trigger">
+                Is it official Rutgers parking software?
+              </button>
+            </h3>
+            <div class="faq-panel" id="faq-official" role="region" aria-labelledby="faq-official-trigger" hidden>
+              <p>No. ScarletSpots is built by students who wanted a better, faster parking experience for campus life.</p>
+            </div>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">© 2026 ScarletSpots. Built by students, tuned by data.</footer>
+
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
