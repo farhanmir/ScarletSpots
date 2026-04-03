@@ -1,6 +1,6 @@
 /* ============================================================================
-   SCARLETSPOTS LANDING PAGE - PREMIUM, UNIQUE DESIGN
-   Dark Foundation + Scarlet Red Accent + Glassmorphism + Smooth Animations
+   SCARLETSPOTS LANDING PAGE - MAP-CENTRIC CARTOGRAPHIC THEME
+   Inspired by Google Maps, Geographic Navigation, and Modern Cartography
    ============================================================================ */
 
 :root {
@@ -8,27 +8,50 @@
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: 'Space Mono', monospace;
 
-  /* Color Palette */
-  --bg-primary: #0a0a0a;
-  --bg-secondary: #151515;
-  --bg-tertiary: #1f1f1f;
+  /* Map-Inspired Color Palette */
+  --bg-primary: #1a1d24;          /* Dark map background */
+  --bg-secondary: #242830;        /* Slightly lighter */
+  --bg-tertiary: #2d323b;         /* Card backgrounds */
+  --bg-map: #1e2128;              /* Map surface */
   
-  --scarlet: #ef4444;
-  --scarlet-light: #f87171;
-  --scarlet-dark: #dc2626;
-  --scarlet-glow: rgba(239, 68, 68, 0.5);
-  --scarlet-glow-strong: rgba(239, 68, 68, 0.8);
+  /* Terrain Colors */
+  --terrain-green: #3d8c40;       /* Park/grass areas */
+  --terrain-green-light: #52b356;
+  --terrain-blue: #3a7bd5;        /* Water features */
+  --terrain-blue-light: #5a9ae6;
+  --terrain-sand: #e8dcc4;        /* Roads/paths */
+  --terrain-gray: #6b7280;        /* Buildings */
+  
+  /* Marker Colors - Scarlet remains primary for parking spots */
+  --marker-scarlet: #ef4444;
+  --marker-scarlet-light: #f87171;
+  --marker-scarlet-dark: #dc2626;
+  --marker-glow: rgba(239, 68, 68, 0.5);
+  --marker-glow-strong: rgba(239, 68, 68, 0.8);
+  
+  /* Route Colors */
+  --route-primary: #4285f4;       /* Google Maps blue */
+  --route-secondary: #34a853;     /* Alternative route green */
+  --route-accent: #fbbc04;        /* Traffic/caution yellow */
 
+  /* Text Colors */
   --text-primary: #f8fafc;
-  --text-secondary: #cbd5e1;
-  --text-tertiary: #94a3b8;
-  --text-disabled: #64748b;
+  --text-secondary: #94a3b8;
+  --text-tertiary: #64748b;
+  --text-disabled: #475569;
+  --text-coords: #60a5fa;         /* Coordinate display */
 
-  /* Glass Effect */
-  --glass-bg: rgba(255, 255, 255, 0.02);
-  --glass-bg-hover: rgba(255, 255, 255, 0.04);
-  --glass-border: rgba(255, 255, 255, 0.05);
-  --glass-border-hover: rgba(255, 255, 255, 0.1);
+  /* Map Grid & Lines */
+  --grid-line: rgba(255, 255, 255, 0.03);
+  --grid-line-strong: rgba(255, 255, 255, 0.06);
+  --topo-line: rgba(74, 222, 128, 0.1);
+  --road-line: rgba(255, 255, 255, 0.08);
+
+  /* Glass Effect (for overlays like search bars) */
+  --glass-bg: rgba(36, 40, 48, 0.85);
+  --glass-bg-hover: rgba(45, 50, 59, 0.9);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border-hover: rgba(255, 255, 255, 0.15);
 
   /* Spacing */
   --space-xs: 0.5rem;
@@ -57,6 +80,7 @@
 
 html {
   scroll-behavior: smooth;
+  scrollbar-gutter: stable;
 }
 
 body {
@@ -69,22 +93,13 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Prevent layout shift from scrollbar */
-html {
-  scrollbar-gutter: stable;
-}
-
 /* ============================================================================
    KEYFRAME ANIMATIONS
    ============================================================================ */
 
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes slideUp {
@@ -109,40 +124,61 @@ html {
   }
 }
 
-@keyframes slideInLeft {
-  from {
-    opacity: 0;
-    transform: translateX(-30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
 }
 
-@keyframes slideInRight {
-  from {
-    opacity: 0;
-    transform: translateX(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-@keyframes scale-in {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-  to {
-    opacity: 1;
+/* Map-specific animations */
+@keyframes ping-marker {
+  0% {
     transform: scale(1);
+    opacity: 1;
+  }
+  75%, 100% {
+    transform: scale(2.5);
+    opacity: 0;
   }
 }
 
-@keyframes pulse-glow {
+@keyframes pulse-marker {
+  0%, 100% {
+    box-shadow: 0 0 0 0 var(--marker-glow);
+  }
+  50% {
+    box-shadow: 0 0 0 12px rgba(239, 68, 68, 0);
+  }
+}
+
+@keyframes route-dash {
+  0% {
+    stroke-dashoffset: 20;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes compass-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes topo-flow {
+  0% { background-position: 0 0; }
+  100% { background-position: 100px 100px; }
+}
+
+@keyframes float-pin {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes glow-pulse {
   0%, 100% {
     opacity: 0.4;
     filter: blur(30px);
@@ -153,50 +189,49 @@ html {
   }
 }
 
-@keyframes float {
-  0%, 100% {
-    transform: translateY(0px) rotate(0deg);
-  }
-  50% {
-    transform: translateY(-20px) rotate(2deg);
-  }
+/* ============================================================================
+   MAP BACKGROUND PATTERNS
+   ============================================================================ */
+
+.map-grid-pattern {
+  position: absolute;
+  inset: 0;
+  background-image: 
+    /* Primary grid */
+    linear-gradient(var(--grid-line-strong) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line-strong) 1px, transparent 1px),
+    /* Secondary grid (finer) */
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px;
+  opacity: 1;
+  pointer-events: none;
 }
 
-@keyframes marquee {
-  0% {
-    transform: translateX(0);
-  }
-  100% {
-    transform: translateX(-50%);
-  }
-}
-
-@keyframes glow-pulse {
-  0%, 100% {
-    box-shadow: 0 0 20px var(--scarlet-glow), 
-                0 0 40px var(--scarlet-glow);
-  }
-  50% {
-    box-shadow: 0 0 30px var(--scarlet-glow-strong), 
-                0 0 60px var(--scarlet-glow-strong);
-  }
-}
-
-@keyframes button-glow {
-  0%, 100% {
-    box-shadow: 0 0 20px var(--scarlet), 
-                0 0 40px var(--scarlet-glow),
-                inset 0 0 20px var(--scarlet-glow);
-  }
-  50% {
-    box-shadow: 0 0 30px var(--scarlet-light), 
-                0 0 60px var(--scarlet-glow-strong),
-                inset 0 0 30px var(--scarlet-glow);
-  }
+.topo-lines {
+  position: absolute;
+  inset: 0;
+  background-image: 
+    repeating-radial-gradient(
+      circle at 30% 40%,
+      transparent,
+      transparent 40px,
+      var(--topo-line) 40px,
+      var(--topo-line) 41px
+    ),
+    repeating-radial-gradient(
+      circle at 70% 60%,
+      transparent,
+      transparent 60px,
+      var(--topo-line) 60px,
+      var(--topo-line) 61px
+    );
+  opacity: 0.5;
+  pointer-events: none;
 }
 
 /* ============================================================================
-   NAVIGATION BAR
+   NAVIGATION BAR - Map Search Bar Style
    ============================================================================ */
 
 .navbar {
@@ -205,8 +240,8 @@ html {
   left: 0;
   right: 0;
   z-index: 1000;
-  background: rgba(10, 10, 10, 0.8);
-  backdrop-filter: blur(10px);
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--glass-border);
   animation: slideDown 500ms var(--transition-fast);
 }
@@ -233,20 +268,30 @@ html {
 }
 
 .logo-icon {
-  width: 24px;
-  height: 24px;
-  background: linear-gradient(135deg, var(--scarlet), var(--scarlet-light));
-  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+  background: var(--marker-scarlet);
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 700;
-  font-size: 12px;
-  color: white;
+  position: relative;
+  box-shadow: 0 4px 12px var(--marker-glow);
+}
+
+.logo-icon::after {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: white;
+  border-radius: 50%;
+  transform: rotate(45deg);
 }
 
 .logo:hover {
-  color: var(--scarlet);
+  color: var(--marker-scarlet);
 }
 
 .nav-menu {
@@ -262,21 +307,24 @@ html {
   font-weight: 500;
   transition: all var(--transition-fast);
   position: relative;
+  padding: 0.5rem 0;
 }
 
 .nav-link::after {
   content: '';
   position: absolute;
-  bottom: -4px;
-  left: 0;
+  bottom: 0;
+  left: 50%;
   width: 0;
-  height: 2px;
-  background: var(--scarlet);
-  transition: width var(--transition-fast);
+  height: 3px;
+  background: var(--route-primary);
+  transition: all var(--transition-fast);
+  transform: translateX(-50%);
+  border-radius: 3px;
 }
 
 .nav-link:hover {
-  color: var(--scarlet);
+  color: var(--text-primary);
 }
 
 .nav-link:hover::after {
@@ -287,34 +335,40 @@ html {
   .navbar-container {
     padding: 1rem;
   }
-
   .nav-menu {
     gap: 1rem;
     font-size: 0.85rem;
   }
-
   .logo span {
     display: none;
   }
 }
 
 /* ============================================================================
-   TICKER SECTION - LIVE OCCUPANCY MARQUEE
+   TICKER SECTION - Live Data Stream (Like real-time traffic updates)
    ============================================================================ */
 
 .ticker-section {
-  margin-top: 70px;
+  margin-top: 65px;
   overflow: hidden;
-  background: var(--bg-secondary);
-  border-top: 1px solid var(--glass-border);
-  border-bottom: 1px solid var(--glass-border);
+  background: linear-gradient(90deg, var(--terrain-green), var(--route-primary), var(--marker-scarlet));
   position: relative;
+}
+
+.ticker-section::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--bg-primary);
+  opacity: 0.85;
 }
 
 .ticker {
   display: flex;
-  animation: marquee 20s linear infinite;
-  padding: 1rem 0;
+  animation: marquee 25s linear infinite;
+  padding: 0.75rem 0;
+  position: relative;
+  z-index: 1;
 }
 
 .ticker-content {
@@ -322,9 +376,9 @@ html {
   gap: 2rem;
   align-items: center;
   white-space: nowrap;
-  font-size: 0.875rem;
+  font-size: 0.8rem;
   font-weight: 600;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.15em;
   text-transform: uppercase;
   color: var(--text-secondary);
   flex-shrink: 0;
@@ -332,20 +386,15 @@ html {
 }
 
 .ticker-dot {
-  color: var(--scarlet);
-  margin: 0 0.5rem;
-}
-
-.ticker-content span {
-  transition: color var(--transition-fast);
-}
-
-.ticker-content:hover span {
-  color: var(--scarlet);
+  width: 6px;
+  height: 6px;
+  background: var(--marker-scarlet);
+  border-radius: 50%;
+  animation: pulse-marker 2s infinite;
 }
 
 /* ============================================================================
-   HERO SECTION
+   HERO SECTION - Full Map Canvas
    ============================================================================ */
 
 .hero {
@@ -355,7 +404,8 @@ html {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  padding: 4rem 2rem;
+  padding: 6rem 2rem 4rem;
+  background: var(--bg-map);
 }
 
 .hero-background {
@@ -365,39 +415,79 @@ html {
   overflow: hidden;
 }
 
+/* Stylized map canvas background */
+.hero-background::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: 
+    /* Simulated roads */
+    linear-gradient(90deg, transparent 49%, var(--road-line) 49%, var(--road-line) 51%, transparent 51%),
+    linear-gradient(0deg, transparent 49%, var(--road-line) 49%, var(--road-line) 51%, transparent 51%);
+  background-size: 200px 200px;
+  background-position: center;
+}
+
 .glow {
   position: absolute;
   border-radius: 50%;
-  filter: blur(50px);
-  opacity: 0.3;
+  filter: blur(80px);
+  opacity: 0.25;
 }
 
 .glow-1 {
-  width: 500px;
-  height: 500px;
-  background: var(--scarlet-glow);
-  top: 10%;
+  width: 600px;
+  height: 600px;
+  background: var(--route-primary);
+  top: 5%;
   left: -200px;
-  animation: float 8s ease-in-out infinite;
+  animation: glow-pulse 8s ease-in-out infinite;
 }
 
 .glow-2 {
-  width: 400px;
-  height: 400px;
-  background: rgba(59, 130, 246, 0.2);
+  width: 500px;
+  height: 500px;
+  background: var(--marker-scarlet);
   bottom: 10%;
-  right: -100px;
-  animation: float 10s ease-in-out infinite reverse;
+  right: -150px;
+  animation: glow-pulse 10s ease-in-out infinite reverse;
 }
 
 .grid-overlay {
   position: absolute;
   inset: 0;
   background-image: 
-    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
-  background-size: 50px 50px;
-  opacity: 0.5;
+    /* Primary grid lines */
+    linear-gradient(var(--grid-line-strong) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line-strong) 1px, transparent 1px),
+    /* Secondary finer grid */
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 80px 80px, 80px 80px, 16px 16px, 16px 16px;
+  opacity: 1;
+}
+
+/* Topographic contour lines overlay */
+.grid-overlay::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: 
+    repeating-radial-gradient(
+      ellipse at 25% 35%,
+      transparent,
+      transparent 80px,
+      rgba(74, 222, 128, 0.04) 80px,
+      rgba(74, 222, 128, 0.04) 82px
+    ),
+    repeating-radial-gradient(
+      ellipse at 75% 65%,
+      transparent,
+      transparent 100px,
+      rgba(59, 130, 246, 0.04) 100px,
+      rgba(59, 130, 246, 0.04) 102px
+    );
+  animation: topo-flow 30s linear infinite;
 }
 
 .hero-inner {
@@ -409,6 +499,23 @@ html {
   animation: slideUp 800ms var(--transition-normal) forwards;
 }
 
+/* Coordinates Badge */
+.hero-inner::before {
+  content: '40.5008° N, 74.4474° W';
+  position: absolute;
+  top: -40px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-coords);
+  background: var(--glass-bg);
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  border: 1px solid var(--glass-border);
+  letter-spacing: 0.05em;
+}
+
 .hero-title {
   font-size: clamp(2.5rem, 8vw, 4.5rem);
   font-weight: 800;
@@ -418,10 +525,11 @@ html {
   color: var(--text-primary);
 }
 
+/* Stats Cards - Like Map Info Windows */
 .hero-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 2rem;
+  gap: 1.5rem;
   margin: 3rem 0;
   padding: 2rem 0;
   animation: slideUp 800ms var(--transition-normal) forwards;
@@ -436,19 +544,39 @@ html {
   backdrop-filter: blur(10px);
   transition: all var(--transition-normal);
   cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Map marker pin indicator */
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 3px;
+  height: 0;
+  background: var(--marker-scarlet);
+  transition: height var(--transition-normal);
+  border-radius: 0 0 3px 3px;
 }
 
 .stat-card:hover {
   background: var(--glass-bg-hover);
-  border-color: var(--glass-border-hover);
+  border-color: var(--marker-scarlet);
   transform: translateY(-4px);
-  box-shadow: 0 20px 40px rgba(239, 68, 68, 0.1);
+  box-shadow: 0 20px 40px var(--marker-glow);
+}
+
+.stat-card:hover::before {
+  height: 100%;
 }
 
 .stat-number {
   font-size: 2.5rem;
   font-weight: 800;
-  background: linear-gradient(135deg, var(--scarlet), var(--scarlet-light));
+  background: linear-gradient(135deg, var(--marker-scarlet), var(--marker-scarlet-light));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -457,10 +585,10 @@ html {
 }
 
 .stat-label {
-  font-size: 0.875rem;
+  font-size: 0.8rem;
   color: var(--text-tertiary);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.1em;
   font-weight: 600;
 }
 
@@ -476,7 +604,7 @@ html {
   animation-delay: 200ms;
 }
 
-/* Device Mockup Placeholder */
+/* Device Mockup - Styled as Map Interface */
 .device-mockup {
   margin: 3rem 0;
   display: flex;
@@ -488,9 +616,9 @@ html {
 .device-placeholder {
   position: relative;
   width: 300px;
-  height: 450px;
-  background: linear-gradient(135deg, var(--bg-secondary), var(--bg-tertiary));
-  border: 2px solid var(--glass-border);
+  height: 500px;
+  background: var(--bg-secondary);
+  border: 3px solid var(--glass-border);
   border-radius: 40px;
   display: flex;
   align-items: center;
@@ -498,43 +626,96 @@ html {
   overflow: hidden;
   transition: all var(--transition-normal);
   cursor: pointer;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.4);
+}
+
+/* Map pattern inside device */
+.device-placeholder::before {
+  content: '';
+  position: absolute;
+  inset: 20px;
+  border-radius: 24px;
+  background: 
+    /* Simulated map grid */
+    linear-gradient(var(--grid-line-strong) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line-strong) 1px, transparent 1px),
+    /* Road simulation */
+    linear-gradient(90deg, transparent 45%, var(--road-line) 45%, var(--road-line) 55%, transparent 55%),
+    linear-gradient(transparent 30%, var(--road-line) 30%, var(--road-line) 35%, transparent 35%),
+    var(--bg-map);
+  background-size: 30px 30px, 30px 30px, 100% 100%, 100% 100%, 100% 100%;
 }
 
 .device-placeholder:hover {
-  border-color: var(--scarlet);
-  box-shadow: 0 0 40px var(--scarlet-glow);
+  border-color: var(--route-primary);
   transform: translateY(-8px) scale(1.02);
+  box-shadow: 
+    0 30px 70px rgba(0, 0, 0, 0.5),
+    0 0 0 1px var(--route-primary);
 }
 
 .device-glow {
   position: absolute;
-  inset: -20px;
-  background: radial-gradient(circle, var(--scarlet-glow), transparent);
+  inset: -30px;
+  background: radial-gradient(circle at center, var(--route-primary), transparent 70%);
   opacity: 0;
   transition: opacity var(--transition-normal);
   pointer-events: none;
+  filter: blur(30px);
 }
 
 .device-placeholder:hover .device-glow {
-  opacity: 1;
+  opacity: 0.3;
 }
 
 .device-content {
   text-align: center;
   z-index: 1;
+  position: relative;
 }
 
+/* Location Pin in Device */
 .device-content .placeholder-icon {
-  font-size: 4rem;
+  font-size: 3rem;
   margin-bottom: 1rem;
+  display: flex;
+  justify-content: center;
+  position: relative;
+}
+
+.device-content .placeholder-icon::before {
+  content: '';
+  width: 50px;
+  height: 50px;
+  background: var(--marker-scarlet);
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  display: block;
+  position: relative;
+  animation: float-pin 2s ease-in-out infinite;
+  box-shadow: 0 8px 20px var(--marker-glow);
+}
+
+.device-content .placeholder-icon::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 15px;
+  height: 15px;
+  background: white;
+  border-radius: 50%;
+  transform: translate(-50%, -70%);
+  animation: float-pin 2s ease-in-out infinite;
 }
 
 .device-content p {
   color: var(--text-tertiary);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 500;
 }
 
-/* CTA Buttons */
+/* CTA Buttons - Map Action Style */
 .cta-buttons {
   display: flex;
   gap: 1rem;
@@ -545,7 +726,6 @@ html {
   animation-delay: 400ms;
 }
 
-/* Button Base Styles */
 .btn {
   padding: 1rem 2rem;
   border: none;
@@ -578,13 +758,14 @@ html {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--scarlet), var(--scarlet-dark));
+  background: linear-gradient(135deg, var(--route-primary), #2563eb);
   color: white;
+  box-shadow: 0 4px 15px rgba(66, 133, 244, 0.4);
 }
 
 .btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 30px var(--scarlet-glow);
+  box-shadow: 0 12px 30px rgba(66, 133, 244, 0.5);
 }
 
 .btn-primary:active {
@@ -592,7 +773,7 @@ html {
 }
 
 .glow-button {
-  animation: button-glow 3s ease-in-out infinite;
+  animation: none;
 }
 
 .btn-secondary {
@@ -603,8 +784,8 @@ html {
 
 .btn-secondary:hover {
   background: var(--glass-bg-hover);
-  border-color: var(--scarlet);
-  color: var(--scarlet);
+  border-color: var(--route-primary);
+  color: var(--route-primary);
   transform: translateY(-2px);
 }
 
@@ -612,13 +793,13 @@ html {
   font-size: 1.2rem;
 }
 
-/* Credibility Badge */
+/* Credibility - Location verified style */
 .credibility {
   display: flex;
   gap: 2rem;
   justify-content: center;
   margin-top: 2rem;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   color: var(--text-tertiary);
   flex-wrap: wrap;
   animation: slideUp 800ms var(--transition-normal) forwards;
@@ -629,10 +810,20 @@ html {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: var(--glass-bg);
+  border-radius: 20px;
+  border: 1px solid var(--glass-border);
+  transition: all var(--transition-fast);
+}
+
+.credibility span:hover {
+  border-color: var(--terrain-green);
+  color: var(--terrain-green-light);
 }
 
 /* ============================================================================
-   FEATURES SECTION
+   FEATURES SECTION - Map Legend Style
    ============================================================================ */
 
 .features {
@@ -643,18 +834,37 @@ html {
   text-align: center;
 }
 
+/* Decorative map elements */
+.features::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--grid-line-strong), transparent);
+}
+
 .section-label {
-  display: inline-block;
-  font-size: 0.875rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.15em;
-  color: var(--scarlet);
+  color: var(--route-primary);
   margin-bottom: 1rem;
   padding: 0.5rem 1rem;
-  background: rgba(239, 68, 68, 0.1);
+  background: rgba(66, 133, 244, 0.1);
   border-radius: 20px;
-  border: 1px solid rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(66, 133, 244, 0.2);
+}
+
+/* Compass icon before label */
+.section-label::before {
+  content: '◎';
+  font-size: 1rem;
 }
 
 .section-title {
@@ -676,7 +886,7 @@ html {
 .features-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 2rem;
+  gap: 1.5rem;
   margin-top: 3rem;
 }
 
@@ -689,13 +899,27 @@ html {
   transition: all var(--transition-normal);
   position: relative;
   overflow: hidden;
+  text-align: left;
 }
 
+/* Route line accent */
 .feature-card::before {
   content: '';
   position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 0;
+  background: linear-gradient(180deg, var(--route-primary), var(--terrain-green));
+  transition: height var(--transition-normal);
+  border-radius: 0 4px 4px 0;
+}
+
+.feature-card::after {
+  content: '';
+  position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), transparent);
+  background: linear-gradient(135deg, rgba(66, 133, 244, 0.05), transparent);
   opacity: 0;
   transition: opacity var(--transition-normal);
   pointer-events: none;
@@ -703,39 +927,43 @@ html {
 
 .feature-card:hover {
   background: var(--glass-bg-hover);
-  border-color: var(--scarlet);
-  transform: translateY(-8px);
-  box-shadow: 0 20px 50px rgba(239, 68, 68, 0.15);
+  border-color: var(--route-primary);
+  transform: translateY(-6px);
+  box-shadow: 0 20px 50px rgba(66, 133, 244, 0.15);
 }
 
 .feature-card:hover::before {
+  height: 100%;
+}
+
+.feature-card:hover::after {
   opacity: 1;
 }
 
 .feature-icon {
-  width: 60px;
-  height: 60px;
+  width: 56px;
+  height: 56px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, var(--scarlet), var(--scarlet-light));
+  background: linear-gradient(135deg, var(--route-primary), #2563eb);
   border-radius: 12px;
   margin-bottom: 1.5rem;
-  margin-left: auto;
-  margin-right: auto;
+  position: relative;
+  box-shadow: 0 4px 15px rgba(66, 133, 244, 0.3);
 }
 
 .feature-icon svg {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   color: white;
   stroke-width: 2;
 }
 
 .feature-card h3 {
-  font-size: 1.25rem;
+  font-size: 1.2rem;
   font-weight: 700;
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
   color: var(--text-primary);
 }
 
@@ -745,25 +973,25 @@ html {
   font-size: 0.95rem;
 }
 
-/* Asymmetrical Layout Variations */
-.feature-card-1 {
-  animation-delay: 0ms;
-}
+/* Different accent colors per card */
+.feature-card-1 .feature-icon { background: linear-gradient(135deg, var(--marker-scarlet), var(--marker-scarlet-light)); }
+.feature-card-1:hover { border-color: var(--marker-scarlet); }
+.feature-card-1::before { background: var(--marker-scarlet); }
 
-.feature-card-2 {
-  animation-delay: 100ms;
-}
+.feature-card-2 .feature-icon { background: linear-gradient(135deg, var(--terrain-green), var(--terrain-green-light)); }
+.feature-card-2:hover { border-color: var(--terrain-green); }
+.feature-card-2::before { background: var(--terrain-green); }
 
-.feature-card-3 {
-  animation-delay: 200ms;
-}
+.feature-card-3 .feature-icon { background: linear-gradient(135deg, var(--route-primary), #2563eb); }
+.feature-card-3:hover { border-color: var(--route-primary); }
+.feature-card-3::before { background: var(--route-primary); }
 
-.feature-card-4 {
-  animation-delay: 300ms;
-}
+.feature-card-4 .feature-icon { background: linear-gradient(135deg, var(--route-accent), #f59e0b); }
+.feature-card-4:hover { border-color: var(--route-accent); }
+.feature-card-4::before { background: var(--route-accent); }
 
 /* ============================================================================
-   TECHNICAL SECTION
+   TECHNICAL SECTION - Data Layer Info
    ============================================================================ */
 
 .technical {
@@ -772,6 +1000,22 @@ html {
   margin: 0 auto;
   padding: 6rem 2rem;
   text-align: center;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--glass-border);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+/* Background grid pattern */
+.technical::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: 
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 40px 40px;
+  opacity: 0.5;
+  pointer-events: none;
 }
 
 .tech-articles {
@@ -779,11 +1023,13 @@ html {
   grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
   gap: 2rem;
   margin-top: 3rem;
+  position: relative;
+  z-index: 1;
 }
 
 .tech-card {
   padding: 2.5rem;
-  background: linear-gradient(135deg, var(--bg-secondary), var(--bg-tertiary));
+  background: var(--bg-tertiary);
   border: 1px solid var(--glass-border);
   border-radius: 16px;
   backdrop-filter: blur(10px);
@@ -793,25 +1039,30 @@ html {
   overflow: hidden;
 }
 
-.tech-card::after {
+/* Simulated route path line */
+.tech-card::before {
   content: '';
   position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(239, 68, 68, 0.1), transparent);
-  transition: left 600ms;
+  top: 2rem;
+  right: 2rem;
+  width: 60px;
+  height: 60px;
+  border: 2px dashed var(--grid-line-strong);
+  border-radius: 50%;
+  opacity: 0.5;
+  transition: all var(--transition-normal);
 }
 
-.tech-card:hover::after {
-  left: 100%;
+.tech-card:hover::before {
+  border-color: var(--route-primary);
+  opacity: 1;
+  transform: rotate(90deg);
 }
 
 .tech-card:hover {
-  border-color: var(--scarlet);
+  border-color: var(--route-primary);
   transform: translateY(-8px);
-  box-shadow: 0 20px 50px rgba(239, 68, 68, 0.1);
+  box-shadow: 0 20px 50px rgba(66, 133, 244, 0.1);
 }
 
 .tech-card-header {
@@ -826,20 +1077,28 @@ html {
 }
 
 .tech-tag {
-  display: inline-block;
-  font-size: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  padding: 0.25rem 0.75rem;
-  background: rgba(239, 68, 68, 0.2);
-  border: 1px solid var(--scarlet);
+  padding: 0.35rem 0.75rem;
+  background: rgba(66, 133, 244, 0.15);
+  border: 1px solid var(--route-primary);
   border-radius: 4px;
-  color: var(--scarlet);
+  color: var(--route-primary);
+}
+
+/* Pin marker before tag */
+.tech-tag::before {
+  content: '📍';
+  font-size: 0.9rem;
 }
 
 .tech-card h3 {
-  font-size: 1.5rem;
+  font-size: 1.4rem;
   font-weight: 700;
   margin-bottom: 1rem;
   color: var(--text-primary);
@@ -855,7 +1114,7 @@ html {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  color: var(--scarlet);
+  color: var(--route-primary);
   text-decoration: none;
   font-weight: 600;
   transition: all var(--transition-fast);
@@ -869,8 +1128,12 @@ html {
   left: 0;
   width: 0;
   height: 2px;
-  background: var(--scarlet);
+  background: var(--route-primary);
   transition: width var(--transition-fast);
+}
+
+.tech-link:hover {
+  color: var(--terrain-blue-light);
 }
 
 .tech-link:hover::after {
@@ -878,7 +1141,7 @@ html {
 }
 
 /* ============================================================================
-   EXPANSION / WAITLIST SECTION
+   EXPANSION / WAITLIST SECTION - New Territory
    ============================================================================ */
 
 .expansion {
@@ -889,6 +1152,7 @@ html {
   justify-content: center;
   padding: 6rem 2rem;
   overflow: hidden;
+  background: var(--bg-map);
 }
 
 .expansion-content {
@@ -904,16 +1168,45 @@ html {
   z-index: 0;
 }
 
+/* Radiating circles like location radius */
+.expansion-background::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 800px;
+  height: 800px;
+  background: 
+    radial-gradient(circle, transparent 30%, var(--marker-glow) 30.5%, transparent 31%),
+    radial-gradient(circle, transparent 50%, rgba(66, 133, 244, 0.1) 50.5%, transparent 51%),
+    radial-gradient(circle, transparent 70%, var(--topo-line) 70.5%, transparent 71%);
+  animation: ping-marker 4s ease-out infinite;
+  opacity: 0.5;
+}
+
 .expansion-glow {
   position: absolute;
-  width: 600px;
-  height: 600px;
-  background: radial-gradient(circle, var(--scarlet-glow), transparent);
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, var(--marker-glow), transparent 70%);
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
   filter: blur(60px);
-  animation: pulse-glow 4s ease-in-out infinite;
+  animation: glow-pulse 4s ease-in-out infinite;
+}
+
+/* Map grid in background */
+.expansion-background::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: 
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 60px 60px;
+  opacity: 0.5;
 }
 
 .waitlist-form {
@@ -930,7 +1223,7 @@ html {
 }
 
 .form-input {
-  padding: 1rem;
+  padding: 1rem 1.25rem;
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
   border-radius: 12px;
@@ -946,15 +1239,23 @@ html {
 
 .form-input:focus {
   outline: none;
-  border-color: var(--scarlet);
+  border-color: var(--route-primary);
   background: var(--glass-bg-hover);
-  box-shadow: 0 0 20px var(--scarlet-glow);
+  box-shadow: 0 0 0 3px rgba(66, 133, 244, 0.2);
 }
 
 .form-note {
   margin-top: 1rem;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.form-note::before {
+  content: '📍';
 }
 
 /* ============================================================================
@@ -981,6 +1282,22 @@ html {
   background: var(--glass-bg);
   overflow: hidden;
   transition: all var(--transition-normal);
+  position: relative;
+}
+
+/* Location dot indicator */
+.faq-item::before {
+  content: '';
+  position: absolute;
+  left: 1.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 8px;
+  height: 8px;
+  background: var(--text-tertiary);
+  border-radius: 50%;
+  transition: all var(--transition-normal);
+  opacity: 0;
 }
 
 .faq-item:hover {
@@ -989,17 +1306,24 @@ html {
 }
 
 .faq-item.active {
-  border-color: var(--scarlet);
+  border-color: var(--route-primary);
+}
+
+.faq-item.active::before {
+  opacity: 1;
+  background: var(--route-primary);
+  box-shadow: 0 0 10px var(--route-primary);
 }
 
 .faq-question {
   width: 100%;
   padding: 1.5rem;
+  padding-left: 3rem;
   background: none;
   border: none;
   color: var(--text-primary);
   font-family: var(--font-sans);
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   font-weight: 600;
   cursor: pointer;
   display: flex;
@@ -1009,36 +1333,40 @@ html {
 }
 
 .faq-question:hover {
-  color: var(--scarlet);
+  color: var(--route-primary);
 }
 
 .faq-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  color: var(--scarlet);
+  width: 28px;
+  height: 28px;
+  color: var(--route-primary);
   font-weight: 700;
   font-size: 1.25rem;
   transition: transform var(--transition-normal);
   flex-shrink: 0;
+  background: rgba(66, 133, 244, 0.1);
+  border-radius: 50%;
 }
 
 .faq-item.active .faq-icon {
   transform: rotate(45deg);
+  background: var(--route-primary);
+  color: white;
 }
 
 .faq-answer {
   max-height: 0;
   overflow: hidden;
   transition: all var(--transition-normal);
-  background: rgba(239, 68, 68, 0.02);
+  background: rgba(66, 133, 244, 0.03);
 }
 
 .faq-item.active .faq-answer {
   max-height: 500px;
-  padding: 0 1.5rem 1.5rem;
+  padding: 0 1.5rem 1.5rem 3rem;
 }
 
 .faq-answer p {
@@ -1063,7 +1391,7 @@ html {
 }
 
 /* ============================================================================
-   FOOTER
+   FOOTER - Map Legend Style
    ============================================================================ */
 
 .footer {
@@ -1071,6 +1399,18 @@ html {
   border-top: 1px solid var(--glass-border);
   padding: 4rem 2rem 2rem;
   color: var(--text-secondary);
+  position: relative;
+}
+
+/* Simulated map coordinates */
+.footer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--terrain-green), var(--route-primary), var(--marker-scarlet), var(--route-accent));
 }
 
 .footer-content {
@@ -1086,7 +1426,16 @@ html {
   margin-bottom: 1rem;
   font-size: 1rem;
   font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
+
+/* Different colored markers per section */
+.footer-section:nth-child(1) h4::before { content: ''; width: 8px; height: 8px; background: var(--marker-scarlet); border-radius: 50%; }
+.footer-section:nth-child(2) h4::before { content: ''; width: 8px; height: 8px; background: var(--route-primary); border-radius: 50%; }
+.footer-section:nth-child(3) h4::before { content: ''; width: 8px; height: 8px; background: var(--terrain-green); border-radius: 50%; }
+.footer-section:nth-child(4) h4::before { content: ''; width: 8px; height: 8px; background: var(--route-accent); border-radius: 50%; }
 
 .footer-section p {
   font-size: 0.9rem;
@@ -1100,6 +1449,22 @@ html {
 
 .footer-section li {
   margin-bottom: 0.75rem;
+  position: relative;
+  padding-left: 1rem;
+}
+
+.footer-section li::before {
+  content: '→';
+  position: absolute;
+  left: 0;
+  color: var(--text-disabled);
+  font-size: 0.8rem;
+  transition: all var(--transition-fast);
+}
+
+.footer-section li:hover::before {
+  color: var(--route-primary);
+  transform: translateX(3px);
 }
 
 .footer-section a {
@@ -1110,7 +1475,7 @@ html {
 }
 
 .footer-section a:hover {
-  color: var(--scarlet);
+  color: var(--route-primary);
 }
 
 .footer-bottom {
@@ -1119,8 +1484,20 @@ html {
   padding-top: 2rem;
   border-top: 1px solid var(--glass-border);
   text-align: center;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   color: var(--text-disabled);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* Coordinates in footer */
+.footer-bottom::after {
+  content: '40.5008° N, 74.4474° W • Rutgers, NJ';
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-coords);
+  opacity: 0.6;
 }
 
 /* ============================================================================
@@ -1135,8 +1512,13 @@ html {
   }
 
   .hero {
-    padding: 2rem 1rem;
+    padding: 5rem 1rem 3rem;
     min-height: auto;
+  }
+
+  .hero-inner::before {
+    font-size: 0.65rem;
+    top: -30px;
   }
 
   .hero-title {
@@ -1182,17 +1564,30 @@ html {
 
   .credibility {
     flex-direction: column;
-    gap: 1rem;
+    gap: 0.75rem;
   }
 
   .device-placeholder {
-    width: 250px;
-    height: 400px;
+    width: 260px;
+    height: 420px;
   }
 
   .ticker-content {
-    font-size: 0.75rem;
-    gap: 1rem;
+    font-size: 0.7rem;
+    gap: 1.5rem;
+  }
+
+  .faq-question {
+    padding-left: 2.5rem;
+    font-size: 0.95rem;
+  }
+
+  .faq-item::before {
+    left: 1rem;
+  }
+
+  .faq-item.active .faq-answer {
+    padding-left: 2.5rem;
   }
 }
 
@@ -1218,21 +1613,16 @@ html {
   }
 
   .device-placeholder {
-    width: 200px;
-    height: 320px;
-  }
-
-  .device-content .placeholder-icon {
-    font-size: 3rem;
-  }
-
-  .faq-question {
-    font-size: 1rem;
-    padding: 1rem;
+    width: 220px;
+    height: 360px;
   }
 
   .footer-content {
     grid-template-columns: 1fr;
+  }
+
+  .footer-bottom {
+    font-size: 0.8rem;
   }
 }
 
@@ -1244,5 +1634,10 @@ html {
   .navbar,
   .ticker-section {
     display: none;
+  }
+  
+  body {
+    background: white;
+    color: black;
   }
 }
