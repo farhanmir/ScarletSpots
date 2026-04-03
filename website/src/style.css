@@ -373,6 +373,7 @@ main {
 .app-store-btn:focus {
   outline: 2px solid var(--scarlet);
   outline-offset: 2px;
+  box-shadow: 0 0 0 2px rgba(7, 9, 13, 0.95), 0 0 0 4px rgba(255, 255, 255, 0.32);
 }
 
 .waitlist-form button {
@@ -464,6 +465,20 @@ main {
 
   to {
     transform: translateX(-50%);
+  }
+}
+
+
+@media (prefers-reduced-motion: reduce) {
+  .ticker__track {
+    animation: none;
+  }
+
+  .reveal,
+  .reveal.is-visible {
+    transition: none;
+    transform: none;
+    opacity: 1;
   }
 }
 
