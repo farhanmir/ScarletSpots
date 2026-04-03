@@ -1,86 +1,135 @@
-import './style.css'
+import './style.css';
 
-document.querySelector('#app').innerHTML = `
-  <nav>
-    <div class="logo">
-      <div class="logo-dot"></div>
-      ScarletSpots
-    </div>
-    <div class="actions">
-      <a href="#" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.875rem;">Login</a>
-    </div>
-  </nav>
+/* ================================================================
+   NAVIGATION — scroll state
+   ================================================================ */
+const header = document.getElementById('site-header');
+if (header) {
+  const onScroll = () => {
+    if (window.scrollY > 20) {
+      header.classList.add('scrolled');
+    } else {
+      header.classList.remove('scrolled');
+    }
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll(); // run once on load
+}
 
-  <main class="hero">
-    <h1>Intelligent <span>Auto-Parking</span></h1>
-    <p>
-      Seamlessly find, reserve, and park in available spots using our AI-driven real-time predictive modeling. 
-      The future of campus navigation is here.
-    </p>
-    
-    <div class="actions">
-      <button class="btn btn-primary" id="cta-btn">Get Started</button>
-      <button class="btn btn-secondary">Read Docs</button>
-    </div>
-  </main>
+/* ================================================================
+   SCROLL REVEAL — IntersectionObserver
+   ================================================================ */
 
-  <section class="features">
-    <div class="feature-card">
-      <div class="feature-icon">🎯</div>
-      <h3>Real-Time Spot Detection</h3>
-      <p>Our computer vision models instantly analyze lot density and camera feeds to guide you right to the open space.</p>
-    </div>
-    
-    <div class="feature-card">
-      <div class="feature-icon">⚡</div>
-      <h3>Microsecond Latency</h3>
-      <p>Powered by a monolithic architecture shifting to a high-throughput edge network, ensuring your data is always live.</p>
-    </div>
-    
-    <div class="feature-card">
-      <div class="feature-icon">🔒</div>
-      <h3>Secure Reservations</h3>
-      <p>Reserve spots securely with encrypted geo-fencing tokens to ensure your parking space is waiting when you arrive.</p>
-    </div>
-  </section>
+// Pre-calculate stagger delays so we don't query the DOM inside the callback.
+const revealEls = Array.from(document.querySelectorAll('.reveal'));
+revealEls.forEach((el) => {
+  const siblings = el.parentElement
+    ? Array.from(el.parentElement.querySelectorAll('.reveal'))
+    : [el];
+  const idx = siblings.indexOf(el);
+  if (idx > 0) el.style.transitionDelay = `${idx * 0.08}s`;
+});
 
-  <footer>
-    <p>&copy; 2026 ScarletSpots Inc. Architected for scale.</p>
-  </footer>
-`
-
-// Micro-interactions and simple interactivity
-const setupInteractions = () => {
-  const cards = document.querySelectorAll('.feature-card');
-  
-  // Simple intersection observer for scroll animations
-  const observer = new IntersectionObserver((entries) => {
+const revealObserver = new IntersectionObserver(
+  (entries) => {
     entries.forEach((entry) => {
       if (entry.isIntersecting) {
-        entry.target.style.opacity = "1";
-        entry.target.style.transform = "translateY(0)";
-        observer.unobserve(entry.target);
+        entry.target.classList.add('visible');
+        revealObserver.unobserve(entry.target);
       }
     });
-  }, { threshold: 0.1 });
+  },
+  { threshold: 0.12, rootMargin: '0px 0px -40px 0px' }
+);
 
-  cards.forEach((card, index) => {
-    card.style.opacity = "0";
-    card.style.transform = "translateY(20px)";
-    card.style.transitionDelay = `${index * 0.1}s`;
-    observer.observe(card);
-  });
-  
-  // Button click effect
-  const btn = document.getElementById('cta-btn');
-  btn.addEventListener('click', () => {
-    btn.style.transform = 'scale(0.95)';
-    setTimeout(() => {
-        btn.style.transform = 'translateY(-2px)';
-    }, 150);
-  });
-};
+revealEls.forEach((el) => revealObserver.observe(el));
 
-document.addEventListener('DOMContentLoaded', setupInteractions);
-// For Vite HMR
-setupInteractions();
+/* ================================================================
+   FAQ ACCORDION
+   ================================================================ */
+const accordionItems = document.querySelectorAll('.accordion-item');
+
+/**
+ * Close an accordion item.
+ * Uses a fallback timeout in case transitionend never fires
+ * (e.g., when transitions are disabled or interrupted).
+ */
+function closeItem(item) {
+  if (!item.classList.contains('open')) return;
+  const trigger = item.querySelector('.accordion-trigger');
+  const panel = item.querySelector('.accordion-panel');
+  if (!trigger || !panel) return;
+
+  item.classList.remove('open');
+  trigger.setAttribute('aria-expanded', 'false');
+  panel.style.maxHeight = '';
+
+  let settled = false;
+  const hide = () => {
+    if (settled) return;
+    settled = true;
+    panel.classList.remove('panel-open');
+  };
+
+  panel.addEventListener('transitionend', hide, { once: true });
+  // Fallback: hide after transition duration + buffer (500 ms)
+  setTimeout(hide, 500);
+}
+
+/**
+ * Open an accordion item.
+ */
+function openItem(item) {
+  const trigger = item.querySelector('.accordion-trigger');
+  const panel = item.querySelector('.accordion-panel');
+  if (!trigger || !panel) return;
+
+  panel.classList.add('panel-open');
+  // Force reflow so the max-height transition fires from 0
+  panel.getBoundingClientRect();
+  item.classList.add('open');
+  trigger.setAttribute('aria-expanded', 'true');
+  panel.style.maxHeight = panel.scrollHeight + 'px';
+}
+
+accordionItems.forEach((item) => {
+  const trigger = item.querySelector('.accordion-trigger');
+  if (!trigger) return;
+
+  trigger.addEventListener('click', () => {
+    const isOpen = item.classList.contains('open');
+
+    // Close all other items first
+    accordionItems.forEach((other) => {
+      if (other !== item) closeItem(other);
+    });
+
+    if (isOpen) {
+      closeItem(item);
+    } else {
+      openItem(item);
+    }
+  });
+});
+
+/* ================================================================
+   WAITLIST FORM — basic feedback
+   ================================================================ */
+const form = document.getElementById('waitlist-form');
+if (form) {
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const input = form.querySelector('input[type="email"]');
+    const btn = form.querySelector('button[type="submit"]');
+    if (!input || !btn) return;
+
+    const email = input.value.trim();
+    if (!email) return;
+
+    btn.textContent = '✓ You\'re on the list!';
+    btn.disabled = true;
+    btn.style.opacity = '0.8';
+    input.disabled = true;
+    input.style.opacity = '0.5';
+  });
+}
