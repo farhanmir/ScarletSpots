@@ -391,7 +391,7 @@ main {
 }
 
 .faq-item {
-  overflow: clip;
+  overflow: hidden;
 }
 
 .faq-trigger {
