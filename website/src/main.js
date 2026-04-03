@@ -145,22 +145,25 @@ function isValidEmail(email) {
 }
 
 function showNotification(message, type = 'info') {
-  // Create notification element
+  // Create notification element with map-themed styling
   const notification = document.createElement('div')
-  notification.textContent = message
+  notification.innerHTML = `<span style="margin-right: 8px;">${type === 'success' ? '📍' : type === 'error' ? '⚠️' : '🧭'}</span>${message}`
   notification.style.cssText = `
     position: fixed;
     bottom: 20px;
     right: 20px;
     padding: 1rem 1.5rem;
-    background: ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6'};
+    background: ${type === 'success' ? '#3d8c40' : type === 'error' ? '#ef4444' : '#4285f4'};
     color: white;
-    border-radius: 8px;
+    border-radius: 12px;
     font-weight: 600;
     z-index: 9999;
     animation: slideUp 300ms ease-out forwards;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-    max-width: 300px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    max-width: 320px;
+    display: flex;
+    align-items: center;
+    border: 1px solid rgba(255, 255, 255, 0.1);
   `
 
   document.body.appendChild(notification)
@@ -241,19 +244,19 @@ function initSmoothInteractions() {
     })
   }
 
-  // CTA button glow effect
+  // CTA button glow effect - map-themed blue glow
   const glowButton = document.querySelector('.glow-button')
   if (glowButton) {
     glowButton.addEventListener('mouseenter', function () {
       this.style.boxShadow = `
-        0 0 30px var(--scarlet), 
-        0 0 60px var(--scarlet-glow-strong),
-        inset 0 0 30px var(--scarlet-glow)
+        0 0 30px rgba(66, 133, 244, 0.6), 
+        0 0 60px rgba(66, 133, 244, 0.4),
+        inset 0 0 20px rgba(66, 133, 244, 0.2)
       `
     })
 
     glowButton.addEventListener('mouseleave', function () {
-      this.style.boxShadow = ''
+      this.style.boxShadow = '0 4px 15px rgba(66, 133, 244, 0.4)'
     })
   }
 }
