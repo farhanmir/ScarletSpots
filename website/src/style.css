@@ -265,6 +265,7 @@ main {
   text-transform: uppercase;
   letter-spacing: 0.12em;
   font-size: 0.78rem;
+  /* Disabled in prefers-reduced-motion media query below. */
   animation: marquee 28s linear infinite;
 }
 
@@ -378,7 +379,7 @@ main {
 .app-store-btn:focus {
   outline: 2px solid var(--scarlet);
   outline-offset: 2px;
-  box-shadow: 0 0 0 2px #07090d, 0 0 0 4px #ffffff;
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px #ffffff;
 }
 
 .waitlist-form button {
