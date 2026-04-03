@@ -4,7 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 export const GEOFENCE_ACTIVE_TRACKING_START_KEY =
   "ss_geofence_active_tracking_start_ts";
 
-export const SENSOR_TRACKING_BUDGET_MS = 3 * 60 * 1000;
+export const SENSOR_TRACKING_BUDGET_MS = 10 * 60 * 1000;
 
 export async function getSensorBudgetRemainingMs(): Promise<number> {
   try {

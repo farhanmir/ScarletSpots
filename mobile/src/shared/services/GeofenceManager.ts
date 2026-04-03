@@ -7,6 +7,7 @@ import {
   PARKING_DETECTION_TASK,
   stopSensorTracking,
   wasDrivingRecentlyForAutoEnd,
+  resetSensorMissCount,
 } from "./BackgroundTasks";
 import { GEOFENCE_ACTIVE_TRACKING_START_KEY } from "./autoParkGeofenceKeys";
 import {
@@ -213,6 +214,7 @@ TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }: any) => {
     BackgroundLogger.info(
       `[GeofenceManager] Entered region: ${region.identifier}. Starting active tracking.`,
     );
+    resetSensorMissCount();
     // Save the lot ID we are near
     await AsyncStorage.setItem("current_geofence_lot_id", region.identifier);
     await AsyncStorage.setItem(
@@ -245,6 +247,14 @@ TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }: any) => {
       },
     });
   } else if (eventType === Location.GeofencingEventType.Exit) {
+    const currentLotId = await AsyncStorage.getItem("current_geofence_lot_id");
+    if (currentLotId !== region.identifier) {
+      BackgroundLogger.info(
+        `[GeofenceManager] Ignoring phantom exit for ${region.identifier} (current is ${currentLotId})`
+      );
+      return;
+    }
+
     BackgroundLogger.info(
       `[GeofenceManager] Exited region: ${region.identifier}. Stopping active tracking.`,
     );

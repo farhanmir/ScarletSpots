@@ -77,7 +77,10 @@ export function resetSensorMissCount(): void {
 const WALKING_MAX_SPEED_MPS = 2.5;
 
 const startSensorTracking = async (currentSpeed: number | null) => {
-  if ((await getSensorBudgetRemainingMs()) <= 0) {
+  if (
+    (await getSensorBudgetRemainingMs()) <= 0 ||
+    consecutiveSensorMisses >= SENSOR_MAX_MISSES
+  ) {
     return;
   }
 
@@ -146,10 +149,6 @@ async function maybeStopSensorsAfterFailedAttempt(): Promise<void> {
   const tooManyMisses = consecutiveSensorMisses >= SENSOR_MAX_MISSES;
   if (budgetExhausted || tooManyMisses) {
     stopSensorTracking();
-    if (tooManyMisses) {
-      // Reset so the next geofence enter starts fresh.
-      consecutiveSensorMisses = 0;
-    }
   }
 }
 
