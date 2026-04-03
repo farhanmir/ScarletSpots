@@ -1,86 +1,286 @@
 import './style.css'
 
-document.querySelector('#app').innerHTML = `
-  <nav>
-    <div class="logo">
-      <div class="logo-dot"></div>
-      ScarletSpots
-    </div>
-    <div class="actions">
-      <a href="#" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.875rem;">Login</a>
-    </div>
-  </nav>
+/**
+ * ScarletSpots Landing Page - Premium Interactive Experience
+ * Features: Scroll animations, FAQ accordion, form handling, and smooth interactions
+ */
 
-  <main class="hero">
-    <h1>Intelligent <span>Auto-Parking</span></h1>
-    <p>
-      Seamlessly find, reserve, and park in available spots using our AI-driven real-time predictive modeling. 
-      The future of campus navigation is here.
-    </p>
-    
-    <div class="actions">
-      <button class="btn btn-primary" id="cta-btn">Get Started</button>
-      <button class="btn btn-secondary">Read Docs</button>
-    </div>
-  </main>
+// ============================================================================
+// INITIALIZATION
+// ============================================================================
 
-  <section class="features">
-    <div class="feature-card">
-      <div class="feature-icon">🎯</div>
-      <h3>Real-Time Spot Detection</h3>
-      <p>Our computer vision models instantly analyze lot density and camera feeds to guide you right to the open space.</p>
-    </div>
-    
-    <div class="feature-card">
-      <div class="feature-icon">⚡</div>
-      <h3>Microsecond Latency</h3>
-      <p>Powered by a monolithic architecture shifting to a high-throughput edge network, ensuring your data is always live.</p>
-    </div>
-    
-    <div class="feature-card">
-      <div class="feature-icon">🔒</div>
-      <h3>Secure Reservations</h3>
-      <p>Reserve spots securely with encrypted geo-fencing tokens to ensure your parking space is waiting when you arrive.</p>
-    </div>
-  </section>
+document.addEventListener('DOMContentLoaded', () => {
+  initScrollAnimations()
+  initFAQAccordion()
+  initFormHandling()
+  initSmoothInteractions()
+})
 
-  <footer>
-    <p>&copy; 2026 ScarletSpots Inc. Architected for scale.</p>
-  </footer>
-`
+// ============================================================================
+// SCROLL ANIMATIONS WITH INTERSECTION OBSERVER
+// ============================================================================
 
-// Micro-interactions and simple interactivity
-const setupInteractions = () => {
-  const cards = document.querySelectorAll('.feature-card');
-  
-  // Simple intersection observer for scroll animations
+function initScrollAnimations() {
+  const revealElements = document.querySelectorAll('.reveal-element')
+
+  const observerOptions = {
+    threshold: 0.15,
+    rootMargin: '0px 0px -50px 0px'
+  }
+
   const observer = new IntersectionObserver((entries) => {
-    entries.forEach((entry) => {
+    entries.forEach((entry, index) => {
       if (entry.isIntersecting) {
-        entry.target.style.opacity = "1";
-        entry.target.style.transform = "translateY(0)";
-        observer.unobserve(entry.target);
+        // Stagger animation for multiple elements
+        setTimeout(() => {
+          entry.target.classList.add('in-view')
+        }, index * 50)
+
+        observer.unobserve(entry.target)
       }
-    });
-  }, { threshold: 0.1 });
+    })
+  }, observerOptions)
 
-  cards.forEach((card, index) => {
-    card.style.opacity = "0";
-    card.style.transform = "translateY(20px)";
-    card.style.transitionDelay = `${index * 0.1}s`;
-    observer.observe(card);
-  });
-  
-  // Button click effect
-  const btn = document.getElementById('cta-btn');
-  btn.addEventListener('click', () => {
-    btn.style.transform = 'scale(0.95)';
+  revealElements.forEach((element) => {
+    observer.observe(element)
+  })
+}
+
+// ============================================================================
+// FAQ ACCORDION FUNCTIONALITY
+// ============================================================================
+
+function initFAQAccordion() {
+  const faqItems = document.querySelectorAll('.faq-item')
+
+  faqItems.forEach((item) => {
+    const question = item.querySelector('.faq-question')
+
+    question.addEventListener('click', () => {
+      const isActive = item.classList.contains('active')
+
+      // Close all other items
+      faqItems.forEach((otherItem) => {
+        if (otherItem !== item) {
+          otherItem.classList.remove('active')
+        }
+      })
+
+      // Toggle current item
+      if (isActive) {
+        item.classList.remove('active')
+      } else {
+        item.classList.add('active')
+      }
+    })
+  })
+
+  // Close FAQ when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.faq-container')) {
+      faqItems.forEach((item) => {
+        item.classList.remove('active')
+      })
+    }
+  })
+}
+
+// ============================================================================
+// FORM HANDLING
+// ============================================================================
+
+function initFormHandling() {
+  const form = document.getElementById('waitlist-form')
+
+  if (form) {
+    form.addEventListener('submit', (e) => {
+      e.preventDefault()
+
+      const formData = new FormData(form)
+      const email = formData.get('email') || form.querySelector('input[type="email"]').value
+      const university = formData.get('university') || form.querySelectorAll('input[type="text"]')[1].value
+
+      // Validate email
+      if (!isValidEmail(email)) {
+        showNotification('Please enter a valid email address', 'error')
+        return
+      }
+
+      if (!university.trim()) {
+        showNotification('Please enter your university name', 'error')
+        return
+      }
+
+      // Simulate form submission
+      const submitButton = form.querySelector('button[type="submit"]')
+      const originalText = submitButton.textContent
+
+      submitButton.textContent = 'Joining...'
+      submitButton.disabled = true
+
+      setTimeout(() => {
+        submitButton.textContent = '✓ Added to waitlist!'
+        showNotification(`Thanks for joining! We'll notify you when ScarletSpots arrives at ${university}.`, 'success')
+
+        // Reset form
+        form.reset()
+
+        // Restore button after 3 seconds
+        setTimeout(() => {
+          submitButton.textContent = originalText
+          submitButton.disabled = false
+        }, 3000)
+      }, 1000)
+    })
+  }
+}
+
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+function isValidEmail(email) {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  return emailRegex.test(email)
+}
+
+function showNotification(message, type = 'info') {
+  // Create notification element
+  const notification = document.createElement('div')
+  notification.textContent = message
+  notification.style.cssText = `
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 1rem 1.5rem;
+    background: ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6'};
+    color: white;
+    border-radius: 8px;
+    font-weight: 600;
+    z-index: 9999;
+    animation: slideUp 300ms ease-out forwards;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    max-width: 300px;
+  `
+
+  document.body.appendChild(notification)
+
+  // Remove after 4 seconds
+  setTimeout(() => {
+    notification.style.animation = 'slideDown 300ms ease-out forwards'
     setTimeout(() => {
-        btn.style.transform = 'translateY(-2px)';
-    }, 150);
-  });
-};
+      notification.remove()
+    }, 300)
+  }, 4000)
+}
 
-document.addEventListener('DOMContentLoaded', setupInteractions);
-// For Vite HMR
-setupInteractions();
+// ============================================================================
+// SMOOTH INTERACTIONS
+// ============================================================================
+
+function initSmoothInteractions() {
+  // Button hover effects
+  const buttons = document.querySelectorAll('.btn')
+  buttons.forEach((button) => {
+    button.addEventListener('mouseenter', function () {
+      this.style.transform = 'translateY(-2px)'
+    })
+
+    button.addEventListener('mouseleave', function () {
+      this.style.transform = 'translateY(0)'
+    })
+  })
+
+  // Smooth scroll for navigation links
+  const navLinks = document.querySelectorAll('.nav-link')
+  navLinks.forEach((link) => {
+    link.addEventListener('click', (e) => {
+      const href = link.getAttribute('href')
+
+      if (href.startsWith('#')) {
+        e.preventDefault()
+
+        const targetId = href.substring(1)
+        const targetElement = document.getElementById(targetId)
+
+        if (targetElement) {
+          targetElement.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start'
+          })
+        }
+      }
+    })
+  })
+
+  // Device mockup hover effect
+  const deviceMockup = document.querySelector('.device-placeholder')
+  if (deviceMockup) {
+    deviceMockup.addEventListener('mousemove', (e) => {
+      const rect = deviceMockup.getBoundingClientRect()
+      const x = e.clientX - rect.left
+      const y = e.clientY - rect.top
+
+      const centerX = rect.width / 2
+      const centerY = rect.height / 2
+
+      const rotateX = (y - centerY) / 10
+      const rotateY = (centerX - x) / 10
+
+      deviceMockup.style.transform = `
+        translateY(-8px) 
+        scale(1.02) 
+        rotateX(${rotateX}deg) 
+        rotateY(${rotateY}deg)
+      `
+      deviceMockup.style.transformStyle = 'preserve-3d'
+    })
+
+    deviceMockup.addEventListener('mouseleave', () => {
+      deviceMockup.style.transform = 'translateY(0) scale(1) rotateX(0) rotateY(0)'
+    })
+  }
+
+  // CTA button glow effect
+  const glowButton = document.querySelector('.glow-button')
+  if (glowButton) {
+    glowButton.addEventListener('mouseenter', function () {
+      this.style.boxShadow = `
+        0 0 30px var(--scarlet), 
+        0 0 60px var(--scarlet-glow-strong),
+        inset 0 0 30px var(--scarlet-glow)
+      `
+    })
+
+    glowButton.addEventListener('mouseleave', function () {
+      this.style.boxShadow = ''
+    })
+  }
+}
+
+// ============================================================================
+// PARALLAX EFFECT FOR GLOW ELEMENTS (OPTIONAL)
+// ============================================================================
+
+function initParallax() {
+  window.addEventListener('scroll', () => {
+    const glows = document.querySelectorAll('.glow')
+
+    glows.forEach((glow) => {
+      const rect = glow.getBoundingClientRect()
+      const speed = 0.5
+      glow.style.transform = `translateY(${window.scrollY * speed}px)`
+    })
+  })
+}
+
+// Initialize parallax if needed
+// initParallax()
+
+// ============================================================================
+// HMR SUPPORT FOR VITE
+// ============================================================================
+
+if (import.meta.hot) {
+  import.meta.hot.accept()
+}

@@ -1,8 +1,8 @@
 /** Minimum confidence (0–1) before we surface a parking candidate to the user. */
 export const PARKING_CONFIDENCE_THRESHOLD = (() => {
   const envVal = process.env.EXPO_PUBLIC_PARKING_CONFIDENCE_THRESHOLD;
-  const parsed = Number.parseFloat(envVal ?? "0.8");
-  if (Number.isNaN(parsed)) return 0.8;
+  const parsed = Number.parseFloat(envVal ?? "0.6");
+  if (Number.isNaN(parsed)) return 0.6;
   return Math.min(Math.max(parsed, 0.5), 1);
 })();
 
