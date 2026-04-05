@@ -1,0 +1,54 @@
+/* ScarletSpots — Global Reset & Design Tokens */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg:        #0d0d0d;
+  --bg-card:   #141414;
+  --bg-subtle: #1a1a1a;
+  --border:    rgba(255, 255, 255, 0.07);
+  --border-hover: rgba(255, 255, 255, 0.14);
+  --scarlet:   #e5373a;
+  --scarlet-dim: rgba(229, 55, 58, 0.15);
+  --scarlet-glow: rgba(229, 55, 58, 0.35);
+  --text-1:    #fafafa;
+  --text-2:    #888;
+  --text-3:    #555;
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text-1);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-family: var(--font);
+}
+
+img, svg {
+  display: block;
+}
