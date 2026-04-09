@@ -442,6 +442,62 @@ function confidenceFromSignals(
   return Math.min(1, Math.max(0, c));
 }
 
+// ── Diagnostics snapshot (same inputs as detectParking, for tracing / UI) ─────
+
+export interface AutoParkSignalSnapshot {
+  recentDrivingPersisted: boolean;
+  activityBoost: number;
+  transitPatternDetected: boolean;
+  speedTransition: number;
+  stillness: number;
+  headingChange: number;
+  gpsAccuracy: number;
+  pedometerSignal: number;
+  insideLotId: string | null;
+  insideLotName: string | null;
+}
+
+/**
+ * Signal values for the current buffers — call after the same `pushSpeed` /
+ * `pushHeading` sequence used before `detectParking`.
+ */
+export function getAutoParkSignalSnapshot(
+  latitude: number,
+  longitude: number,
+  horizontalAccuracy: number | null,
+  lots: LotForDetection[],
+  options?: DetectParkingOptions,
+): AutoParkSignalSnapshot {
+  const recentDrivingPersisted = Boolean(options?.recentDrivingPersisted);
+  const activityBoost = options?.activityBoost ?? 0;
+  const transitPatternDetected =
+    options?.transitPatternDetected ?? isTransitStopGoPattern();
+
+  const speedTransition = computeSpeedTransitionScore(
+    recentDrivingPersisted,
+    transitPatternDetected,
+  );
+  const stillness = computeStillnessScore();
+  const gpsAccuracy = computeGpsAccuracyScore(horizontalAccuracy);
+  const headingChange = computeHeadingChangeScore();
+  const pedometerSignal =
+    speedTransition === 0 ? 0 : computePedometerScore();
+  const containingLot = findContainingLot(latitude, longitude, lots);
+
+  return {
+    recentDrivingPersisted,
+    activityBoost,
+    transitPatternDetected,
+    speedTransition,
+    stillness,
+    headingChange,
+    gpsAccuracy,
+    pedometerSignal,
+    insideLotId: containingLot?.id ?? null,
+    insideLotName: containingLot?.name ?? null,
+  };
+}
+
 // ── Main Detection Function ────────────────────────────────────────────────────
 
 /**

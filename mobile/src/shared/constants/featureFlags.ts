@@ -1,3 +1,11 @@
+/**
+ * Dev-only auto-park drive simulation on Profile. Enable in release builds with
+ * EXPO_PUBLIC_SHOW_AUTOPARK_SIMULATOR=true (e.g. internal TestFlight).
+ */
+export const SHOW_AUTOPARK_SIMULATOR =
+  (typeof __DEV__ !== "undefined" && __DEV__) ||
+  process.env.EXPO_PUBLIC_SHOW_AUTOPARK_SIMULATOR === "true";
+
 /** Minimum confidence (0–1) before we surface a parking candidate to the user. */
 export const PARKING_CONFIDENCE_THRESHOLD = (() => {
   const envVal = process.env.EXPO_PUBLIC_PARKING_CONFIDENCE_THRESHOLD;

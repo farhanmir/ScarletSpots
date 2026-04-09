@@ -8,6 +8,7 @@ import {
   Platform,
   StatusBar,
   Switch,
+  Modal,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "@/providers/AuthProvider";
@@ -37,6 +38,11 @@ import {
   cacheFavorites,
 } from "@/shared/services/OfflineCache";
 import { BackgroundLogger } from "@/shared/utils/Logger";
+import {
+  formatAutoParkTraceForDisplay,
+  loadAutoParkLastTrace,
+} from "@/shared/services/autoParkTrace";
+import { SHOW_AUTOPARK_SIMULATOR } from "@/shared/constants/featureFlags";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -322,8 +328,20 @@ export default function ProfileScreen() {
   } = useAuth();
   const router = useRouter();
   const [favorites, setFavorites] = useState<RutgersLot[]>([]);
+  const [autoParkDiagVisible, setAutoParkDiagVisible] = useState(false);
+  const [autoParkDiagText, setAutoParkDiagText] = useState("");
 
   const styles = useMemo(() => createStyles(theme), [theme]);
+
+  const openAutoParkDiagnostics = React.useCallback(async () => {
+    const trace = await loadAutoParkLastTrace();
+    setAutoParkDiagText(
+      trace
+        ? formatAutoParkTraceForDisplay(trace)
+        : "No auto-park detection runs recorded on this device yet. Trigger a geofence near a lot or use the simulator (if enabled), then check again.",
+    );
+    setAutoParkDiagVisible(true);
+  }, []);
 
   const fetchFavorites = React.useCallback(async () => {
     if (!session) return;
@@ -662,22 +680,32 @@ export default function ProfileScreen() {
           blurIntensity={theme.blurMedium}
           borderRadius={24}
         >
+          {SHOW_AUTOPARK_SIMULATOR ? (
+            <SettingRow
+              icon="car.fill"
+              iconBg={theme === GLASS_DARK ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)"}
+              iconColor={theme.accent}
+              label="Simulate Auto-Park"
+              sublabel="Trigger detection pipeline"
+              onPress={() => {
+                import("@/shared/utils/Simulator").then((m) => {
+                  const lot = getLotById("10016");
+                  if (lot) {
+                    m.simulateAutoParkDriveInAndWalkOut(lot);
+                  } else {
+                    BackgroundLogger.error("[Profile] Simulation failed: Lot 10016 (Lot 67) not found in local data.");
+                  }
+                });
+              }}
+            />
+          ) : null}
           <SettingRow
-            icon="car.fill"
+            icon="info.circle.fill"
             iconBg={theme === GLASS_DARK ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)"}
             iconColor={theme.accent}
-            label="Simulate Auto-Park"
-            sublabel="Trigger detection pipeline"
-            onPress={() => {
-              import("@/shared/utils/Simulator").then((m) => {
-                const lot = getLotById("10016");
-                if (lot) {
-                  m.simulateAutoParkDriveInAndWalkOut(lot);
-                } else {
-                  BackgroundLogger.error("[Profile] Simulation failed: Lot 10016 (Lot 67) not found in local data.");
-                }
-              });
-            }}
+            label="Auto-park diagnostics"
+            sublabel="Last detection decision"
+            onPress={openAutoParkDiagnostics}
           />
           <SettingRow
             icon="doc.text.fill"
@@ -743,11 +771,93 @@ export default function ProfileScreen() {
 
         <View style={{ height: 130 }} />
       </ScrollView>
+
+      <Modal
+        visible={autoParkDiagVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setAutoParkDiagVisible(false)}
+      >
+        <TouchableOpacity
+          style={autoParkDiagStyles.overlay}
+          activeOpacity={1}
+          onPress={() => setAutoParkDiagVisible(false)}
+        >
+          <View
+            style={[
+              autoParkDiagStyles.sheet,
+              {
+                backgroundColor:
+                  theme === GLASS_DARK ? "#1c1c1e" : "#ffffff",
+              },
+            ]}
+          >
+            <Text
+              style={[autoParkDiagStyles.modalTitle, { color: theme.textPrimary }]}
+            >
+              Auto-park diagnostics
+            </Text>
+            <ScrollView
+              style={autoParkDiagStyles.modalScroll}
+              nestedScrollEnabled
+            >
+              <Text
+                selectable
+                style={[
+                  autoParkDiagStyles.modalBody,
+                  { color: theme.textMuted },
+                ]}
+              >
+                {autoParkDiagText}
+              </Text>
+            </ScrollView>
+            <TouchableOpacity
+              onPress={() => setAutoParkDiagVisible(false)}
+              style={autoParkDiagStyles.modalClose}
+            >
+              <Text style={{ color: theme.accent, fontWeight: "600" }}>
+                Close
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
+
+const autoParkDiagStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "center",
+    paddingHorizontal: 22,
+  },
+  sheet: {
+    borderRadius: 16,
+    padding: 16,
+    maxHeight: "72%",
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    marginBottom: 10,
+  },
+  modalScroll: { maxHeight: 360 },
+  modalBody: {
+    fontSize: 12,
+    fontFamily: Platform.select({ ios: "Menlo", android: "monospace" }),
+    lineHeight: 17,
+  },
+  modalClose: {
+    alignSelf: "flex-end",
+    marginTop: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+});
 
 const appearanceStyles = StyleSheet.create({
   row: {

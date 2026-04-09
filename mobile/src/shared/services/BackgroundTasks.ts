@@ -17,10 +17,17 @@ import {
   DRIVING_SPEED_THRESHOLD,
   getDetectionBuffersSnapshot,
   restoreDetectionBuffersSnapshot,
+  getAutoParkSignalSnapshot,
   type ParkingCandidate,
+  type AutoParkSignalSnapshot,
 } from "./ParkingDetectionService";
 import { loadActivityBoost, markWalkingActivityNow } from "./activitySignals";
 import { getSensorBudgetRemainingMs } from "./autoParkGeofenceKeys";
+import {
+  persistAutoParkLastTrace,
+  type AutoParkBranch,
+  type AutoParkLastTrace,
+} from "./autoParkTrace";
 import { cacheSession } from "./OfflineCache";
 import { PARKING_CONFIDENCE_THRESHOLD } from "../constants/featureFlags";
 import { BackgroundLogger } from "../utils/Logger";
@@ -152,146 +159,320 @@ async function maybeStopSensorsAfterFailedAttempt(): Promise<void> {
   }
 }
 
+/**
+ * Stops continuous GPS for parking detection. Safe when updates were never
+ * started (e.g. simulator). Does not clear geofence keys — lot exit still
+ * runs for auto-end.
+ */
+export async function stopParkingDetectionLocationUpdatesIfRunning(): Promise<void> {
+  try {
+    const isTracking = await Location.hasStartedLocationUpdatesAsync(
+      PARKING_DETECTION_TASK,
+    );
+    if (isTracking) {
+      await Location.stopLocationUpdatesAsync(PARKING_DETECTION_TASK);
+      BackgroundLogger.info(
+        "[BackgroundTask] reason=gps_stopped Stopped parking detection location updates (budget exhausted or detection finished).",
+      );
+    }
+  } catch (err) {
+    BackgroundLogger.warn(
+      "[BackgroundTask] reason=gps_stop_failed stopLocationUpdatesAsync:",
+      err,
+    );
+  }
+}
+
 export async function runParkingDetectionFromLocation(
   latestLocation: Location.LocationObject,
 ): Promise<void> {
-  BackgroundLogger.info(`[BackgroundTask] Checking location: lat=${latestLocation.coords.latitude.toFixed(5)}, lon=${latestLocation.coords.longitude.toFixed(5)}, speed=${latestLocation.coords.speed}, accuracy=${latestLocation.coords.accuracy}`);
-  try {
-    const rawBuffers = await AsyncStorage.getItem("parking_detection_buffers");
-    if (rawBuffers) restoreDetectionBuffersSnapshot(JSON.parse(rawBuffers));
-  } catch {}
+  let releaseGpsAfterHighConfidence = false;
 
-  const speed = latestLocation.coords.speed;
-  const heading = latestLocation.coords.heading;
-  const ts = latestLocation.timestamp;
-
-  await syncSensorTrackingForSpeed(speed);
-
-  pushSpeed(speed, ts);
-  await markRecentDrivingSignal(speed);
-  pushHeading(heading, ts);
-
-  const lots = getLotsForDetection();
-  if (lots.length === 0) {
-    BackgroundLogger.info("[BackgroundTask] No lots returned for detection area.");
-    try {
-      await AsyncStorage.setItem("parking_detection_buffers", JSON.stringify(getDetectionBuffersSnapshot()));
-    } catch {}
-    return;
-  }
-
-  const recentDrivingPersisted = await wasDrivingRecentlyForAutoEnd();
-  const activityBoost = await loadActivityBoost();
-  const transitPatternDetected = isTransitStopGoPattern();
-
-  const candidates = detectParking(
-    latestLocation.coords.latitude,
-    latestLocation.coords.longitude,
-    latestLocation.coords.accuracy,
-    lots,
-    { recentDrivingPersisted, activityBoost, transitPatternDetected },
-  );
-
-  BackgroundLogger.info(`[BackgroundTask] Detection yielded ${candidates.length} candidates.`, { 
-    recentDrivingPersisted, activityBoost, transitPatternDetected, 
-    topCandidate: candidates[0] ? candidates[0].lotName + ` (${candidates[0].confidence})` : 'none'
-  });
-
-  if (candidates.length === 0) {
-    // If we are moving at "not stopped" but "not driving" speed, reset the miss counter.
-    // This allows searching for a spot in a large lot without killing sensors.
-    if (speed != null && speed > 0 && speed < DRIVING_SPEED_THRESHOLD) {
-      resetSensorMissCount();
-    } else {
-      await maybeStopSensorsAfterFailedAttempt();
-    }
-    try {
-      await AsyncStorage.setItem("parking_detection_buffers", JSON.stringify(getDetectionBuffersSnapshot()));
-    } catch {}
-    return;
-  }
-
-  const topCandidate = candidates[0];
-
-  if (topCandidate.confidence < PARKING_CONFIDENCE_THRESHOLD) {
-    BackgroundLogger.info(`[BackgroundTask] Top candidate ${topCandidate.lotName} confidence ${topCandidate.confidence} < threshold ${PARKING_CONFIDENCE_THRESHOLD}`);
-    await maybeStopSensorsAfterFailedAttempt();
-    try {
-      await AsyncStorage.setItem("parking_detection_buffers", JSON.stringify(getDetectionBuffersSnapshot()));
-    } catch {}
-    return;
-  }
-
-  BackgroundLogger.info(`[BackgroundTask] High confidence parking detected at ${topCandidate.lotName} (${topCandidate.confidence}). Halting sensors.`);
-  resetSensorMissCount();
-  stopSensorTracking();
-  clearAllDetectionBuffers();
-  try {
-    await AsyncStorage.removeItem("parking_detection_buffers");
-  } catch {}
-
-  await AsyncStorage.setItem(
-    CANDIDATES_STORAGE_KEY,
-    JSON.stringify(candidates),
-  );
-
-  // Only auto-confirm (silent server POST) when the candidate is firmly inside
-  // a lot polygon. Nearby-only candidates require explicit user confirmation via
-  // the notification → confirm sheet path to prevent false positives.
-  if (topCandidate.autoConfirmable) {
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (session?.access_token) {
-        const response = await fetchBackend("/park/session", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            apikey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "",
-            Authorization: `Bearer ${session.access_token}`,
-            "x-user-token": session.access_token,
-          },
-          body: JSON.stringify({
-            lotId: topCandidate.lotId,
-            latitude: topCandidate.latitude,
-            longitude: topCandidate.longitude,
-            confirmed: true,
-            autoStarted: true,
-          }),
-        });
-
-        if (response.ok) {
-          const data = await safeJson(response);
-          if (data?.session) {
-            await cacheSession({ session: data.session });
-          }
-          await AsyncStorage.removeItem(CANDIDATES_STORAGE_KEY);
-          BackgroundLogger.info(`[BackgroundTask] Auto-confirm successful on backend for lot ${topCandidate.lotId}`);
-          return;
-        }
-      }
-    } catch (e) {
-      BackgroundLogger.error(`[BackgroundTask] Auto-confirm API hit failed`, e);
-      // Fall through to the notification path if the API attempt fails.
-    }
-  }
-
-  BackgroundLogger.info(`[BackgroundTask] Falling back to high-priority Local Notification for lot ${topCandidate.lotId}`);
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title: "🚗 ScarletSpots",
-      body: `We recorded your parking at ${topCandidate.lotName}. Open the app to see your spot.`,
-      data: {
-        lotId: topCandidate.lotId,
-        action: "confirm_park",
-      },
-      sound: true,
-      priority: Notifications.AndroidNotificationPriority.HIGH,
+  const writeTrace = async (
+    branch: AutoParkBranch,
+    reasonCode: string,
+    lots: ReturnType<typeof getLotsForDetection>,
+    detectOpts: {
+      recentDrivingPersisted: boolean;
+      activityBoost: number;
+      transitPatternDetected: boolean;
     },
-    trigger: null,
-  });
+    snapshotOverride: AutoParkSignalSnapshot | null,
+    topCandidate?: AutoParkLastTrace["topCandidate"],
+  ) => {
+    const snapshot =
+      snapshotOverride ??
+      getAutoParkSignalSnapshot(
+        latestLocation.coords.latitude,
+        latestLocation.coords.longitude,
+        latestLocation.coords.accuracy,
+        lots,
+        detectOpts,
+      );
+    const budgetRemainingMs = await getSensorBudgetRemainingMs();
+    await persistAutoParkLastTrace({
+      savedAt: new Date().toISOString(),
+      latitude: latestLocation.coords.latitude,
+      longitude: latestLocation.coords.longitude,
+      accuracy: latestLocation.coords.accuracy,
+      speed: latestLocation.coords.speed,
+      budgetRemainingMs,
+      branch,
+      reasonCode,
+      confidenceThreshold: PARKING_CONFIDENCE_THRESHOLD,
+      snapshot,
+      topCandidate,
+    });
+  };
+
+  BackgroundLogger.info(
+    `[BackgroundTask] Checking location: lat=${latestLocation.coords.latitude.toFixed(5)}, lon=${latestLocation.coords.longitude.toFixed(5)}, speed=${latestLocation.coords.speed}, accuracy=${latestLocation.coords.accuracy}`,
+  );
+
+  try {
+    try {
+      const rawBuffers = await AsyncStorage.getItem("parking_detection_buffers");
+      if (rawBuffers) restoreDetectionBuffersSnapshot(JSON.parse(rawBuffers));
+    } catch {}
+
+    const speed = latestLocation.coords.speed;
+    const heading = latestLocation.coords.heading;
+    const ts = latestLocation.timestamp;
+
+    await syncSensorTrackingForSpeed(speed);
+
+    pushSpeed(speed, ts);
+    await markRecentDrivingSignal(speed);
+    pushHeading(heading, ts);
+
+    const recentDrivingPersisted = await wasDrivingRecentlyForAutoEnd();
+    const activityBoost = await loadActivityBoost();
+    const transitPatternDetected = isTransitStopGoPattern();
+    const detectOpts = {
+      recentDrivingPersisted,
+      activityBoost,
+      transitPatternDetected,
+    };
+
+    const lots = getLotsForDetection();
+    if (lots.length === 0) {
+      BackgroundLogger.info(
+        "[BackgroundTask] reason=no_lots_data No lots returned for detection area.",
+      );
+      await writeTrace(
+        "no_lots_data",
+        "no_lots_data",
+        lots,
+        detectOpts,
+        getAutoParkSignalSnapshot(
+          latestLocation.coords.latitude,
+          latestLocation.coords.longitude,
+          latestLocation.coords.accuracy,
+          lots,
+          detectOpts,
+        ),
+      );
+      try {
+        await AsyncStorage.setItem(
+          "parking_detection_buffers",
+          JSON.stringify(getDetectionBuffersSnapshot()),
+        );
+      } catch {}
+      return;
+    }
+
+    const candidates = detectParking(
+      latestLocation.coords.latitude,
+      latestLocation.coords.longitude,
+      latestLocation.coords.accuracy,
+      lots,
+      detectOpts,
+    );
+
+    BackgroundLogger.info(
+      `[BackgroundTask] Detection yielded ${candidates.length} candidates.`,
+      {
+        reason: "detection_tick",
+        recentDrivingPersisted,
+        activityBoost,
+        transitPatternDetected,
+        topCandidate: candidates[0]
+          ? `${candidates[0].lotName} (${candidates[0].confidence})`
+          : "none",
+      },
+    );
+
+    if (candidates.length === 0) {
+      const snap = getAutoParkSignalSnapshot(
+        latestLocation.coords.latitude,
+        latestLocation.coords.longitude,
+        latestLocation.coords.accuracy,
+        lots,
+        detectOpts,
+      );
+      const reasonCode =
+        snap.speedTransition === 0
+          ? "no_candidates_speed_transition_0"
+          : "no_candidates_empty";
+      BackgroundLogger.info(
+        `[BackgroundTask] reason=${reasonCode} speedTransition=${snap.speedTransition}`,
+      );
+      await writeTrace("no_candidates", reasonCode, lots, detectOpts, snap);
+      // Slow crawl while searching for a spot: don't burn the miss budget.
+      if (speed != null && speed > 0 && speed < DRIVING_SPEED_THRESHOLD) {
+        resetSensorMissCount();
+      } else {
+        await maybeStopSensorsAfterFailedAttempt();
+      }
+      try {
+        await AsyncStorage.setItem(
+          "parking_detection_buffers",
+          JSON.stringify(getDetectionBuffersSnapshot()),
+        );
+      } catch {}
+      return;
+    }
+
+    const topCandidate = candidates[0];
+
+    if (topCandidate.confidence < PARKING_CONFIDENCE_THRESHOLD) {
+      BackgroundLogger.info(
+        `[BackgroundTask] reason=below_threshold Top candidate ${topCandidate.lotName} confidence ${topCandidate.confidence} < threshold ${PARKING_CONFIDENCE_THRESHOLD}`,
+      );
+      await writeTrace(
+        "below_threshold",
+        "below_confidence_threshold",
+        lots,
+        detectOpts,
+        null,
+        {
+          lotId: topCandidate.lotId,
+          lotName: topCandidate.lotName,
+          confidence: topCandidate.confidence,
+          autoConfirmable: topCandidate.autoConfirmable,
+        },
+      );
+      await maybeStopSensorsAfterFailedAttempt();
+      try {
+        await AsyncStorage.setItem(
+          "parking_detection_buffers",
+          JSON.stringify(getDetectionBuffersSnapshot()),
+        );
+      } catch {}
+      return;
+    }
+
+    BackgroundLogger.info(
+      `[BackgroundTask] reason=high_confidence High confidence parking at ${topCandidate.lotName} (${topCandidate.confidence}). Halting sensors.`,
+    );
+    resetSensorMissCount();
+    stopSensorTracking();
+    clearAllDetectionBuffers();
+    try {
+      await AsyncStorage.removeItem("parking_detection_buffers");
+    } catch {}
+
+    await AsyncStorage.setItem(
+      CANDIDATES_STORAGE_KEY,
+      JSON.stringify(candidates),
+    );
+
+    const topSummary: NonNullable<AutoParkLastTrace["topCandidate"]> = {
+      lotId: topCandidate.lotId,
+      lotName: topCandidate.lotName,
+      confidence: topCandidate.confidence,
+      autoConfirmable: topCandidate.autoConfirmable,
+    };
+
+    // Only auto-confirm (silent server POST) when the candidate is firmly inside
+    // a lot polygon. Nearby-only candidates require explicit user confirmation via
+    // the notification → confirm sheet path to prevent false positives.
+    if (topCandidate.autoConfirmable) {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (session?.access_token) {
+          const response = await fetchBackend("/park/session", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              apikey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "",
+              Authorization: `Bearer ${session.access_token}`,
+              "x-user-token": session.access_token,
+            },
+            body: JSON.stringify({
+              lotId: topCandidate.lotId,
+              latitude: topCandidate.latitude,
+              longitude: topCandidate.longitude,
+              confirmed: true,
+              autoStarted: true,
+            }),
+          });
+
+          if (response.ok) {
+            const data = await safeJson(response);
+            if (data?.session) {
+              await cacheSession({ session: data.session });
+            }
+            await AsyncStorage.removeItem(CANDIDATES_STORAGE_KEY);
+            releaseGpsAfterHighConfidence = true;
+            BackgroundLogger.info(
+              `[BackgroundTask] reason=auto_confirm_ok Auto-confirm successful on backend for lot ${topCandidate.lotId}`,
+            );
+            await writeTrace(
+              "auto_confirm_ok",
+              "auto_confirm_ok",
+              lots,
+              detectOpts,
+              null,
+              topSummary,
+            );
+            return;
+          }
+        }
+      } catch (e) {
+        BackgroundLogger.error(
+          `[BackgroundTask] reason=auto_confirm_api_error Auto-confirm API failed`,
+          e,
+        );
+      }
+    }
+
+    BackgroundLogger.info(
+      `[BackgroundTask] reason=notification_scheduled Local notification for lot ${topCandidate.lotId}`,
+    );
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "🚗 ScarletSpots",
+        body: `We recorded your parking at ${topCandidate.lotName}. Open the app to see your spot.`,
+        data: {
+          lotId: topCandidate.lotId,
+          action: "confirm_park",
+        },
+        sound: true,
+        priority: Notifications.AndroidNotificationPriority.HIGH,
+      },
+      trigger: null,
+    });
+    releaseGpsAfterHighConfidence = true;
+    await writeTrace(
+      "notification_scheduled",
+      topCandidate.autoConfirmable
+        ? "notification_after_api_fail"
+        : "notification_nearby_confirm",
+      lots,
+      detectOpts,
+      null,
+      topSummary,
+    );
+  } finally {
+    const remaining = await getSensorBudgetRemainingMs();
+    if (remaining <= 0 || releaseGpsAfterHighConfidence) {
+      await stopParkingDetectionLocationUpdatesIfRunning();
+    }
+  }
 }
 
 // ── Background Task Definition ─────────────────────────────────────────────────
