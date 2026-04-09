@@ -136,24 +136,27 @@ describe("isTransitStopGoPattern", () => {
   });
 
   it("detects two distinct high-speed segments", () => {
-    // High → low → high: classic bus stop signature
     pushSpeed(12);
     pushSpeed(11);
-    pushSpeed(0.5); // stopped at bus stop
-    pushSpeed(0.3);
+    pushSpeed(0.5); // stop 1
     pushSpeed(10);
     pushSpeed(9);
+    pushSpeed(0.4); // stop 2
+    pushSpeed(8);
+    pushSpeed(7);
+    pushSpeed(0.3); // stop 3
+    pushSpeed(6);
+    pushSpeed(5.5);
+    pushSpeed(0.2); // stop 4
+    pushSpeed(10);
     expect(isTransitStopGoPattern()).toBe(true);
   });
 
   it("returns false for a single driving-to-stop without resuming", () => {
-    // Car parks — one deceleration with no second high-speed segment
+    // Traffic stop: High → low → high (1 stop) should NOT be transit
     pushSpeed(12);
-    pushSpeed(8);
-    pushSpeed(3);
     pushSpeed(0.5);
-    pushSpeed(0.3);
-    pushSpeed(0.2);
+    pushSpeed(10);
     expect(isTransitStopGoPattern()).toBe(false);
   });
 });

@@ -189,8 +189,9 @@ export function isTransitStopGoPattern(): boolean {
     }
   }
 
-  // Two distinct high-speed segments with a gap = stop-go oscillation.
-  return highSegments >= 2;
+  // Four distinct high-speed segments with gaps = likely bus/train route.
+  // Two segments (the previous threshold) is too common in stop-and-go traffic.
+  return highSegments >= 4;
 }
 
 /** True if recent speed readings indicate driving (e.g. leaving in a car). Used to distinguish walk-out vs drive-out. */

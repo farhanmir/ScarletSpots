@@ -63,7 +63,7 @@ let lastStepCountForWalking: number | null = null;
  * avoid keeping the accelerometer alive for the full 3-minute budget window.
  */
 let consecutiveSensorMisses = 0;
-const SENSOR_MAX_MISSES = 3;
+const SENSOR_MAX_MISSES = 10;
 
 /** Reset the consecutive-miss counter (call on every successful detection). */
 export function resetSensorMissCount(): void {
@@ -198,7 +198,13 @@ export async function runParkingDetectionFromLocation(
   });
 
   if (candidates.length === 0) {
-    await maybeStopSensorsAfterFailedAttempt();
+    // If we are moving at "not stopped" but "not driving" speed, reset the miss counter.
+    // This allows searching for a spot in a large lot without killing sensors.
+    if (speed != null && speed > 0 && speed < DRIVING_SPEED_THRESHOLD) {
+      resetSensorMissCount();
+    } else {
+      await maybeStopSensorsAfterFailedAttempt();
+    }
     try {
       await AsyncStorage.setItem("parking_detection_buffers", JSON.stringify(getDetectionBuffersSnapshot()));
     } catch {}
