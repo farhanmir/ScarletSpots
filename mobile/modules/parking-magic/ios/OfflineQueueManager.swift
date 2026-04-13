@@ -1,6 +1,7 @@
 import Foundation
 
 struct PendingEvent: Codable {
+  let id: String
   let latitude: Double
   let longitude: Double
   let source: String
@@ -29,6 +30,11 @@ class OfflineQueueManager {
   func clear() {
     UserDefaults.standard.removeObject(forKey: queueKey)
   }
+
+  func removeEvent(id: String) {
+    let events = getAllEvents().filter { $0.id != id }
+    save(events: events)
+  }
   
   func flushQueue() {
     let events = getAllEvents()
@@ -36,26 +42,27 @@ class OfflineQueueManager {
     
     print("[OfflineQueue] Attempting to flush \(events.count) events.")
     
-    // Process one by one (simplified)
     for event in events {
       NetworkManager.shared.submitParkingEvent(
         lotId: event.lotId ?? "unknown",
         latitude: event.latitude,
         longitude: event.longitude,
         source: event.source
-      ) { success in
-        if success {
-          // In a real implementation, we'd remove only this specific event
+      ) { success, eventId in
+        if success, let id = eventId {
+          print("[OfflineQueue] Successfully flushed event \(id). Removing from queue.")
+          self.removeEvent(id: id)
+        } else {
+          print("[OfflineQueue] Failed to flush event. Retrying later.")
         }
       }
     }
-    
-    // Clear for now (Simplified for Phase 8)
-    clear()
   }
 
   private func save(events: [PendingEvent]) {
-    if let data = try? JSONEncoder().encode(events) {
+    // Limit queue size to prevent bloat (Phase 8 Hardening)
+    let limitedEvents = Array(events.suffix(50))
+    if let data = try? JSONEncoder().encode(limitedEvents) {
       UserDefaults.standard.set(data, forKey: queueKey)
     }
   }

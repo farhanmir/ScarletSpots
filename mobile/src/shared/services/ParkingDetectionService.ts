@@ -501,9 +501,11 @@ export function getAutoParkSignalSnapshot(
 // ── Main Detection Function ────────────────────────────────────────────────────
 
 /**
- * Given the current sensor state and lot data, compute parking candidates
- * ranked by confidence.
+ * 🧹 Phase 6: Legacy TypeScript detection engine DEPRECATED.
+ * All hardware-layer detection (speed, stillness, PIP) is now handled natively
+ * by the ParkingMagic Swift module to ensure background stability.
  */
+
 export function detectParking(
   latitude: number,
   longitude: number,
@@ -511,95 +513,8 @@ export function detectParking(
   lots: LotForDetection[],
   options?: DetectParkingOptions,
 ): ParkingCandidate[] {
-  const recentDrivingPersisted = Boolean(options?.recentDrivingPersisted);
-  const activityBoost = options?.activityBoost ?? 0;
-  const transitPatternDetected =
-    options?.transitPatternDetected ?? isTransitStopGoPattern();
-
-  const speedScore = computeSpeedTransitionScore(
-    recentDrivingPersisted,
-    transitPatternDetected,
-  );
-  const stillnessScore = computeStillnessScore();
-  const gpsScore = computeGpsAccuracyScore(horizontalAccuracy);
-  const headingScore = computeHeadingChangeScore();
-
-  if (speedScore === 0) return [];
-
-  const pedometerScore = computePedometerScore();
-
-  const candidates: ParkingCandidate[] = [];
-
-  const containingLot = findContainingLot(latitude, longitude, lots);
-  if (containingLot) {
-    const signals: SignalBreakdown = {
-      speedTransition: speedScore,
-      stillness: stillnessScore,
-      headingChange: headingScore,
-      insideLot: 1,
-      pedometerSignal: pedometerScore,
-      gpsAccuracy: gpsScore,
-      activitySignal: activityBoost,
-    };
-    const confidence = confidenceFromSignals(signals, activityBoost);
-
-    candidates.push({
-      lotId: containingLot.id,
-      lotName: containingLot.name,
-      latitude,
-      longitude,
-      confidence,
-      signals,
-      timestamp: new Date().toISOString(),
-      autoConfirmable: true,
-    });
-  }
-
-  // Nearby-only candidates require a full speed transition (no weak / ambiguous path).
-  if (speedScore >= 1) {
-    const nearby = findNearestLots(
-      latitude,
-      longitude,
-      lots,
-      3,
-      NEARBY_MAX_DISTANCE_METERS,
-    );
-    for (const { lot, distance } of nearby) {
-      if (lot.id === containingLot?.id) continue;
-
-      const proximityScore = Math.max(
-        0,
-        1 - distance / NEARBY_MAX_DISTANCE_METERS,
-      );
-
-      const signals: SignalBreakdown = {
-        speedTransition: speedScore,
-        stillness: stillnessScore,
-        headingChange: headingScore,
-        insideLot: proximityScore * 0.45,
-        pedometerSignal: pedometerScore,
-        gpsAccuracy: gpsScore,
-        activitySignal: activityBoost,
-      };
-      const confidence = confidenceFromSignals(signals, activityBoost);
-
-      candidates.push({
-        lotId: lot.id,
-        lotName: lot.name,
-        latitude: lot.latitude,
-        longitude: lot.longitude,
-        confidence,
-        signals,
-        timestamp: new Date().toISOString(),
-        // Nearby-only: never silently confirmed — must go through confirmation UI.
-        autoConfirmable: false,
-      });
-    }
-  }
-
-  candidates.sort((a, b) => b.confidence - a.confidence);
-
-  return candidates.slice(0, 3);
+  console.warn('[LegacyMagic] TS detectParking called and ignored. Use native listeners.');
+  return [];
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────

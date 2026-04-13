@@ -15,8 +15,13 @@ class DatabaseManager {
 
   init() {
     setupDatabase()
-    loadLotPolygons()
-    hydrateDatabase()
+    
+    // Phase 6: Thread Hardening
+    // Hydration and polygon caching happen off-thread to prevent startup jank.
+    DispatchQueue.global(qos: .userInitiated).async {
+      self.hydrateDatabase()
+      self.loadLotPolygons()
+    }
   }
 
   private func setupDatabase() {

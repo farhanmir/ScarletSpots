@@ -23,7 +23,17 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
     Function("syncUserData") { (url: String, token: String, permit: String) in
       self.userPermit = permit
       NetworkManager.shared.configure(url: url, token: token)
+      // Prime the offline queue flush on sync
+      OfflineQueueManager.shared.flushQueue()
       print("[ParkingMagic] Synced user data. Permit: \(permit)")
+    }
+
+    Function("resetUserData") {
+      self.userPermit = nil
+      NetworkManager.shared.reset()
+      VultureManager.shared.reset()
+      OfflineQueueManager.shared.clear()
+      print("[ParkingMagic] User data and state purged.")
     }
 
     AsyncFunction("requestPermissionsAsync") { (promise: Promise) in
@@ -163,9 +173,10 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
       latitude: coordinate.latitude,
       longitude: coordinate.longitude,
       source: source
-    ) { success in
+    ) { success, eventId in
       if !success {
         let event = PendingEvent(
+          id: eventId ?? UUID().uuidString,
           latitude: coordinate.latitude,
           longitude: coordinate.longitude,
           source: source,

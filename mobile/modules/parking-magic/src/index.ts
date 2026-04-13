@@ -32,7 +32,8 @@ declare class ParkingMagicModule extends NativeModule {
   startSensing(): void;
   stopSensing(): void;
   getSystemHealthAsync(): Promise<SystemHealthStatus>;
-  syncUserData(url: string, token: string, permit: string): void;
+  syncUserData(url: String, token: String, permit: String): void;
+  resetUserData(): void;
   requestPermissionsAsync(): Promise<boolean>;
 }
 
@@ -41,6 +42,10 @@ const emitter = new EventEmitter(module);
 
 export function syncUserData(url: string, token: string, permit: string) {
   module.syncUserData(url, token, permit);
+}
+
+export function resetUserData() {
+  module.resetUserData();
 }
 
 export async function requestPermissionsAsync(): Promise<boolean> {

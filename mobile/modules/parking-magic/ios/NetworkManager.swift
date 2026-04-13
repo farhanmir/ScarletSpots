@@ -12,12 +12,12 @@ class NetworkManager {
     print("[NetworkManager] Configured with \(url)")
   }
   
-  func submitParkingEvent(lotId: String, latitude: Double, longitude: Double, source: String, autoStarted: Bool = true, completion: @escaping (Bool) -> Void) {
+  func submitParkingEvent(lotId: String, latitude: Double, longitude: Double, source: String, autoStarted: Bool = true, completion: @escaping (Bool, String?) -> Void) {
     guard let urlString = apiBaseUrl, 
           let url = URL(string: "\(urlString)/api/v1/park/session"),
           let token = authToken else {
       print("[NetworkManager] Not configured.")
-      completion(false)
+      completion(false, nil)
       return
     }
     
@@ -26,6 +26,7 @@ class NetworkManager {
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
     request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
     
+    let eventId = UUID().uuidString
     let body: [String: Any] = [
       "lotId": lotId,
       "latitude": latitude,
@@ -39,16 +40,16 @@ class NetworkManager {
     let task = URLSession.shared.dataTask(with: request) { _, response, error in
       if let error = error {
         print("[NetworkManager] Request failed: \(error.localizedDescription)")
-        completion(false)
+        completion(false, eventId)
         return
       }
       
       if let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) {
         print("[NetworkManager] Parking event reported successfully.")
-        completion(true)
+        completion(true, eventId)
       } else {
         print("[NetworkManager] Server returned error status.")
-        completion(false)
+        completion(false, eventId)
       }
     }
     task.resume()
@@ -56,14 +57,14 @@ class NetworkManager {
 
   func endParkingSession(completion: @escaping (Bool) -> Void) {
     guard let urlString = apiBaseUrl, 
-          let url = URL(string: "\(urlString)/api/v1/park/session/active"),
+          let url = URL(string: "\(urlString)/api/v1/park/session/end"),
           let token = authToken else {
       completion(false)
       return
     }
     
     var request = URLRequest(url: url)
-    request.httpMethod = "DELETE"
+    request.httpMethod = "POST"
     request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
     
     let task = URLSession.shared.dataTask(with: request) { _, response, error in
@@ -72,6 +73,12 @@ class NetworkManager {
       completion(success)
     }
     task.resume()
+  }
+
+  func reset() {
+    self.apiBaseUrl = nil
+    self.authToken = nil
+    print("[NetworkManager] Session state reset.")
   }
 
   func reportVultureActivity(lotId: String) {
