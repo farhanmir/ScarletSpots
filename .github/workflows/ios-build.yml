@@ -92,7 +92,7 @@ jobs:
           EXPO_PUBLIC_HEADING_SIGNAL_ENABLED: ${{ vars.EXPO_PUBLIC_HEADING_SIGNAL_ENABLED }}
           EXPO_PUBLIC_OFFLINE_QUEUE_ENABLED: ${{ vars.EXPO_PUBLIC_OFFLINE_QUEUE_ENABLED }}
           EXPO_PUBLIC_ENABLE_ALL_CAMPUSES: ${{ vars.EXPO_PUBLIC_ENABLE_ALL_CAMPUSES }}
-        run: npx expo prebuild --platform ios --clean --no-interactive
+        run: npx expo prebuild --platform ios --clean
 
       - name: 'Debug: List generated ios directory'
         continue-on-error: true
