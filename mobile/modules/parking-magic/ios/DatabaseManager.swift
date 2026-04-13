@@ -16,6 +16,7 @@ class DatabaseManager {
   init() {
     setupDatabase()
     loadLotPolygons()
+    hydrateDatabase()
   }
 
   private func setupDatabase() {
@@ -24,25 +25,101 @@ class DatabaseManager {
     let dbPath = urls[0].appendingPathComponent("parking_lots.sqlite").path
     
     if sqlite3_open(dbPath, &db) != SQLITE_OK {
-      print("Error opening database")
+      print("[ParkingMagic] Error opening database")
       return
     }
     
     let createTableQuery = "CREATE TABLE IF NOT EXISTS lots (id TEXT PRIMARY KEY, name TEXT, latitude REAL, longitude REAL, geometry TEXT);"
     if sqlite3_exec(db, createTableQuery, nil, nil, nil) != SQLITE_OK {
-      print("Error creating table")
+      print("[ParkingMagic] Error creating table")
     }
   }
 
+  private func hydrateDatabase() {
+    // Check if already hydrated
+    var count: Int = 0
+    let countQuery = "SELECT COUNT(*) FROM lots;"
+    var statement: OpaquePointer?
+    if sqlite3_prepare_v2(db, countQuery, -1, &statement, nil) == SQLITE_OK {
+      if sqlite3_step(statement) == SQLITE_ROW {
+        count = Int(sqlite3_column_int(statement, 0))
+      }
+    }
+    sqlite3_finalize(statement)
+
+    if count > 0 {
+      print("[ParkingMagic] DB already hydrated with \(count) lots.")
+      return
+    }
+
+    print("[ParkingMagic] Hydrating DB from JSON...")
+    
+    guard let path = Bundle.main.path(forResource: "rutgers_parking_data", ofType: "json"),
+          let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+          let json = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+      print("[ParkingMagic] Failed to load hydration JSON.")
+      return
+    }
+
+    sqlite3_exec(db, "BEGIN TRANSACTION;", nil, nil, nil)
+    
+    for lot in json {
+      guard let id = lot["mapId"] as? String,
+            let name = lot["propertyName"] as? String,
+            let location = lot["location"] as? [String: Any],
+            let lat = location["lat"] as? Double,
+            let lng = location["lng"] as? Double else { continue }
+      
+      // We store the geometry as a JSON string for PIP fallback
+      let geometryData = try? JSONSerialization.data(withJSONObject: lot["gtfsGeometry"] ?? [:])
+      let geometryString = geometryData.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+      
+      insertLot(id: id, name: name, latitude: lat, longitude: lng, geometry: geometryString)
+    }
+
+    sqlite3_exec(db, "COMMIT;", nil, nil, nil)
+    print("[ParkingMagic] Hydration complete.")
+  }
+
   private func loadLotPolygons() {
-    // Load from bundled resource
+    var cache: [LotPolygon] = []
+    
+    // Attempt to load from SQLite first
+    let query = "SELECT id, name, geometry FROM lots;"
+    var statement: OpaquePointer?
+    
+    if sqlite3_prepare_v2(db, query, -1, &statement, nil) == SQLITE_OK {
+      while sqlite3_step(statement) == SQLITE_ROW {
+        let id = String(cString: sqlite3_column_text(statement, 0))
+        let name = String(cString: sqlite3_column_text(statement, 1))
+        let geometryString = String(cString: sqlite3_column_text(statement, 2))
+        
+        if let data = geometryString.data(using: .utf8),
+           let points = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["coordinates"] as? [[[Double]]] {
+          var rings: [[CLLocationCoordinate2D]] = []
+          for ring in points {
+            rings.append(ring.map { CLLocationCoordinate2D(latitude: $0[1], longitude: $0[0]) })
+          }
+          cache.append(LotPolygon(id: id, name: name, rings: rings))
+        }
+      }
+    }
+    sqlite3_finalize(statement)
+
+    if !cache.isEmpty {
+      print("[DatabaseManager] Loaded \(cache.count) polygons from SQLite.")
+      self.polygonCache = cache
+      return
+    }
+
+    // Fallback to JSON (only on first boot if SQL fails)
     guard let path = Bundle.main.path(forResource: "rutgers_parking_data", ofType: "json"),
           let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
           let json = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
       return
     }
 
-    var cache: [LotPolygon] = []
+    print("[DatabaseManager] Loading polygons from JSON fallback.")
     for lot in json {
       guard let id = lot["mapId"] as? String,
             let name = lot["propertyName"] as? String,

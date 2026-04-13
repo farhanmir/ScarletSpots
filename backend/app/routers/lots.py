@@ -43,6 +43,7 @@ async def get_all_occupancy(db: AsyncSession = Depends(get_db)):
                 {
                     "lot_id": row.lot_id,
                     "count": row.count,
+                    "confidence_interval": 0.05,  # 5% uncertainty default
                     "updated_at": row.updated_at,
                 }
                 for row in rows

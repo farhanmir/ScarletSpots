@@ -32,10 +32,20 @@ declare class ParkingMagicModule extends NativeModule {
   startSensing(): void;
   stopSensing(): void;
   getSystemHealthAsync(): Promise<SystemHealthStatus>;
+  syncUserData(url: string, token: string, permit: string): void;
+  requestPermissionsAsync(): Promise<boolean>;
 }
 
 const module = requireNativeModule<ParkingMagicModule>('ParkingMagic');
 const emitter = new EventEmitter(module);
+
+export function syncUserData(url: string, token: string, permit: string) {
+  module.syncUserData(url, token, permit);
+}
+
+export async function requestPermissionsAsync(): Promise<boolean> {
+  return await module.requestPermissionsAsync();
+}
 
 export function addParkingListener(listener: (event: ParkingEvent) => void) {
   return emitter.addListener('onParkingEvent', listener);

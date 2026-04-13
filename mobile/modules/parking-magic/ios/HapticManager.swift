@@ -15,12 +15,15 @@ class HapticManager {
     }
   }
 
-  func playHotPulse() {
-    playPulse(intensity: 1.0, sharpness: 0.8)
-  }
-
-  func playColdPulse() {
-    playPulse(intensity: 0.4, sharpness: 0.2)
+  func playGuidancePulse(distance: Double) {
+    let intensity: Float
+    let sharpness: Float
+    
+    // Scale intensity: 1.0 at 0m, 0.4 at 50m
+    intensity = Float(max(0.4, min(1.0, 1.0 - (distance / 100.0))))
+    sharpness = Float(max(0.2, min(0.8, 1.0 - (distance / 80.0))))
+    
+    playPulse(intensity: intensity, sharpness: sharpness)
   }
 
   private func playPulse(intensity: Float, sharpness: Float) {
