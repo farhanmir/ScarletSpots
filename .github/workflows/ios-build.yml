@@ -118,10 +118,13 @@ jobs:
               echo "ℹ️  ParkingMagic may use direct file references (local module) — checking ios dir..."
             fi
           fi
-          if find ios -name "ParkingMagicModule.swift" 2>/dev/null | grep -q .; then
-            echo "✅ ParkingMagicModule.swift linked into ios project"
+          AUTOLINK_FILE="ios/build/generated/autolinking/autolinking.json"
+          if [ -f "$AUTOLINK_FILE" ] && grep -q "parking-magic" "$AUTOLINK_FILE"; then
+            echo "✅ parking-magic found in $AUTOLINK_FILE"
           else
-            echo "::error::ParkingMagicModule.swift not found in generated ios directory. Check expo-module.config.json and package.json."
+            echo "::error::parking-magic not found in autolinking.json. Check expo-module.config.json and package.json."
+            echo "Checking content of $AUTOLINK_FILE:"
+            cat "$AUTOLINK_FILE" || echo "File not found"
             exit 1
           fi
 
