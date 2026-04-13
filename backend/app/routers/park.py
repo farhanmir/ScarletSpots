@@ -19,7 +19,7 @@ from app.models.friendship import Friendship
 from app.models.parking import LotOccupancy, ParkingSession
 from app.models.parking import SessionFeedback as SessionFeedbackModel
 from app.models.user import Profile
-from app.services.push_notifications import send_push_to_users
+from app.services.push_notifications import send_push_to_users, send_silent_push_to_all
 
 log = get_logger(__name__)
 
@@ -222,11 +222,15 @@ async def start_parking_session(
 
         for changed_lot_id, changed_count in changed_lot_counts.items():
             await ws_manager.publish_occupancy_update(changed_lot_id, changed_count)
-            # Phase 5: Silent Push for background awareness
+
+        # Phase 5: Silent Push for background awareness — batched into one call per request
+        if changed_lot_counts:
             await send_silent_push_to_all(db, data={
                 "type": "lot_occupancy_update",
-                "lotId": changed_lot_id,
-                "count": changed_count
+                "updates": [
+                    {"lotId": lid, "count": cnt}
+                    for lid, cnt in changed_lot_counts.items()
+                ],
             })
 
         display_name = None

@@ -179,8 +179,9 @@ async def send_silent_push_to_all(
         {
             "to": token,
             "data": data,
-            "priority": "normal",
-            "_contentAvailable": True,
+            "priority": "high",
+            "contentAvailable": True,
+            "sound": None,
         }
         for token in tokens
     ]

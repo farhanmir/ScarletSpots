@@ -147,6 +147,7 @@ class DatabaseManager {
   }
 
   private func contains(_ point: CLLocationCoordinate2D, _ polygon: [CLLocationCoordinate2D]) -> Bool {
+    guard polygon.count >= 3 else { return false }
     var contains = false
     var j = polygon.count - 1
     for i in 0..<polygon.count {

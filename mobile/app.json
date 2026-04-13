@@ -31,7 +31,6 @@
         "UIBackgroundModes": [
           "location",
           "fetch",
-          "audio",
           "remote-notification"
         ],
         "NSLocationAlwaysAndWhenInUseUsageDescription": "ScarletSpots needs background location to detect when you park your car.",

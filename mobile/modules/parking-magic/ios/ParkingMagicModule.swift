@@ -98,11 +98,12 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
     // We only care about devices becoming unavailable (disconnect)
     if reason == .oldDeviceUnavailable {
       if let previousRoute = userInfo[AVAudioSessionRouteChangePreviousRouteKey] as? AVAudioSessionRouteDescription {
-        let hasCarAudio = previousRoute.outputs.contains { 
-          $0.portType == .carPlay || $0.portType == .bluetoothA2DP || $0.portType == .bluetoothHFP 
-        }
+        let hasCarPlay  = previousRoute.outputs.contains { $0.portType == .carPlay }
+        let hasBluetooth = previousRoute.outputs.contains { $0.portType == .bluetoothA2DP || $0.portType == .bluetoothHFP }
         
-        if hasCarAudio {
+        if hasCarPlay {
+          emitParkingEvent(source: "carplay_disconnect")
+        } else if hasBluetooth {
           emitParkingEvent(source: "bluetooth_disconnect")
         }
       }
@@ -129,10 +130,21 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
   }
 
   // MARK: - Event Emission
+  // Store the pending trigger so we can emit once didUpdateLocations delivers a fix.
+  private var pendingEventSource: String?
+
   private func emitParkingEvent(source: String) {
+    // If we already have a cached fix, fire immediately.
+    if let location = locationManager.location {
+      _dispatchParkingEvent(source: source, location: location)
+      return
+    }
+    // No cached fix — request one and fire when it arrives.
+    pendingEventSource = source
     locationManager.requestLocation()
-    
-    guard let location = locationManager.location else { return }
+  }
+
+  private func _dispatchParkingEvent(source: String, location: CLLocation) {
     let coordinate = location.coordinate
     
     // Phase 7: Resolve lotId natively
@@ -153,7 +165,6 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
       source: source
     ) { success in
       if !success {
-        // Fallback to Offline Queue
         let event = PendingEvent(
           latitude: coordinate.latitude,
           longitude: coordinate.longitude,
@@ -188,19 +199,21 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
     // Phase 4: Report to VultureManager
     VultureManager.shared.reportLocation(location: location, lotId: lotId)
     
+    // Fix #3: Dispatch any pending parking event that was deferred waiting for a GPS fix
+    if let source = pendingEventSource {
+      pendingEventSource = nil
+      _dispatchParkingEvent(source: source, location: location)
+    }
+    
     // Phase 9: Real-time Navigation Logic (Finding Car)
-    // In a real app, we'd check if a car pin is active
-    // For this implementation, we'll simulate the "Hot/Cold" guidance
     if let carLocation = UserDefaults.standard.object(forKey: "car_pin_location") as? [String: Double] {
       let carCoord = CLLocation(latitude: carLocation["lat"] ?? 0, longitude: carLocation["lng"] ?? 0)
       let distance = location.distance(from: carCoord)
       
-      // Drive Haptics
       if distance < 50 {
         HapticManager.shared.playGuidancePulse(distance: distance)
       }
       
-      // Update Live Activity
       LiveActivityManager.shared.updateActivity(distance: "\(Int(distance))m")
     }
   }
