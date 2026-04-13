@@ -6,7 +6,7 @@ on:
 jobs:
   ios-build:
     name: iOS Build (Sideloading)
-    runs-on: macos-26
+    runs-on: macos-latest
     permissions:
       contents: write
     env:
@@ -48,6 +48,40 @@ jobs:
             exit 1
           fi
 
+      # ── Validate parking-magic native module is fully intact before building ──
+      - name: Validate native module structure
+        working-directory: mobile
+        run: |
+          echo "Verifying parking-magic native module..."
+          files=(
+            "modules/parking-magic/ios/ParkingMagicModule.swift"
+            "modules/parking-magic/ios/DatabaseManager.swift"
+            "modules/parking-magic/ios/NetworkManager.swift"
+            "modules/parking-magic/ios/TicketShield.swift"
+            "modules/parking-magic/ios/HapticManager.swift"
+            "modules/parking-magic/ios/VultureManager.swift"
+            "modules/parking-magic/ios/LiveActivityManager.swift"
+            "modules/parking-magic/ios/OfflineQueueManager.swift"
+            "modules/parking-magic/ios/ScarletMapView.swift"
+            "modules/parking-magic/ios/Resources/rutgers_parking_data.json"
+            "modules/parking-magic/ios/Resources/permit_mapping.json"
+            "modules/parking-magic/expo-module.config.json"
+          )
+          MISSING=0
+          for f in "${files[@]}"; do
+            if [ ! -f "$f" ]; then
+              echo "::error::Native module file missing: $f"
+              MISSING=1
+            else
+              echo "✓ $f"
+            fi
+          done
+          if [ "$MISSING" -ne 0 ]; then
+            echo "::error::Native module is incomplete. Build will fail at link time."
+            exit 1
+          fi
+          echo "✅ All native module files verified."
+
       - name: Expo prebuild (generate native iOS project)
         working-directory: mobile
         env:
@@ -59,6 +93,25 @@ jobs:
           EXPO_PUBLIC_OFFLINE_QUEUE_ENABLED: ${{ vars.EXPO_PUBLIC_OFFLINE_QUEUE_ENABLED }}
           EXPO_PUBLIC_ENABLE_ALL_CAMPUSES: ${{ vars.EXPO_PUBLIC_ENABLE_ALL_CAMPUSES }}
         run: npx expo prebuild --platform ios --clean
+
+      # ── Verify Expo autolinking picked up the parking-magic module ─────────────
+      - name: Verify autolinking resolved parking-magic
+        working-directory: mobile
+        run: |
+          echo "Checking autolinked modules..."
+          if [ -d "ios/Pods" ]; then
+            echo "Pods directory found — checking for ParkingMagic..."
+            if grep -r "ParkingMagic" ios/Pods/ --include="*.rb" --include="*.xcconfig" -l 2>/dev/null | head -5; then
+              echo "✅ ParkingMagic found in Pods"
+            else
+              echo "ℹ️  ParkingMagic may use direct file references (local module) — checking ios dir..."
+            fi
+          fi
+          if find ios -name "ParkingMagicModule.swift" 2>/dev/null | grep -q .; then
+            echo "✅ ParkingMagicModule.swift linked into ios project"
+          else
+            echo "::warning::ParkingMagicModule.swift not found in generated ios directory. Check expo-module.config.json."
+          fi
 
       - name: Identify workspace and scheme
         id: xcode_info
@@ -80,7 +133,7 @@ jobs:
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ github.run_number }}" "$INFO_PLIST"
           echo "Build number set to ${{ github.run_number }}"
 
-      - name: Build with xcodebuild (Debug, no code signing)
+      - name: Build with xcodebuild (Release, no code signing)
         env:
           EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
@@ -143,5 +196,3 @@ jobs:
             --title "${{ steps.release_info.outputs.name }}" \
             --generate-notes \
             --prerelease
-
-
