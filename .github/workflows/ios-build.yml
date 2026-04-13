@@ -70,6 +70,7 @@ jobs:
             "modules/parking-magic/ios/Resources/permit_mapping.json"
             "modules/parking-magic/expo-module.config.json"
             "modules/parking-magic/package.json"
+            "modules/parking-magic/ParkingMagic.podspec"
           )
           MISSING=0
           for f in "${files[@]}"; do
