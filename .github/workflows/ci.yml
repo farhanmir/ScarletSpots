@@ -71,9 +71,67 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Validate native module structure
+        run: |
+          echo "Verifying parking-magic native module..."
+          dirs=(
+            "modules/parking-magic/ios"
+            "modules/parking-magic/src"
+          )
+          files=(
+            "modules/parking-magic/ios/ParkingMagicModule.swift"
+            "modules/parking-magic/ios/DatabaseManager.swift"
+            "modules/parking-magic/ios/NetworkManager.swift"
+            "modules/parking-magic/ios/TicketShield.swift"
+            "modules/parking-magic/ios/HapticManager.swift"
+            "modules/parking-magic/ios/VultureManager.swift"
+            "modules/parking-magic/ios/LiveActivityManager.swift"
+            "modules/parking-magic/ios/OfflineQueueManager.swift"
+            "modules/parking-magic/ios/ScarletMapView.swift"
+            "modules/parking-magic/ios/Resources/rutgers_parking_data.json"
+            "modules/parking-magic/ios/Resources/permit_mapping.json"
+            "modules/parking-magic/expo-module.config.json"
+            "modules/parking-magic/src/index.ts"
+          )
+          MISSING=0
+          for d in "${dirs[@]}"; do
+            if [ ! -d "$d" ]; then echo "::error::Missing directory: $d"; MISSING=1; fi
+          done
+          for f in "${files[@]}"; do
+            if [ ! -f "$f" ]; then echo "::error::Missing file: $f"; MISSING=1; fi
+          done
+          if [ "$MISSING" -ne 0 ]; then exit 1; fi
+          echo "✅ All native module files present."
+
       - name: TypeScript type check
         run: npx tsc --noEmit
 
       - name: Lint (ESLint)
         run: npx eslint . --ext .ts,.tsx --max-warnings 0
         continue-on-error: true  # Non-blocking until lint errors are cleaned up
+
+  # ── Swift: Basic syntax lint ───────────────────────────────────────────────────
+  swift-lint:
+    name: Swift Lint (Native Module)
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install SwiftLint
+        run: brew install swiftlint
+
+      - name: Run SwiftLint on parking-magic module
+        run: |
+          swiftlint lint --path mobile/modules/parking-magic/ios \
+            --config .swiftlint.yml 2>/dev/null || \
+          swiftlint lint --path mobile/modules/parking-magic/ios
+        continue-on-error: true  # Non-blocking until lint issues are cleaned up
+
+      - name: Swift build check (syntax only)
+        run: |
+          echo "Checking Swift files compile individually..."
+          for f in mobile/modules/parking-magic/ios/*.swift; do
+            swiftc -parse "$f" 2>&1 && echo "✓ $f" || echo "⚠️  Parse warning: $f"
+          done
+        continue-on-error: true

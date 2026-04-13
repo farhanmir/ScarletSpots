@@ -8,6 +8,35 @@ When a user auto-parks with the app **closed**, how do:
 
 WebSockets only work when the app is **open**. Background tasks don't maintain persistent connections.
 
+### Current State: Native Magic + Silent Push
+
+The system has transitioned from the brittle `expo-task-manager` polling model (JS) to a hard-wired **Native Swift Sensing Engine**.
+
+#### 1. Native Arrival Detection (The Signal)
+- **Bluetooth/CarPlay**: The `ParkingMagic` Swift module listens for `AVAudioSession.routeChangeNotification`.
+- **Core Motion**: Swift uses `CMMotionActivityManager` to detect the precision `Driving` → `Walking` transition.
+- **Safety Net**: iOS Significant Location Changes (SLC) serve as a low-power "anchor" to keep the sensing brain alive even if the app is killed.
+
+#### 2. The Direct Post (The Action)
+When `ParkingMagic` detects a park:
+1. It snaps a high-precision GPS fix.
+2. It resolves the `lotId` using a native Point-In-Polygon engine.
+3. It performs a direct API call to `POST /api/v1/park/session` (bypassing the JS bridge for 100% reliability).
+4. If offline, it saves the event to a native **Transactional Queue** (SQLite).
+
+#### 3. Silent Notification Sync (The Broadcast)
+1. **Backend Update**: FastAPI receives the park event and updates `lot_occupancy`.
+2. **Redis Pub/Sub**: Backend publishes to Redis for open-app WebSocket clients.
+3. **Silent Push (APNs)**: Backend sends a silent push with `content-available: 1` to all other app instances.
+4. **Local Catchup**: Other devices wake up, fetch the new occupancy, and update the **Live Activity** or **Dynamic Island** without the user needing to open the app.
+
+---
+
+### Legacy (DELETED)
+- `GeofenceManager.ts`: Purged.
+- `PARKING_DETECTION_TASK`: Purged.
+- `AsyncStorage` Mailbox Hack: Purged.
+
 ## Solution: Dual-Path Occupancy Broadcasting
 
 ### Path 1: Background Auto-Park → Redis → WebSocket Clients ✓
