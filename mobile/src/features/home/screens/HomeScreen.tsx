@@ -41,7 +41,10 @@ import {
   getPendingParkingCandidates,
   clearPendingParkingCandidates,
 } from "@/shared/services/BackgroundTasks";
-import { type ParkingCandidate } from "@/shared/services/ParkingDetectionService";
+import {
+  type ParkingCandidate,
+  isPointInLot,
+} from "@/shared/services/ParkingDetectionService";
 import {
   fetchWithOfflineFallback,
   clearCachedSession,
@@ -831,10 +834,16 @@ export default function MapScreen() {
 
     setLoading(true);
     try {
+      const isInside = isPointInLot(
+        location?.coords.latitude ?? 0,
+        location?.coords.longitude ?? 0,
+        lot,
+      );
+
       const payload = {
         lotId: lot.id,
-        latitude: location?.coords.latitude,
-        longitude: location?.coords.longitude,
+        latitude: isInside ? location?.coords.latitude : null,
+        longitude: isInside ? location?.coords.longitude : null,
         confirmed: true,
       };
 
@@ -1155,7 +1164,51 @@ export default function MapScreen() {
   const chipFindCarState = React.useMemo(() => {
     const carLat = activeSession?.latitude;
     const carLng = activeSession?.longitude;
-    if (carLat == null || carLng == null) return null;
+
+    if (carLat == null || carLng == null) {
+      // Remote Park Support: Point to the lot center if user is outside
+      const lot = lots.find((l) => l.id === activeSession?.lotId);
+      if (!lot) return null;
+
+      const userPos =
+        chipUserPosition ??
+        (location
+          ? {
+              latitude: location.coords.latitude,
+              longitude: location.coords.longitude,
+            }
+          : null);
+
+      if (!userPos) return { distanceText: "—", arrowRotation: 0 };
+
+      // Check if user has already entered the lot boundary
+      const isInside = isPointInLot(userPos.latitude, userPos.longitude, lot);
+      if (isInside) {
+        // "Don't point anywhere" once inside the lot for remote parks
+        return null;
+      }
+
+      // Point to lot center
+      const meters = haversineMeters(
+        userPos.latitude,
+        userPos.longitude,
+        lot.latitude,
+        lot.longitude,
+      );
+      const feet = meters * 3.28084;
+      const distanceText =
+        feet < 500 ? `${Math.round(feet)} ft` : `${Math.round(meters)} m`;
+      const bear = bearingDeg(
+        userPos.latitude,
+        userPos.longitude,
+        lot.latitude,
+        lot.longitude,
+      );
+      const heading = chipHeading ?? 0;
+      const arrowRotation = (bear - heading + 360) % 360;
+      return { distanceText, arrowRotation };
+    }
+
     const userPos =
       chipUserPosition ??
       (location
