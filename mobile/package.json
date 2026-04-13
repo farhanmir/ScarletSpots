@@ -26,6 +26,7 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "parking-magic": "file:./modules/parking-magic",
     "@expo/vector-icons": "^15.1.1",
     "@lodev09/react-native-true-sheet": "^3.9.9",
     "@react-native-async-storage/async-storage": "2.2.0",

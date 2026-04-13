@@ -92,7 +92,14 @@ jobs:
           EXPO_PUBLIC_HEADING_SIGNAL_ENABLED: ${{ vars.EXPO_PUBLIC_HEADING_SIGNAL_ENABLED }}
           EXPO_PUBLIC_OFFLINE_QUEUE_ENABLED: ${{ vars.EXPO_PUBLIC_OFFLINE_QUEUE_ENABLED }}
           EXPO_PUBLIC_ENABLE_ALL_CAMPUSES: ${{ vars.EXPO_PUBLIC_ENABLE_ALL_CAMPUSES }}
-        run: npx expo prebuild --platform ios --clean
+        run: npx expo prebuild --platform ios --clean --no-interactive
+
+      - name: 'Debug: List generated ios directory'
+        continue-on-error: true
+        run: |
+          echo "Listing mobile/ios content..."
+          ls -R mobile/ios 2>/dev/null || echo "mobile/ios directory not found"
+
 
       # ── Verify Expo autolinking picked up the parking-magic module ─────────────
       - name: Verify autolinking resolved parking-magic
@@ -116,16 +123,25 @@ jobs:
       - name: Identify workspace and scheme
         id: xcode_info
         run: |
+          # Find workspace searching in mobile/ios
           WORKSPACE=$(find mobile/ios -maxdepth 1 -name "*.xcworkspace" | head -1)
+
           if [ -z "$WORKSPACE" ]; then
-            echo "Error: No .xcworkspace found in mobile/ios" >&2
+            echo "::error::No .xcworkspace found in mobile/ios. Check prebuild logs."
+            # List directory for debugging
+            ls -la mobile/ios || echo "mobile/ios directory is missing"
             exit 1
           fi
+
+          # Extract relative path from workspace root for xcodebuild
+          # e.g. mobile/ios/ScarletSpots.xcworkspace
           SCHEME=$(basename "$WORKSPACE" .xcworkspace)
+
           echo "workspace=$WORKSPACE" >> "$GITHUB_OUTPUT"
           echo "scheme=$SCHEME" >> "$GITHUB_OUTPUT"
-          echo "Workspace: $WORKSPACE"
-          echo "Scheme:    $SCHEME"
+
+          echo "✅ Detected Workspace: $WORKSPACE"
+          echo "✅ Detected Scheme:    $SCHEME"
 
       - name: Auto-increment build number
         run: |
