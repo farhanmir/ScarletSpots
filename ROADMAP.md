@@ -68,11 +68,38 @@
 
 - [x] Bundle ID fixed: `com.scarletspots.app` (was `com.anonymous.mobile`)
 - [x] EAS build config: development, preview, production profiles
-- [x] GitHub Actions CI: backend pytest, mobile TypeScript check, migration syntax
+- [x] GitHub Actions CI: backend pytest, mobile TypeScript check, migration syntax, native module file validation, Swift lint
 - [ ] Load test: simulate 50k users at 3 calls/day peak (k6 or locust)
 - [ ] App Store: configure `apple.com` App Review notes, screenshots
 - [ ] Privacy Policy: publish at `scarletspots.app/privacy`
 - [ ] Staged rollout: internal alpha → Rutgers student beta → public App Store
+
+---
+
+## Phase 6 — Native Magic Pivot ✅ (feat/native-magic-pivot)
+
+**Goal:** Move all parking detection and map rendering out of the JavaScript bridge and into a hardened Swift native module. Eliminate battery-draining GPS polling.
+
+**"ParkingMagic" Expo Module (`modules/parking-magic/ios/`):**
+- [x] `ParkingMagicModule.swift` — unified sensing orchestrator (AVAudioSession + CMMotionActivityManager + CLLocationManager)
+- [x] `DatabaseManager.swift` — SQLite hydration of 245+ lots from bundled JSON. Polygon cache + Point-In-Polygon ray-cast engine for native lot resolution
+- [x] `NetworkManager.swift` — Direct `URLSession` API client. Reports parking events, ends sessions, and reports vulture activity without the JS bridge
+- [x] `TicketShield.swift` — Offline permit validation from `permit_mapping.json` on arrival
+- [x] `VultureManager.swift` — Dwell time + circling detection for proactive occupancy inference
+- [x] `HapticManager.swift` — Distance-scaled `CoreHaptics` pulses (hot/cold navigation)
+- [x] `LiveActivityManager.swift` — ActivityKit Live Activity + Dynamic Island navigation
+- [x] `OfflineQueueManager.swift` — Offline park event buffering via UserDefaults (persists through concrete garage dead zones)
+- [x] `ScarletMapView.swift` — Custom Apple MapKit engine replacing `react-native-maps`
+
+**Backend Hardening:**
+- [x] `POST /lots/{lot_id}/vulture` — authenticated vulture ingestion endpoint
+- [x] Silent push `contentAvailable: true` fan-out on occupancy updates (batched per request)
+- [x] Forecast API includes `confidence_interval` field
+- [x] `/lots/occupancy` includes `confidence_interval` per lot
+
+**Deep Link Note:** The `scarletspots://park-intent` and `scarletspots://unpark-intent` routes that were planned for the Siri Shortcuts approach were **superseded** by the native sensing engine. Bluetooth/CarPlay disconnect/connect is handled directly in Swift — no Shortcut setup required from the user.
+
+**Exit criteria:** App requires `npx expo run:ios` (Expo Go no longer supported). Native sensing detects parking without any user setup. SQLite is the single source of truth for lot polygons.
 
 ---
 
