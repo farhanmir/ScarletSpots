@@ -79,3 +79,20 @@ def get_lot_forecast(
     except Exception as exc:
         log.error("Forecast failed for lot %s: %s", lot_id, exc)
         raise HTTPException(status_code=500, detail="Failed to generate forecast")
+@router.post("/{lot_id}/vulture")
+async def report_vulture_event(
+    lot_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Report a 'vulture' event (searching/circling behavior detected natively).
+    This serves as a high-fidelity observation channel for the occupancy inference engine.
+    """
+    try:
+        # For now, we'll log this as a metric. 
+        # Future: Store in a 'parking_observations' table for the inference model.
+        log.info("Vulture event detected for lot %s", lot_id)
+        return {"status": "ok", "message": "Observation recorded"}
+    except Exception as exc:
+        log.error("Failed to record vulture event for lot %s: %s", lot_id, exc)
+        raise HTTPException(status_code=500, detail="Failed to record observation")

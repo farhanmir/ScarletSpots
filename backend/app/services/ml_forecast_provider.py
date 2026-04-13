@@ -101,6 +101,7 @@ class MLForecastProvider(ForecastProvider):
                 "expected_occupancy": round(pred_pct, 1),
                 "low": round(max(0.0, pred_pct - band), 1),
                 "high": round(min(100.0, pred_pct + band), 1),
+                "confidence_interval": round(band, 1),
                 "label": _label(pred_pct),
                 "source": "ml",
             }

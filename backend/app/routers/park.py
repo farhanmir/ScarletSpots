@@ -222,6 +222,12 @@ async def start_parking_session(
 
         for changed_lot_id, changed_count in changed_lot_counts.items():
             await ws_manager.publish_occupancy_update(changed_lot_id, changed_count)
+            # Phase 5: Silent Push for background awareness
+            await send_silent_push_to_all(db, data={
+                "type": "lot_occupancy_update",
+                "lotId": changed_lot_id,
+                "count": changed_count
+            })
 
         display_name = None
         profile = await db.get(Profile, user_id)

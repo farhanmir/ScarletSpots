@@ -162,3 +162,39 @@ async def send_push_to_users(
         for row in rows:
             row.active = False  # type: ignore[assignment]
         await db.commit()
+async def send_silent_push_to_all(
+    db: AsyncSession,
+    *,
+    data: dict[str, Any],
+) -> None:
+    """Dispatches a silent background push to all active devices to update UI/widgets."""
+    stmt = select(DevicePushToken).where(
+        DevicePushToken.active.is_(True),
+    )
+    tokens = [row.token for row in (await db.execute(stmt)).scalars().all()]
+    if not tokens:
+        return
+
+    payload = [
+        {
+            "to": token,
+            "data": data,
+            "priority": "normal",
+            "_contentAvailable": True,
+        }
+        for token in tokens
+    ]
+
+    headers = _build_expo_headers()
+    batches = [payload[i : i + BATCH_SIZE] for i in range(0, len(payload), BATCH_SIZE)]
+
+    async def _send_batch(
+        client: httpx.AsyncClient, batch_payload: list[dict[str, Any]]
+    ) -> None:
+        try:
+            await client.post(EXPO_PUSH_URL, json=batch_payload, headers=headers)
+        except Exception as exc:
+            log.warning("Silent push batch failed: %s", exc)
+
+    async with httpx.AsyncClient(timeout=5) as client:
+        await asyncio.gather(*[_send_batch(client, batch) for batch in batches])

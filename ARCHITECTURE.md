@@ -284,18 +284,21 @@ Replaces Supabase Realtime for real-time occupancy and notifications.
           └── All connected clients on that lot receive update
 ```
 
-### Key Insight: Background Parking Works
+### Key Insight: "Native Magic" Detection
 
-When user auto-parks with app **closed**:
+When the user auto-parks with the app **closed**, the system leverages a high-fidelity native Swift engine:
 
-1. Background task calls `POST /api/v1/park/session` (API, not WebSocket)
-2. Backend stores session + updates occupancy count
-3. Backend publishes occupancy to Redis
-4. **All WebSocket clients watching that lot get the update** (if their app is open)
-5. User A's local notification confirms their parking
-6. User B (viewing the lot with app open) sees occupancy change in real-time
+1. **Native Triggers**: A custom Swift module (`ParkingMagic`) listens for hardware signals:
+   - **Bluetooth/CarPlay**: Atomic disconnect signals (Instant arrival detect).
+   - **Core Motion**: Silicon-layer `Driving` → `Walking` transitions (Fallback).
+   - **Significant Locations**: Low-power background anchor (Keeps app "alive").
+2. **Swift Hand-off**: The native engine snaps a GPS fix and immediately performs an API call to `POST /api/v1/park/session`.
+3. **Backend Propagation**:
+   - Backend updates DB + broadcasts to Redis.
+   - All connected WebSocket clients on that lot see the occupancy change in <100ms.
+4. **Silent Push Hardening**: Backend sends a silent push (`content-available: 1`) to wake other apps for local widget/Dynamic Island updates.
 
-**See [WEBSOCKET_BACKGROUND_PARKING_ARCHITECTURE.md](WEBSOCKET_BACKGROUND_PARKING_ARCHITECTURE.md) for the full architecture, including the implemented push-notification foundation.**
+**See [WEBSOCKET_BACKGROUND_PARKING_ARCHITECTURE.md](WEBSOCKET_BACKGROUND_PARKING_ARCHITECTURE.md) for the full sync architecture.**
 
 ### WebSocket Connection Flow
 

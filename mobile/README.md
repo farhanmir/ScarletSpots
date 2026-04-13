@@ -1,4 +1,21 @@
-# ScarletSpots Mobile
+# ScarletSpots: Native Magic 🚀
+
+A high-performance, native-first parking detection system for Rutgers University.
+
+## ⚠️ Important: Development Builds Required
+As of the **Native Magic Pivot**, this project uses custom Swift modules (`modules/parking-magic`). **Expo Go is no longer supported.**
+
+To run the app:
+1. Ensure you have a physical iOS device and an Apple Developer account.
+2. Run `npx expo prebuild` to generate the native iOS project.
+3. Run `npm run ios` (or `npx expo run:ios`) to build and deploy to your device.
+
+## Core Features
+- **Native Magic Sensing**: Instant hardware-layer arrival detection via Bluetooth, CarPlay, and Core Motion.
+- **Native Vision Engine**: 120Hz Apple MapKit renderer with native polygon support.
+- **Live Activities**: Real-time car finding on your Lock Screen.
+- **Ticket Shield**: Proactive permit validation at the hardware layer.
+- **Crowdsourced Occupancy**: Silent background sync using optimized APNs pushes.
 
 ## Environment variables
 

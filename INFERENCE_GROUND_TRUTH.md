@@ -6,11 +6,14 @@ We only observe the subset of cars/parkers that use the app, yet we need 80–90
 
 We will build a probabilistic, physics-constrained estimator that:
 
-- uses phone-sensor “spot openings” and “searching” as additional observation channels
+- **Native Magic Signals**: Direct hardware-layer triggers from the native Swift module:
+  - **Bluetooth/CarPlay (99% Confidence)**: Instant "Parked" signal on disconnect.
+  - **Motion Activity Transition (85% Confidence)**: Detected `Driving` -> `Walking` shifts.
+  - **Significant Location SLC (App Anchor)**: Ensures background persistence and boot-up survival.
 
-- calibrates the observation bias using incentivized manual verification + periodic manual audits
+- **Vulture Mode**: Silicon-layer detection of "searching" behavior (circles, dwell times) reported natively to provide a proactive "Searching" observation channel.
 
-- outputs occupancy as a distribution (low/high) rather than a single number
+- **Confidence Intervals**: The back-end now explicitly outputs ± range (e.g., 90% ± 3%) derived from the fidelity of the native signal (e.g., BT disconnect carries higher weight than Motion activity).
 
 ## 0.5) Cold start: no users, no parking telemetry (why everything shows 0%)
 

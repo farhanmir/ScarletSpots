@@ -30,11 +30,15 @@
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [
           "location",
-          "fetch"
+          "fetch",
+          "audio",
+          "remote-notification"
         ],
         "NSLocationAlwaysAndWhenInUseUsageDescription": "ScarletSpots needs background location to detect when you park your car.",
         "NSLocationAlwaysUsageDescription": "ScarletSpots needs background location to detect when you park your car.",
-        "NSMotionUsageDescription": "ScarletSpots needs motion access to detect when you stop driving and start walking."
+        "NSMotionUsageDescription": "ScarletSpots needs motion access to detect when you stop driving and start walking.",
+        "NSBluetoothAlwaysUsageDescription": "ScarletSpots needs Bluetooth access to detect your car's connection and arrival.",
+        "NSSupportsLiveActivities": true
       }
     },
     "android": {
