@@ -16,6 +16,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
+      - name: Select Xcode 16.0
+        run: sudo xcode-select -s /Applications/Xcode_16.0.app/Contents/Developer
+
       - name: Set up Node.js
         uses: actions/setup-node@v5
         with:
@@ -66,6 +69,7 @@ jobs:
             "modules/parking-magic/ios/Resources/rutgers_parking_data.json"
             "modules/parking-magic/ios/Resources/permit_mapping.json"
             "modules/parking-magic/expo-module.config.json"
+            "modules/parking-magic/package.json"
           )
           MISSING=0
           for f in "${files[@]}"; do
@@ -117,7 +121,8 @@ jobs:
           if find ios -name "ParkingMagicModule.swift" 2>/dev/null | grep -q .; then
             echo "✅ ParkingMagicModule.swift linked into ios project"
           else
-            echo "::warning::ParkingMagicModule.swift not found in generated ios directory. Check expo-module.config.json."
+            echo "::error::ParkingMagicModule.swift not found in generated ios directory. Check expo-module.config.json and package.json."
+            exit 1
           fi
 
       - name: Identify workspace and scheme
