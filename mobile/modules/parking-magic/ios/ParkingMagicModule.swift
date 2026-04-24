@@ -8,6 +8,10 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
   private let motionManager = CMMotionActivityManager()
   private var isSensing = false
   private var userPermit: String?
+  private var isParkingEventInFlight = false
+  private var isEndingSession = false
+  private var lastParkingEventAt: Date?
+  private let parkingEventCooldown: TimeInterval = 15
   
   public func definition() -> ModuleDefinition {
     Name("ParkingMagic")
@@ -52,7 +56,7 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
       // 2. Monitor Audio Route (BT/CarPlay)
       NotificationCenter.default.addObserver(
         self,
-        selector: #selector(handleAudioRouteChange),
+        selector: #selector(handleRouteChange),
         name: AVAudioSession.routeChangeNotification,
         object: nil
       )
@@ -63,6 +67,10 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
 
     Function("stopSensing") {
       isSensing = false
+      pendingEventSource = nil
+      isParkingEventInFlight = false
+      isEndingSession = false
+      lastParkingEventAt = nil
       locationManager.stopMonitoringSignificantLocationChanges()
       NotificationCenter.default.removeObserver(self)
       motionManager.stopActivityUpdates()
@@ -99,27 +107,6 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
     }
   }
 
-  // MARK: - Bluetooth / CarPlay Sensing
-  @objc private func handleAudioRouteChange(notification: Notification) {
-    guard let userInfo = notification.userInfo,
-          let reasonValue = userInfo[AVAudioSessionRouteChangeReasonKey] as? UInt,
-          let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue) else { return }
-    
-    // We only care about devices becoming unavailable (disconnect)
-    if reason == .oldDeviceUnavailable {
-      if let previousRoute = userInfo[AVAudioSessionRouteChangePreviousRouteKey] as? AVAudioSessionRouteDescription {
-        let hasCarPlay  = previousRoute.outputs.contains { $0.portType == .carPlay }
-        let hasBluetooth = previousRoute.outputs.contains { $0.portType == .bluetoothA2DP || $0.portType == .bluetoothHFP }
-        
-        if hasCarPlay {
-          emitParkingEvent(source: "carplay_disconnect")
-        } else if hasBluetooth {
-          emitParkingEvent(source: "bluetooth_disconnect")
-        }
-      }
-    }
-  }
-
   // MARK: - Motion Sensing
   private func startMotionUpdates() {
     guard CMMotionActivityManager.isActivityAvailable() else { return }
@@ -144,13 +131,23 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
   private var pendingEventSource: String?
 
   private func emitParkingEvent(source: String) {
+    let now = Date()
+    if isParkingEventInFlight {
+      return
+    }
+    if let lastParkingEventAt, now.timeIntervalSince(lastParkingEventAt) < parkingEventCooldown {
+      return
+    }
+
     // If we already have a cached fix, fire immediately.
     if let location = locationManager.location {
+      isParkingEventInFlight = true
       _dispatchParkingEvent(source: source, location: location)
       return
     }
     // No cached fix — request one and fire when it arrives.
     pendingEventSource = source
+    isParkingEventInFlight = true
     locationManager.requestLocation()
   }
 
@@ -174,6 +171,9 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
       longitude: coordinate.longitude,
       source: source
     ) { success, eventId in
+      self.isParkingEventInFlight = false
+      self.lastParkingEventAt = Date()
+
       if !success {
         let event = PendingEvent(
           id: eventId ?? UUID().uuidString,
@@ -186,6 +186,10 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
         OfflineQueueManager.shared.enqueue(event: event)
         print("[ParkingMagic] Event queued for offline sync.")
       }
+    }
+
+    if #available(iOS 16.1, *) {
+      LiveActivityManager.shared.startParkingActivity(lotName: lotName)
     }
 
     // Bridge Notification (for open app)
@@ -230,6 +234,7 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
   }
 
   public func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+    pendingEventSource = nil
     print("[ParkingMagic] Location Error: \(error.localizedDescription)")
   }
 
@@ -244,10 +249,14 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
       print("[ParkingMagic] Bluetooth/CarPlay Disconnected - Detecting Arrival")
       emitParkingEvent(source: "bluetooth_disconnect")
     case .newDeviceAvailable:
+      guard !isEndingSession else { return }
+      isEndingSession = true
       print("[ParkingMagic] Bluetooth/CarPlay Connected - Detecting Departure")
       // Phase 9: Native Departure Trigger
       NetworkManager.shared.endParkingSession { success in
+        self.isEndingSession = false
         if success {
+          self.lastParkingEventAt = nil
           LiveActivityManager.shared.stopActivity()
         }
       }
