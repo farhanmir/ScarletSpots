@@ -75,6 +75,13 @@ public class ParkingMagicModule: Module {
       DispatchQueue.main.async(execute: work)
     }
   }
+
+  private func isValidCoordinate(latitude: Double, longitude: Double) -> Bool {
+    return latitude.isFinite &&
+      longitude.isFinite &&
+      (-90.0...90.0).contains(latitude) &&
+      (-180.0...180.0).contains(longitude)
+  }
   
   public func definition() -> ModuleDefinition {
     Name("ParkingMagic")
@@ -89,11 +96,11 @@ public class ParkingMagicModule: Module {
       self.loadDiagnosticsHistory()
     }
 
-    Function("syncUserData") { (url: String, token: String, permit: String, pinnedCertHashes: [String], ownerId: String?) in
+    Function("syncUserData") { (url: String, token: String, permit: String, pinnedCertHashes: [String], ownerId: String) in
       self.userPermit = permit
-      self.currentOwnerId = ownerId
+      self.currentOwnerId = ownerId.isEmpty ? nil : ownerId
       NetworkManager.shared.configure(url: url, token: token, pinnedCertHashes: pinnedCertHashes)
-      OfflineQueueManager.shared.configureOwner(ownerId)
+      OfflineQueueManager.shared.configureOwner(self.currentOwnerId)
       self.reconcileActiveSessionFromServer()
       // Prime the offline queue flush on sync
       OfflineQueueManager.shared.flushQueue { event in
@@ -216,6 +223,17 @@ public class ParkingMagicModule: Module {
     }
 
     AsyncFunction("runAutoParkSmokeTestAsync") { (latitude: Double, longitude: Double, promise: Promise) in
+      guard self.isValidCoordinate(latitude: latitude, longitude: longitude) else {
+        promise.resolve([
+          "ok": false,
+          "startSuccess": false,
+          "endSuccess": false,
+          "activeAfter": self.hasActiveAutoSession,
+          "error": "invalid_coordinate"
+        ])
+        return
+      }
+
       let location = CLLocation(
         coordinate: CLLocationCoordinate2D(latitude: latitude, longitude: longitude),
         altitude: 0,
@@ -270,6 +288,14 @@ public class ParkingMagicModule: Module {
     }
 
     AsyncFunction("resolveLotAtAsync") { (latitude: Double, longitude: Double, promise: Promise) in
+      guard self.isValidCoordinate(latitude: latitude, longitude: longitude) else {
+        promise.resolve([
+          "found": false,
+          "lotId": NSNull(),
+          "lotName": NSNull()
+        ])
+        return
+      }
       let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
       if let lot = DatabaseManager.shared.getLotAt(coordinate: coordinate) {
         promise.resolve([

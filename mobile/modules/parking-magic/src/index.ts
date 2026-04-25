@@ -116,7 +116,7 @@ declare class ParkingMagicModule extends NativeModule {
     token: string,
     permit: string,
     pinnedCertHashes: string[],
-    ownerId: string | null,
+    ownerId: string,
   ): void;
   resetUserData(): void;
   requestPermissionsAsync(): Promise<boolean>;
@@ -132,6 +132,22 @@ declare class ParkingMagicModule extends NativeModule {
 const module = requireNativeModule<ParkingMagicModule>('ParkingMagic');
 const emitter = new EventEmitter(module);
 
+function ensureString(value: unknown, fallback = ""): string {
+  return typeof value === "string" ? value : fallback;
+}
+
+function ensureStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string");
+}
+
+function ensureFiniteNumber(value: unknown, name: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new TypeError(`[ParkingMagic] Invalid ${name}: expected a finite number.`);
+  }
+  return value;
+}
+
 export function syncUserData(
   url: string,
   token: string,
@@ -139,7 +155,15 @@ export function syncUserData(
   pinnedCertHashes: string[] = [],
   ownerId: string | null = null,
 ) {
-  module.syncUserData(url, token, permit, pinnedCertHashes, ownerId);
+  const safeUrl = ensureString(url);
+  const safeToken = ensureString(token);
+  const safePermit = ensureString(permit, "Public");
+  const safePins = ensureStringArray(pinnedCertHashes);
+  const safeOwnerId = ensureString(ownerId ?? "");
+
+  // Avoid passing null through TurboModule Function args; NSNull here can trigger
+  // Obj-C invocation exceptions in release builds before JS can recover.
+  module.syncUserData(safeUrl, safeToken, safePermit, safePins, safeOwnerId);
 }
 
 export function startSensing() {
@@ -173,7 +197,9 @@ export async function getSystemHealth(): Promise<SystemHealthStatus> {
 }
 
 export async function resolveLotAt(latitude: number, longitude: number): Promise<ResolvedLot> {
-  return await module.resolveLotAtAsync(latitude, longitude);
+  const safeLatitude = ensureFiniteNumber(latitude, "latitude");
+  const safeLongitude = ensureFiniteNumber(longitude, "longitude");
+  return await module.resolveLotAtAsync(safeLatitude, safeLongitude);
 }
 
 export async function getLotPolygons(): Promise<LotPolygon[]> {
@@ -188,7 +214,9 @@ export async function runAutoParkSmokeTest(
   latitude: number,
   longitude: number,
 ): Promise<AutoParkSmokeTestResult> {
-  return await module.runAutoParkSmokeTestAsync(latitude, longitude);
+  const safeLatitude = ensureFiniteNumber(latitude, "latitude");
+  const safeLongitude = ensureFiniteNumber(longitude, "longitude");
+  return await module.runAutoParkSmokeTestAsync(safeLatitude, safeLongitude);
 }
 
 export async function getAutoParkDiagnostics(): Promise<AutoParkDiagnosticsPayload> {
