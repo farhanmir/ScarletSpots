@@ -62,6 +62,50 @@ export interface AutoParkSmokeTestResult {
   error: string | null;
 }
 
+export type AutoParkDecisionStatus = "ready" | "started" | "blocked";
+
+export interface AutoParkGateCheck {
+  key: string;
+  label: string;
+  passed: boolean;
+  reasonCode: string | null;
+  detail: string | null;
+  rawValue: string | null;
+}
+
+export interface AutoParkLiveSnapshot {
+  timestamp: number;
+  source: string;
+  decisionStatus: AutoParkDecisionStatus;
+  decisionReasonCode: string;
+  speedMps: number | null;
+  horizontalAccuracy: number | null;
+  locationAgeMs: number | null;
+  cooldownRemainingMs: number;
+  hasActiveAutoSession: boolean;
+  isParkingEventInFlight: boolean;
+  lotFound: boolean;
+  lotId: string | null;
+  lotName: string | null;
+  triggerRecognized: boolean;
+  checks: AutoParkGateCheck[];
+}
+
+export interface AutoParkDiagnosticsPayload {
+  latest: AutoParkLiveSnapshot | null;
+  history: AutoParkLiveSnapshot[];
+}
+
+export interface AutoParkDiagnosticsSummary {
+  totalSnapshots: number;
+  startedCount: number;
+  blockedCount: number;
+  readyCount: number;
+  startRate: number;
+  topBlockedReasons: Array<{ reasonCode: string; count: number }>;
+  topFailedChecks: Array<{ checkKey: string; count: number }>;
+}
+
 declare class ParkingMagicModule extends NativeModule {
   startSensing(): void;
   stopSensing(): void;
@@ -73,6 +117,9 @@ declare class ParkingMagicModule extends NativeModule {
   getLotPolygonsAsync(): Promise<LotPolygon[]>;
   getNativeSessionStateAsync(): Promise<NativeSessionState>;
   runAutoParkSmokeTestAsync(latitude: number, longitude: number): Promise<AutoParkSmokeTestResult>;
+  getAutoParkDiagnosticsAsync(): Promise<AutoParkDiagnosticsPayload>;
+  getAutoParkDiagnosticsSummaryAsync(): Promise<AutoParkDiagnosticsSummary>;
+  clearAutoParkDiagnosticsAsync(): Promise<boolean>;
 }
 
 const module = requireNativeModule<ParkingMagicModule>('ParkingMagic');
@@ -80,6 +127,14 @@ const emitter = new EventEmitter(module);
 
 export function syncUserData(url: string, token: string, permit: string) {
   module.syncUserData(url, token, permit);
+}
+
+export function startSensing() {
+  module.startSensing();
+}
+
+export function stopSensing() {
+  module.stopSensing();
 }
 
 export function resetUserData() {
@@ -92,6 +147,12 @@ export async function requestPermissionsAsync(): Promise<boolean> {
 
 export function addParkingListener(listener: (event: ParkingEvent) => void) {
   return emitter.addListener('onParkingEvent', listener);
+}
+
+export function addAutoParkDiagnosticsListener(
+  listener: (event: AutoParkLiveSnapshot) => void,
+) {
+  return emitter.addListener("onAutoParkDiagnostics", listener);
 }
 
 export async function getSystemHealth(): Promise<SystemHealthStatus> {
@@ -115,6 +176,18 @@ export async function runAutoParkSmokeTest(
   longitude: number,
 ): Promise<AutoParkSmokeTestResult> {
   return await module.runAutoParkSmokeTestAsync(latitude, longitude);
+}
+
+export async function getAutoParkDiagnostics(): Promise<AutoParkDiagnosticsPayload> {
+  return await module.getAutoParkDiagnosticsAsync();
+}
+
+export async function getAutoParkDiagnosticsSummary(): Promise<AutoParkDiagnosticsSummary> {
+  return await module.getAutoParkDiagnosticsSummaryAsync();
+}
+
+export async function clearAutoParkDiagnostics(): Promise<boolean> {
+  return await module.clearAutoParkDiagnosticsAsync();
 }
 
 export default module;

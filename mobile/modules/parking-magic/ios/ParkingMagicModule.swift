@@ -4,11 +4,47 @@ import CoreMotion
 import AVFoundation
 import ActivityKit
 
+private struct AutoParkGateCheck: Codable {
+  let key: String
+  let label: String
+  let passed: Bool
+  let reasonCode: String?
+  let detail: String?
+  let rawValue: String?
+}
+
+private struct AutoParkLiveSnapshot: Codable {
+  let timestamp: Double
+  let source: String
+  let decisionStatus: String
+  let decisionReasonCode: String
+  let speedMps: Double?
+  let horizontalAccuracy: Double?
+  let locationAgeMs: Double?
+  let cooldownRemainingMs: Double
+  let hasActiveAutoSession: Bool
+  let isParkingEventInFlight: Bool
+  let lotFound: Bool
+  let lotId: String?
+  let lotName: String?
+  let triggerRecognized: Bool
+  let checks: [AutoParkGateCheck]
+}
+
 public class ParkingMagicModule: Module, CLLocationManagerDelegate {
   private let locationManager = CLLocationManager()
   private let motionManager = CMMotionActivityManager()
   private let userDefaults = UserDefaults.standard
   private let activeAutoSessionKey = "com.scarletspots.parkingmagic.activeAutoSession"
+  private let diagnosticsHistoryKey = "com.scarletspots.parkingmagic.autoparkDiagnosticsHistory"
+  private let diagnosticsHistoryLimit = 100
+  private let maxLocationAgeMs: Double = 45_000
+  private let allowedAutoStartSources: Set<String> = [
+    "bluetooth_disconnect",
+    "carplay_disconnect",
+    "motion_activity",
+    "significant_location"
+  ]
   private var isSensing = false
   private var userPermit: String?
   private var hasActiveAutoSession = false
@@ -26,17 +62,28 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
   private var lastMotionConfidence: CMMotionActivityConfidence = .low
   private var parkedLocation: CLLocation?
   private var drivingAwayStartAt: Date?
+  private var diagnosticsHistory: [AutoParkLiveSnapshot] = []
+  private var latestDiagnosticsSnapshot: AutoParkLiveSnapshot?
+  
+  private func onMain(_ work: @escaping () -> Void) {
+    if Thread.isMainThread {
+      work()
+    } else {
+      DispatchQueue.main.async(execute: work)
+    }
+  }
   
   public func definition() -> ModuleDefinition {
     Name("ParkingMagic")
 
-    Events("onParkingEvent")
+    Events("onParkingEvent", "onAutoParkDiagnostics")
 
     OnCreate {
       locationManager.delegate = self
       locationManager.allowsBackgroundLocationUpdates = true
       locationManager.pausesLocationUpdatesAutomatically = false
       hasActiveAutoSession = userDefaults.bool(forKey: activeAutoSessionKey)
+      self.loadDiagnosticsHistory()
     }
 
     Function("syncUserData") { (url: String, token: String, permit: String) in
@@ -137,8 +184,34 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
       ])
     }
 
+    AsyncFunction("getAutoParkDiagnosticsAsync") { (promise: Promise) in
+      promise.resolve([
+        "latest": self.latestDiagnosticsSnapshot.map { self.dictionary(from: $0) } ?? NSNull(),
+        "history": self.diagnosticsHistory.map { self.dictionary(from: $0) }
+      ])
+    }
+
+    AsyncFunction("getAutoParkDiagnosticsSummaryAsync") { (promise: Promise) in
+      promise.resolve(self.buildDiagnosticsSummary())
+    }
+
+    AsyncFunction("clearAutoParkDiagnosticsAsync") { (promise: Promise) in
+      self.diagnosticsHistory = []
+      self.latestDiagnosticsSnapshot = nil
+      self.userDefaults.removeObject(forKey: self.diagnosticsHistoryKey)
+      promise.resolve(true)
+    }
+
     AsyncFunction("runAutoParkSmokeTestAsync") { (latitude: Double, longitude: Double, promise: Promise) in
-      let location = CLLocation(latitude: latitude, longitude: longitude)
+      let location = CLLocation(
+        coordinate: CLLocationCoordinate2D(latitude: latitude, longitude: longitude),
+        altitude: 0,
+        horizontalAccuracy: 8,
+        verticalAccuracy: 12,
+        course: 0,
+        speed: 1.1,
+        timestamp: Date()
+      )
       let previousState = self.hasActiveAutoSession
 
       if self.hasActiveAutoSession {
@@ -251,14 +324,42 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
 
   private func emitParkingEvent(source: String) {
     if hasActiveAutoSession {
+      if let location = locationManager.location {
+        let snapshot = buildArrivalDiagnostics(
+          source: source,
+          location: location,
+          lotId: nil,
+          lotName: nil,
+          decisionStatus: "blocked",
+          decisionReasonCode: "active_session_exists"
+        )
+        publishDiagnostics(snapshot)
+      } else {
+        publishNoLocationBlockedSnapshot(
+          source: source,
+          reasonCode: "active_session_exists",
+          detail: "auto session already active"
+        )
+      }
       return
     }
 
     let now = Date()
     if isParkingEventInFlight {
+      publishNoLocationBlockedSnapshot(
+        source: source,
+        reasonCode: "event_in_flight",
+        detail: "another parking event is currently being processed"
+      )
       return
     }
     if let lastParkingEventAt, now.timeIntervalSince(lastParkingEventAt) < parkingEventCooldown {
+      let remainingMs = Int((parkingEventCooldown - now.timeIntervalSince(lastParkingEventAt)) * 1000)
+      publishNoLocationBlockedSnapshot(
+        source: source,
+        reasonCode: "cooldown_active",
+        detail: "\(remainingMs)ms remaining in cooldown"
+      )
       return
     }
 
@@ -279,43 +380,299 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
     userDefaults.set(active, forKey: activeAutoSessionKey)
   }
 
-  private func reconcileActiveSessionFromServer() {
-    NetworkManager.shared.fetchActiveParkingSession { status in
-      guard let status = status else { return }
+  private func loadDiagnosticsHistory() {
+    guard let data = userDefaults.data(forKey: diagnosticsHistoryKey),
+          let decoded = try? JSONDecoder().decode([AutoParkLiveSnapshot].self, from: data) else {
+      diagnosticsHistory = []
+      latestDiagnosticsSnapshot = nil
+      return
+    }
+    diagnosticsHistory = Array(decoded.suffix(diagnosticsHistoryLimit))
+    latestDiagnosticsSnapshot = diagnosticsHistory.last
+  }
 
-      self.setActiveAutoSession(status.isActive)
-      if status.isActive,
-         let latitude = status.latitude,
-         let longitude = status.longitude {
-        self.parkedLocation = CLLocation(latitude: latitude, longitude: longitude)
-      }
-      if !status.isActive {
-        self.parkedLocation = nil
-        self.drivingAwayStartAt = nil
-      }
+  private func persistDiagnosticsHistory() {
+    guard let data = try? JSONEncoder().encode(diagnosticsHistory) else { return }
+    userDefaults.set(data, forKey: diagnosticsHistoryKey)
+  }
+
+  private func dictionary(from check: AutoParkGateCheck) -> [String: Any] {
+    return [
+      "key": check.key,
+      "label": check.label,
+      "passed": check.passed,
+      "reasonCode": check.reasonCode as Any,
+      "detail": check.detail as Any,
+      "rawValue": check.rawValue as Any
+    ]
+  }
+
+  private func dictionary(from snapshot: AutoParkLiveSnapshot) -> [String: Any] {
+    return [
+      "timestamp": snapshot.timestamp,
+      "source": snapshot.source,
+      "decisionStatus": snapshot.decisionStatus,
+      "decisionReasonCode": snapshot.decisionReasonCode,
+      "speedMps": snapshot.speedMps as Any,
+      "horizontalAccuracy": snapshot.horizontalAccuracy as Any,
+      "locationAgeMs": snapshot.locationAgeMs as Any,
+      "cooldownRemainingMs": snapshot.cooldownRemainingMs,
+      "hasActiveAutoSession": snapshot.hasActiveAutoSession,
+      "isParkingEventInFlight": snapshot.isParkingEventInFlight,
+      "lotFound": snapshot.lotFound,
+      "lotId": snapshot.lotId as Any,
+      "lotName": snapshot.lotName as Any,
+      "triggerRecognized": snapshot.triggerRecognized,
+      "checks": snapshot.checks.map { dictionary(from: $0) }
+    ]
+  }
+
+  private func publishDiagnostics(_ snapshot: AutoParkLiveSnapshot) {
+    latestDiagnosticsSnapshot = snapshot
+    diagnosticsHistory.append(snapshot)
+    diagnosticsHistory = Array(diagnosticsHistory.suffix(diagnosticsHistoryLimit))
+    persistDiagnosticsHistory()
+    onMain {
+      self.sendEvent("onAutoParkDiagnostics", self.dictionary(from: snapshot))
     }
   }
 
-  private func passesAutoStartConfidence(source: String, location: CLLocation) -> Bool {
-    let accuracy = location.horizontalAccuracy
-    if accuracy < 0 || accuracy > minArrivalAccuracyMeters {
-      return false
-    }
+  private func buildDiagnosticsSummary() -> [String: Any] {
+    let history = diagnosticsHistory
+    let total = history.count
+    let started = history.filter { $0.decisionStatus == "started" }.count
+    let blocked = history.filter { $0.decisionStatus == "blocked" }.count
+    let ready = history.filter { $0.decisionStatus == "ready" }.count
 
-    let speed = location.speed
-    if speed >= 0 && speed > maxArrivalSpeedMps {
-      return false
-    }
+    var blockedReasons: [String: Int] = [:]
+    var failedChecks: [String: Int] = [:]
 
-    if source == "motion_activity" {
-      guard let lastTransition = lastAutomotiveTransitionAt,
-            Date().timeIntervalSince(lastTransition) <= motionTransitionWindow,
-            lastMotionConfidence != .low else {
-        return false
+    for snapshot in history where snapshot.decisionStatus == "blocked" {
+      blockedReasons[snapshot.decisionReasonCode, default: 0] += 1
+      for check in snapshot.checks where !check.passed {
+        failedChecks[check.key, default: 0] += 1
       }
     }
 
-    return true
+    let topBlockedReasons = blockedReasons
+      .sorted { lhs, rhs in
+        if lhs.value == rhs.value { return lhs.key < rhs.key }
+        return lhs.value > rhs.value
+      }
+      .prefix(5)
+      .map { ["reasonCode": $0.key, "count": $0.value] }
+
+    let topFailedChecks = failedChecks
+      .sorted { lhs, rhs in
+        if lhs.value == rhs.value { return lhs.key < rhs.key }
+        return lhs.value > rhs.value
+      }
+      .prefix(5)
+      .map { ["checkKey": $0.key, "count": $0.value] }
+
+    return [
+      "totalSnapshots": total,
+      "startedCount": started,
+      "blockedCount": blocked,
+      "readyCount": ready,
+      "startRate": total > 0 ? Double(started) / Double(total) : 0,
+      "topBlockedReasons": topBlockedReasons,
+      "topFailedChecks": topFailedChecks
+    ]
+  }
+
+  private func makeGateCheck(
+    key: String,
+    label: String,
+    passed: Bool,
+    reasonCode: String? = nil,
+    detail: String? = nil,
+    rawValue: String? = nil
+  ) -> AutoParkGateCheck {
+    AutoParkGateCheck(
+      key: key,
+      label: label,
+      passed: passed,
+      reasonCode: passed ? nil : reasonCode,
+      detail: detail,
+      rawValue: rawValue
+    )
+  }
+
+  private func publishNoLocationBlockedSnapshot(source: String, reasonCode: String, detail: String) {
+    let snapshot = AutoParkLiveSnapshot(
+      timestamp: Date().timeIntervalSince1970 * 1000,
+      source: source,
+      decisionStatus: "blocked",
+      decisionReasonCode: reasonCode,
+      speedMps: nil,
+      horizontalAccuracy: nil,
+      locationAgeMs: nil,
+      cooldownRemainingMs: 0,
+      hasActiveAutoSession: hasActiveAutoSession,
+      isParkingEventInFlight: isParkingEventInFlight,
+      lotFound: false,
+      lotId: nil,
+      lotName: nil,
+      triggerRecognized: allowedAutoStartSources.contains(source),
+      checks: [
+        makeGateCheck(
+          key: reasonCode,
+          label: "Dispatch blocked",
+          passed: false,
+          reasonCode: reasonCode,
+          detail: detail
+        )
+      ]
+    )
+    publishDiagnostics(snapshot)
+  }
+
+  private func reconcileActiveSessionFromServer() {
+    NetworkManager.shared.fetchActiveParkingSession { status in
+      guard let status = status else { return }
+      self.onMain {
+        self.setActiveAutoSession(status.isActive)
+        if status.isActive,
+           let latitude = status.latitude,
+           let longitude = status.longitude {
+          self.parkedLocation = CLLocation(latitude: latitude, longitude: longitude)
+        }
+        if !status.isActive {
+          self.parkedLocation = nil
+          self.drivingAwayStartAt = nil
+        }
+      }
+    } 
+  }
+
+  private func buildArrivalDiagnostics(
+    source: String,
+    location: CLLocation,
+    lotId: String?,
+    lotName: String?,
+    decisionStatus: String,
+    decisionReasonCode: String
+  ) -> AutoParkLiveSnapshot {
+    let now = Date()
+    let accuracy = location.horizontalAccuracy
+    let speed = location.speed >= 0 ? location.speed : nil
+    let locationAgeMs = max(0, now.timeIntervalSince(location.timestamp) * 1000)
+    let cooldownRemainingMs: Double
+    if let lastParkingEventAt {
+      let remaining = parkingEventCooldown - now.timeIntervalSince(lastParkingEventAt)
+      cooldownRemainingMs = max(0, remaining * 1000)
+    } else {
+      cooldownRemainingMs = 0
+    }
+
+    let triggerRecognized = allowedAutoStartSources.contains(source)
+    let lotFound = lotId != nil
+    let isLocationFresh = locationAgeMs <= maxLocationAgeMs
+    let hasGoodAccuracy = accuracy >= 0 && accuracy <= minArrivalAccuracyMeters
+    let hasArrivalSpeed = speed == nil || speed! <= maxArrivalSpeedMps
+
+    let motionTransitionValid: Bool
+    if source == "motion_activity" {
+      motionTransitionValid = {
+        guard let lastTransition = lastAutomotiveTransitionAt else { return false }
+        return now.timeIntervalSince(lastTransition) <= motionTransitionWindow && lastMotionConfidence != .low
+      }()
+    } else {
+      motionTransitionValid = true
+    }
+
+    let checks: [AutoParkGateCheck] = [
+      makeGateCheck(
+        key: "trigger_source",
+        label: "Trigger recognized",
+        passed: triggerRecognized,
+        reasonCode: "unrecognized_trigger_source",
+        detail: source,
+        rawValue: source
+      ),
+      makeGateCheck(
+        key: "active_session",
+        label: "No active auto session",
+        passed: !hasActiveAutoSession,
+        reasonCode: "active_session_exists",
+        detail: hasActiveAutoSession ? "session already active" : "idle",
+        rawValue: hasActiveAutoSession ? "active" : "idle"
+      ),
+      makeGateCheck(
+        key: "event_in_flight",
+        label: "Dispatch lock acquired",
+        passed: true,
+        detail: "current event owns lock",
+        rawValue: isParkingEventInFlight ? "owned" : "not_owned"
+      ),
+      makeGateCheck(
+        key: "cooldown",
+        label: "Cooldown elapsed",
+        passed: cooldownRemainingMs <= 0.0,
+        reasonCode: "cooldown_active",
+        detail: cooldownRemainingMs > 0 ? "\(Int(cooldownRemainingMs))ms remaining" : "ready",
+        rawValue: String(Int(cooldownRemainingMs))
+      ),
+      makeGateCheck(
+        key: "location_freshness",
+        label: "Location freshness",
+        passed: isLocationFresh,
+        reasonCode: "stale_location",
+        detail: "\(Int(locationAgeMs))ms old",
+        rawValue: String(Int(locationAgeMs))
+      ),
+      makeGateCheck(
+        key: "gps_accuracy",
+        label: "GPS accuracy",
+        passed: hasGoodAccuracy,
+        reasonCode: "poor_gps_accuracy",
+        detail: "threshold \(Int(minArrivalAccuracyMeters))m",
+        rawValue: String(format: "%.1f", accuracy)
+      ),
+      makeGateCheck(
+        key: "arrival_speed",
+        label: "Arrival speed",
+        passed: hasArrivalSpeed,
+        reasonCode: "speed_too_high",
+        detail: "max \(String(format: "%.1f", maxArrivalSpeedMps))m/s",
+        rawValue: speed != nil ? String(format: "%.2f", speed!) : "unknown"
+      ),
+      makeGateCheck(
+        key: "lot_match",
+        label: "Inside known lot",
+        passed: lotFound,
+        reasonCode: "lot_not_resolved",
+        detail: lotName ?? "Unknown lot",
+        rawValue: lotId ?? "unknown"
+      ),
+      makeGateCheck(
+        key: "motion_transition",
+        label: "Motion transition valid",
+        passed: motionTransitionValid,
+        reasonCode: "motion_transition_missing",
+        detail: source == "motion_activity" ? "requires recent automotive -> walk transition" : "not required for this trigger",
+        rawValue: source == "motion_activity" ? "\(lastMotionConfidence.rawValue)" : "n/a"
+      )
+    ]
+
+    return AutoParkLiveSnapshot(
+      timestamp: now.timeIntervalSince1970 * 1000,
+      source: source,
+      decisionStatus: decisionStatus,
+      decisionReasonCode: decisionReasonCode,
+      speedMps: speed,
+      horizontalAccuracy: accuracy >= 0 ? accuracy : nil,
+      locationAgeMs: locationAgeMs,
+      cooldownRemainingMs: cooldownRemainingMs,
+      hasActiveAutoSession: hasActiveAutoSession,
+      isParkingEventInFlight: isParkingEventInFlight,
+      lotFound: lotFound,
+      lotId: lotId,
+      lotName: lotName,
+      triggerRecognized: triggerRecognized,
+      checks: checks
+    )
   }
 
   private func endAutoSession(reason: String) {
@@ -323,14 +680,16 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
     isEndingSession = true
     print("[ParkingMagic] Ending auto-session via \(reason)")
     NetworkManager.shared.endParkingSession { success in
-      self.isEndingSession = false
-      if success {
-        self.lastParkingEventAt = nil
-        self.setActiveAutoSession(false)
-        self.parkedLocation = nil
-        self.drivingAwayStartAt = nil
-        if #available(iOS 16.1, *) {
-          LiveActivityManager.shared.stopActivity()
+      self.onMain {
+        self.isEndingSession = false
+        if success {
+          self.lastParkingEventAt = nil
+          self.setActiveAutoSession(false)
+          self.parkedLocation = nil
+          self.drivingAwayStartAt = nil
+          if #available(iOS 16.1, *) {
+            LiveActivityManager.shared.stopActivity()
+          }
         }
       }
     }
@@ -363,70 +722,111 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
   }
 
   private func _dispatchParkingEvent(source: String, location: CLLocation, completion: ((Bool) -> Void)? = nil) {
-    if !passesAutoStartConfidence(source: source, location: location) {
-      print("[ParkingMagic] Dropped low-confidence sensing event: \(source)")
+    let coordinate = location.coordinate
+    
+    // Phase 7: Resolve lotId natively
+    let lot = DatabaseManager.shared.getLotAt(coordinate: coordinate)
+    let lotId = lot?.id
+    let lotName = lot?.name
+
+    // Phase 4: Ticket Shield Validation
+    let validation = TicketShield.shared.validateParking(
+      permitType: self.userPermit ?? "Public",
+      lotId: lotId ?? "unknown"
+    )
+    
+    let readySnapshot = buildArrivalDiagnostics(
+      source: source,
+      location: location,
+      lotId: lotId,
+      lotName: lotName,
+      decisionStatus: "ready",
+      decisionReasonCode: "ready_to_start"
+    )
+    publishDiagnostics(readySnapshot)
+
+    if let failedCheck = readySnapshot.checks.first(where: { !$0.passed }) {
+      let blockedSnapshot = buildArrivalDiagnostics(
+        source: source,
+        location: location,
+        lotId: lotId,
+        lotName: lotName,
+        decisionStatus: "blocked",
+        decisionReasonCode: failedCheck.reasonCode ?? "blocked"
+      )
+      publishDiagnostics(blockedSnapshot)
+      print("[ParkingMagic] Blocked sensing event \(source): \(failedCheck.reasonCode ?? "blocked")")
       isParkingEventInFlight = false
       completion?(false)
       return
     }
 
-    let coordinate = location.coordinate
-    
-    // Phase 7: Resolve lotId natively
-    let lot = DatabaseManager.shared.getLotAt(coordinate: coordinate)
-    let lotId = lot?.id ?? "unknown"
-    let lotName = lot?.name ?? "Unknown Lot"
-
-    // Phase 4: Ticket Shield Validation
-    let validation = TicketShield.shared.validateParking(permitType: self.userPermit ?? "Public", lotId: lotId)
-    
-    print("[ParkingMagic] Sensing Event: \(source) at \(lotName). Validation: \(validation.message)")
+    print("[ParkingMagic] Sensing Event: \(source) at \(lotName ?? "Unknown Lot"). Validation: \(validation.message)")
 
     // Phase 8: Hard-Wired Direct Sync
     NetworkManager.shared.submitParkingEvent(
-      lotId: lotId,
+      lotId: lotId ?? "unknown",
       latitude: coordinate.latitude,
       longitude: coordinate.longitude,
       source: source
     ) { success, eventId in
-      self.isParkingEventInFlight = false
-      self.lastParkingEventAt = Date()
+      self.onMain {
+        self.isParkingEventInFlight = false
+        self.lastParkingEventAt = Date()
 
-      if success {
-        self.setActiveAutoSession(true)
-        self.parkedLocation = location
-        self.drivingAwayStartAt = nil
+        if success {
+          self.setActiveAutoSession(true)
+          self.parkedLocation = location
+          self.drivingAwayStartAt = nil
+          let startedSnapshot = self.buildArrivalDiagnostics(
+            source: source,
+            location: location,
+            lotId: lotId,
+            lotName: lotName,
+            decisionStatus: "started",
+            decisionReasonCode: "session_started"
+          )
+          self.publishDiagnostics(startedSnapshot)
+          if #available(iOS 16.1, *) {
+            LiveActivityManager.shared.startParkingActivity(lotName: lotName ?? "Unknown Lot")
+          }
+        } else {
+          let blockedSnapshot = self.buildArrivalDiagnostics(
+            source: source,
+            location: location,
+            lotId: lotId,
+            lotName: lotName,
+            decisionStatus: "blocked",
+            decisionReasonCode: "network_submit_failed"
+          )
+          self.publishDiagnostics(blockedSnapshot)
+          let event = PendingEvent(
+            id: eventId ?? UUID().uuidString,
+            latitude: coordinate.latitude,
+            longitude: coordinate.longitude,
+            source: source,
+            timestamp: Date().timeIntervalSince1970,
+            lotId: lotId ?? "unknown"
+          )
+          OfflineQueueManager.shared.enqueue(event: event)
+          print("[ParkingMagic] Event queued for offline sync.")
+        }
+
+        completion?(success)
       }
-
-      if !success {
-        let event = PendingEvent(
-          id: eventId ?? UUID().uuidString,
-          latitude: coordinate.latitude,
-          longitude: coordinate.longitude,
-          source: source,
-          timestamp: Date().timeIntervalSince1970,
-          lotId: lotId
-        )
-        OfflineQueueManager.shared.enqueue(event: event)
-        print("[ParkingMagic] Event queued for offline sync.")
-      }
-
-      completion?(success)
-    }
-
-    if #available(iOS 16.1, *) {
-      LiveActivityManager.shared.startParkingActivity(lotName: lotName)
     }
 
     // Bridge Notification (for open app)
-    self.sendEvent("onParkingEvent", [
-      "latitude": coordinate.latitude,
-      "longitude": coordinate.longitude,
-      "source": source,
-      "lotId": lotId,
-      "message": validation.message,
-      "timestamp": Date().timeIntervalSince1970 * 1000
-    ])
+    onMain {
+      self.sendEvent("onParkingEvent", [
+        "latitude": coordinate.latitude,
+        "longitude": coordinate.longitude,
+        "source": source,
+        "lotId": lotId as Any,
+        "message": validation.message,
+        "timestamp": Date().timeIntervalSince1970 * 1000
+      ])
+    }
   }
 
   public func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
@@ -462,6 +862,13 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
   }
 
   public func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+    if let source = pendingEventSource {
+      publishNoLocationBlockedSnapshot(
+        source: source,
+        reasonCode: "location_unavailable",
+        detail: error.localizedDescription
+      )
+    }
     pendingEventSource = nil
     isParkingEventInFlight = false
     print("[ParkingMagic] Location Error: \(error.localizedDescription)")

@@ -8,7 +8,6 @@ import {
   Platform,
   StatusBar,
   Switch,
-  Modal,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "@/providers/AuthProvider";
@@ -38,11 +37,8 @@ import {
   cacheFavorites,
 } from "@/shared/services/OfflineCache";
 import { BackgroundLogger } from "@/shared/utils/Logger";
-import {
-  formatAutoParkTraceForDisplay,
-  loadAutoParkLastTrace,
-} from "@/shared/services/autoParkTrace";
 import { SHOW_AUTOPARK_SIMULATOR } from "@/shared/constants/featureFlags";
+import AutoParkDiagnosticsSheet from "../components/AutoParkDiagnosticsSheet";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -329,17 +325,10 @@ export default function ProfileScreen() {
   const router = useRouter();
   const [favorites, setFavorites] = useState<RutgersLot[]>([]);
   const [autoParkDiagVisible, setAutoParkDiagVisible] = useState(false);
-  const [autoParkDiagText, setAutoParkDiagText] = useState("");
 
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  const openAutoParkDiagnostics = React.useCallback(async () => {
-    const trace = await loadAutoParkLastTrace();
-    setAutoParkDiagText(
-      trace
-        ? formatAutoParkTraceForDisplay(trace)
-        : "No auto-park detection runs recorded on this device yet. Trigger a geofence near a lot or use the simulator (if enabled), then check again.",
-    );
+  const openAutoParkDiagnostics = React.useCallback(() => {
     setAutoParkDiagVisible(true);
   }, []);
 
@@ -772,92 +761,16 @@ export default function ProfileScreen() {
         <View style={{ height: 130 }} />
       </ScrollView>
 
-      <Modal
+      <AutoParkDiagnosticsSheet
         visible={autoParkDiagVisible}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setAutoParkDiagVisible(false)}
-      >
-        <TouchableOpacity
-          style={autoParkDiagStyles.overlay}
-          activeOpacity={1}
-          onPress={() => setAutoParkDiagVisible(false)}
-        >
-          <View
-            style={[
-              autoParkDiagStyles.sheet,
-              {
-                backgroundColor:
-                  theme === GLASS_DARK ? "#1c1c1e" : "#ffffff",
-              },
-            ]}
-          >
-            <Text
-              style={[autoParkDiagStyles.modalTitle, { color: theme.textPrimary }]}
-            >
-              Auto-park diagnostics
-            </Text>
-            <ScrollView
-              style={autoParkDiagStyles.modalScroll}
-              nestedScrollEnabled
-            >
-              <Text
-                selectable
-                style={[
-                  autoParkDiagStyles.modalBody,
-                  { color: theme.textMuted },
-                ]}
-              >
-                {autoParkDiagText}
-              </Text>
-            </ScrollView>
-            <TouchableOpacity
-              onPress={() => setAutoParkDiagVisible(false)}
-              style={autoParkDiagStyles.modalClose}
-            >
-              <Text style={{ color: theme.accent, fontWeight: "600" }}>
-                Close
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
+        onClose={() => setAutoParkDiagVisible(false)}
+        theme={theme}
+      />
     </View>
   );
 }
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
-
-const autoParkDiagStyles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    justifyContent: "center",
-    paddingHorizontal: 22,
-  },
-  sheet: {
-    borderRadius: 16,
-    padding: 16,
-    maxHeight: "72%",
-  },
-  modalTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    marginBottom: 10,
-  },
-  modalScroll: { maxHeight: 360 },
-  modalBody: {
-    fontSize: 12,
-    fontFamily: Platform.select({ ios: "Menlo", android: "monospace" }),
-    lineHeight: 17,
-  },
-  modalClose: {
-    alignSelf: "flex-end",
-    marginTop: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-  },
-});
 
 const appearanceStyles = StyleSheet.create({
   row: {

@@ -21,6 +21,8 @@ import {
   clearCachedSession,
   setOfflineCacheOwner,
 } from "@/shared/services/OfflineCache";
+import { LOCAL_FASTAPI_URL } from "@/shared/api/api-base";
+import { resetUserData, syncUserData } from "../../modules/parking-magic";
 
 // ── Permit preference helpers ─────────────────────────────────────────────
 
@@ -207,6 +209,17 @@ export function AuthProvider({
       clearPushTokenFromBackend();
     }
   }, [session, loadProfile, applyPermitRaw]);
+
+  useEffect(() => {
+    const token = session?.access_token;
+    if (!token) {
+      resetUserData();
+      return;
+    }
+
+    const normalizedBase = LOCAL_FASTAPI_URL.replace(/\/api\/v1\/?$/, "");
+    syncUserData(normalizedBase, token, permitType ?? "Public");
+  }, [session?.access_token, permitType]);
 
   useEffect(() => {
     const nextUserId = user?.id ?? null;

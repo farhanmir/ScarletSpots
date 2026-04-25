@@ -8,8 +8,7 @@ import { StatusBar } from "expo-status-bar";
 import { View, Text, TouchableOpacity, AppState } from "react-native";
 import "react-native-reanimated";
 import { useEffect, useRef } from "react";
-import { QueryClient } from "@tanstack/react-query";
-import "@/shared/services/BackgroundTasks"; // Register background tasks globally
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { useResolvedColorScheme } from "@/shared/hooks/use-resolved-color-scheme";
 import { AuthProvider, useAuth } from "@/providers/AuthProvider";
@@ -18,9 +17,6 @@ import {
 } from "@/providers/ThemePreferenceProvider";
 import { isSupabaseConfigValid } from "@/shared/api/supabase-client";
 import { IconSymbol } from "@/shared/components/ui/icon-symbol";
-
-import { QueryClientProvider } from "@tanstack/react-query";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import OfflineBanner from "@/shared/components/ui/OfflineBanner";
 import {
@@ -36,6 +32,7 @@ import {
 import { getAllLots } from "@/shared/constants/lots";
 import { ENABLE_ALL_CAMPUSES } from "@/shared/constants/featureFlags";
 import { needsOnboardingRedirect } from "@/shared/services/AutoParkCapability";
+import { initBackgroundListeners } from "@/shared/services/BackgroundTasks";
 
 // Global Error Boundary
 export { ErrorBoundary } from "expo-router";
@@ -229,6 +226,11 @@ export default function RootLayout() {
     // NetInfo.addEventListener wrappers needed.
     initOfflineQueue();
     return () => teardownOfflineQueue();
+  }, []);
+
+  useEffect(() => {
+    const teardown = initBackgroundListeners();
+    return () => teardown();
   }, []);
 
   if (!isSupabaseConfigValid) {
