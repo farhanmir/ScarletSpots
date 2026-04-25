@@ -9,6 +9,7 @@ import { BackgroundLogger } from "@/shared/utils/Logger";
 
 const DIAG_STORAGE_KEY = "ss_autopark_live_diagnostics";
 const HISTORY_LIMIT = 80;
+const LOG_THROTTLE_MS = 4000;
 
 type DiagnosticsState = {
   latest: AutoParkLiveSnapshot | null;
@@ -20,12 +21,22 @@ type DiagnosticsListener = (state: DiagnosticsState) => void;
 let cache: DiagnosticsState = { latest: null, history: [] };
 let nativeSub: { remove: () => void } | null = null;
 const listeners = new Set<DiagnosticsListener>();
+let lastLoggedAt = 0;
+let lastLoggedSignature = "";
 
 function trim(history: AutoParkLiveSnapshot[]): AutoParkLiveSnapshot[] {
   return history.slice(-HISTORY_LIMIT);
 }
 
 function logSnapshot(snapshot: AutoParkLiveSnapshot) {
+  const signature = `${snapshot.decisionStatus}:${snapshot.decisionReasonCode}:${snapshot.source}:${snapshot.lotId ?? "none"}`;
+  const now = Date.now();
+  if (signature === lastLoggedSignature && now - lastLoggedAt < LOG_THROTTLE_MS) {
+    return;
+  }
+  lastLoggedAt = now;
+  lastLoggedSignature = signature;
+
   const failingChecks = snapshot.checks.filter((c) => !c.passed).map((c) => c.key);
   BackgroundLogger.info("[AutoParkLive] Snapshot", {
     status: snapshot.decisionStatus,

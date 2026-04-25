@@ -4,8 +4,36 @@ import { supabase, supabaseAnonKey } from "./supabase-client";
 import { fetchBackend, safeJson } from "./api-base";
 
 import NetInfo from "@react-native-community/netinfo";
-import { queueParkAction } from "@/shared/services/OfflineQueue";
+import {
+  generateIdempotencyKey,
+  queueParkAction,
+} from "@/shared/services/OfflineQueue";
 export { supabase, supabaseAnonKey };
+
+function resolveIdempotencyKey(
+  endpoint: string,
+  options: RequestInit,
+): string | undefined {
+  const headers = options.headers;
+  let existing: string | undefined;
+
+  if (headers instanceof Headers) {
+    existing = headers.get("Idempotency-Key") ?? undefined;
+  } else if (Array.isArray(headers)) {
+    const hit = headers.find(
+      ([k]) => k.toLowerCase() === "idempotency-key",
+    );
+    existing = hit?.[1];
+  } else if (headers && typeof headers === "object") {
+    const map = headers as Record<string, string>;
+    existing = map["Idempotency-Key"] ?? map["idempotency-key"];
+  }
+  if (existing) return existing;
+  if (options.method === "POST" && endpoint.startsWith("/park/session")) {
+    return generateIdempotencyKey(endpoint.replaceAll("/", "_"));
+  }
+  return undefined;
+}
 
 /**
  * Public API call - uses the anon key, no user session required.
@@ -58,8 +86,16 @@ export async function authApiCall(
 
     // Use the unified OfflineQueue
     const payload = options.body ? JSON.parse(options.body as string) : {};
+    const idempotencyKey = resolveIdempotencyKey(endpoint, options);
     if (endpoint === "/park/session" && options.method === "POST") {
-      await queueParkAction("PARK", payload);
+      await queueParkAction(
+        "PARK",
+        payload,
+        undefined,
+        undefined,
+        undefined,
+        idempotencyKey,
+      );
       return {
         success: true,
         session: {
@@ -69,10 +105,24 @@ export async function authApiCall(
         },
       };
     } else if (endpoint === "/park/session/end" && options.method === "POST") {
-      await queueParkAction("END_PARK", payload);
+      await queueParkAction(
+        "END_PARK",
+        payload,
+        undefined,
+        undefined,
+        undefined,
+        idempotencyKey,
+      );
       return { success: true, _offline: true };
     } else if (endpoint === "/park/session/feedback" && options.method === "POST") {
-      await queueParkAction("GENERIC_MUTATION", payload, endpoint, options.method);
+      await queueParkAction(
+        "GENERIC_MUTATION",
+        payload,
+        endpoint,
+        options.method,
+        undefined,
+        idempotencyKey,
+      );
       return { success: true, _offline: true };
     } else if (options.method && options.method !== "GET") {
       // @ts-ignore - endpoint is added to QueuedParkAction in service
@@ -81,6 +131,8 @@ export async function authApiCall(
         payload,
         endpoint,
         options.method,
+        undefined,
+        idempotencyKey,
       );
     }
 
@@ -98,6 +150,7 @@ export async function authApiCall(
   }
 
   // 3. Make the request
+  const idempotencyKey = resolveIdempotencyKey(endpoint, options);
   let response;
   try {
     response = await fetchBackend(endpoint, {
@@ -106,7 +159,7 @@ export async function authApiCall(
         "Content-Type": "application/json",
         apikey: supabaseAnonKey as string,
         Authorization: `Bearer ${session?.access_token || supabaseAnonKey}`,
-        "x-user-token": session?.access_token || "",
+        ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
         ...(options.headers || {}),
       } as HeadersInit,
     });
@@ -119,7 +172,14 @@ export async function authApiCall(
     console.log(`[authApiCall] Network fetch failed, queueing ${endpoint}`);
     const payload = options.body ? JSON.parse(options.body as string) : {};
     if (endpoint === "/park/session" && options.method === "POST") {
-      await queueParkAction("PARK", payload);
+      await queueParkAction(
+        "PARK",
+        payload,
+        undefined,
+        undefined,
+        undefined,
+        idempotencyKey,
+      );
       return {
         success: true,
         _offline: true,
@@ -134,10 +194,24 @@ export async function authApiCall(
         },
       };
     } else if (endpoint === "/park/session/end" && options.method === "POST") {
-      await queueParkAction("END_PARK", payload);
+      await queueParkAction(
+        "END_PARK",
+        payload,
+        undefined,
+        undefined,
+        undefined,
+        idempotencyKey,
+      );
       return { success: true, _offline: true };
     } else if (endpoint === "/park/session/feedback" && options.method === "POST") {
-      await queueParkAction("GENERIC_MUTATION", payload, endpoint, options.method);
+      await queueParkAction(
+        "GENERIC_MUTATION",
+        payload,
+        endpoint,
+        options.method,
+        undefined,
+        idempotencyKey,
+      );
       return { success: true, _offline: true };
     } else if (options.method && options.method !== "GET") {
       // @ts-ignore
@@ -146,6 +220,8 @@ export async function authApiCall(
         payload,
         endpoint,
         options.method,
+        undefined,
+        idempotencyKey,
       );
     }
     return { success: true, _offline: true };
@@ -162,7 +238,7 @@ export async function authApiCall(
           headers: {
             ...options.headers,
             Authorization: `Bearer ${refreshData.session.access_token}`,
-            "x-user-token": refreshData.session.access_token,
+            ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
           } as any,
         });
       } catch {

@@ -43,6 +43,7 @@ export interface SystemHealthStatus {
   ok: boolean;
   reasons: string[];
   backgroundLocationOk: boolean;
+  preciseLocationOk?: boolean;
   motionOk: boolean;
   bluetoothOk: boolean;
 }
@@ -110,7 +111,13 @@ declare class ParkingMagicModule extends NativeModule {
   startSensing(): void;
   stopSensing(): void;
   getSystemHealthAsync(): Promise<SystemHealthStatus>;
-  syncUserData(url: string, token: string, permit: string): void;
+  syncUserData(
+    url: string,
+    token: string,
+    permit: string,
+    pinnedCertHashes: string[],
+    ownerId: string | null,
+  ): void;
   resetUserData(): void;
   requestPermissionsAsync(): Promise<boolean>;
   resolveLotAtAsync(latitude: number, longitude: number): Promise<ResolvedLot>;
@@ -125,8 +132,14 @@ declare class ParkingMagicModule extends NativeModule {
 const module = requireNativeModule<ParkingMagicModule>('ParkingMagic');
 const emitter = new EventEmitter(module);
 
-export function syncUserData(url: string, token: string, permit: string) {
-  module.syncUserData(url, token, permit);
+export function syncUserData(
+  url: string,
+  token: string,
+  permit: string,
+  pinnedCertHashes: string[] = [],
+  ownerId: string | null = null,
+) {
+  module.syncUserData(url, token, permit, pinnedCertHashes, ownerId);
 }
 
 export function startSensing() {

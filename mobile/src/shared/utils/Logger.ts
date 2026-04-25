@@ -16,10 +16,11 @@ class Logger {
 
   private isWriting = false;
   private queue: string[] = [];
+  private readonly flushBatchSize = 32;
 
-  private async appendToFile(logLine: string) {
+  private appendToFile(logLine: string) {
     this.queue.push(logLine);
-    this.processQueue();
+    void this.processQueue();
   }
 
   private async processQueue() {
@@ -27,31 +28,28 @@ class Logger {
     this.isWriting = true;
 
     while (this.queue.length > 0) {
-      const line = this.queue.shift();
-      if (!line) continue;
+      const batch = this.queue.splice(0, this.flushBatchSize);
+      const payload = batch.join("");
+      if (!payload) continue;
 
       try {
         const info = await FileSystem.getInfoAsync(LOG_FILE_PATH);
         if (!info.exists) {
-          await FileSystem.writeAsStringAsync(LOG_FILE_PATH, line, {
+          await FileSystem.writeAsStringAsync(LOG_FILE_PATH, payload, {
             encoding: "utf8",
           });
         } else {
-          if (info.size > MAX_LOG_SIZE_BYTES) {
+          if (info.size + payload.length > MAX_LOG_SIZE_BYTES) {
             await FileSystem.writeAsStringAsync(
               LOG_FILE_PATH,
-              "=== Log Rotated ===\n" + line,
+              "=== Log Rotated ===\n" + payload,
               { encoding: "utf8" }
             );
           } else {
-            const currentContent = await FileSystem.readAsStringAsync(
-              LOG_FILE_PATH,
-              { encoding: "utf8" }
-            );
             await FileSystem.writeAsStringAsync(
               LOG_FILE_PATH,
-              currentContent + line,
-              { encoding: "utf8" }
+              payload,
+              { encoding: "utf8", append: true }
             );
           }
         }

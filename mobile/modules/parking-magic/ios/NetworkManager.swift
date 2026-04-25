@@ -1,4 +1,43 @@
 import Foundation
+import CryptoKit
+
+final class PinningDelegate: NSObject, URLSessionDelegate {
+  private let pinnedCertHashes: Set<String>
+
+  init(pinnedCertHashes: Set<String>) {
+    self.pinnedCertHashes = pinnedCertHashes
+  }
+
+  func urlSession(
+    _ session: URLSession,
+    didReceive challenge: URLAuthenticationChallenge,
+    completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+  ) {
+    guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+          let trust = challenge.protectionSpace.serverTrust else {
+      completionHandler(.performDefaultHandling, nil)
+      return
+    }
+
+    if pinnedCertHashes.isEmpty {
+      completionHandler(.performDefaultHandling, nil)
+      return
+    }
+
+    guard let cert = SecTrustGetCertificateAtIndex(trust, 0) else {
+      completionHandler(.cancelAuthenticationChallenge, nil)
+      return
+    }
+    let certData = SecCertificateCopyData(cert) as Data
+    let digest = SHA256.hash(data: certData)
+    let hash = Data(digest).base64EncodedString()
+    if pinnedCertHashes.contains(hash) {
+      completionHandler(.useCredential, URLCredential(trust: trust))
+      return
+    }
+    completionHandler(.cancelAuthenticationChallenge, nil)
+  }
+}
 
 struct ActiveSessionStatus {
   let isActive: Bool
@@ -13,23 +52,39 @@ class NetworkManager {
   private var apiBaseUrl: String?
   private var authToken: String?
   private let stateQueue = DispatchQueue(label: "com.scarletspots.networkmanager.state")
+  private var pinnedCertHashes: Set<String> = []
   
-  private func credentials() -> (baseUrl: String, token: String)? {
+  private func credentials() -> (baseUrl: String, token: String, pins: Set<String>)? {
     stateQueue.sync {
       guard let base = apiBaseUrl, let token = authToken else { return nil }
-      return (base, token)
+      return (base, token, pinnedCertHashes)
     }
   }
   
-  func configure(url: String, token: String) {
+  private func buildSession(pins: Set<String>) -> URLSession {
+    let config = URLSessionConfiguration.ephemeral
+    let delegate = PinningDelegate(pinnedCertHashes: pins)
+    return URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
+  }
+
+  func configure(url: String, token: String, pinnedCertHashes: [String] = []) {
     stateQueue.sync {
       self.apiBaseUrl = url
       self.authToken = token
+      self.pinnedCertHashes = Set(pinnedCertHashes)
     }
     print("[NetworkManager] Configured with \(url)")
   }
   
-  func submitParkingEvent(lotId: String, latitude: Double, longitude: Double, source: String, autoStarted: Bool = true, completion: @escaping (Bool, String?) -> Void) {
+  func submitParkingEvent(
+    lotId: String,
+    latitude: Double,
+    longitude: Double,
+    source: String,
+    autoStarted: Bool = true,
+    idempotencyKey: String? = nil,
+    completion: @escaping (Bool, String?) -> Void
+  ) {
     guard let creds = credentials(),
           let url = URL(string: "\(creds.baseUrl)/api/v1/park/session") else {
       print("[NetworkManager] Not configured.")
@@ -41,6 +96,9 @@ class NetworkManager {
     request.httpMethod = "POST"
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
     request.setValue("Bearer \(creds.token)", forHTTPHeaderField: "Authorization")
+    if let idempotencyKey {
+      request.setValue(idempotencyKey, forHTTPHeaderField: "Idempotency-Key")
+    }
     
     let eventId = UUID().uuidString
     let body: [String: Any] = [
@@ -53,7 +111,8 @@ class NetworkManager {
     
     request.httpBody = try? JSONSerialization.data(withJSONObject: body)
     
-    let task = URLSession.shared.dataTask(with: request) { _, response, error in
+    let session = buildSession(pins: creds.pins)
+    let task = session.dataTask(with: request) { _, response, error in
       if let error = error {
         print("[NetworkManager] Request failed: \(error.localizedDescription)")
         DispatchQueue.main.async { completion(false, eventId) }
@@ -82,7 +141,8 @@ class NetworkManager {
     request.httpMethod = "POST"
     request.setValue("Bearer \(creds.token)", forHTTPHeaderField: "Authorization")
     
-    let task = URLSession.shared.dataTask(with: request) { _, response, _ in
+    let session = buildSession(pins: creds.pins)
+    let task = session.dataTask(with: request) { _, response, _ in
       let success = {
         guard let status = (response as? HTTPURLResponse)?.statusCode else { return false }
         return (200...299).contains(status)
@@ -104,7 +164,8 @@ class NetworkManager {
     request.httpMethod = "GET"
     request.setValue("Bearer \(creds.token)", forHTTPHeaderField: "Authorization")
 
-    let task = URLSession.shared.dataTask(with: request) { data, response, error in
+    let session = buildSession(pins: creds.pins)
+    let task = session.dataTask(with: request) { data, response, error in
       if let error = error {
         print("[NetworkManager] Active session fetch failed: \(error.localizedDescription)")
         DispatchQueue.main.async { completion(nil) }
@@ -155,7 +216,8 @@ class NetworkManager {
     request.httpMethod = "POST"
     request.setValue("Bearer \(creds.token)", forHTTPHeaderField: "Authorization")
     
-    URLSession.shared.dataTask(with: request).resume()
+    let session = buildSession(pins: creds.pins)
+    session.dataTask(with: request).resume()
     print("[NetworkManager] Reported vulture activity for \(lotId)")
   }
 }

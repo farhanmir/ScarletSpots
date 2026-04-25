@@ -9,14 +9,16 @@ This router only handles:
   2. Occupancy    — GET /lots/occupancy  (aggregate for all lots)
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi_cache.decorator import cache as fastapi_cache
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.limiter import limiter
 from app.core.logger import get_logger
 from app.core.security import get_current_user
+from app.core.attestation import require_high_value_access
 from app.models.parking import LotOccupancy
 from app.services.forecast_provider import ForecastProvider
 from app.services.ml_forecast_provider import MLForecastProvider
@@ -34,8 +36,14 @@ def _get_forecast_provider() -> ForecastProvider:
 
 
 @router.get("/occupancy")
+@limiter.limit("60/minute")
 @fastapi_cache(expire=30)
-async def get_all_occupancy(db: AsyncSession = Depends(get_db)):
+async def get_all_occupancy(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    _=Depends(get_current_user),
+    __=Depends(require_high_value_access),
+):
     """Return current occupancy counts for all lots from the lot_occupancy table."""
     try:
         rows = (await db.execute(select(LotOccupancy))).scalars().all()
@@ -56,11 +64,15 @@ async def get_all_occupancy(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/{lot_id}/forecast")
+@limiter.limit("45/minute")
 def get_lot_forecast(
+    request: Request,
     lot_id: str,
     capacity: int = Query(default=100, ge=0, description="Total lot capacity (from bundled JSON)"),
     current_occupancy: int = Query(default=0, ge=0, description="Current occupied count"),
     provider: ForecastProvider = Depends(_get_forecast_provider),
+    _=Depends(get_current_user),
+    __=Depends(require_high_value_access),
 ):
     """
     Predictive occupancy forecast for a parking lot.

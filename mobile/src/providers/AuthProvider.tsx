@@ -218,8 +218,18 @@ export function AuthProvider({
     }
 
     const normalizedBase = LOCAL_FASTAPI_URL.replace(/\/api\/v1\/?$/, "");
-    syncUserData(normalizedBase, token, permitType ?? "Public");
-  }, [session?.access_token, permitType]);
+    const pinnedCertHashes = (process.env.EXPO_PUBLIC_TLS_CERT_SHA256 || "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+    syncUserData(
+      normalizedBase,
+      token,
+      permitType ?? "Public",
+      pinnedCertHashes,
+      user?.id ?? null,
+    );
+  }, [session?.access_token, permitType, user?.id]);
 
   useEffect(() => {
     const nextUserId = user?.id ?? null;

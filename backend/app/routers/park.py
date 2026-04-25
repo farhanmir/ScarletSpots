@@ -16,7 +16,7 @@ from app.core.logger import get_logger
 from app.core.security import get_current_user
 from app.core.websocket import manager as ws_manager
 from app.models.friendship import Friendship
-from app.models.parking import LotOccupancy, ParkingSession
+from app.models.parking import IdempotencyRecord, LotOccupancy, ParkingSession
 from app.models.parking import SessionFeedback as SessionFeedbackModel
 from app.models.user import Profile
 from app.services.push_notifications import send_push_to_users, send_silent_push_to_all
@@ -95,11 +95,60 @@ def _session_response(session: ParkingSession) -> dict:
     }
 
 
+async def _load_idempotent_response(
+    db: AsyncSession,
+    user_id: UUID,
+    endpoint: str,
+    idempotency_key: Optional[str],
+) -> Optional[dict]:
+    if not idempotency_key:
+        return None
+    stmt = select(IdempotencyRecord).where(
+        IdempotencyRecord.user_id == user_id,
+        IdempotencyRecord.endpoint == endpoint,
+        IdempotencyRecord.idempotency_key == idempotency_key,
+    )
+    existing = (await db.execute(stmt)).scalars().first()
+    if not existing:
+        return None
+    try:
+        return json.loads(existing.response_body)
+    except Exception:
+        return None
+
+
+async def _save_idempotent_response(
+    db: AsyncSession,
+    user_id: UUID,
+    endpoint: str,
+    idempotency_key: Optional[str],
+    payload: dict,
+) -> None:
+    if not idempotency_key:
+        return
+    await db.execute(
+        text(
+            """
+            INSERT INTO idempotency_records (user_id, endpoint, idempotency_key, response_body, status_code)
+            VALUES (:user_id, :endpoint, :idempotency_key, :response_body, :status_code)
+            ON CONFLICT (user_id, endpoint, idempotency_key) DO NOTHING
+            """
+        ),
+        {
+            "user_id": str(user_id),
+            "endpoint": endpoint,
+            "idempotency_key": idempotency_key,
+            "response_body": json.dumps(payload),
+            "status_code": 200,
+        },
+    )
+
+
 async def _get_active_sessions(db: AsyncSession, user_id: str) -> list[ParkingSession]:
     stmt = select(ParkingSession).where(
         ParkingSession.user_id == user_id,
         ParkingSession.active.is_(True),
-    )
+    ).limit(1)
     return list((await db.execute(stmt)).scalars().all())
 
 
@@ -181,6 +230,18 @@ async def start_parking_session(
 ):
     """Start a new parking session and mutate occupancy with atomic SQL updates."""
     user_id = _to_uuid_or_401(current_user.id)
+    idempotency_key = request.headers.get("Idempotency-Key")
+    endpoint_key = "/park/session"
+
+    replay = await _load_idempotent_response(
+        db,
+        user_id,
+        endpoint_key,
+        idempotency_key,
+    )
+    if replay is not None:
+        replay["_idempotentReplay"] = True
+        return replay
 
     if not body.lotId or not body.lotId.strip():
         raise HTTPException(status_code=400, detail="lotId is required")
@@ -267,11 +328,20 @@ async def start_parking_session(
                 },
             )
 
-        return {
+        response_payload = {
             "success": True,
             "session": _session_response(new_session),
             "confirmedOccupancy": confirmed_occupancy,
         }
+        await _save_idempotent_response(
+            db,
+            user_id,
+            endpoint_key,
+            idempotency_key,
+            response_payload,
+        )
+        await db.commit()
+        return response_payload
     except IntegrityError as exc:
         log.warning(
             "Active-session uniqueness conflict for user %s lot %s: %s",
@@ -297,11 +367,23 @@ async def start_parking_session(
 
 @router.post("/end")
 async def end_parking_session(
+    request: Request,
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """End active parking sessions and decrement occupancy with atomic SQL updates."""
     user_id = _to_uuid_or_401(current_user.id)
+    idempotency_key = request.headers.get("Idempotency-Key")
+    endpoint_key = "/park/session/end"
+    replay = await _load_idempotent_response(
+        db,
+        user_id,
+        endpoint_key,
+        idempotency_key,
+    )
+    if replay is not None:
+        replay["_idempotentReplay"] = True
+        return replay
     changed_lot_counts: dict[str, int] = {}
 
     try:
@@ -325,7 +407,16 @@ async def end_parking_session(
             await ws_manager.publish_occupancy_update(changed_lot_id, changed_count)
 
         log.info("Ended %d active session(s) for user %s", len(ended_lot_ids), user_id)
-        return {"success": True}
+        response_payload = {"success": True}
+        await _save_idempotent_response(
+            db,
+            user_id,
+            endpoint_key,
+            idempotency_key,
+            response_payload,
+        )
+        await db.commit()
+        return response_payload
     except Exception as exc:
         log.error("Failed to end parking session for user %s: %s", user_id, exc)
         raise HTTPException(status_code=500, detail="Failed to end parking session")

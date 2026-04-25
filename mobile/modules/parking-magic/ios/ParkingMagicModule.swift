@@ -62,8 +62,10 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
   private var lastMotionConfidence: CMMotionActivityConfidence = .low
   private var parkedLocation: CLLocation?
   private var drivingAwayStartAt: Date?
+  private var currentOwnerId: String?
   private var diagnosticsHistory: [AutoParkLiveSnapshot] = []
   private var latestDiagnosticsSnapshot: AutoParkLiveSnapshot?
+  private var permissionPromise: Promise?
   
   private func onMain(_ work: @escaping () -> Void) {
     if Thread.isMainThread {
@@ -86,9 +88,11 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
       self.loadDiagnosticsHistory()
     }
 
-    Function("syncUserData") { (url: String, token: String, permit: String) in
+    Function("syncUserData") { (url: String, token: String, permit: String, pinnedCertHashes: [String], ownerId: String?) in
       self.userPermit = permit
-      NetworkManager.shared.configure(url: url, token: token)
+      self.currentOwnerId = ownerId
+      NetworkManager.shared.configure(url: url, token: token, pinnedCertHashes: pinnedCertHashes)
+      OfflineQueueManager.shared.configureOwner(ownerId)
       self.reconcileActiveSessionFromServer()
       // Prime the offline queue flush on sync
       OfflineQueueManager.shared.flushQueue { event in
@@ -101,6 +105,7 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
 
     Function("resetUserData") {
       self.userPermit = nil
+      self.currentOwnerId = nil
       NetworkManager.shared.reset()
       VultureManager.shared.reset()
       OfflineQueueManager.shared.clear()
@@ -111,9 +116,13 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
     }
 
     AsyncFunction("requestPermissionsAsync") { (promise: Promise) in
-      locationManager.requestAlwaysAuthorization()
-      // Note: Motion/Health permissions might need separate requests
-      promise.resolve(true)
+      let status = CLLocationManager.authorizationStatus()
+      if status == .authorizedAlways {
+        promise.resolve(true)
+        return
+      }
+      self.permissionPromise = promise
+      self.locationManager.requestAlwaysAuthorization()
     }
 
     Function("startSensing") {
@@ -154,6 +163,7 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
 
     AsyncFunction("getSystemHealthAsync") { (promise: Promise) in
       let backgroundLocationOk = CLLocationManager.authorizationStatus() == .authorizedAlways
+      let preciseLocationOk = locationManager.accuracyAuthorization == .fullAccuracy
       let motionOk = CMMotionActivityManager.isActivityAvailable()
       
       let audioSession = AVAudioSession.sharedInstance()
@@ -163,12 +173,14 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
       
       var reasons: [String] = []
       if !backgroundLocationOk { reasons.append("location_background_missing") }
+      if !preciseLocationOk { reasons.append("location_reduced_accuracy") }
       if !motionOk { reasons.append("motion_activity_unavailable") }
       
       let status: [String: Any] = [
         "ok": ok,
         "reasons": reasons,
         "backgroundLocationOk": backgroundLocationOk,
+        "preciseLocationOk": preciseLocationOk,
         "motionOk": motionOk,
         "bluetoothOk": bluetoothOk
       ]
@@ -433,7 +445,11 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
     diagnosticsHistory = Array(diagnosticsHistory.suffix(diagnosticsHistoryLimit))
     persistDiagnosticsHistory()
     onMain {
-      self.sendEvent("onAutoParkDiagnostics", self.dictionary(from: snapshot))
+      var payload = self.dictionary(from: snapshot)
+      if snapshot.decisionStatus == "ready" {
+        payload["checks"] = [] as [[String: Any]]
+      }
+      self.sendEvent("onAutoParkDiagnostics", payload)
     }
   }
 
@@ -723,6 +739,7 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
 
   private func _dispatchParkingEvent(source: String, location: CLLocation, completion: ((Bool) -> Void)? = nil) {
     let coordinate = location.coordinate
+    let idempotencyKey = "native_park_\(Int(Date().timeIntervalSince1970 * 1000))_\(UUID().uuidString)"
     
     // Phase 7: Resolve lotId natively
     let lot = DatabaseManager.shared.getLotAt(coordinate: coordinate)
@@ -768,7 +785,8 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
       lotId: lotId ?? "unknown",
       latitude: coordinate.latitude,
       longitude: coordinate.longitude,
-      source: source
+      source: source,
+      idempotencyKey: idempotencyKey
     ) { success, eventId in
       self.onMain {
         self.isParkingEventInFlight = false
@@ -802,11 +820,13 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
           self.publishDiagnostics(blockedSnapshot)
           let event = PendingEvent(
             id: eventId ?? UUID().uuidString,
+            ownerId: self.currentOwnerId,
             latitude: coordinate.latitude,
             longitude: coordinate.longitude,
             source: source,
             timestamp: Date().timeIntervalSince1970,
-            lotId: lotId ?? "unknown"
+            lotId: lotId ?? "unknown",
+            idempotencyKey: idempotencyKey
           )
           OfflineQueueManager.shared.enqueue(event: event)
           print("[ParkingMagic] Event queued for offline sync.")
@@ -872,6 +892,21 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
     pendingEventSource = nil
     isParkingEventInFlight = false
     print("[ParkingMagic] Location Error: \(error.localizedDescription)")
+  }
+
+  public func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+    guard let promise = permissionPromise else { return }
+    let status = manager.authorizationStatus
+    switch status {
+    case .authorizedAlways:
+      promise.resolve(true)
+      permissionPromise = nil
+    case .denied, .restricted, .authorizedWhenInUse:
+      promise.resolve(false)
+      permissionPromise = nil
+    default:
+      break
+    }
   }
 
   // MARK: - Audio Listeners

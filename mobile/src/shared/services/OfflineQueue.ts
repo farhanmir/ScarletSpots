@@ -37,6 +37,7 @@ export interface QueuedParkAction {
   method?: string; // Required for GENERIC_MUTATION
   queuedAt: string; // ISO timestamp
   attempts: number; // How many times we tried and failed
+  idempotencyKey?: string;
 }
 
 // ── Storage Key ────────────────────────────────────────────────────────────────
@@ -180,6 +181,7 @@ export async function queueParkAction(
   endpoint?: string,
   method?: string,
   ownerId?: string | null,
+  idempotencyKey?: string,
 ): Promise<QueuedParkAction> {
   const resolvedOwner = (await resolveOwnerId(ownerId)) ?? ANONYMOUS_OWNER;
   const action: QueuedParkAction = {
@@ -191,6 +193,7 @@ export async function queueParkAction(
     method,
     queuedAt: new Date().toISOString(),
     attempts: 0,
+    idempotencyKey,
   };
 
   const queue = await readQueue(resolvedOwner);
@@ -299,6 +302,9 @@ async function dispatchAction(action: QueuedParkAction): Promise<void> {
     "Content-Type": "application/json",
     apikey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "",
     Authorization: `Bearer ${session.access_token}`,
+    ...(action.idempotencyKey
+      ? { "Idempotency-Key": action.idempotencyKey }
+      : {}),
   };
 
   const endpoint =
@@ -328,4 +334,8 @@ function generateId(): string {
     const v = c === "x" ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
+}
+
+export function generateIdempotencyKey(prefix: string): string {
+  return `${prefix}_${Date.now()}_${generateId()}`;
 }

@@ -30,7 +30,7 @@ import * as Haptics from "expo-haptics";
 import NetInfo from "@react-native-community/netinfo";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { TrueSheet, type TrueSheetRef } from "@lodev09/react-native-true-sheet";
-import { authApiCall, publicApiCall } from "@/shared/api/supabase";
+import { authApiCall } from "@/shared/api/supabase";
 import { WEBSOCKET_BASE_URL } from "@/shared/api/api-base";
 import { useAuth } from "@/providers/AuthProvider";
 import ParkingConfirmationSheet from "../components/ParkingConfirmationSheet";
@@ -264,7 +264,8 @@ export default function MapScreen() {
     queryKey: ["lots_occupancy"],
     queryFn: async () => {
       try {
-        const data = await publicApiCall("/lots/occupancy");
+        const data = await authApiCall("/lots/occupancy");
+        if (!data) return STATIC_LOTS.map((l) => ({ ...l }));
         const rows = Array.isArray(data?.occupancy) ? data.occupancy : [];
 
         const occupancyMap: Record<string, number> = {};

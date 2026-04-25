@@ -44,7 +44,7 @@ class ParkingSession(Base):
         nullable=False,
     )
 
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=text("now()"))
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
@@ -83,4 +83,25 @@ class SessionFeedback(Base):
     correct_lot_id = Column(String, nullable=True)
     notes = Column(String, nullable=True)
 
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class IdempotencyRecord(Base):
+    __tablename__ = "idempotency_records"
+
+    id = Column(
+        UUID_SQL,
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+        server_default=func.gen_random_uuid(),
+    )
+    user_id = Column(
+        UUID_SQL,
+        ForeignKey("profiles.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    endpoint = Column(String, nullable=False)
+    idempotency_key = Column(String, nullable=False)
+    response_body = Column(String, nullable=False)
+    status_code = Column(Integer, nullable=False, server_default=text("200"))
     created_at = Column(DateTime(timezone=True), server_default=func.now())

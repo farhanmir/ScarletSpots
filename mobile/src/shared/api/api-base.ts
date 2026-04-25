@@ -1,5 +1,6 @@
 import Constants from "expo-constants";
 import { Platform } from "react-native";
+import { getAttestationHeaders } from "@/shared/security/attestation";
 
 const debuggerHost = Constants.expoConfig?.hostUri;
 const localHostIp = debuggerHost?.split(":")[0] || "localhost";
@@ -32,9 +33,25 @@ export async function fetchBackend(
   init: RequestInit,
 ): Promise<Response> {
   const url = `${LOCAL_FASTAPI_URL}${endpoint}`;
+  const parsed = new URL(url);
+  const isLocalhost =
+    parsed.hostname === "localhost" ||
+    parsed.hostname === "127.0.0.1" ||
+    parsed.hostname.startsWith("10.");
+  if (!isLocalhost && parsed.protocol !== "https:") {
+    throw new Error("Blocked insecure backend request");
+  }
   console.log(`[api] Fetching ${url}`);
   try {
-    const response = await fetch(url, init);
+    const attestationHeaders = await getAttestationHeaders();
+    const mergedHeaders: HeadersInit = {
+      ...(init.headers || {}),
+      ...attestationHeaders,
+    };
+    const response = await fetch(url, {
+      ...init,
+      headers: mergedHeaders,
+    });
     console.log(`[api] Response ${response.status} from ${url}`);
     return response;
   } catch (err: any) {

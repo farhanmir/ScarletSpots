@@ -32,11 +32,18 @@ def _normalize_key_material(value: str) -> str:
 
 
 def _decode_with_algorithm(token: str, key: str | dict, algorithm: str) -> dict:
+    decode_kwargs: dict = {
+        "algorithms": [algorithm],
+        "options": {"verify_aud": bool(settings.SUPABASE_JWT_AUDIENCE)},
+    }
+    if settings.SUPABASE_JWT_AUDIENCE:
+        decode_kwargs["audience"] = settings.SUPABASE_JWT_AUDIENCE
+    if settings.SUPABASE_JWT_ISSUER:
+        decode_kwargs["issuer"] = settings.SUPABASE_JWT_ISSUER
     return jwt.decode(
         token,
         key,
-        algorithms=[algorithm],
-        options={"verify_aud": False},
+        **decode_kwargs,
     )
 
 

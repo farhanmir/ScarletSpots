@@ -2,11 +2,13 @@ import Foundation
 
 struct PendingEvent: Codable {
   let id: String
+  let ownerId: String?
   let latitude: Double
   let longitude: Double
   let source: String
   let timestamp: Double
   let lotId: String?
+  let idempotencyKey: String?
 }
 
 class OfflineQueueManager {
@@ -14,6 +16,14 @@ class OfflineQueueManager {
   private let queueKey = "com.scarletspots.pending_events"
   private let queueStore = DispatchQueue(label: "com.scarletspots.offlinequeue.store")
   private var inFlightEventIds: Set<String> = []
+  private var ownerId: String?
+
+  func configureOwner(_ ownerId: String?) {
+    queueStore.sync {
+      self.ownerId = ownerId
+      inFlightEventIds.removeAll()
+    }
+  }
   
   func enqueue(event: PendingEvent) {
     queueStore.sync {
@@ -21,7 +31,17 @@ class OfflineQueueManager {
       if events.contains(where: { $0.id == event.id }) {
         return
       }
-      events.append(event)
+      let normalized = PendingEvent(
+        id: event.id,
+        ownerId: event.ownerId ?? ownerId,
+        latitude: event.latitude,
+        longitude: event.longitude,
+        source: event.source,
+        timestamp: event.timestamp,
+        lotId: event.lotId,
+        idempotencyKey: event.idempotencyKey
+      )
+      events.append(normalized)
       saveUnsafe(events: events)
     }
   }
@@ -48,7 +68,11 @@ class OfflineQueueManager {
   }
   
   func flushQueue(onEventFlushed: ((PendingEvent) -> Void)? = nil) {
-    let events = queueStore.sync { loadEventsUnsafe() }
+    let events = queueStore.sync {
+      let all = loadEventsUnsafe()
+      guard let ownerId else { return all }
+      return all.filter { $0.ownerId == nil || $0.ownerId == ownerId }
+    }
     guard !events.isEmpty else { return }
     
     print("[OfflineQueue] Attempting to flush \(events.count) events.")
@@ -67,7 +91,8 @@ class OfflineQueueManager {
         lotId: event.lotId ?? "unknown",
         latitude: event.latitude,
         longitude: event.longitude,
-        source: event.source
+        source: event.source,
+        idempotencyKey: event.idempotencyKey
       ) { success, _ in
         if success {
           print("[OfflineQueue] Successfully flushed event \(event.id). Removing from queue.")

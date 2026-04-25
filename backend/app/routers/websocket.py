@@ -1,5 +1,6 @@
 import asyncio
 import json
+import time
 from urllib.parse import parse_qs
 
 from fastapi import (
@@ -12,6 +13,8 @@ from fastapi import (
 from jose.exceptions import JWTError
 
 from app.core.logger import get_logger
+from app.core.attestation import _validate_attestation_token
+from app.core.config import settings
 from app.core.security import decode_supabase_jwt_token
 from app.core.websocket import manager
 
@@ -22,6 +25,7 @@ AUTH_MESSAGE_TIMEOUT_SECONDS = 8
 MAX_AUTH_MESSAGE_BYTES = 8192
 MAX_LOT_IDS_PER_SOCKET = 300
 MAX_LOT_ID_LENGTH = 64
+MAX_MESSAGES_PER_MINUTE = 90
 
 
 def _parse_lot_ids(value: str | None) -> list[str]:
@@ -68,6 +72,23 @@ async def _extract_user_id(auth_data: dict) -> str:
     return user_id
 
 
+def _check_ws_attestation(auth_data: dict, user_id: str) -> None:
+    if not settings.REQUIRE_ATTESTATION_ON_AVAILABILITY:
+        return
+    token = str(auth_data.get("attestation_token") or "")
+    result = _validate_attestation_token(token=token, user_id=user_id)
+    if result.trusted:
+        return
+    if not settings.ATTESTATION_ENFORCE:
+        log.warning(
+            "WS attestation bypass (monitor): user_id=%s reason=%s",
+            user_id,
+            result.reason,
+        )
+        return
+    raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION)
+
+
 async def _receive_auth_message(websocket: WebSocket) -> dict:
     try:
         raw = await asyncio.wait_for(websocket.receive_text(), timeout=AUTH_MESSAGE_TIMEOUT_SECONDS)
@@ -104,6 +125,7 @@ async def occupancy_socket(websocket: WebSocket) -> None:
             user_id = await _extract_user_id(auth_data)
         except Exception as exc:
             raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION) from exc
+        _check_ws_attestation(auth_data, user_id)
 
         message_lot_ids = auth_data.get("lot_ids") or []
         if isinstance(message_lot_ids, list):
@@ -123,9 +145,15 @@ async def occupancy_socket(websocket: WebSocket) -> None:
         await websocket.send_json(
             {"type": "ack", "channel": "occupancy", "lot_ids": initial_lot_ids}
         )
+        msg_times: list[float] = []
 
         while True:
             message = await websocket.receive_json()
+            now = time.time()
+            msg_times = [t for t in msg_times if now - t < 60]
+            msg_times.append(now)
+            if len(msg_times) > MAX_MESSAGES_PER_MINUTE:
+                raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION)
             msg_type = message.get("type")
             if msg_type == "subscribe":
                 raw_lot_ids = message.get("lot_ids") or []
@@ -169,13 +197,20 @@ async def notifications_socket(websocket: WebSocket) -> None:
             user_id = await _extract_user_id(auth_data)
         except Exception as exc:
             raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION) from exc
+        _check_ws_attestation(auth_data, user_id)
 
         await manager.register_notifications(websocket, user_id)
         log.info("WS notifications auth ok: client=%s user_id=%s", client, user_id)
         await websocket.send_json({"type": "ack", "channel": "notifications"})
+        msg_times: list[float] = []
 
         while True:
             message = await websocket.receive_json()
+            now = time.time()
+            msg_times = [t for t in msg_times if now - t < 60]
+            msg_times.append(now)
+            if len(msg_times) > MAX_MESSAGES_PER_MINUTE:
+                raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION)
             if message.get("type") == "ping":
                 await websocket.send_json({"type": "pong"})
     except WebSocketException as exc:

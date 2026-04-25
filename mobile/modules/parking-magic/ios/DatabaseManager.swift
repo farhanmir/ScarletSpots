@@ -14,6 +14,8 @@ class DatabaseManager {
   private var polygonCache: [LotPolygon] = []
   private let cacheQueue = DispatchQueue(label: "com.scarletspots.parkingmagic.polygoncache", attributes: .concurrent)
   private let dbQueue = DispatchQueue(label: "com.scarletspots.parkingmagic.dbqueue")
+  private let schemaVersion = "2"
+  private let dataVersion = "rutgers_parking_data_2026_04"
 
   init() {
     setupDatabase()
@@ -61,6 +63,10 @@ class DatabaseManager {
       """
       _ = sqlite3_exec(db, createPointsQuery, nil, nil, nil)
       _ = sqlite3_exec(db, "CREATE INDEX IF NOT EXISTS idx_lot_points_lookup ON lot_points(lot_id, ring_index, point_index);", nil, nil, nil)
+      _ = sqlite3_exec(db, "CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);", nil, nil, nil)
+      _ = sqlite3_exec(db, "PRAGMA journal_mode=WAL;", nil, nil, nil)
+      _ = sqlite3_exec(db, "PRAGMA synchronous=NORMAL;", nil, nil, nil)
+      _ = sqlite3_exec(db, "PRAGMA temp_store=MEMORY;", nil, nil, nil)
     }
   }
 
@@ -83,9 +89,22 @@ class DatabaseManager {
       }
       sqlite3_finalize(statement)
 
-      if lotCount > 0 && pointCount > 0 {
+      let storedSchemaVersion = metadataValueUnsafe(key: "schema_version")
+      let storedDataVersion = metadataValueUnsafe(key: "data_version")
+      let versionsMatch =
+        storedSchemaVersion == schemaVersion &&
+        storedDataVersion == dataVersion
+
+      if lotCount > 0 && pointCount > 0 && versionsMatch {
         print("[ParkingMagic] DB already hydrated with \(lotCount) lots and \(pointCount) points.")
         return
+      }
+
+      if lotCount > 0 && pointCount > 0 && !versionsMatch {
+        print("[ParkingMagic] Data/schema version mismatch. Rehydrating database.")
+        _ = sqlite3_exec(db, "DELETE FROM lot_points;", nil, nil, nil)
+        _ = sqlite3_exec(db, "DELETE FROM lot_rings;", nil, nil, nil)
+        _ = sqlite3_exec(db, "DELETE FROM lots;", nil, nil, nil)
       }
 
       if lotCount > 0 && pointCount == 0 {
@@ -135,6 +154,8 @@ class DatabaseManager {
         sqlite3_exec(db, "ROLLBACK;", nil, nil, nil)
         print("[ParkingMagic] Hydration failed. Rolled back transaction.")
       } else {
+        setMetadataValueUnsafe(key: "schema_version", value: schemaVersion)
+        setMetadataValueUnsafe(key: "data_version", value: dataVersion)
         sqlite3_exec(db, "COMMIT;", nil, nil, nil)
         print("[ParkingMagic] Hydration complete.")
       }
@@ -382,6 +403,8 @@ class DatabaseManager {
     sqlite3_finalize(statement)
 
     if ok {
+      setMetadataValueUnsafe(key: "schema_version", value: schemaVersion)
+      setMetadataValueUnsafe(key: "data_version", value: dataVersion)
       sqlite3_exec(db, "COMMIT;", nil, nil, nil)
       print("[ParkingMagic] Normalized geometry backfill complete.")
       return true
@@ -389,5 +412,41 @@ class DatabaseManager {
 
     sqlite3_exec(db, "ROLLBACK;", nil, nil, nil)
     return false
+  }
+
+  private func metadataValueUnsafe(key: String) -> String? {
+    guard db != nil else { return nil }
+    let query = "SELECT value FROM metadata WHERE key = ?;"
+    var statement: OpaquePointer?
+    guard sqlite3_prepare_v2(db, query, -1, &statement, nil) == SQLITE_OK else {
+      sqlite3_finalize(statement)
+      return nil
+    }
+    sqlite3_bind_text(statement, 1, (key as NSString).utf8String, -1, nil)
+    let value: String?
+    if sqlite3_step(statement) == SQLITE_ROW, let cString = sqlite3_column_text(statement, 0) {
+      value = String(cString: cString)
+    } else {
+      value = nil
+    }
+    sqlite3_finalize(statement)
+    return value
+  }
+
+  private func setMetadataValueUnsafe(key: String, value: String) {
+    guard db != nil else { return }
+    let query = """
+    INSERT INTO metadata (key, value) VALUES (?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value;
+    """
+    var statement: OpaquePointer?
+    guard sqlite3_prepare_v2(db, query, -1, &statement, nil) == SQLITE_OK else {
+      sqlite3_finalize(statement)
+      return
+    }
+    sqlite3_bind_text(statement, 1, (key as NSString).utf8String, -1, nil)
+    sqlite3_bind_text(statement, 2, (value as NSString).utf8String, -1, nil)
+    _ = sqlite3_step(statement)
+    sqlite3_finalize(statement)
   }
 }

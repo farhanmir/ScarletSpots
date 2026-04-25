@@ -22,12 +22,22 @@ class Settings(BaseSettings):
     SUPABASE_SERVICE_ROLE_KEY: str = Field(default="")
     SUPABASE_JWT_SECRET: str = Field(default="")
     SUPABASE_JWT_PUBLIC_KEY: str = Field(default="")
+    SUPABASE_JWT_ISSUER: str = Field(default="")
+    SUPABASE_JWT_AUDIENCE: str = Field(default="")
     DATABASE_URL: str = Field(default="")
     EXPO_PUSH_ACCESS_TOKEN: str = Field(default="")
     DEBUG: bool = Field(default=False)
 
     # Redis (local, no auth by default)
     REDIS_URL: str = Field(default="redis://localhost:6379/0")
+
+    # High-value endpoint controls
+    REQUIRE_AUTH_ON_AVAILABILITY: bool = Field(default=True)
+    REQUIRE_ATTESTATION_ON_AVAILABILITY: bool = Field(default=False)
+    ATTESTATION_ENFORCE: bool = Field(default=False)
+    ATTESTATION_ALLOW_GRACE_MINUTES: int = Field(default=10)
+    ATTESTATION_NONCE_MAX_AGE_SECONDS: int = Field(default=300)
+    ATTESTATION_SIGNING_SECRET: str = Field(default="")
 
     # CORS
     BACKEND_CORS_ORIGINS: list[str] = [

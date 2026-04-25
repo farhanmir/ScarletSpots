@@ -19,7 +19,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { IconSymbol } from "@/shared/components/ui/icon-symbol";
-import { publicApiCall } from "@/shared/api/supabase";
+import { authApiCall } from "@/shared/api/supabase";
 import {
   useGlassTheme,
   GLASS_DARK,
@@ -105,7 +105,7 @@ export default function LotDetailsSheetContent({
     useQuery<ForecastResponse>({
       queryKey: ["forecast", lot.id, lot.capacity],
       queryFn: async () => {
-        const data = await publicApiCall(
+        const data = await authApiCall(
           `/lots/${lot.id}/forecast?capacity=${lot.capacity}&current_occupancy=${lot.occupiedCount}`,
         );
         return data || {};

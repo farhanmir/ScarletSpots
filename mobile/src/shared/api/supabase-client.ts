@@ -1,6 +1,7 @@
 import "react-native-url-polyfill/auto";
 import { createClient } from "@supabase/supabase-js";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || "";
@@ -23,7 +24,21 @@ const authStorage = isServer
   ? noOpStorage
   : Platform.OS === "web"
     ? undefined
-    : AsyncStorage;
+    : {
+        getItem: async (key: string) => {
+          const secure = await SecureStore.getItemAsync(key);
+          if (secure != null) return secure;
+          return AsyncStorage.getItem(key);
+        },
+        setItem: async (key: string, value: string) => {
+          await SecureStore.setItemAsync(key, value);
+          await AsyncStorage.setItem(key, value);
+        },
+        removeItem: async (key: string) => {
+          await SecureStore.deleteItemAsync(key);
+          await AsyncStorage.removeItem(key);
+        },
+      };
 
 export const supabase = createClient(
   supabaseUrl || "https://placeholder.supabase.co",

@@ -1,4 +1,5 @@
 import { supabase } from "@/shared/api/supabase-client";
+import { getWebSocketAttestationPayload } from "@/shared/security/attestation";
 
 type SocketMessage = Record<string, unknown>;
 
@@ -55,6 +56,7 @@ export function createAuthedWebSocket(config: AuthedWebSocketConfig): () => void
         JSON.stringify({
           type: "auth",
           token: session.access_token,
+          ...(await getWebSocketAttestationPayload()),
           ...config.authPayload,
         }),
       );
