@@ -1,6 +1,6 @@
 import type * as Location from "expo-location";
 import {
-  addParkingListener,
+  getStatus,
   startSensing,
   stopSensing,
 } from "../../../modules/parking-magic";
@@ -18,26 +18,49 @@ import { BackgroundLogger } from "@/shared/utils/Logger";
  * sensing engine. It returns a cleanup function that should be called on unmount.
  */
 export function initBackgroundListeners(): () => void {
-  // Start the native sensing engine (Swift CMMotionActivityManager + AVAudioSession observers)
-  startSensing();
-  ensureAutoParkDiagnosticsStream();
-  void bootstrapAutoParkDiagnostics();
+  let sensingStarted = false;
 
-  const subscription = addParkingListener(async (event) => {
-    console.log("[NativeMagic] Parking signal received:", event.source, event.lotId);
-    BackgroundLogger.info("[NativeMagic] Parking signal received", {
-      source: event.source,
-      lotId: event.lotId ?? null,
-      timestamp: event.timestamp,
+  try {
+    // Start the native sensing engine (Swift CMMotionActivityManager + AVAudioSession observers)
+    startSensing();
+    sensingStarted = true;
+  } catch (error) {
+    BackgroundLogger.error("[NativeMagic] startSensing failed at startup", {
+      error: error instanceof Error ? error.message : String(error),
     });
-    // React to native events when the app is in the foreground
-    // Background events are handled directly by the Swift NetworkManager
-  });
+  }
+
+  // JS only reads status for debug/telemetry; native owns sensing logic.
+  void getStatus()
+    .then((status) => {
+      BackgroundLogger.info("[NativeMagic] Startup status", status);
+    })
+    .catch((error) => {
+      BackgroundLogger.warn("[NativeMagic] Failed to read startup status", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
+
+  try {
+    ensureAutoParkDiagnosticsStream();
+    void bootstrapAutoParkDiagnostics();
+  } catch (error) {
+    BackgroundLogger.error("[NativeMagic] Diagnostics bootstrap failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 
   // Return cleanup so callers (e.g. useEffect) can teardown properly
   return () => {
-    subscription.remove();
-    stopSensing();
+    if (sensingStarted) {
+      try {
+        stopSensing();
+      } catch (error) {
+        BackgroundLogger.warn("[NativeMagic] stopSensing failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
   };
 }
 

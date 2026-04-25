@@ -3,6 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
+from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from supabase import Client
 
@@ -10,6 +11,10 @@ from app.core.database import get_db
 from app.core.limiter import limiter
 from app.core.logger import get_logger
 from app.core.security import get_admin_auth_client, get_current_user, get_supabase
+from app.models.favorite import UserFavorite
+from app.models.friendship import Friendship
+from app.models.parking import IdempotencyRecord, ParkingSession, SessionFeedback
+from app.models.push import DevicePushToken
 from app.models.user import Profile
 from app.schemas.user import ProfileUpdate, SignupResponse, UserCreate
 from app.services.push_notifications import (
@@ -205,6 +210,10 @@ class PushTokenDeleteRequest(BaseModel):
     token: str
 
 
+class AccountDeletionRequest(BaseModel):
+    confirm: bool = False
+
+
 @router.post("/password-reset")
 @limiter.limit("3/hour")
 async def request_password_reset(
@@ -304,3 +313,123 @@ async def delete_push_token(
 
     removed = await deactivate_device_push_token(db, user_id, token)
     return {"success": True, "removed": removed}
+
+
+@router.get("/me/export")
+async def export_user_data(
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Export a portable JSON snapshot of user-owned data."""
+    user_id = _to_uuid_or_401(current_user)
+
+    profile = await db.get(Profile, user_id)
+
+    sessions = (
+        await db.execute(
+            select(ParkingSession).where(ParkingSession.user_id == user_id).order_by(ParkingSession.start_time.desc())
+        )
+    ).scalars().all()
+    favorites = (
+        await db.execute(select(UserFavorite).where(UserFavorite.user_id == user_id))
+    ).scalars().all()
+    friendships = (
+        await db.execute(
+            select(Friendship).where(or_(Friendship.user_id == user_id, Friendship.friend_id == user_id))
+        )
+    ).scalars().all()
+    feedback = (
+        await db.execute(
+            select(SessionFeedback).where(SessionFeedback.user_id == user_id).order_by(SessionFeedback.created_at.desc())
+        )
+    ).scalars().all()
+    push_tokens = (
+        await db.execute(select(DevicePushToken).where(DevicePushToken.user_id == user_id))
+    ).scalars().all()
+
+    return {
+        "user_id": str(user_id),
+        "profile": _profile_to_response(profile) if profile else None,
+        "sessions": [
+            {
+                "id": str(row.id),
+                "lot_id": row.lot_id,
+                "latitude": row.latitude,
+                "longitude": row.longitude,
+                "active": row.active,
+                "auto_started": row.auto_started,
+                "start_time": row.start_time,
+                "end_time": row.end_time,
+                "created_at": row.created_at,
+                "updated_at": row.updated_at,
+            }
+            for row in sessions
+        ],
+        "favorites": [{"lot_id": row.lot_id, "created_at": row.created_at} for row in favorites],
+        "friendships": [
+            {
+                "id": str(row.id),
+                "user_id": str(row.user_id),
+                "friend_id": str(row.friend_id),
+                "status": row.status,
+                "sharing_enabled": row.sharing_enabled,
+                "created_at": row.created_at,
+                "updated_at": row.updated_at,
+            }
+            for row in friendships
+        ],
+        "session_feedback": [
+            {
+                "id": str(row.id),
+                "session_id": str(row.session_id) if row.session_id else None,
+                "lot_id": row.lot_id,
+                "quality": row.quality,
+                "correct_lot_id": row.correct_lot_id,
+                "notes": row.notes,
+                "created_at": row.created_at,
+            }
+            for row in feedback
+        ],
+        "push_tokens": [
+            {
+                "token": row.token,
+                "platform": row.platform,
+                "active": row.active,
+                "last_seen_at": row.last_seen_at,
+            }
+            for row in push_tokens
+        ],
+    }
+
+
+@router.delete("/me")
+async def delete_my_account(
+    body: AccountDeletionRequest,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    admin_auth: Client = Depends(get_admin_auth_client),
+):
+    """Delete current account and user-owned data."""
+    user_id = _to_uuid_or_401(current_user)
+
+    if not body.confirm:
+        raise HTTPException(status_code=400, detail="confirm=true is required")
+
+    # Remove user-owned rows explicitly before auth deletion to avoid orphaned records.
+    await db.execute(delete(SessionFeedback).where(SessionFeedback.user_id == user_id))
+    await db.execute(delete(IdempotencyRecord).where(IdempotencyRecord.user_id == user_id))
+    await db.execute(delete(DevicePushToken).where(DevicePushToken.user_id == user_id))
+    await db.execute(delete(UserFavorite).where(UserFavorite.user_id == user_id))
+    await db.execute(delete(Friendship).where(or_(Friendship.user_id == user_id, Friendship.friend_id == user_id)))
+    await db.execute(delete(ParkingSession).where(ParkingSession.user_id == user_id))
+    await db.execute(delete(Profile).where(Profile.id == user_id))
+    await db.commit()
+
+    try:
+        admin_auth.auth.admin.delete_user(str(user_id))
+    except Exception as exc:
+        log.warning("Auth delete failed for %s after DB cleanup: %s", user_id, exc)
+        # DB cleanup already committed; return explicit partial status for follow-up.
+        return {"success": True, "auth_deleted": False}
+
+    return {"success": True, "auth_deleted": True}

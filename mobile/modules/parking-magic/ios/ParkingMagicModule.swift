@@ -31,6 +31,21 @@ private struct AutoParkLiveSnapshot: Codable {
   let checks: [AutoParkGateCheck]
 }
 
+private struct StartupDiagnosticsSnapshot: Codable {
+  let timestampMs: Double
+  let isSensing: Bool
+  let permissionStatus: String
+  let locationServicesEnabled: Bool
+  let motionActivityAvailable: Bool
+  let routeObserverAttached: Bool
+  let vultureObserverAttached: Bool
+  let hasConfiguredNetwork: Bool
+  let hasUserPermit: Bool
+  let hasOwnerId: Bool
+  let hasActiveAutoSession: Bool
+  let pendingEventSource: String?
+}
+
 public class ParkingMagicModule: Module {
   private let locationManager = CLLocationManager()
   private lazy var locationDelegateProxy = LocationDelegateProxy(owner: self)
@@ -92,7 +107,6 @@ public class ParkingMagicModule: Module {
 
     OnCreate {
       locationManager.delegate = locationDelegateProxy
-      locationManager.allowsBackgroundLocationUpdates = true
       locationManager.pausesLocationUpdatesAutomatically = false
       hasActiveAutoSession = userDefaults.bool(forKey: activeAutoSessionKey)
       self.loadDiagnosticsHistory()
@@ -142,8 +156,8 @@ public class ParkingMagicModule: Module {
         guard !self.isSensing else { return }
         self.isSensing = true
 
-        // 1. Monitor Significant Locations (App Anchor)
-        self.locationManager.startMonitoringSignificantLocationChanges()
+        // 1. Monitor Significant Locations (App Anchor) only when permission is ready.
+        self.startLocationMonitoringIfAuthorized()
 
         // 2. Monitor Audio Route (BT/CarPlay)
         self.routeChangeObserver = NotificationCenter.default.addObserver(
@@ -212,6 +226,10 @@ public class ParkingMagicModule: Module {
       promise.resolve(status)
     }
 
+    AsyncFunction("getStartupDiagnosticsAsync") { (promise: Promise) in
+      promise.resolve(self.buildStartupDiagnostics())
+    }
+
     AsyncFunction("getNativeSessionStateAsync") { (promise: Promise) in
       promise.resolve([
         "activeAutoSession": self.hasActiveAutoSession,
@@ -219,6 +237,109 @@ public class ParkingMagicModule: Module {
         "isEndingSession": self.isEndingSession,
         "pendingEventSource": self.pendingEventSource as Any,
       ])
+    }
+
+    AsyncFunction("getActiveParkingSessionAsync") { (promise: Promise) in
+      NetworkManager.shared.fetchActiveParkingSession { status in
+        guard let status = status else {
+          promise.resolve(["success": false, "session": NSNull()])
+          return
+        }
+
+        if status.isActive {
+          let resolvedLotId = status.lotId ?? "unknown"
+          promise.resolve([
+            "success": true,
+            "session": self.buildSessionPayload(
+              lotId: resolvedLotId,
+              latitude: status.latitude,
+              longitude: status.longitude,
+              autoStarted: true
+            )
+          ])
+        } else {
+          promise.resolve(["success": true, "session": NSNull()])
+        }
+      }
+    }
+
+    AsyncFunction("startParkingSessionAsync") { (
+      lotId: String,
+      latitude: Double,
+      longitude: Double,
+      autoStarted: Bool,
+      source: String,
+      promise: Promise
+    ) in
+      let idempotencyKey = "native_manual_park_\(Int(Date().timeIntervalSince1970 * 1000))_\(UUID().uuidString)"
+      NetworkManager.shared.submitParkingEvent(
+        lotId: lotId,
+        latitude: latitude,
+        longitude: longitude,
+        source: source,
+        autoStarted: autoStarted,
+        idempotencyKey: idempotencyKey
+      ) { success, eventId in
+        self.onMain {
+          if success {
+            self.setActiveAutoSession(true)
+            self.parkedLocation = CLLocation(latitude: latitude, longitude: longitude)
+            self.drivingAwayStartAt = nil
+            promise.resolve([
+              "success": true,
+              "_offline": false,
+              "session": self.buildSessionPayload(
+                lotId: lotId,
+                latitude: latitude,
+                longitude: longitude,
+                autoStarted: autoStarted
+              )
+            ])
+            return
+          }
+
+          let queuedEvent = PendingEvent(
+            id: eventId ?? UUID().uuidString,
+            ownerId: self.currentOwnerId,
+            latitude: latitude,
+            longitude: longitude,
+            source: source,
+            timestamp: Date().timeIntervalSince1970,
+            lotId: lotId,
+            idempotencyKey: idempotencyKey
+          )
+          OfflineQueueManager.shared.enqueue(event: queuedEvent)
+          promise.resolve([
+            "success": true,
+            "_offline": true,
+            "session": self.buildSessionPayload(
+              lotId: lotId,
+              latitude: latitude,
+              longitude: longitude,
+              autoStarted: autoStarted
+            )
+          ])
+        }
+      }
+    }
+
+    AsyncFunction("endParkingSessionAsync") { (promise: Promise) in
+      NetworkManager.shared.endParkingSession { success in
+        self.onMain {
+          if success {
+            self.lastParkingEventAt = nil
+            self.setActiveAutoSession(false)
+            self.parkedLocation = nil
+            self.drivingAwayStartAt = nil
+            if #available(iOS 16.2, *) {
+              LiveActivityManager.shared.stopActivity()
+            }
+            promise.resolve(["success": true, "_offline": false])
+          } else {
+            promise.resolve(["success": false, "_offline": true])
+          }
+        }
+      }
     }
 
     AsyncFunction("getAutoParkDiagnosticsAsync") { (promise: Promise) in
@@ -353,6 +474,77 @@ public class ParkingMagicModule: Module {
   }
 
   // MARK: - Motion Sensing
+  private func authorizationStatusString(_ status: CLAuthorizationStatus) -> String {
+    switch status {
+    case .notDetermined:
+      return "not_determined"
+    case .restricted:
+      return "restricted"
+    case .denied:
+      return "denied"
+    case .authorizedWhenInUse:
+      return "authorized_when_in_use"
+    case .authorizedAlways:
+      return "authorized_always"
+    @unknown default:
+      return "unknown"
+    }
+  }
+
+  private func buildStartupDiagnostics() -> [String: Any] {
+    let status = CLLocationManager.authorizationStatus()
+    let snapshot = StartupDiagnosticsSnapshot(
+      timestampMs: Date().timeIntervalSince1970 * 1000,
+      isSensing: isSensing,
+      permissionStatus: authorizationStatusString(status),
+      locationServicesEnabled: CLLocationManager.locationServicesEnabled(),
+      motionActivityAvailable: CMMotionActivityManager.isActivityAvailable(),
+      routeObserverAttached: routeChangeObserver != nil,
+      vultureObserverAttached: vultureObserver != nil,
+      hasConfiguredNetwork: NetworkManager.shared.isConfigured,
+      hasUserPermit: userPermit?.isEmpty == false,
+      hasOwnerId: currentOwnerId?.isEmpty == false,
+      hasActiveAutoSession: hasActiveAutoSession,
+      pendingEventSource: pendingEventSource
+    )
+
+    return [
+      "timestampMs": snapshot.timestampMs,
+      "isSensing": snapshot.isSensing,
+      "permissionStatus": snapshot.permissionStatus,
+      "locationServicesEnabled": snapshot.locationServicesEnabled,
+      "motionActivityAvailable": snapshot.motionActivityAvailable,
+      "routeObserverAttached": snapshot.routeObserverAttached,
+      "vultureObserverAttached": snapshot.vultureObserverAttached,
+      "hasConfiguredNetwork": snapshot.hasConfiguredNetwork,
+      "hasUserPermit": snapshot.hasUserPermit,
+      "hasOwnerId": snapshot.hasOwnerId,
+      "hasActiveAutoSession": snapshot.hasActiveAutoSession,
+      "pendingEventSource": snapshot.pendingEventSource as Any
+    ]
+  }
+
+  private func canUseAlwaysBackgroundLocation(_ status: CLAuthorizationStatus) -> Bool {
+    return status == .authorizedAlways
+  }
+
+  private func configureBackgroundLocationIfNeeded() {
+    if #available(iOS 9.0, *) {
+      locationManager.allowsBackgroundLocationUpdates = true
+    }
+    locationManager.pausesLocationUpdatesAutomatically = false
+  }
+
+  private func startLocationMonitoringIfAuthorized() {
+    let status = CLLocationManager.authorizationStatus()
+    guard canUseAlwaysBackgroundLocation(status) else {
+      print("[ParkingMagic] Skipping significant location monitoring: authorization is \(status.rawValue)")
+      return
+    }
+    configureBackgroundLocationIfNeeded()
+    locationManager.startMonitoringSignificantLocationChanges()
+  }
+
   private func startMotionUpdates() {
     guard CMMotionActivityManager.isActivityAvailable() else { return }
     
@@ -538,6 +730,22 @@ public class ParkingMagicModule: Module {
       "startRate": total > 0 ? Double(started) / Double(total) : 0,
       "topBlockedReasons": topBlockedReasons,
       "topFailedChecks": topFailedChecks
+    ]
+  }
+
+  private func buildSessionPayload(
+    lotId: String,
+    latitude: Double?,
+    longitude: Double?,
+    autoStarted: Bool
+  ) -> [String: Any] {
+    return [
+      "id": "native-\(UUID().uuidString)",
+      "lotId": lotId,
+      "startTime": ISO8601DateFormatter().string(from: Date()),
+      "latitude": latitude as Any,
+      "longitude": longitude as Any,
+      "autoStarted": autoStarted
     ]
   }
 
@@ -941,8 +1149,12 @@ public class ParkingMagicModule: Module {
   }
 
   fileprivate func handleAuthorizationChange(_ manager: CLLocationManager) {
-    guard let promise = permissionPromise else { return }
     let status = manager.authorizationStatus
+    if isSensing && canUseAlwaysBackgroundLocation(status) {
+      startLocationMonitoringIfAuthorized()
+    }
+
+    guard let promise = permissionPromise else { return }
     switch status {
     case .authorizedAlways:
       promise.resolve(true)

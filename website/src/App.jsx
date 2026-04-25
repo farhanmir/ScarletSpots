@@ -9,6 +9,8 @@ import {
 
 /* ─── Design tokens ───────────────────────────────────────────────────── */
 const SCARLET = '#e5373a'
+const APP_STORE_URL = 'https://apps.apple.com'
+const SUPPORT_EMAIL = 'support@scarletspots.app'
 
 /* ─── Reusable animation presets ─────────────────────────────────────── */
 const fadeUp = {
@@ -65,7 +67,9 @@ function NavLink({ href, children }) {
 function DownloadBtn({ small }) {
   return (
     <motion.a
-      href="#"
+      href={APP_STORE_URL}
+      target="_blank"
+      rel="noopener noreferrer"
       style={{
         ...styles.downloadBtn,
         ...(small ? styles.downloadBtnSmall : {}),
@@ -419,13 +423,13 @@ function Footer() {
         <div style={styles.footerCols}>
           <div style={styles.footerCol}>
             <p style={styles.footerColHead}>App</p>
-            <a href="#" style={styles.footerLink}>Download for iOS</a>
-            <a href="#" style={styles.footerLink}>App Support</a>
+            <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer" style={styles.footerLink}>Download for iOS</a>
+            <a href={`mailto:${SUPPORT_EMAIL}`} style={styles.footerLink}>App Support</a>
           </div>
           <div style={styles.footerCol}>
             <p style={styles.footerColHead}>Legal</p>
-            <a href="/privacy" style={styles.footerLink}>Privacy Policy</a>
-            <a href="/terms" style={styles.footerLink}>Terms of Service</a>
+            <a href="/privacy.html" style={styles.footerLink}>Privacy Policy</a>
+            <a href="/terms.html" style={styles.footerLink}>Terms of Service</a>
           </div>
         </div>
       </div>

@@ -55,6 +55,27 @@ export interface NativeSessionState {
   pendingEventSource: string | null;
 }
 
+export interface StartupDiagnostics {
+  timestampMs: number;
+  isSensing: boolean;
+  permissionStatus:
+    | "not_determined"
+    | "restricted"
+    | "denied"
+    | "authorized_when_in_use"
+    | "authorized_always"
+    | "unknown";
+  locationServicesEnabled: boolean;
+  motionActivityAvailable: boolean;
+  routeObserverAttached: boolean;
+  vultureObserverAttached: boolean;
+  hasConfiguredNetwork: boolean;
+  hasUserPermit: boolean;
+  hasOwnerId: boolean;
+  hasActiveAutoSession: boolean;
+  pendingEventSource: string | null;
+}
+
 export interface AutoParkSmokeTestResult {
   ok: boolean;
   startSuccess: boolean;
@@ -107,6 +128,26 @@ export interface AutoParkDiagnosticsSummary {
   topFailedChecks: Array<{ checkKey: string; count: number }>;
 }
 
+export interface NativeParkingSession {
+  id: string;
+  lotId: string;
+  startTime: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  autoStarted?: boolean;
+}
+
+export interface NativeSessionResponse {
+  success: boolean;
+  _offline?: boolean;
+  session: NativeParkingSession | null;
+}
+
+export interface NativeSessionEndResponse {
+  success: boolean;
+  _offline?: boolean;
+}
+
 declare class ParkingMagicModule extends NativeModule {
   startSensing(): void;
   stopSensing(): void;
@@ -123,6 +164,16 @@ declare class ParkingMagicModule extends NativeModule {
   resolveLotAtAsync(latitude: number, longitude: number): Promise<ResolvedLot>;
   getLotPolygonsAsync(): Promise<LotPolygon[]>;
   getNativeSessionStateAsync(): Promise<NativeSessionState>;
+  getActiveParkingSessionAsync(): Promise<NativeSessionResponse>;
+  startParkingSessionAsync(
+    lotId: string,
+    latitude: number,
+    longitude: number,
+    autoStarted: boolean,
+    source: string,
+  ): Promise<NativeSessionResponse>;
+  endParkingSessionAsync(): Promise<NativeSessionEndResponse>;
+  getStartupDiagnosticsAsync(): Promise<StartupDiagnostics>;
   runAutoParkSmokeTestAsync(latitude: number, longitude: number): Promise<AutoParkSmokeTestResult>;
   getAutoParkDiagnosticsAsync(): Promise<AutoParkDiagnosticsPayload>;
   getAutoParkDiagnosticsSummaryAsync(): Promise<AutoParkDiagnosticsSummary>;
@@ -208,6 +259,39 @@ export async function getLotPolygons(): Promise<LotPolygon[]> {
 
 export async function getNativeSessionState(): Promise<NativeSessionState> {
   return await module.getNativeSessionStateAsync();
+}
+
+export async function getActiveParkingSession(): Promise<NativeSessionResponse> {
+  return await module.getActiveParkingSessionAsync();
+}
+
+export async function startParkingSession(params: {
+  lotId: string;
+  latitude: number;
+  longitude: number;
+  autoStarted?: boolean;
+  source?: string;
+}): Promise<NativeSessionResponse> {
+  return await module.startParkingSessionAsync(
+    params.lotId,
+    params.latitude,
+    params.longitude,
+    params.autoStarted ?? false,
+    params.source ?? "manual",
+  );
+}
+
+export async function endParkingSession(): Promise<NativeSessionEndResponse> {
+  return await module.endParkingSessionAsync();
+}
+
+export async function getStartupDiagnostics(): Promise<StartupDiagnostics> {
+  return await module.getStartupDiagnosticsAsync();
+}
+
+// Alias for JS presentation layers that only need native startup/sensing status.
+export async function getStatus(): Promise<StartupDiagnostics> {
+  return await getStartupDiagnostics();
 }
 
 export async function runAutoParkSmokeTest(

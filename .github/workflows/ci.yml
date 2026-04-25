@@ -1,6 +1,12 @@
 name: CI
 
 on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+    branches:
+      - "**"
   workflow_dispatch:
 
 env:
@@ -41,13 +47,72 @@ jobs:
   migrations:
     name: Migration Syntax Check
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
-      - name: Verify SQL syntax (basic)
+      - name: Verify migration file structure
         run: |
-          echo "Checking migration files for common issues..."
-          for f in backend/supabase/migrations/*.sql; do
+          python - <<'PY'
+          import pathlib
+          import sys
+
+          migration_dir = pathlib.Path("supabase/migrations")
+          files = sorted(migration_dir.glob("*.sql"))
+          if not files:
+              print("No migration files found.")
+              sys.exit(1)
+
+          invalid = []
+          for file_path in files:
+              text = file_path.read_text(encoding="utf-8").strip()
+              if not text:
+                  invalid.append(f"{file_path}: empty file")
+                  continue
+              if not any(token in text.upper() for token in ("CREATE ", "ALTER ", "DROP ", "INSERT ", "UPDATE ", "DELETE ")):
+                  invalid.append(f"{file_path}: no SQL DDL/DML keywords detected")
+
+          if invalid:
+              for issue in invalid:
+                  print(issue)
+              sys.exit(1)
+
+          print(f"Validated {len(files)} migration files.")
+          PY
+
+  website:
+    name: Website (Vite Build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: website
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build website
+        run: npm run build
+
+      - name: Validate legal and SEO files
+        run: |
+          for f in public/privacy.html public/terms.html public/robots.txt public/sitemap.xml; do
+            if [ ! -f "$f" ]; then
+              echo "::error::Missing required website asset: $f"
+              exit 1
+            fi
             echo "✓ $f"
           done
 
@@ -108,7 +173,9 @@ jobs:
 
       - name: Lint (ESLint)
         run: npx eslint . --ext .ts,.tsx --max-warnings 0
-        continue-on-error: true  # Non-blocking until lint errors are cleaned up
+
+      - name: Run mobile tests
+        run: npm run test
 
   # ── Swift: Basic syntax lint ───────────────────────────────────────────────────
   swift-lint:
@@ -142,12 +209,19 @@ jobs:
           swiftlint lint --path mobile/modules/parking-magic/ios \
             --config .swiftlint.yml 2>/dev/null || \
           swiftlint lint --path mobile/modules/parking-magic/ios
-        continue-on-error: true  # Non-blocking until lint issues are cleaned up
 
       - name: Swift build check (syntax only)
         run: |
           echo "Checking Swift files compile individually..."
+          FAILED=0
           for f in mobile/modules/parking-magic/ios/*.swift; do
-            swiftc -parse "$f" 2>&1 && echo "✓ $f" || echo "⚠️  Parse warning: $f"
+            if swiftc -parse "$f" >/dev/null 2>&1; then
+              echo "✓ $f"
+            else
+              echo "::error::Swift parse failed: $f"
+              FAILED=1
+            fi
           done
-        continue-on-error: true
+          if [ "$FAILED" -ne 0 ]; then
+            exit 1
+          fi

@@ -22,7 +22,7 @@
 - [ ] **Update Links**
   - [ ] Footer social media links
   - [ ] "Read the deep dive" tech article links
-  - [ ] Help/support pages
+  - [x] Help/support pages
 
 - [ ] **Customize Text**
   - [ ] Update any company-specific messaging
@@ -43,8 +43,8 @@
 
 ### Before Deploying to Production
 
-- [ ] Update `meta description` tag (currently generic placeholder)
-- [ ] Add Open Graph tags for social sharing
+- [x] Update `meta description` tag (currently generic placeholder)
+- [x] Add Open Graph tags for social sharing
 - [ ] Configure custom domain name
 - [ ] Set up SSL/HTTPS
 - [ ] Configure CORS if needed
@@ -144,8 +144,8 @@ npm install -g web-vitals
 - [ ] Add H1 tag (already present)
 - [ ] Verify heading hierarchy (H1 → H2 → H3)
 - [ ] Add schema.org markup
-- [ ] Create XML sitemap
-- [ ] Add robots.txt
+- [x] Create XML sitemap
+- [x] Add robots.txt
 - [ ] Submit to Google Search Console
 - [ ] Submit to Bing Webmaster Tools
 
@@ -167,8 +167,8 @@ npm install -g web-vitals
 - [ ] CSRF tokens for forms
 - [ ] Rate limiting on form submission
 - [ ] Email verification for waitlist
-- [ ] Privacy policy page created
-- [ ] Terms of service page created
+- [x] Privacy policy page created
+- [x] Terms of service page created
 - [ ] GDPR compliance (if EU users)
 
 ---

@@ -8,7 +8,11 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import type { AutoParkLiveSnapshot } from "../../../../modules/parking-magic";
+import {
+  getStartupDiagnostics,
+  type AutoParkLiveSnapshot,
+  type StartupDiagnostics,
+} from "../../../../modules/parking-magic";
 import {
   bootstrapAutoParkDiagnostics,
   clearAutoParkDiagnosticsCache,
@@ -51,9 +55,15 @@ export default function AutoParkDiagnosticsSheet({
 }: Readonly<Props>) {
   const [latest, setLatest] = useState<AutoParkLiveSnapshot | null>(null);
   const [history, setHistory] = useState<AutoParkLiveSnapshot[]>([]);
+  const [startupStatus, setStartupStatus] = useState<StartupDiagnostics | null>(null);
 
   useEffect(() => {
     if (!visible) return;
+    getStartupDiagnostics()
+      .then(setStartupStatus)
+      .catch(() => {
+        setStartupStatus(null);
+      });
     bootstrapAutoParkDiagnostics().catch(() => {
       // keep existing cache if bootstrap fails
     });
@@ -100,6 +110,37 @@ export default function AutoParkDiagnosticsSheet({
           </View>
 
           <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
+            <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>
+              Native Startup Status
+            </Text>
+            <View style={styles.rawGrid}>
+              <Text style={[styles.rawLine, { color: theme.textPrimary }]}>
+                Sensing: {startupStatus?.isSensing ? "on" : "off"}
+              </Text>
+              <Text style={[styles.rawLine, { color: theme.textPrimary }]}>
+                Permission: {startupStatus?.permissionStatus ?? "n/a"}
+              </Text>
+              <Text style={[styles.rawLine, { color: theme.textPrimary }]}>
+                Location services:{" "}
+                {startupStatus?.locationServicesEnabled ? "enabled" : "disabled"}
+              </Text>
+              <Text style={[styles.rawLine, { color: theme.textPrimary }]}>
+                Motion available:{" "}
+                {startupStatus?.motionActivityAvailable ? "yes" : "no"}
+              </Text>
+              <Text style={[styles.rawLine, { color: theme.textPrimary }]}>
+                Observers: route={startupStatus?.routeObserverAttached ? "on" : "off"}{" "}
+                vulture={startupStatus?.vultureObserverAttached ? "on" : "off"}
+              </Text>
+              <Text style={[styles.rawLine, { color: theme.textPrimary }]}>
+                Network configured:{" "}
+                {startupStatus?.hasConfiguredNetwork ? "yes" : "no"}
+              </Text>
+              <Text style={[styles.rawLine, { color: theme.textPrimary }]}>
+                Pending source: {startupStatus?.pendingEventSource ?? "none"}
+              </Text>
+            </View>
+
             <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>
               Raw Data
             </Text>

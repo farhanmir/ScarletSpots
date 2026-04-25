@@ -53,6 +53,12 @@ class NetworkManager {
   private var authToken: String?
   private let stateQueue = DispatchQueue(label: "com.scarletspots.networkmanager.state")
   private var pinnedCertHashes: Set<String> = []
+
+  var isConfigured: Bool {
+    stateQueue.sync {
+      apiBaseUrl != nil && authToken != nil
+    }
+  }
   
   private func credentials() -> (baseUrl: String, token: String, pins: Set<String>)? {
     stateQueue.sync {

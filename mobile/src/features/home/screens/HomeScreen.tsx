@@ -27,7 +27,6 @@ import { useLocalSearchParams } from "expo-router";
 import { useIsFocused } from "@react-navigation/native";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
-import NetInfo from "@react-native-community/netinfo";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { TrueSheet, type TrueSheetRef } from "@lodev09/react-native-true-sheet";
 import { authApiCall } from "@/shared/api/supabase";
@@ -52,7 +51,6 @@ import {
   cacheFavorites,
   getCachedFavorites,
 } from "@/shared/services/OfflineCache";
-import { queueParkAction } from "@/shared/services/OfflineQueue";
 import {
   getAllLots,
   applyOccupancy,
@@ -71,6 +69,11 @@ import {
 } from "@/shared/services/AutoParkCapability";
 import { createAuthedWebSocket } from "@/shared/services/authedWebSocket";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  endParkingSession as endNativeParkingSession,
+  getActiveParkingSession,
+  startParkingSession,
+} from "../../../../modules/parking-magic";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -316,16 +319,8 @@ export default function MapScreen() {
   const { data: sessionData } = useQuery<{ session: ParkingSession | null }>({
     queryKey: ["session", "active"],
     queryFn: async () => {
-      const result = await fetchWithOfflineFallback(
-        async () => {
-          const data = await authApiCall("/park/session/active");
-          return data;
-        },
-        "offline_cache_session",
-        1000 * 60 * 1,
-        currentUserId,
-      );
-      return result.data ?? { session: null };
+      const data = await getActiveParkingSession();
+      return { session: (data.session as ParkingSession | null) ?? null };
     },
     enabled: !!user,
     staleTime: 1000 * 60 * 2.5,
@@ -623,71 +618,31 @@ export default function MapScreen() {
         lotId: top.lotId,
         latitude: top.latitude,
         longitude: top.longitude,
-        confirmed: true,
         autoStarted: true,
       };
       setPendingCandidates([]);
       await clearPendingParkingCandidates();
       try {
-        const netState = await NetInfo.fetch();
-        if (!netState.isConnected) {
-          await queueParkAction(
-            "CONFIRM_DETECTED",
-            payload,
-            undefined,
-            undefined,
-            currentUserId,
-          );
-          const optimisticSession = {
-            id: `offline-${Date.now()}`,
-            lotId: top.lotId,
-            startTime: new Date().toISOString(),
-            latitude: top.latitude,
-            longitude: top.longitude,
-            autoStarted: true,
-          };
-          queryClient.setQueryData(["session", "active"], {
-            session: optimisticSession,
-          });
-          await cacheSession({ session: optimisticSession }, currentUserId);
-          updateOptimisticOccupancy(top.lotId, 1);
-          return;
-        }
-        const data = await authApiCall("/park/session", {
-          method: "POST",
-          body: JSON.stringify(payload),
+        const data = await startParkingSession({
+          lotId: payload.lotId,
+          latitude: payload.latitude,
+          longitude: payload.longitude,
+          autoStarted: true,
+          source: "motion_activity",
         });
         if (data?.success && data?.session) {
           queryClient.setQueryData(["session", "active"], {
-            session: data.session,
+            session: data.session as ParkingSession,
           });
-          await cacheSession({ session: data.session }, currentUserId);
+          await cacheSession({ session: data.session as ParkingSession }, currentUserId);
           updateOptimisticOccupancy(top.lotId, 1);
         } else {
           setPendingCandidates(candidates);
           hasAutoStartedRef.current = false;
         }
       } catch {
-        await queueParkAction(
-          "CONFIRM_DETECTED",
-          payload,
-          undefined,
-          undefined,
-          currentUserId,
-        );
-        const offlineSession = {
-          id: `offline-${Date.now()}`,
-          lotId: top.lotId,
-          startTime: new Date().toISOString(),
-          latitude: top.latitude,
-          longitude: top.longitude,
-          autoStarted: true,
-        };
-        queryClient.setQueryData(["session", "active"], {
-          session: offlineSession,
-        });
-        await cacheSession({ session: offlineSession }, currentUserId);
-        updateOptimisticOccupancy(top.lotId, 1);
+        setPendingCandidates(candidates);
+        hasAutoStartedRef.current = false;
       }
     });
   }, [user, queryClient, updateOptimisticOccupancy, currentUserId]);
@@ -842,78 +797,31 @@ export default function MapScreen() {
 
       const payload = {
         lotId: lot.id,
-        latitude: isInside ? location?.coords.latitude : null,
-        longitude: isInside ? location?.coords.longitude : null,
-        confirmed: true,
+        latitude: isInside
+          ? (location?.coords.latitude ?? lot.latitude)
+          : lot.latitude,
+        longitude: isInside
+          ? (location?.coords.longitude ?? lot.longitude)
+          : lot.longitude,
       };
 
-      const netState = await NetInfo.fetch();
-      if (!netState.isConnected) {
-        await queueParkAction(
-          "PARK",
-          payload,
-          undefined,
-          undefined,
-          currentUserId,
-        );
-        const optimisticSession: ParkingSession = {
-          id: `offline-${Date.now()}`,
-          lotId: lot.id,
-          startTime: new Date().toISOString(),
-        };
-        queryClient.setQueryData(["session", "active"], {
-          session: optimisticSession,
-        });
-        cacheSession({ session: optimisticSession }, currentUserId).catch(
-          () => {},
-        );
-        updateOptimisticOccupancy(lot.id, 1);
-        setSelectedLotId(null);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert(
-          "Parked Offline",
-          `Session queued. Will sync when back online.`,
-        );
-        return;
-      }
-
-      const data = await authApiCall("/park/session", {
-        method: "POST",
-        body: JSON.stringify(payload),
+      const data = await startParkingSession({
+        lotId: payload.lotId,
+        latitude: payload.latitude,
+        longitude: payload.longitude,
+        autoStarted: false,
+        source: "manual",
       });
 
       if (data?.success) {
-        const session: ParkingSession = data.session ?? {
+        const session: ParkingSession = (data.session as ParkingSession) ?? {
           id: `offline-${Date.now()}`,
           lotId: lot.id,
           startTime: new Date().toISOString(),
         };
         queryClient.setQueryData(["session", "active"], { session });
         cacheSession({ session }, currentUserId).catch(() => {});
-        if (!data._offline && data.confirmedOccupancy !== undefined) {
-          queryClient.setQueryData(
-            ["lots_occupancy"],
-            (old: RutgersLot[] | undefined) => {
-              if (!old) return old;
-              return old.map((l) => {
-                if (l.id !== lot.id) return l;
-                return {
-                  ...l,
-                  occupiedCount: data.confirmedOccupancy,
-                  occupancyRate:
-                    l.capacity > 0
-                      ? Math.min(
-                          100,
-                          (data.confirmedOccupancy / l.capacity) * 100,
-                        )
-                      : 0,
-                };
-              });
-            },
-          );
-        } else {
-          updateOptimisticOccupancy(lot.id, 1);
-        }
+        updateOptimisticOccupancy(lot.id, 1);
         setSelectedLotId(null);
         if (data._offline) {
           Alert.alert(
@@ -923,28 +831,7 @@ export default function MapScreen() {
         }
       }
     } catch (e: any) {
-      if (
-        e?.message?.toLowerCase().includes("network") ||
-        e?.message?.toLowerCase().includes("timeout") ||
-        e?.code === "ECONNABORTED"
-      ) {
-        await queueParkAction(
-          "PARK",
-          {
-            lotId: lot.id,
-            latitude: location?.coords.latitude,
-            longitude: location?.coords.longitude,
-            confirmed: true,
-          },
-          undefined,
-          undefined,
-          currentUserId,
-        );
-        updateOptimisticOccupancy(lot.id, 1);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      } else {
-        Alert.alert("Error", e.message || "Failed to start parking session");
-      }
+      Alert.alert("Error", e.message || "Failed to start parking session");
     } finally {
       setLoading(false);
     }
@@ -956,10 +843,7 @@ export default function MapScreen() {
     if (!activeSession) return;
     setLoading(true);
     try {
-      const data = await authApiCall("/park/session/end", {
-        method: "POST",
-        body: JSON.stringify({}),
-      });
+      const data = await endNativeParkingSession();
       if (data?.success) {
         const lotIdToRemove = activeSession.lotId;
         queryClient.setQueryData(["session", "active"], { session: null });
@@ -1022,65 +906,28 @@ export default function MapScreen() {
         lotId: candidate.lotId,
         latitude: candidate.latitude,
         longitude: candidate.longitude,
-        confirmed: true,
       };
-      const netState = await NetInfo.fetch();
-      if (!netState.isConnected) {
-        await queueParkAction(
-          "CONFIRM_DETECTED",
-          payload,
-          undefined,
-          undefined,
-          currentUserId,
-        );
-        const offlineSession = {
-          id: `offline-${Date.now()}`,
-          lotId: candidate.lotId,
-          startTime: new Date().toISOString(),
-        };
+      const data = await startParkingSession({
+        lotId: payload.lotId,
+        latitude: payload.latitude,
+        longitude: payload.longitude,
+        autoStarted: true,
+        source: "motion_activity",
+      });
+      if (data?.success && data?.session) {
         queryClient.setQueryData(["session", "active"], {
-          session: offlineSession,
+          session: data.session as ParkingSession,
         });
-        cacheSession({ session: offlineSession }, currentUserId).catch(
+        cacheSession({ session: data.session as ParkingSession }, currentUserId).catch(
           () => {},
         );
         updateOptimisticOccupancy(candidate.lotId, 1);
         await clearPendingParkingCandidates();
         setPendingCandidates([]);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        return;
-      }
-      const data = await authApiCall("/park/session", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-      if (data?.success && data?.session) {
-        queryClient.setQueryData(["session", "active"], {
-          session: data.session,
-        });
-        cacheSession({ session: data.session }, currentUserId).catch(() => {});
-        updateOptimisticOccupancy(candidate.lotId, 1);
-        await clearPendingParkingCandidates();
-        setPendingCandidates([]);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch {
-      await queueParkAction(
-        "CONFIRM_DETECTED",
-        {
-          lotId: candidate.lotId,
-          latitude: candidate.latitude,
-          longitude: candidate.longitude,
-          confirmed: true,
-        },
-        undefined,
-        undefined,
-        currentUserId,
-      );
-      await clearPendingParkingCandidates();
-      setPendingCandidates([]);
-      updateOptimisticOccupancy(candidate.lotId, 1);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      Alert.alert("Error", "Failed to confirm detected parking");
     } finally {
       setIsConfirming(false);
     }
