@@ -46,6 +46,13 @@ private struct StartupDiagnosticsSnapshot: Codable {
   let pendingEventSource: String?
 }
 
+private struct CapabilityStatusSnapshot: Codable {
+  let ok: Bool
+  let reasons: [String]
+  let backgroundLocationOk: Bool
+  let motionOk: Bool
+}
+
 public class ParkingMagicModule: Module {
   private let locationManager = CLLocationManager()
   private lazy var locationDelegateProxy = LocationDelegateProxy(owner: self)
@@ -79,6 +86,8 @@ public class ParkingMagicModule: Module {
   private var parkedLocation: CLLocation?
   private var drivingAwayStartAt: Date?
   private var currentOwnerId: String?
+  private var activeSessionLotId: String?
+  private var activeSessionStartedAt: Date?
   private var diagnosticsHistory: [AutoParkLiveSnapshot] = []
   private var latestDiagnosticsSnapshot: AutoParkLiveSnapshot?
   private var permissionPromise: Promise?
@@ -103,7 +112,7 @@ public class ParkingMagicModule: Module {
   public func definition() -> ModuleDefinition {
     Name("ParkingMagic")
 
-    Events("onParkingEvent", "onAutoParkDiagnostics")
+    Events("onParkingEvent", "onAutoParkDiagnostics", "onSessionStateChanged")
 
     OnCreate {
       locationManager.delegate = locationDelegateProxy
@@ -136,6 +145,9 @@ public class ParkingMagicModule: Module {
       self.setActiveAutoSession(false)
       self.parkedLocation = nil
       self.drivingAwayStartAt = nil
+      self.activeSessionLotId = nil
+      self.activeSessionStartedAt = nil
+      self.emitSessionStateChange(reason: "reset_user_data")
       print("[ParkingMagic] User data and state purged.")
     }
 
@@ -226,6 +238,10 @@ public class ParkingMagicModule: Module {
       promise.resolve(status)
     }
 
+    AsyncFunction("getCapabilityStatusAsync") { (promise: Promise) in
+      promise.resolve(self.buildCapabilityStatus())
+    }
+
     AsyncFunction("getStartupDiagnosticsAsync") { (promise: Promise) in
       promise.resolve(self.buildStartupDiagnostics())
     }
@@ -263,6 +279,39 @@ public class ParkingMagicModule: Module {
       }
     }
 
+    AsyncFunction("getSessionStateAsync") { (promise: Promise) in
+      promise.resolve(self.buildSessionStatePayload())
+    }
+
+    AsyncFunction("refreshSessionStateAsync") { (promise: Promise) in
+      NetworkManager.shared.fetchActiveParkingSession { status in
+        self.onMain {
+          guard let status else {
+            promise.resolve(self.buildSessionStatePayload())
+            return
+          }
+
+          self.setActiveAutoSession(status.isActive)
+          if status.isActive {
+            self.activeSessionLotId = status.lotId
+            if self.activeSessionStartedAt == nil {
+              self.activeSessionStartedAt = Date()
+            }
+            if let latitude = status.latitude, let longitude = status.longitude {
+              self.parkedLocation = CLLocation(latitude: latitude, longitude: longitude)
+            }
+          } else {
+            self.activeSessionLotId = nil
+            self.activeSessionStartedAt = nil
+            self.parkedLocation = nil
+            self.drivingAwayStartAt = nil
+          }
+          self.emitSessionStateChange(reason: "refresh_session_state")
+          promise.resolve(self.buildSessionStatePayload())
+        }
+      }
+    }
+
     AsyncFunction("startParkingSessionAsync") { (
       lotId: String,
       latitude: Double,
@@ -279,12 +328,15 @@ public class ParkingMagicModule: Module {
         source: source,
         autoStarted: autoStarted,
         idempotencyKey: idempotencyKey
-      ) { success, eventId in
+      ) { success, eventId, retryable in
         self.onMain {
           if success {
             self.setActiveAutoSession(true)
+            self.activeSessionLotId = lotId
+            self.activeSessionStartedAt = Date()
             self.parkedLocation = CLLocation(latitude: latitude, longitude: longitude)
             self.drivingAwayStartAt = nil
+            self.emitSessionStateChange(reason: "start_session")
             promise.resolve([
               "success": true,
               "_offline": false,
@@ -308,17 +360,32 @@ public class ParkingMagicModule: Module {
             lotId: lotId,
             idempotencyKey: idempotencyKey
           )
-          OfflineQueueManager.shared.enqueue(event: queuedEvent)
-          promise.resolve([
-            "success": true,
-            "_offline": true,
-            "session": self.buildSessionPayload(
-              lotId: lotId,
-              latitude: latitude,
-              longitude: longitude,
-              autoStarted: autoStarted
-            )
-          ])
+          if retryable {
+            OfflineQueueManager.shared.enqueue(event: queuedEvent)
+            self.setActiveAutoSession(true)
+            self.activeSessionLotId = lotId
+            self.activeSessionStartedAt = Date()
+            self.parkedLocation = CLLocation(latitude: latitude, longitude: longitude)
+            self.drivingAwayStartAt = nil
+            self.emitSessionStateChange(reason: "start_session_offline")
+            promise.resolve([
+              "success": true,
+              "_offline": true,
+              "session": self.buildSessionPayload(
+                lotId: lotId,
+                latitude: latitude,
+                longitude: longitude,
+                autoStarted: autoStarted
+              )
+            ])
+          } else {
+            promise.resolve([
+              "success": false,
+              "_offline": false,
+              "error": "server_rejected",
+              "session": NSNull()
+            ])
+          }
         }
       }
     }
@@ -329,8 +396,11 @@ public class ParkingMagicModule: Module {
           if success {
             self.lastParkingEventAt = nil
             self.setActiveAutoSession(false)
+            self.activeSessionLotId = nil
+            self.activeSessionStartedAt = nil
             self.parkedLocation = nil
             self.drivingAwayStartAt = nil
+            self.emitSessionStateChange(reason: "end_session")
             if #available(iOS 16.2, *) {
               LiveActivityManager.shared.stopActivity()
             }
@@ -522,6 +592,69 @@ public class ParkingMagicModule: Module {
       "hasActiveAutoSession": snapshot.hasActiveAutoSession,
       "pendingEventSource": snapshot.pendingEventSource as Any
     ]
+  }
+
+  private func buildCapabilityStatus() -> [String: Any] {
+    let fgStatus = CLLocationManager.authorizationStatus()
+    let preciseLocationOk = locationManager.accuracyAuthorization == .fullAccuracy
+    let motionOk = CMMotionActivityManager.isActivityAvailable()
+
+    var reasons: [String] = []
+    if fgStatus == .notDetermined || fgStatus == .denied || fgStatus == .restricted {
+      reasons.append("location_foreground")
+    }
+    if fgStatus != .authorizedAlways {
+      reasons.append("location_background")
+    }
+    if !preciseLocationOk {
+      reasons.append("location_imprecise")
+    }
+    if !motionOk {
+      reasons.append("motion")
+    }
+
+    let backgroundLocationOk = fgStatus == .authorizedAlways && preciseLocationOk
+    let snapshot = CapabilityStatusSnapshot(
+      ok: backgroundLocationOk && motionOk,
+      reasons: reasons,
+      backgroundLocationOk: backgroundLocationOk,
+      motionOk: motionOk
+    )
+
+    return [
+      "ok": snapshot.ok,
+      "reasons": snapshot.reasons,
+      "backgroundLocationOk": snapshot.backgroundLocationOk,
+      "motionOk": snapshot.motionOk
+    ]
+  }
+
+  private func buildSessionStatePayload() -> [String: Any] {
+    let sessionPayload: [String: Any]
+    if hasActiveAutoSession {
+      let lotId = activeSessionLotId ?? "unknown"
+      sessionPayload = buildSessionPayload(
+        lotId: lotId,
+        latitude: parkedLocation?.coordinate.latitude,
+        longitude: parkedLocation?.coordinate.longitude,
+        autoStarted: true
+      )
+    } else {
+      sessionPayload = [:]
+    }
+
+    return [
+      "activeAutoSession": hasActiveAutoSession,
+      "session": hasActiveAutoSession ? sessionPayload : NSNull()
+    ]
+  }
+
+  private func emitSessionStateChange(reason: String) {
+    onMain {
+      var payload = self.buildSessionStatePayload()
+      payload["reason"] = reason
+      self.sendEvent("onSessionStateChanged", payload)
+    }
   }
 
   private func canUseAlwaysBackgroundLocation(_ status: CLAuthorizationStatus) -> Bool {
@@ -739,10 +872,11 @@ public class ParkingMagicModule: Module {
     longitude: Double?,
     autoStarted: Bool
   ) -> [String: Any] {
+    let resolvedStartedAt = activeSessionStartedAt ?? Date()
     return [
       "id": "native-\(UUID().uuidString)",
       "lotId": lotId,
-      "startTime": ISO8601DateFormatter().string(from: Date()),
+      "startTime": ISO8601DateFormatter().string(from: resolvedStartedAt),
       "latitude": latitude as Any,
       "longitude": longitude as Any,
       "autoStarted": autoStarted
@@ -804,12 +938,19 @@ public class ParkingMagicModule: Module {
         if status.isActive,
            let latitude = status.latitude,
            let longitude = status.longitude {
+          self.activeSessionLotId = status.lotId
+          if self.activeSessionStartedAt == nil {
+            self.activeSessionStartedAt = Date()
+          }
           self.parkedLocation = CLLocation(latitude: latitude, longitude: longitude)
         }
         if !status.isActive {
+          self.activeSessionLotId = nil
+          self.activeSessionStartedAt = nil
           self.parkedLocation = nil
           self.drivingAwayStartAt = nil
         }
+        self.emitSessionStateChange(reason: "reconcile_active_session")
       }
     } 
   }
@@ -953,8 +1094,11 @@ public class ParkingMagicModule: Module {
         if success {
           self.lastParkingEventAt = nil
           self.setActiveAutoSession(false)
+          self.activeSessionLotId = nil
+          self.activeSessionStartedAt = nil
           self.parkedLocation = nil
           self.drivingAwayStartAt = nil
+          self.emitSessionStateChange(reason: "auto_session_ended")
           if #available(iOS 16.2, *) {
             LiveActivityManager.shared.stopActivity()
           }
@@ -1039,15 +1183,18 @@ public class ParkingMagicModule: Module {
       longitude: coordinate.longitude,
       source: source,
       idempotencyKey: idempotencyKey
-    ) { success, eventId in
+    ) { success, eventId, retryable in
       self.onMain {
         self.isParkingEventInFlight = false
         self.lastParkingEventAt = Date()
 
         if success {
           self.setActiveAutoSession(true)
+          self.activeSessionLotId = lotId
+          self.activeSessionStartedAt = Date()
           self.parkedLocation = location
           self.drivingAwayStartAt = nil
+          self.emitSessionStateChange(reason: "auto_session_started")
           let startedSnapshot = self.buildArrivalDiagnostics(
             source: source,
             location: location,
@@ -1070,18 +1217,28 @@ public class ParkingMagicModule: Module {
             decisionReasonCode: "network_submit_failed"
           )
           self.publishDiagnostics(blockedSnapshot)
-          let event = PendingEvent(
-            id: eventId ?? UUID().uuidString,
-            ownerId: self.currentOwnerId,
-            latitude: coordinate.latitude,
-            longitude: coordinate.longitude,
-            source: source,
-            timestamp: Date().timeIntervalSince1970,
-            lotId: lotId ?? "unknown",
-            idempotencyKey: idempotencyKey
-          )
-          OfflineQueueManager.shared.enqueue(event: event)
-          print("[ParkingMagic] Event queued for offline sync.")
+          if retryable {
+            let event = PendingEvent(
+              id: eventId ?? UUID().uuidString,
+              ownerId: self.currentOwnerId,
+              latitude: coordinate.latitude,
+              longitude: coordinate.longitude,
+              source: source,
+              timestamp: Date().timeIntervalSince1970,
+              lotId: lotId ?? "unknown",
+              idempotencyKey: idempotencyKey
+            )
+            OfflineQueueManager.shared.enqueue(event: event)
+            self.setActiveAutoSession(true)
+            self.activeSessionLotId = lotId
+            self.activeSessionStartedAt = Date()
+            self.parkedLocation = location
+            self.drivingAwayStartAt = nil
+            self.emitSessionStateChange(reason: "auto_session_queued_offline")
+            print("[ParkingMagic] Event queued for offline sync.")
+          } else {
+            print("[ParkingMagic] Non-retryable submit failure. Not queueing event.")
+          }
         }
 
         completion?(success)

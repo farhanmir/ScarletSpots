@@ -1,6 +1,7 @@
 import { Platform } from "react-native";
 import * as Location from "expo-location";
 import { Pedometer } from "expo-sensors";
+import { getCapabilityStatus } from "../../../modules/parking-magic";
 
 export function hasPreciseLocation(
   fg: Location.LocationPermissionResponse,
@@ -46,25 +47,36 @@ export interface AutoParkCapabilityStatus {
  * Snapshot of permissions affecting auto-park. Call on launch and when AppState → active.
  */
 export async function getAutoParkCapability(): Promise<AutoParkCapabilityStatus> {
-  const fg = await Location.getForegroundPermissionsAsync();
-  const bg = await Location.getBackgroundPermissionsAsync();
-  const precise = hasPreciseLocation(fg);
-  const motion = await Pedometer.getPermissionsAsync();
+  try {
+    const native = await getCapabilityStatus();
+    return {
+      ok: native.ok,
+      reasons: native.reasons,
+      backgroundLocationOk: native.backgroundLocationOk,
+      motionOk: native.motionOk,
+    };
+  } catch {
+    // Fallback for environments where native module is unavailable.
+    const fg = await Location.getForegroundPermissionsAsync();
+    const bg = await Location.getBackgroundPermissionsAsync();
+    const precise = hasPreciseLocation(fg);
+    const motion = await Pedometer.getPermissionsAsync();
 
-  const reasons: AutoParkBlockedReason[] = [];
-  if (fg.status !== "granted") reasons.push("location_foreground");
-  if (bg.status !== "granted") reasons.push("location_background");
-  if (!precise) reasons.push("location_imprecise");
-  if (motion.status !== "granted") reasons.push("motion");
+    const reasons: AutoParkBlockedReason[] = [];
+    if (fg.status !== "granted") reasons.push("location_foreground");
+    if (bg.status !== "granted") reasons.push("location_background");
+    if (!precise) reasons.push("location_imprecise");
+    if (motion.status !== "granted") reasons.push("motion");
 
-  const backgroundLocationOk =
-    fg.status === "granted" && bg.status === "granted" && precise;
-  const motionOk = motion.status === "granted";
+    const backgroundLocationOk =
+      fg.status === "granted" && bg.status === "granted" && precise;
+    const motionOk = motion.status === "granted";
 
-  return {
-    ok: backgroundLocationOk && motionOk,
-    reasons,
-    backgroundLocationOk,
-    motionOk,
-  };
+    return {
+      ok: backgroundLocationOk && motionOk,
+      reasons,
+      backgroundLocationOk,
+      motionOk,
+    };
+  }
 }

@@ -93,16 +93,22 @@ class OfflineQueueManager {
         longitude: event.longitude,
         source: event.source,
         idempotencyKey: event.idempotencyKey
-      ) { success, _ in
+      ) { success, _, retryable in
         if success {
           print("[OfflineQueue] Successfully flushed event \(event.id). Removing from queue.")
           self.removeEvent(id: event.id)
           onEventFlushed?(event)
         } else {
-          self.queueStore.async {
-            self.inFlightEventIds.remove(event.id)
+          if retryable {
+            self.queueStore.async {
+              self.inFlightEventIds.remove(event.id)
+            }
+            print("[OfflineQueue] Failed to flush event. Retrying later.")
+          } else {
+            // Non-retryable (e.g., 4xx validation/auth) should not loop forever.
+            print("[OfflineQueue] Non-retryable flush failure for \(event.id). Dropping event.")
+            self.removeEvent(id: event.id)
           }
-          print("[OfflineQueue] Failed to flush event. Retrying later.")
         }
       }
     }

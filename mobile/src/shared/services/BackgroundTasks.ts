@@ -64,14 +64,11 @@ export function initBackgroundListeners(): () => void {
   };
 }
 
-// Compatibility-only shims to isolate removed JS detection path.
-// Native Swift controls actual auto-start decisions now.
+// Compatibility shims retained so confirmation UI paths remain stable while
+// orchestration logic is migrated fully to native.
 export async function runParkingDetectionFromLocation(
   _location: Location.LocationObject,
 ): Promise<ParkingCandidate[]> {
-  BackgroundLogger.info(
-    "[BackgroundTask] Ignored JS detection call: native diagnostics path is authoritative.",
-  );
   return [];
 }
 
@@ -80,9 +77,8 @@ export async function getPendingParkingCandidates(): Promise<ParkingCandidate[]>
 }
 
 export async function clearPendingParkingCandidates(): Promise<void> {
-  // no-op: retained for compatibility with existing screens
+  // no-op
 }
 
-// Legacy constants kept for any remaining import sites during migration
 export const PARKING_DETECTION_TASK = "PARKING_DETECTION_TASK";
 export const LOCATION_TRACKING_TASK = "LOCATION_TRACKING_TASK";

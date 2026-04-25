@@ -89,12 +89,12 @@ class NetworkManager {
     source: String,
     autoStarted: Bool = true,
     idempotencyKey: String? = nil,
-    completion: @escaping (Bool, String?) -> Void
+    completion: @escaping (Bool, String?, Bool) -> Void
   ) {
     guard let creds = credentials(),
           let url = URL(string: "\(creds.baseUrl)/api/v1/park/session") else {
       print("[NetworkManager] Not configured.")
-      DispatchQueue.main.async { completion(false, nil) }
+      DispatchQueue.main.async { completion(false, nil, false) }
       return
     }
     
@@ -121,16 +121,19 @@ class NetworkManager {
     let task = session.dataTask(with: request) { _, response, error in
       if let error = error {
         print("[NetworkManager] Request failed: \(error.localizedDescription)")
-        DispatchQueue.main.async { completion(false, eventId) }
+        // Transport failures are retryable/offline-like.
+        DispatchQueue.main.async { completion(false, eventId, true) }
         return
       }
       
       if let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) {
         print("[NetworkManager] Parking event reported successfully.")
-        DispatchQueue.main.async { completion(true, eventId) }
+        DispatchQueue.main.async { completion(true, eventId, false) }
       } else {
-        print("[NetworkManager] Server returned error status.")
-        DispatchQueue.main.async { completion(false, eventId) }
+        let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
+        let retryable = statusCode == 408 || statusCode == 429 || statusCode >= 500
+        print("[NetworkManager] Server returned error status: \(statusCode), retryable=\(retryable)")
+        DispatchQueue.main.async { completion(false, eventId, retryable) }
       }
     }
     task.resume()

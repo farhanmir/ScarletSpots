@@ -140,6 +140,7 @@ export interface NativeParkingSession {
 export interface NativeSessionResponse {
   success: boolean;
   _offline?: boolean;
+  error?: string;
   session: NativeParkingSession | null;
 }
 
@@ -148,10 +149,26 @@ export interface NativeSessionEndResponse {
   _offline?: boolean;
 }
 
+export interface NativeSessionStoreState {
+  activeAutoSession: boolean;
+  session: NativeParkingSession | null;
+  reason?: string;
+}
+
+export interface NativeCapabilityStatus {
+  ok: boolean;
+  reasons: Array<
+    "location_foreground" | "location_background" | "location_imprecise" | "motion"
+  >;
+  backgroundLocationOk: boolean;
+  motionOk: boolean;
+}
+
 declare class ParkingMagicModule extends NativeModule {
   startSensing(): void;
   stopSensing(): void;
   getSystemHealthAsync(): Promise<SystemHealthStatus>;
+  getCapabilityStatusAsync(): Promise<NativeCapabilityStatus>;
   syncUserData(
     url: string,
     token: string,
@@ -165,6 +182,8 @@ declare class ParkingMagicModule extends NativeModule {
   getLotPolygonsAsync(): Promise<LotPolygon[]>;
   getNativeSessionStateAsync(): Promise<NativeSessionState>;
   getActiveParkingSessionAsync(): Promise<NativeSessionResponse>;
+  getSessionStateAsync(): Promise<NativeSessionStoreState>;
+  refreshSessionStateAsync(): Promise<NativeSessionStoreState>;
   startParkingSessionAsync(
     lotId: string,
     latitude: number,
@@ -237,6 +256,12 @@ export function addParkingListener(listener: (event: ParkingEvent) => void) {
   return emitter.addListener('onParkingEvent', listener);
 }
 
+export function addSessionStateListener(
+  listener: (state: NativeSessionStoreState) => void,
+) {
+  return emitter.addListener("onSessionStateChanged", listener);
+}
+
 export function addAutoParkDiagnosticsListener(
   listener: (event: AutoParkLiveSnapshot) => void,
 ) {
@@ -245,6 +270,10 @@ export function addAutoParkDiagnosticsListener(
 
 export async function getSystemHealth(): Promise<SystemHealthStatus> {
   return await module.getSystemHealthAsync();
+}
+
+export async function getCapabilityStatus(): Promise<NativeCapabilityStatus> {
+  return await module.getCapabilityStatusAsync();
 }
 
 export async function resolveLotAt(latitude: number, longitude: number): Promise<ResolvedLot> {
@@ -263,6 +292,14 @@ export async function getNativeSessionState(): Promise<NativeSessionState> {
 
 export async function getActiveParkingSession(): Promise<NativeSessionResponse> {
   return await module.getActiveParkingSessionAsync();
+}
+
+export async function getSessionState(): Promise<NativeSessionStoreState> {
+  return await module.getSessionStateAsync();
+}
+
+export async function refreshSessionState(): Promise<NativeSessionStoreState> {
+  return await module.refreshSessionStateAsync();
 }
 
 export async function startParkingSession(params: {

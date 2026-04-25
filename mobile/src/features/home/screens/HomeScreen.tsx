@@ -46,8 +46,6 @@ import {
 } from "@/shared/services/ParkingDetectionService";
 import {
   fetchWithOfflineFallback,
-  clearCachedSession,
-  cacheSession,
   cacheFavorites,
   getCachedFavorites,
 } from "@/shared/services/OfflineCache";
@@ -71,9 +69,13 @@ import { createAuthedWebSocket } from "@/shared/services/authedWebSocket";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   endParkingSession as endNativeParkingSession,
-  getActiveParkingSession,
   startParkingSession,
 } from "../../../../modules/parking-magic";
+import {
+  bootstrapSessionStore,
+  refreshSessionStore,
+  subscribeSessionStore,
+} from "@/shared/services/NativeSessionStore";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -199,7 +201,6 @@ export default function MapScreen() {
     secondaryPermitType,
     noPermitMode,
     enabledCampuses,
-    loading: authLoading,
   } = useAuth();
   const queryClient = useQueryClient();
   const mapRef = useRef<MapView>(null);
@@ -217,9 +218,10 @@ export default function MapScreen() {
   } | null>(null);
   const [loading, setLoading] = useState(false);
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>("campus");
-  const [pendingCandidates, setPendingCandidates] = useState<
-    ParkingCandidate[]
-  >([]);
+  const [activeSession, setActiveSession] = useState<ParkingSession | null>(null);
+  const [pendingCandidates, setPendingCandidates] = useState<ParkingCandidate[]>(
+    [],
+  );
   const [isConfirming, setIsConfirming] = useState(false);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [isCenterButtonPressed, setIsCenterButtonPressed] = useState(false);
@@ -316,19 +318,48 @@ export default function MapScreen() {
 
   // ── Active Session ─────────────────────────────────────────────────────
 
-  const { data: sessionData } = useQuery<{ session: ParkingSession | null }>({
-    queryKey: ["session", "active"],
-    queryFn: async () => {
-      const data = await getActiveParkingSession();
-      return { session: (data.session as ParkingSession | null) ?? null };
-    },
-    enabled: !!user,
-    staleTime: 1000 * 60 * 2.5,
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
-  });
+  useEffect(() => {
+    if (!user) {
+      setActiveSession(null);
+      return;
+    }
 
-  const activeSession = sessionData?.session ?? null;
+    let mounted = true;
+    bootstrapSessionStore()
+      .then((state) => {
+        if (mounted) setActiveSession((state.session as ParkingSession | null) ?? null);
+      })
+      .catch(() => {
+        if (mounted) setActiveSession(null);
+      });
+
+    const unsubscribe = subscribeSessionStore((state) => {
+      if (!mounted) return;
+      setActiveSession((state.session as ParkingSession | null) ?? null);
+    });
+
+    void refreshSessionStore().catch(() => {});
+
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
+  }, [user?.id]);
+
+  // Keep legacy confirmation UI active while candidate production completes migration.
+  useEffect(() => {
+    if (!user) {
+      setPendingCandidates([]);
+      return;
+    }
+    let cancelled = false;
+    void getPendingParkingCandidates().then((candidates) => {
+      if (!cancelled) setPendingCandidates(candidates);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, activeSession?.id]);
 
   useEffect(() => {
     if (!location || !regionRef.current) {
@@ -585,67 +616,7 @@ export default function MapScreen() {
     [queryClient],
   );
 
-  // ── Pending Parking Detection: load candidates; auto-start if none active ─
-
-  const hasAutoStartedRef = useRef(false);
-  useEffect(() => {
-    if (authLoading) return;
-    if (!user) {
-      queryClient.setQueryData(["session", "active"], { session: null });
-      setPendingCandidates([]);
-      hasAutoStartedRef.current = false;
-      return;
-    }
-    getPendingParkingCandidates().then(async (candidates) => {
-      if (candidates.length === 0) {
-        hasAutoStartedRef.current = false;
-        return;
-      }
-      const currentSession =
-        queryClient.getQueryData<{ session: ParkingSession | null }>([
-          "session",
-          "active",
-        ])?.session ?? null;
-      if (currentSession) {
-        await clearPendingParkingCandidates();
-        setPendingCandidates([]);
-        return;
-      }
-      if (hasAutoStartedRef.current) return;
-      hasAutoStartedRef.current = true;
-      const top = candidates[0];
-      const payload = {
-        lotId: top.lotId,
-        latitude: top.latitude,
-        longitude: top.longitude,
-        autoStarted: true,
-      };
-      setPendingCandidates([]);
-      await clearPendingParkingCandidates();
-      try {
-        const data = await startParkingSession({
-          lotId: payload.lotId,
-          latitude: payload.latitude,
-          longitude: payload.longitude,
-          autoStarted: true,
-          source: "motion_activity",
-        });
-        if (data?.success && data?.session) {
-          queryClient.setQueryData(["session", "active"], {
-            session: data.session as ParkingSession,
-          });
-          await cacheSession({ session: data.session as ParkingSession }, currentUserId);
-          updateOptimisticOccupancy(top.lotId, 1);
-        } else {
-          setPendingCandidates(candidates);
-          hasAutoStartedRef.current = false;
-        }
-      } catch {
-        setPendingCandidates(candidates);
-        hasAutoStartedRef.current = false;
-      }
-    });
-  }, [user, queryClient, updateOptimisticOccupancy, currentUserId]);
+  // Auto-start detection/session orchestration is native-owned.
 
   // ── Location Permission ────────────────────────────────────────────────
 
@@ -819,9 +790,9 @@ export default function MapScreen() {
           lotId: lot.id,
           startTime: new Date().toISOString(),
         };
-        queryClient.setQueryData(["session", "active"], { session });
-        cacheSession({ session }, currentUserId).catch(() => {});
+        setActiveSession(session);
         updateOptimisticOccupancy(lot.id, 1);
+        void refreshSessionStore().catch(() => {});
         setSelectedLotId(null);
         if (data._offline) {
           Alert.alert(
@@ -829,6 +800,13 @@ export default function MapScreen() {
             `Session at ${lot.shortName} will sync when back online.`,
           );
         }
+      } else {
+        Alert.alert(
+          "Parking Rejected",
+          data?.error === "server_rejected"
+            ? "Server rejected this parking request. Please check your account/session and try again."
+            : "Unable to start parking session.",
+        );
       }
     } catch (e: any) {
       Alert.alert("Error", e.message || "Failed to start parking session");
@@ -846,14 +824,15 @@ export default function MapScreen() {
       const data = await endNativeParkingSession();
       if (data?.success) {
         const lotIdToRemove = activeSession.lotId;
-        queryClient.setQueryData(["session", "active"], { session: null });
+        setActiveSession(null);
         updateOptimisticOccupancy(lotIdToRemove, -1);
-        clearCachedSession(currentUserId).catch(() => {});
+        void refreshSessionStore().catch(() => {});
         setSelectedLotId(null);
         setSelectedPlace(null);
       } else if (!data) {
-        queryClient.setQueryData(["session", "active"], { session: null });
-        clearCachedSession(currentUserId).catch(() => {});
+        setActiveSession(null);
+      } else {
+        Alert.alert("Error", "Server rejected end-session request.");
       }
     } catch {
       Alert.alert("Error", "Failed to end session");
@@ -897,34 +876,25 @@ export default function MapScreen() {
   }, [activeSession, lots]);
 
   // ── Confirm Parking (from detection) ──────────────────────────────────
-
   const handleConfirmParking = async (candidate: ParkingCandidate) => {
     if (!user) return;
     setIsConfirming(true);
     try {
-      const payload = {
+      const data = await startParkingSession({
         lotId: candidate.lotId,
         latitude: candidate.latitude,
         longitude: candidate.longitude,
-      };
-      const data = await startParkingSession({
-        lotId: payload.lotId,
-        latitude: payload.latitude,
-        longitude: payload.longitude,
         autoStarted: true,
         source: "motion_activity",
       });
       if (data?.success && data?.session) {
-        queryClient.setQueryData(["session", "active"], {
-          session: data.session as ParkingSession,
-        });
-        cacheSession({ session: data.session as ParkingSession }, currentUserId).catch(
-          () => {},
-        );
+        setActiveSession(data.session as ParkingSession);
         updateOptimisticOccupancy(candidate.lotId, 1);
         await clearPendingParkingCandidates();
         setPendingCandidates([]);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else {
+        Alert.alert("Unable to confirm", "Parking session was rejected by server.");
       }
     } catch {
       Alert.alert("Error", "Failed to confirm detected parking");
@@ -1519,6 +1489,7 @@ export default function MapScreen() {
             onPress={() => {}}
           />
         ))}
+
       </MapView>
 
       {/* Center-on-me button */}
@@ -1734,6 +1705,7 @@ export default function MapScreen() {
           isLoading={isConfirming}
         />
       )}
+
     </View>
   );
 }
