@@ -37,3 +37,30 @@ def test_heuristic_forecast_provider():
     assert provider._get_label(70) == "high"
     assert provider._get_label(40) == "medium"
     assert provider._get_label(10) == "low"
+
+
+def test_bootstrap_snapshot_seeds_when_empty():
+    provider = HeuristicForecastProvider()
+    payload = provider.bootstrap_current_snapshot(
+        lot_id="10001",
+        current_occupancy=0,
+        capacity=250,
+        should_seed=True,
+    )
+    current = payload["current"]
+    assert current["source"] == "seeded_heuristic"
+    assert 0 <= current["count"] <= 250
+    assert 0 <= current["occupancy_rate"] <= 100
+
+
+def test_bootstrap_snapshot_keeps_realtime_count_when_present():
+    provider = HeuristicForecastProvider()
+    payload = provider.bootstrap_current_snapshot(
+        lot_id="10001",
+        current_occupancy=42,
+        capacity=250,
+        should_seed=True,
+    )
+    current = payload["current"]
+    assert current["source"] == "realtime"
+    assert current["count"] == 42

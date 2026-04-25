@@ -38,6 +38,7 @@ import {
   isLotAvailableNow,
   isSecondaryPermitAvailableNow,
   applyOccupancy,
+  occupancyRowsToMap,
   getAllLots,
   RutgersLot,
 } from "@/shared/constants/lots";
@@ -92,11 +93,10 @@ export default function LotDetailsScreen() {
     queryFn: async () => {
       const data = await publicApiCall("/lots/occupancy");
       const rows = Array.isArray(data?.occupancy) ? data.occupancy : [];
-      const occupancyMap: Record<string, number> = {};
-      for (const row of rows) {
-        occupancyMap[row.lot_id] = row.count ?? 0;
-      }
-      return applyOccupancy(getAllLots(ENABLE_ALL_CAMPUSES), occupancyMap);
+      const lots = getAllLots(ENABLE_ALL_CAMPUSES);
+      const lotIndex = new Map(lots.map((lot) => [lot.id, lot]));
+      const occupancyMap = occupancyRowsToMap(rows, lotIndex);
+      return applyOccupancy(lots, occupancyMap);
     },
     staleTime: 1000 * 60 * 2,
   });

@@ -25,7 +25,19 @@ SUPABASE_JWT_SECRET=your-supabase-jwt-secret
 SUPABASE_JWT_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"
 DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/scarletspots
 REDIS_URL=redis://localhost:6379/0
+ENABLE_HEURISTIC_SEEDED_OCCUPANCY=True
+TRAFFIC_PROVIDER=none
+TOMTOM_API_KEY=
+TRAFFIC_CACHE_TTL_SECONDS=300
 ```
+
+### Bootstrap forecasting flags
+
+- `ENABLE_HEURISTIC_SEEDED_OCCUPANCY`: when true, `/lots/occupancy` seeds non-zero
+  counts for sparse lots using the heuristic model.
+- `TRAFFIC_PROVIDER`: `none` or `tomtom`; affects the traffic multiplier in heuristic forecasts.
+- `TOMTOM_API_KEY`: required when `TRAFFIC_PROVIDER=tomtom`.
+- `TRAFFIC_CACHE_TTL_SECONDS`: cache TTL for traffic lookups to avoid API churn.
 
 ## Run locally (native Python)
 

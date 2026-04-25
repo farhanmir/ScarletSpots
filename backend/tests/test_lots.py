@@ -2,11 +2,30 @@
 Tests for the lots router: occupancy aggregate and forecasting.
 """
 
+from types import SimpleNamespace
+
+import pytest
 from fastapi.testclient import TestClient
 
+from app.core.attestation import require_high_value_access
+from app.core.security import get_current_user
 from app.main import app
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def _override_auth():
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(
+        id="00000000-0000-0000-0000-000000000123"
+    )
+    app.dependency_overrides[require_high_value_access] = lambda: {
+        "allowed": True,
+        "reason": "test",
+    }
+    yield
+    app.dependency_overrides.pop(get_current_user, None)
+    app.dependency_overrides.pop(require_high_value_access, None)
 
 
 def test_health():
@@ -58,3 +77,18 @@ def test_get_all_occupancy():
     assert response.status_code == 200
     data = response.json()
     assert isinstance(data, dict)
+    rows = data.get("occupancy") or []
+    if rows:
+        sample = rows[0]
+        assert "lot_id" in sample
+        assert "count" in sample
+        assert "source" in sample
+        assert "confidence_interval" in sample
+
+
+def test_get_all_occupancy_returns_seeded_rows_when_no_realtime_data():
+    response = client.get("/api/v1/lots/occupancy")
+    assert response.status_code == 200
+    rows = response.json().get("occupancy") or []
+    # During bootstrap phase, at least one lot should be synthetic when sparse.
+    assert any(row.get("source") in {"seeded_heuristic", "realtime"} for row in rows)

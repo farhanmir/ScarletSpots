@@ -9,26 +9,59 @@ This router only handles:
   2. Occupancy    — GET /lots/occupancy  (aggregate for all lots)
 """
 
+import json
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi_cache.decorator import cache as fastapi_cache
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.limiter import limiter
 from app.core.logger import get_logger
-from app.core.security import get_current_user
 from app.core.attestation import require_high_value_access
+from app.core.security import get_current_user
 from app.models.parking import LotOccupancy
 from app.services.forecast_provider import ForecastProvider
+from app.services.forecasting import HeuristicForecastProvider
 from app.services.ml_forecast_provider import MLForecastProvider
 
 log = get_logger(__name__)
 
 router = APIRouter(prefix="/lots", tags=["lots"])
 
+
+def _load_lot_capacities() -> dict[str, int]:
+    lot_data_path = Path(__file__).parent.parent / "services" / "rutgers_parking_data.json"
+    try:
+        with lot_data_path.open("r", encoding="utf-8") as fh:
+            payload = json.load(fh)
+    except Exception:
+        return {}
+    capacities: dict[str, int] = {}
+    if not isinstance(payload, list):
+        return capacities
+    for lot in payload:
+        if not isinstance(lot, dict):
+            continue
+        lot_id = str(lot.get("mapId") or "").strip()
+        if not lot_id:
+            continue
+        try:
+            capacity = int(lot.get("totalSpaces") or 0)
+        except Exception:
+            capacity = 0
+        if capacity > 0:
+            capacities[lot_id] = capacity
+    return capacities
+
+
 # Singleton — model files are cached in memory once loaded
 _ml_provider = MLForecastProvider()
+_heuristic_provider = HeuristicForecastProvider()
+_lot_capacities = _load_lot_capacities()
 
 
 def _get_forecast_provider() -> ForecastProvider:
@@ -47,17 +80,48 @@ async def get_all_occupancy(
     """Return current occupancy counts for all lots from the lot_occupancy table."""
     try:
         rows = (await db.execute(select(LotOccupancy))).scalars().all()
-        return {
-            "occupancy": [
+        by_lot = {row.lot_id: row for row in rows}
+        occupancy_payload = []
+
+        for lot_id, capacity in _lot_capacities.items():
+            row = by_lot.get(lot_id)
+            observed_count = int(row.count) if row else 0
+            should_seed = settings.ENABLE_HEURISTIC_SEEDED_OCCUPANCY and observed_count <= 0
+            bootstrap = _heuristic_provider.bootstrap_current_snapshot(
+                lot_id=lot_id,
+                current_occupancy=observed_count,
+                capacity=capacity,
+                should_seed=should_seed,
+            )
+            current = bootstrap["current"]
+            occupancy_payload.append(
+                {
+                    "lot_id": lot_id,
+                    "count": current["count"],
+                    "occupancy_rate": current["occupancy_rate"],
+                    "source": current["source"],
+                    "confidence_interval": current["confidence_interval"],
+                    "updated_at": row.updated_at if row else None,
+                }
+            )
+
+        # Preserve lots that exist in DB but are missing from bundled metadata.
+        known_lot_ids = set(_lot_capacities.keys())
+        for row in rows:
+            if row.lot_id in known_lot_ids:
+                continue
+            occupancy_payload.append(
                 {
                     "lot_id": row.lot_id,
                     "count": row.count,
-                    "confidence_interval": 0.05,  # 5% uncertainty default
+                    "occupancy_rate": None,
+                    "source": "realtime",
+                    "confidence_interval": 0.05,
                     "updated_at": row.updated_at,
                 }
-                for row in rows
-            ]
-        }
+            )
+
+        return {"occupancy": occupancy_payload}
     except Exception as exc:
         log.error("Failed to fetch occupancy: %s", exc)
         raise HTTPException(status_code=500, detail="Failed to fetch occupancy")
@@ -89,7 +153,15 @@ def get_lot_forecast(
         return {"slices": [], "curve": []}
     try:
         forecast = provider.get_lot_forecast(lot_id, current_occupancy, capacity)
-        return forecast
+        return {
+            "current": {
+                "count": current_occupancy,
+                "occupancy_rate": round((current_occupancy / max(1, capacity)) * 100, 1),
+                "source": "realtime",
+            },
+            "forecast": forecast,
+            **forecast,
+        }
     except Exception as exc:
         log.error("Forecast failed for lot %s: %s", lot_id, exc)
         raise HTTPException(status_code=500, detail="Failed to generate forecast")

@@ -123,6 +123,13 @@ export interface RutgersLot {
   occupancyRate: number;
 }
 
+export interface BackendOccupancyRow {
+  lot_id: string;
+  count?: number | null;
+  occupancy_rate?: number | null;
+  source?: "realtime" | "seeded_heuristic" | "ml" | string;
+}
+
 // ── Campus filter constants ────────────────────────────────────────────────
 
 /** Region codes treated as "New Brunswick" (default enabled campus). */
@@ -294,6 +301,32 @@ export function applyOccupancy(
       lot.capacity > 0 ? Math.min(100, (count / lot.capacity) * 100) : 0;
   }
   return lots;
+}
+
+/**
+ * Converts backend occupancy rows into a normalized lot_id -> count map.
+ * Supports seeded heuristic rows where source may be "seeded_heuristic".
+ */
+export function occupancyRowsToMap(
+  rows: BackendOccupancyRow[],
+  lotIndex?: Map<string, RutgersLot>,
+): Record<string, number> {
+  const occupancyMap: Record<string, number> = {};
+  for (const row of rows) {
+    const lotId = String(row?.lot_id ?? "");
+    if (!lotId) continue;
+
+    const lot = lotIndex?.get(lotId);
+    const capacity = Math.max(0, lot?.capacity ?? 0);
+    const rawCount = Number(row?.count ?? 0);
+    const normalized = Number.isFinite(rawCount) ? rawCount : 0;
+
+    occupancyMap[lotId] =
+      capacity > 0
+        ? Math.min(capacity, Math.max(0, Math.round(normalized)))
+        : Math.max(0, Math.round(normalized));
+  }
+  return occupancyMap;
 }
 
 // ── Permit helpers ─────────────────────────────────────────────────────────

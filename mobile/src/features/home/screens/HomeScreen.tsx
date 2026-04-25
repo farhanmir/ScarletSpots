@@ -56,6 +56,7 @@ import { queueParkAction } from "@/shared/services/OfflineQueue";
 import {
   getAllLots,
   applyOccupancy,
+  occupancyRowsToMap,
   getPermitLotIdsUnion,
   ALL_COMMUTER_LOT_IDS,
   isLotAvailableNow,
@@ -267,12 +268,10 @@ export default function MapScreen() {
         const data = await authApiCall("/lots/occupancy");
         if (!data) return STATIC_LOTS.map((l) => ({ ...l }));
         const rows = Array.isArray(data?.occupancy) ? data.occupancy : [];
-
-        const occupancyMap: Record<string, number> = {};
-        for (const row of rows) {
-          occupancyMap[row.lot_id] = row.count ?? 0;
-        }
-        return applyOccupancy(getAllLots(ENABLE_ALL_CAMPUSES), occupancyMap);
+        const lots = getAllLots(ENABLE_ALL_CAMPUSES);
+        const lotIndex = new Map(lots.map((lot) => [lot.id, lot]));
+        const occupancyMap = occupancyRowsToMap(rows, lotIndex);
+        return applyOccupancy(lots, occupancyMap);
       } catch {
         // If the query fails, return static data with 0 occupancy
         return STATIC_LOTS.map((l) => ({ ...l }));

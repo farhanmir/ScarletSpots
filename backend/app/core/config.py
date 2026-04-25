@@ -31,6 +31,12 @@ class Settings(BaseSettings):
     # Redis (local, no auth by default)
     REDIS_URL: str = Field(default="redis://localhost:6379/0")
 
+    # Bootstrap forecasting controls
+    ENABLE_HEURISTIC_SEEDED_OCCUPANCY: bool = Field(default=True)
+    TRAFFIC_PROVIDER: str = Field(default="none")
+    TOMTOM_API_KEY: str = Field(default="")
+    TRAFFIC_CACHE_TTL_SECONDS: int = Field(default=300)
+
     # High-value endpoint controls
     REQUIRE_AUTH_ON_AVAILABILITY: bool = Field(default=True)
     REQUIRE_ATTESTATION_ON_AVAILABILITY: bool = Field(default=False)
