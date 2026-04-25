@@ -9,7 +9,7 @@ public struct ParkingAttributes: ActivityAttributes {
   }
 }
 
-@available(iOS 16.1, *)
+@available(iOS 16.2, *)
 class LiveActivityManager {
   static let shared = LiveActivityManager()
   

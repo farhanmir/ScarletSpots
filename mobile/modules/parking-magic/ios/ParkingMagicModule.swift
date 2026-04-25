@@ -31,7 +31,7 @@ private struct AutoParkLiveSnapshot: Codable {
   let checks: [AutoParkGateCheck]
 }
 
-public class ParkingMagicModule: Module, CLLocationManagerDelegate {
+public class ParkingMagicModule: NSObject, Module, CLLocationManagerDelegate {
   private let locationManager = CLLocationManager()
   private let motionManager = CMMotionActivityManager()
   private let userDefaults = UserDefaults.standard
@@ -250,7 +250,7 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
           if endSuccess {
             self.lastParkingEventAt = nil
             self.setActiveAutoSession(false)
-            if #available(iOS 16.1, *) {
+            if #available(iOS 16.2, *) {
               LiveActivityManager.shared.stopActivity()
             }
           } else {
@@ -262,7 +262,7 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
             "startSuccess": startSuccess,
             "endSuccess": endSuccess,
             "activeAfter": self.hasActiveAutoSession,
-            "error": endSuccess ? NSNull() : "end_failed"
+            "error": endSuccess ? (NSNull() as Any) : ("end_failed" as Any)
           ])
         }
       }
@@ -703,7 +703,7 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
           self.setActiveAutoSession(false)
           self.parkedLocation = nil
           self.drivingAwayStartAt = nil
-          if #available(iOS 16.1, *) {
+          if #available(iOS 16.2, *) {
             LiveActivityManager.shared.stopActivity()
           }
         }
@@ -805,7 +805,7 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
             decisionReasonCode: "session_started"
           )
           self.publishDiagnostics(startedSnapshot)
-          if #available(iOS 16.1, *) {
+          if #available(iOS 16.2, *) {
             LiveActivityManager.shared.startParkingActivity(lotName: lotName ?? "Unknown Lot")
           }
         } else {
@@ -875,7 +875,9 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
         HapticManager.shared.playGuidancePulse(distance: distance)
       }
       
-      LiveActivityManager.shared.updateActivity(distance: "\(Int(distance))m")
+      if #available(iOS 16.2, *) {
+        LiveActivityManager.shared.updateActivity(distance: "\(Int(distance))m")
+      }
     }
 
     evaluateFallbackDeparture(location: location)
@@ -918,7 +920,7 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
     switch reason {
     case .oldDeviceUnavailable:
       let previousRoute = userInfo[AVAudioSessionRouteChangePreviousRouteKey] as? AVAudioSessionRouteDescription
-      let hasCarPlay = previousRoute?.outputs.contains(where: { $0.portType == .carPlay }) ?? false
+      let hasCarPlay = previousRoute?.outputs.contains(where: { $0.portType == .carAudio }) ?? false
       let source = hasCarPlay ? "carplay_disconnect" : "bluetooth_disconnect"
       print("[ParkingMagic] Bluetooth/CarPlay Disconnected - Detecting Arrival")
       emitParkingEvent(source: source)
@@ -939,3 +941,4 @@ extension ParkingMagicModule {
     }
   }
 }
+

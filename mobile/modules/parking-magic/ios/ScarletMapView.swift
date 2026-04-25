@@ -12,7 +12,7 @@ class ScarletMapView: ExpoView, MKMapViewDelegate {
     clipsToBounds = true
     mapView.delegate = self
     mapView.showsUserLocation = true
-    mapView.register(MKMarkerAnnotationView.self, forAnnotationViewWithIdentifier: MKMapViewDefaultAnnotationViewReuseIdentifier)
+    mapView.register(MKMarkerAnnotationView.self, forAnnotationViewWithReuseIdentifier: MKMapViewDefaultAnnotationViewReuseIdentifier)
     addSubview(mapView)
 
     let tap = UITapGestureRecognizer(target: self, action: #selector(handleMapTap(_:)))
@@ -78,12 +78,10 @@ class ScarletMapView: ExpoView, MKMapViewDelegate {
       renderer.fillColor = UIColor.systemBlue.withAlphaComponent(0.35)
       renderer.strokeColor = UIColor.systemBlue
       renderer.lineWidth = 2
-      renderer.zPosition = 2
     } else {
       renderer.fillColor = UIColor.systemRed.withAlphaComponent(0.2)
       renderer.strokeColor = UIColor.systemRed.withAlphaComponent(0.8)
       renderer.lineWidth = 1
-      renderer.zPosition = 1
     }
   }
 
