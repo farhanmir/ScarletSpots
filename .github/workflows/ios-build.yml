@@ -45,6 +45,13 @@ jobs:
           HUSKY: 0
         run: npm ci
 
+      - name: Remove Expo dev client for sideload Release build
+        working-directory: mobile
+        run: |
+          # expo-dev-client pulls expo-dev-menu/launcher pods, which fail on
+          # hosted Xcode beta images missing matching simulator runtimes.
+          npm uninstall expo-dev-client --no-save
+
       - name: Validate required Expo environment variables
         env:
           EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
