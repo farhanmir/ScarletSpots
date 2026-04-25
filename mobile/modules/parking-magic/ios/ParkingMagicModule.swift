@@ -108,6 +108,39 @@ public class ParkingMagicModule: Module {
       (-90.0...90.0).contains(latitude) &&
       (-180.0...180.0).contains(longitude)
   }
+
+  // Bridging helper: Swift Optional.none bridged through `as Any` into a
+  // [String: Any] can raise NSInvalidArgumentException when the dict is
+  // serialized for the TurboModule bridge. Always substitute NSNull() for nil.
+  private func nsAny(_ value: Any?) -> Any {
+    if let value = value {
+      if case Optional<Any>.none = value {
+        return NSNull()
+      }
+      return value
+    }
+    return NSNull()
+  }
+
+  // Run a block that emits to the bridge (sendEvent / promise.resolve) inside
+  // an Obj-C @try/@catch so a malformed payload cannot abort the process.
+  private func guardBridge(_ label: String, _ work: @escaping () -> Void) {
+    if let exception = ObjCExceptionCatcher.tryBlock({ work() }) {
+      print("[ParkingMagic] Bridge call \(label) raised NSException: name=\(exception.name.rawValue) reason=\(exception.reason ?? "<nil>")")
+    }
+  }
+
+  private func safeSendEvent(_ name: String, _ payload: [String: Any]) {
+    guardBridge("sendEvent(\(name))") {
+      self.sendEvent(name, payload)
+    }
+  }
+
+  private func safeResolve(_ promise: Promise, _ value: Any) {
+    guardBridge("promise.resolve") {
+      promise.resolve(value)
+    }
+  }
   
   public func definition() -> ModuleDefinition {
     Name("ParkingMagic")
@@ -122,33 +155,37 @@ public class ParkingMagicModule: Module {
     }
 
     Function("syncUserData") { (url: String, token: String, permit: String, pinnedCertHashes: [String], ownerId: String) in
-      self.userPermit = permit
-      self.currentOwnerId = ownerId.isEmpty ? nil : ownerId
-      NetworkManager.shared.configure(url: url, token: token, pinnedCertHashes: pinnedCertHashes)
-      OfflineQueueManager.shared.configureOwner(self.currentOwnerId)
-      self.reconcileActiveSessionFromServer()
-      // Prime the offline queue flush on sync
-      OfflineQueueManager.shared.flushQueue { event in
-        self.setActiveAutoSession(true)
-        self.parkedLocation = CLLocation(latitude: event.latitude, longitude: event.longitude)
-        self.drivingAwayStartAt = nil
+      self.guardBridge("syncUserData") {
+        self.userPermit = permit
+        self.currentOwnerId = ownerId.isEmpty ? nil : ownerId
+        NetworkManager.shared.configure(url: url, token: token, pinnedCertHashes: pinnedCertHashes)
+        OfflineQueueManager.shared.configureOwner(self.currentOwnerId)
+        self.reconcileActiveSessionFromServer()
+        // Prime the offline queue flush on sync
+        OfflineQueueManager.shared.flushQueue { event in
+          self.setActiveAutoSession(true)
+          self.parkedLocation = CLLocation(latitude: event.latitude, longitude: event.longitude)
+          self.drivingAwayStartAt = nil
+        }
+        print("[ParkingMagic] Synced user data. Permit: \(permit)")
       }
-      print("[ParkingMagic] Synced user data. Permit: \(permit)")
     }
 
     Function("resetUserData") {
-      self.userPermit = nil
-      self.currentOwnerId = nil
-      NetworkManager.shared.reset()
-      VultureManager.shared.reset()
-      OfflineQueueManager.shared.clear()
-      self.setActiveAutoSession(false)
-      self.parkedLocation = nil
-      self.drivingAwayStartAt = nil
-      self.activeSessionLotId = nil
-      self.activeSessionStartedAt = nil
-      self.emitSessionStateChange(reason: "reset_user_data")
-      print("[ParkingMagic] User data and state purged.")
+      self.guardBridge("resetUserData") {
+        self.userPermit = nil
+        self.currentOwnerId = nil
+        NetworkManager.shared.reset()
+        VultureManager.shared.reset()
+        OfflineQueueManager.shared.clear()
+        self.setActiveAutoSession(false)
+        self.parkedLocation = nil
+        self.drivingAwayStartAt = nil
+        self.activeSessionLotId = nil
+        self.activeSessionStartedAt = nil
+        self.emitSessionStateChange(reason: "reset_user_data")
+        print("[ParkingMagic] User data and state purged.")
+      }
     }
 
     AsyncFunction("requestPermissionsAsync") { (promise: Promise) in
@@ -164,51 +201,59 @@ public class ParkingMagicModule: Module {
     }
 
     Function("startSensing") {
-      self.onMain {
-        guard !self.isSensing else { return }
-        self.isSensing = true
+      self.guardBridge("startSensing") {
+        self.onMain {
+          self.guardBridge("startSensing.main") {
+            guard !self.isSensing else { return }
+            self.isSensing = true
 
-        // 1. Monitor Significant Locations (App Anchor) only when permission is ready.
-        self.startLocationMonitoringIfAuthorized()
+            // 1. Monitor Significant Locations (App Anchor) only when permission is ready.
+            self.startLocationMonitoringIfAuthorized()
 
-        // 2. Monitor Audio Route (BT/CarPlay)
-        self.routeChangeObserver = NotificationCenter.default.addObserver(
-          forName: AVAudioSession.routeChangeNotification,
-          object: nil,
-          queue: .main
-        ) { [weak self] notification in
-          self?.handleRouteChange(notification: notification)
+            // 2. Monitor Audio Route (BT/CarPlay)
+            self.routeChangeObserver = NotificationCenter.default.addObserver(
+              forName: AVAudioSession.routeChangeNotification,
+              object: nil,
+              queue: .main
+            ) { [weak self] notification in
+              self?.handleRouteChange(notification: notification)
+            }
+            self.vultureObserver = NotificationCenter.default.addObserver(
+              forName: .vultureDetected,
+              object: nil,
+              queue: .main
+            ) { [weak self] notification in
+              self?.handleVulture(notification: notification)
+            }
+
+            // 3. Monitor Motion (Automotive -> Walking)
+            self.startMotionUpdates()
+          }
         }
-        self.vultureObserver = NotificationCenter.default.addObserver(
-          forName: .vultureDetected,
-          object: nil,
-          queue: .main
-        ) { [weak self] notification in
-          self?.handleVulture(notification: notification)
-        }
-
-        // 3. Monitor Motion (Automotive -> Walking)
-        self.startMotionUpdates()
       }
     }
 
     Function("stopSensing") {
-      self.onMain {
-        self.isSensing = false
-        self.pendingEventSource = nil
-        self.isParkingEventInFlight = false
-        self.isEndingSession = false
-        self.lastParkingEventAt = nil
-        self.locationManager.stopMonitoringSignificantLocationChanges()
-        if let routeChangeObserver = self.routeChangeObserver {
-          NotificationCenter.default.removeObserver(routeChangeObserver)
-          self.routeChangeObserver = nil
+      self.guardBridge("stopSensing") {
+        self.onMain {
+          self.guardBridge("stopSensing.main") {
+            self.isSensing = false
+            self.pendingEventSource = nil
+            self.isParkingEventInFlight = false
+            self.isEndingSession = false
+            self.lastParkingEventAt = nil
+            self.locationManager.stopMonitoringSignificantLocationChanges()
+            if let routeChangeObserver = self.routeChangeObserver {
+              NotificationCenter.default.removeObserver(routeChangeObserver)
+              self.routeChangeObserver = nil
+            }
+            if let vultureObserver = self.vultureObserver {
+              NotificationCenter.default.removeObserver(vultureObserver)
+              self.vultureObserver = nil
+            }
+            self.motionManager.stopActivityUpdates()
+          }
         }
-        if let vultureObserver = self.vultureObserver {
-          NotificationCenter.default.removeObserver(vultureObserver)
-          self.vultureObserver = nil
-        }
-        self.motionManager.stopActivityUpdates()
       }
     }
 
@@ -247,11 +292,11 @@ public class ParkingMagicModule: Module {
     }
 
     AsyncFunction("getNativeSessionStateAsync") { (promise: Promise) in
-      promise.resolve([
+      self.safeResolve(promise, [
         "activeAutoSession": self.hasActiveAutoSession,
         "isParkingEventInFlight": self.isParkingEventInFlight,
         "isEndingSession": self.isEndingSession,
-        "pendingEventSource": self.pendingEventSource as Any,
+        "pendingEventSource": self.nsAny(self.pendingEventSource),
       ])
     }
 
@@ -484,7 +529,7 @@ public class ParkingMagicModule: Module {
             self.setActiveAutoSession(previousState)
           }
 
-          promise.resolve([
+          self.safeResolve(promise, [
             "ok": startSuccess && endSuccess,
             "startSuccess": startSuccess,
             "endSuccess": endSuccess,
@@ -590,7 +635,7 @@ public class ParkingMagicModule: Module {
       "hasUserPermit": snapshot.hasUserPermit,
       "hasOwnerId": snapshot.hasOwnerId,
       "hasActiveAutoSession": snapshot.hasActiveAutoSession,
-      "pendingEventSource": snapshot.pendingEventSource as Any
+      "pendingEventSource": nsAny(snapshot.pendingEventSource)
     ]
   }
 
@@ -653,7 +698,7 @@ public class ParkingMagicModule: Module {
     onMain {
       var payload = self.buildSessionStatePayload()
       payload["reason"] = reason
-      self.sendEvent("onSessionStateChanged", payload)
+      self.safeSendEvent("onSessionStateChanged", payload)
     }
   }
 
@@ -782,9 +827,9 @@ public class ParkingMagicModule: Module {
       "key": check.key,
       "label": check.label,
       "passed": check.passed,
-      "reasonCode": check.reasonCode as Any,
-      "detail": check.detail as Any,
-      "rawValue": check.rawValue as Any
+      "reasonCode": nsAny(check.reasonCode),
+      "detail": nsAny(check.detail),
+      "rawValue": nsAny(check.rawValue)
     ]
   }
 
@@ -794,15 +839,15 @@ public class ParkingMagicModule: Module {
       "source": snapshot.source,
       "decisionStatus": snapshot.decisionStatus,
       "decisionReasonCode": snapshot.decisionReasonCode,
-      "speedMps": snapshot.speedMps as Any,
-      "horizontalAccuracy": snapshot.horizontalAccuracy as Any,
-      "locationAgeMs": snapshot.locationAgeMs as Any,
+      "speedMps": nsAny(snapshot.speedMps),
+      "horizontalAccuracy": nsAny(snapshot.horizontalAccuracy),
+      "locationAgeMs": nsAny(snapshot.locationAgeMs),
       "cooldownRemainingMs": snapshot.cooldownRemainingMs,
       "hasActiveAutoSession": snapshot.hasActiveAutoSession,
       "isParkingEventInFlight": snapshot.isParkingEventInFlight,
       "lotFound": snapshot.lotFound,
-      "lotId": snapshot.lotId as Any,
-      "lotName": snapshot.lotName as Any,
+      "lotId": nsAny(snapshot.lotId),
+      "lotName": nsAny(snapshot.lotName),
       "triggerRecognized": snapshot.triggerRecognized,
       "checks": snapshot.checks.map { dictionary(from: $0) }
     ]
@@ -818,7 +863,7 @@ public class ParkingMagicModule: Module {
       if snapshot.decisionStatus == "ready" {
         payload["checks"] = [] as [[String: Any]]
       }
-      self.sendEvent("onAutoParkDiagnostics", payload)
+      self.safeSendEvent("onAutoParkDiagnostics", payload)
     }
   }
 
@@ -877,8 +922,8 @@ public class ParkingMagicModule: Module {
       "id": "native-\(UUID().uuidString)",
       "lotId": lotId,
       "startTime": ISO8601DateFormatter().string(from: resolvedStartedAt),
-      "latitude": latitude as Any,
-      "longitude": longitude as Any,
+      "latitude": nsAny(latitude),
+      "longitude": nsAny(longitude),
       "autoStarted": autoStarted
     ]
   }
@@ -1247,11 +1292,11 @@ public class ParkingMagicModule: Module {
 
     // Bridge Notification (for open app)
     onMain {
-      self.sendEvent("onParkingEvent", [
+      self.safeSendEvent("onParkingEvent", [
         "latitude": coordinate.latitude,
         "longitude": coordinate.longitude,
         "source": source,
-        "lotId": lotId as Any,
+        "lotId": self.nsAny(lotId),
         "message": validation.message,
         "timestamp": Date().timeIntervalSince1970 * 1000
       ])
