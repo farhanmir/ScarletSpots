@@ -6,7 +6,7 @@ on:
 jobs:
   ios-build:
     name: iOS Build (Sideloading)
-    runs-on: macos-latest
+    runs-on: macos-26
     permissions:
       contents: write
     env:
@@ -16,8 +16,21 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Select Xcode 16.0
-        run: sudo xcode-select -s /Applications/Xcode_16.0.app/Contents/Developer
+      - name: Select latest installed Xcode 26.x
+        run: |
+          XCODE_APP=$(ls -1d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -n 1)
+          if [ -z "$XCODE_APP" ]; then
+            echo "::error::No Xcode 26.x installation found on runner."
+            ls -1d /Applications/Xcode*.app 2>/dev/null || true
+            exit 1
+          fi
+          sudo xcode-select -s "$XCODE_APP/Contents/Developer"
+          echo "Selected $XCODE_APP"
+
+      - name: Print toolchain versions
+        run: |
+          xcodebuild -version
+          swift --version
 
       - name: Set up Node.js
         uses: actions/setup-node@v5
@@ -132,24 +145,29 @@ jobs:
       - name: Identify workspace and scheme
         id: xcode_info
         run: |
-          # Find workspace searching in mobile/ios
           WORKSPACE=$(find mobile/ios -maxdepth 1 -name "*.xcworkspace" | head -1)
+          PROJECT=$(find mobile/ios -maxdepth 1 -name "*.xcodeproj" | head -1)
 
-          if [ -z "$WORKSPACE" ]; then
-            echo "::error::No .xcworkspace found in mobile/ios. Check prebuild logs."
-            # List directory for debugging
+          if [ -n "$WORKSPACE" ]; then
+            SCHEME=$(basename "$WORKSPACE" .xcworkspace)
+            TARGET_TYPE="workspace"
+            echo "workspace=$WORKSPACE" >> "$GITHUB_OUTPUT"
+          elif [ -n "$PROJECT" ]; then
+            SCHEME=$(basename "$PROJECT" .xcodeproj)
+            TARGET_TYPE="project"
+            echo "project=$PROJECT" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::No .xcworkspace or .xcodeproj found in mobile/ios. Check prebuild logs."
             ls -la mobile/ios || echo "mobile/ios directory is missing"
             exit 1
           fi
 
-          # Extract relative path from workspace root for xcodebuild
-          # e.g. mobile/ios/ScarletSpots.xcworkspace
-          SCHEME=$(basename "$WORKSPACE" .xcworkspace)
-
-          echo "workspace=$WORKSPACE" >> "$GITHUB_OUTPUT"
+          echo "target_type=$TARGET_TYPE" >> "$GITHUB_OUTPUT"
           echo "scheme=$SCHEME" >> "$GITHUB_OUTPUT"
 
+          echo "✅ Build target type: $TARGET_TYPE"
           echo "✅ Detected Workspace: $WORKSPACE"
+          echo "✅ Detected Project:   $PROJECT"
           echo "✅ Detected Scheme:    $SCHEME"
 
       - name: Auto-increment build number
@@ -168,13 +186,20 @@ jobs:
           EXPO_PUBLIC_OFFLINE_QUEUE_ENABLED: ${{ vars.EXPO_PUBLIC_OFFLINE_QUEUE_ENABLED }}
           EXPO_PUBLIC_ENABLE_ALL_CAMPUSES: ${{ vars.EXPO_PUBLIC_ENABLE_ALL_CAMPUSES }}
         run: |
+          XCODE_TARGET_ARGS=()
+          if [ "${{ steps.xcode_info.outputs.target_type }}" = "workspace" ]; then
+            XCODE_TARGET_ARGS=(-workspace "${{ steps.xcode_info.outputs.workspace }}")
+          else
+            XCODE_TARGET_ARGS=(-project "${{ steps.xcode_info.outputs.project }}")
+          fi
+
           xcodebuild \
             -resolvePackageDependencies \
-            -workspace "${{ steps.xcode_info.outputs.workspace }}" \
+            "${XCODE_TARGET_ARGS[@]}" \
             -scheme "${{ steps.xcode_info.outputs.scheme }}"
 
           xcodebuild \
-            -workspace "${{ steps.xcode_info.outputs.workspace }}" \
+            "${XCODE_TARGET_ARGS[@]}" \
             -scheme "${{ steps.xcode_info.outputs.scheme }}" \
             -configuration Release \
             -sdk iphoneos \
@@ -190,7 +215,11 @@ jobs:
           SCHEME="${{ steps.xcode_info.outputs.scheme }}"
           APP_PATH=$(find build/Build/Products/Release-iphoneos -maxdepth 1 -name "*.app" | head -1)
           if [ -z "$APP_PATH" ]; then
-            echo "Error: No .app bundle found in build/Build/Products/Release-iphoneos" >&2
+            APP_PATH=$(find build -name "*.app" | head -1)
+          fi
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: No .app bundle found in DerivedData output" >&2
+            find build -maxdepth 5 -type d || true
             exit 1
           fi
           mkdir -p Payload
