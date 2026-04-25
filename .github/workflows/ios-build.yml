@@ -259,7 +259,7 @@ jobs:
             PROVISIONING_PROFILE_SPECIFIER=""
 
       - name: Save DerivedData cache
-        if: always()
+        if: always() && steps.derived_data_cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: build
