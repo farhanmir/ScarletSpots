@@ -6,7 +6,7 @@ on:
 jobs:
   ios-build:
     name: iOS Build (Sideloading)
-    runs-on: macos-26
+    runs-on: macos-15
     permissions:
       contents: write
     env:
