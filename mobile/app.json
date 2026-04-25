@@ -7,7 +7,7 @@
     "orientation": "portrait",
     "scheme": "scarletspots",
     "userInterfaceStyle": "automatic",
-    "icon": "./assets/images/scarletspots_logo.png",
+    "icon": "./assets/images/app-icon.png",
     "splash": {
       "image": "./assets/images/scarletspots_logo.png",
       "resizeMode": "contain",
@@ -45,10 +45,8 @@
       "versionCode": 1,
       "backgroundColor": "#000000",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/scarletspots_logo.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png",
-        "backgroundColor": "#E6F4FE"
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#000000"
       },
       "permissions": [
         "android.permission.ACCESS_COARSE_LOCATION",
