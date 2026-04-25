@@ -12,6 +12,7 @@ class DatabaseManager {
   static let shared = DatabaseManager()
   private var db: OpaquePointer?
   private var polygonCache: [LotPolygon] = []
+  private let cacheQueue = DispatchQueue(label: "com.scarletspots.parkingmagic.polygoncache", attributes: .concurrent)
 
   init() {
     setupDatabase()
@@ -113,7 +114,9 @@ class DatabaseManager {
 
     if !cache.isEmpty {
       print("[DatabaseManager] Loaded \(cache.count) polygons from SQLite.")
-      self.polygonCache = cache
+      cacheQueue.async(flags: .barrier) {
+        self.polygonCache = cache
+      }
       return
     }
 
@@ -137,11 +140,35 @@ class DatabaseManager {
       }
       cache.append(LotPolygon(id: id, name: name, rings: rings))
     }
-    self.polygonCache = cache
+    cacheQueue.async(flags: .barrier) {
+      self.polygonCache = cache
+    }
+  }
+
+  private func cachedPolygons() -> [LotPolygon] {
+    cacheQueue.sync {
+      polygonCache
+    }
+  }
+
+  private func ensurePolygonCacheLoaded() {
+    if !cachedPolygons().isEmpty {
+      return
+    }
+    loadLotPolygons()
+  }
+
+  func getAllLotPolygons() -> [LotPolygon] {
+    ensurePolygonCacheLoaded()
+    return cachedPolygons()
+  }
+
+  func getLot(byId lotId: String) -> LotPolygon? {
+    return getAllLotPolygons().first { $0.id == lotId }
   }
 
   func getLotAt(coordinate: CLLocationCoordinate2D) -> LotPolygon? {
-    for lot in polygonCache {
+    for lot in getAllLotPolygons() {
       for ring in lot.rings {
         if contains(coordinate, ring) {
           return lot

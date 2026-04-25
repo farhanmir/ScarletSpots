@@ -2,12 +2,16 @@ import ExpoModulesCore
 import CoreLocation
 import CoreMotion
 import AVFoundation
+import ActivityKit
 
 public class ParkingMagicModule: Module, CLLocationManagerDelegate {
   private let locationManager = CLLocationManager()
   private let motionManager = CMMotionActivityManager()
+  private let userDefaults = UserDefaults.standard
+  private let activeAutoSessionKey = "com.scarletspots.parkingmagic.activeAutoSession"
   private var isSensing = false
   private var userPermit: String?
+  private var hasActiveAutoSession = false
   private var isParkingEventInFlight = false
   private var isEndingSession = false
   private var lastParkingEventAt: Date?
@@ -22,6 +26,7 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
       locationManager.delegate = self
       locationManager.allowsBackgroundLocationUpdates = true
       locationManager.pausesLocationUpdatesAutomatically = false
+      hasActiveAutoSession = userDefaults.bool(forKey: activeAutoSessionKey)
     }
 
     Function("syncUserData") { (url: String, token: String, permit: String) in
@@ -37,6 +42,7 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
       NetworkManager.shared.reset()
       VultureManager.shared.reset()
       OfflineQueueManager.shared.clear()
+      self.setActiveAutoSession(false)
       print("[ParkingMagic] User data and state purged.")
     }
 
@@ -58,6 +64,12 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
         self,
         selector: #selector(handleRouteChange),
         name: AVAudioSession.routeChangeNotification,
+        object: nil
+      )
+      NotificationCenter.default.addObserver(
+        self,
+        selector: #selector(handleVulture(notification:)),
+        name: .vultureDetected,
         object: nil
       )
       
@@ -99,6 +111,93 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
       promise.resolve(status)
     }
 
+    AsyncFunction("getNativeSessionStateAsync") { (promise: Promise) in
+      promise.resolve([
+        "activeAutoSession": self.hasActiveAutoSession,
+        "isParkingEventInFlight": self.isParkingEventInFlight,
+        "isEndingSession": self.isEndingSession,
+        "pendingEventSource": self.pendingEventSource as Any,
+      ])
+    }
+
+    AsyncFunction("runAutoParkSmokeTestAsync") { (latitude: Double, longitude: Double, promise: Promise) in
+      let location = CLLocation(latitude: latitude, longitude: longitude)
+      let previousState = self.hasActiveAutoSession
+
+      if self.hasActiveAutoSession {
+        self.setActiveAutoSession(false)
+      }
+
+      self._dispatchParkingEvent(source: "bluetooth_disconnect", location: location) { startSuccess in
+        if !startSuccess {
+          self.setActiveAutoSession(previousState)
+          promise.resolve([
+            "ok": false,
+            "startSuccess": false,
+            "endSuccess": false,
+            "activeAfter": self.hasActiveAutoSession,
+            "error": "start_failed"
+          ])
+          return
+        }
+
+        self.isEndingSession = true
+        NetworkManager.shared.endParkingSession { endSuccess in
+          self.isEndingSession = false
+
+          if endSuccess {
+            self.lastParkingEventAt = nil
+            self.setActiveAutoSession(false)
+            if #available(iOS 16.1, *) {
+              LiveActivityManager.shared.stopActivity()
+            }
+          } else {
+            self.setActiveAutoSession(previousState)
+          }
+
+          promise.resolve([
+            "ok": startSuccess && endSuccess,
+            "startSuccess": startSuccess,
+            "endSuccess": endSuccess,
+            "activeAfter": self.hasActiveAutoSession,
+            "error": endSuccess ? NSNull() : "end_failed"
+          ])
+        }
+      }
+    }
+
+    AsyncFunction("resolveLotAtAsync") { (latitude: Double, longitude: Double, promise: Promise) in
+      let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+      if let lot = DatabaseManager.shared.getLotAt(coordinate: coordinate) {
+        promise.resolve([
+          "found": true,
+          "lotId": lot.id,
+          "lotName": lot.name
+        ])
+      } else {
+        promise.resolve([
+          "found": false,
+          "lotId": NSNull(),
+          "lotName": NSNull()
+        ])
+      }
+    }
+
+    AsyncFunction("getLotPolygonsAsync") { (promise: Promise) in
+      let polygons = DatabaseManager.shared.getAllLotPolygons().map { lot in
+        [
+          "id": lot.id,
+          "name": lot.name,
+          "rings": lot.rings.map { ring in
+            ring.map { point in
+              ["lat": point.latitude, "lng": point.longitude]
+            }
+          }
+        ]
+      }
+      promise.resolve(polygons)
+    }
+
     View(ScarletMapView.self) {
       Prop("selectedLotId") { (view: ScarletMapView, prop: String?) in
         view.setSelectedLot(prop)
@@ -131,6 +230,10 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
   private var pendingEventSource: String?
 
   private func emitParkingEvent(source: String) {
+    if hasActiveAutoSession {
+      return
+    }
+
     let now = Date()
     if isParkingEventInFlight {
       return
@@ -151,7 +254,12 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
     locationManager.requestLocation()
   }
 
-  private func _dispatchParkingEvent(source: String, location: CLLocation) {
+  private func setActiveAutoSession(_ active: Bool) {
+    hasActiveAutoSession = active
+    userDefaults.set(active, forKey: activeAutoSessionKey)
+  }
+
+  private func _dispatchParkingEvent(source: String, location: CLLocation, completion: ((Bool) -> Void)? = nil) {
     let coordinate = location.coordinate
     
     // Phase 7: Resolve lotId natively
@@ -174,6 +282,10 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
       self.isParkingEventInFlight = false
       self.lastParkingEventAt = Date()
 
+      if success {
+        self.setActiveAutoSession(true)
+      }
+
       if !success {
         let event = PendingEvent(
           id: eventId ?? UUID().uuidString,
@@ -186,6 +298,8 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
         OfflineQueueManager.shared.enqueue(event: event)
         print("[ParkingMagic] Event queued for offline sync.")
       }
+
+      completion?(success)
     }
 
     if #available(iOS 16.1, *) {
@@ -235,6 +349,7 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
 
   public func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
     pendingEventSource = nil
+    isParkingEventInFlight = false
     print("[ParkingMagic] Location Error: \(error.localizedDescription)")
   }
 
@@ -246,8 +361,11 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
     
     switch reason {
     case .oldDeviceUnavailable:
+      let previousRoute = userInfo[AVAudioSessionRouteChangePreviousRouteKey] as? AVAudioSessionRouteDescription
+      let hasCarPlay = previousRoute?.outputs.contains(where: { $0.portType == .carPlay }) ?? false
+      let source = hasCarPlay ? "carplay_disconnect" : "bluetooth_disconnect"
       print("[ParkingMagic] Bluetooth/CarPlay Disconnected - Detecting Arrival")
-      emitParkingEvent(source: "bluetooth_disconnect")
+      emitParkingEvent(source: source)
     case .newDeviceAvailable:
       guard !isEndingSession else { return }
       isEndingSession = true
@@ -257,7 +375,10 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
         self.isEndingSession = false
         if success {
           self.lastParkingEventAt = nil
-          LiveActivityManager.shared.stopActivity()
+          self.setActiveAutoSession(false)
+          if #available(iOS 16.1, *) {
+            LiveActivityManager.shared.stopActivity()
+          }
         }
       }
     default:
