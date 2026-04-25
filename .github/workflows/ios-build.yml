@@ -131,7 +131,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: mobile/ios
-          key: ${{ runner.os }}-ios-prebuild-${{ hashFiles('mobile/package-lock.json', 'mobile/package.json', 'mobile/app.json', 'mobile/app.config.js', 'mobile/app.config.ts', 'mobile/modules/parking-magic/**') }}
+          key: ${{ runner.os }}-ios-prebuild-${{ hashFiles('mobile/package-lock.json', 'mobile/package.json', 'mobile/app.json', 'mobile/app.config.js', 'mobile/app.config.ts', 'mobile/modules/parking-magic/**') }}-${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}-ios-prebuild-${{ hashFiles('mobile/package-lock.json', 'mobile/package.json', 'mobile/app.json', 'mobile/app.config.js', 'mobile/app.config.ts', 'mobile/modules/parking-magic/**') }}-
 
       - name: Expo prebuild (generate native iOS project)
         if: steps.ios_project_cache.outputs.cache-hit != 'true'
@@ -222,7 +224,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: build
-          key: ${{ runner.os }}-deriveddata-${{ hashFiles('mobile/package-lock.json', 'mobile/package.json', 'mobile/modules/parking-magic/**', 'mobile/ios/Podfile.lock', 'mobile/ios/Podfile', 'mobile/ios/**/*.pbxproj') }}
+          key: ${{ runner.os }}-deriveddata-${{ hashFiles('mobile/package-lock.json', 'mobile/package.json', 'mobile/modules/parking-magic/**', 'mobile/ios/Podfile.lock', 'mobile/ios/Podfile', 'mobile/ios/**/*.pbxproj') }}-${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}-deriveddata-${{ hashFiles('mobile/package-lock.json', 'mobile/package.json', 'mobile/modules/parking-magic/**', 'mobile/ios/Podfile.lock', 'mobile/ios/Podfile', 'mobile/ios/**/*.pbxproj') }}-
 
       - name: Build with xcodebuild (Release, no code signing)
         env:
