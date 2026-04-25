@@ -1,0 +1,3 @@
+[submodule "agent-resources/claude-code-apple-skills"]
+	path = agent-resources/claude-code-apple-skills
+	url = https://github.com/rshankras/claude-code-apple-skills.git

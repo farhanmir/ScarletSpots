@@ -126,58 +126,64 @@ public class ParkingMagicModule: Module {
     }
 
     AsyncFunction("requestPermissionsAsync") { (promise: Promise) in
-      let status = CLLocationManager.authorizationStatus()
-      if status == .authorizedAlways {
-        promise.resolve(true)
-        return
+      self.onMain {
+        let status = CLLocationManager.authorizationStatus()
+        if status == .authorizedAlways {
+          promise.resolve(true)
+          return
+        }
+        self.permissionPromise = promise
+        self.locationManager.requestAlwaysAuthorization()
       }
-      self.permissionPromise = promise
-      self.locationManager.requestAlwaysAuthorization()
     }
 
     Function("startSensing") {
-      guard !isSensing else { return }
-      isSensing = true
-      
-      // 1. Monitor Significant Locations (App Anchor)
-      locationManager.startMonitoringSignificantLocationChanges()
-      
-      // 2. Monitor Audio Route (BT/CarPlay)
-      routeChangeObserver = NotificationCenter.default.addObserver(
-        forName: AVAudioSession.routeChangeNotification,
-        object: nil,
-        queue: .main
-      ) { [weak self] notification in
-        self?.handleRouteChange(notification: notification)
+      self.onMain {
+        guard !self.isSensing else { return }
+        self.isSensing = true
+
+        // 1. Monitor Significant Locations (App Anchor)
+        self.locationManager.startMonitoringSignificantLocationChanges()
+
+        // 2. Monitor Audio Route (BT/CarPlay)
+        self.routeChangeObserver = NotificationCenter.default.addObserver(
+          forName: AVAudioSession.routeChangeNotification,
+          object: nil,
+          queue: .main
+        ) { [weak self] notification in
+          self?.handleRouteChange(notification: notification)
+        }
+        self.vultureObserver = NotificationCenter.default.addObserver(
+          forName: .vultureDetected,
+          object: nil,
+          queue: .main
+        ) { [weak self] notification in
+          self?.handleVulture(notification: notification)
+        }
+
+        // 3. Monitor Motion (Automotive -> Walking)
+        self.startMotionUpdates()
       }
-      vultureObserver = NotificationCenter.default.addObserver(
-        forName: .vultureDetected,
-        object: nil,
-        queue: .main
-      ) { [weak self] notification in
-        self?.handleVulture(notification: notification)
-      }
-      
-      // 3. Monitor Motion (Automotive -> Walking)
-      startMotionUpdates()
     }
 
     Function("stopSensing") {
-      isSensing = false
-      pendingEventSource = nil
-      isParkingEventInFlight = false
-      isEndingSession = false
-      lastParkingEventAt = nil
-      locationManager.stopMonitoringSignificantLocationChanges()
-      if let routeChangeObserver {
-        NotificationCenter.default.removeObserver(routeChangeObserver)
-        self.routeChangeObserver = nil
+      self.onMain {
+        self.isSensing = false
+        self.pendingEventSource = nil
+        self.isParkingEventInFlight = false
+        self.isEndingSession = false
+        self.lastParkingEventAt = nil
+        self.locationManager.stopMonitoringSignificantLocationChanges()
+        if let routeChangeObserver = self.routeChangeObserver {
+          NotificationCenter.default.removeObserver(routeChangeObserver)
+          self.routeChangeObserver = nil
+        }
+        if let vultureObserver = self.vultureObserver {
+          NotificationCenter.default.removeObserver(vultureObserver)
+          self.vultureObserver = nil
+        }
+        self.motionManager.stopActivityUpdates()
       }
-      if let vultureObserver {
-        NotificationCenter.default.removeObserver(vultureObserver)
-        self.vultureObserver = nil
-      }
-      motionManager.stopActivityUpdates()
     }
 
     AsyncFunction("getSystemHealthAsync") { (promise: Promise) in
