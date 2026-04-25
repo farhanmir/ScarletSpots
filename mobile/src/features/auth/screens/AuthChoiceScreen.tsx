@@ -70,7 +70,7 @@ export default function AuthChoiceScreen() {
             {/* The image itself has a built-in background, so we just add a soft shadow */}
             <View style={styles.logoShadow}>
               <Image
-                source={require("../../../../assets/images/scarletspots_logo.png")}
+                source={require("../../../../assets/images/app-icon.png")}
                 style={styles.logoImage}
                 resizeMode="contain"
               />

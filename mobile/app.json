@@ -9,7 +9,7 @@
     "userInterfaceStyle": "automatic",
     "icon": "./assets/images/app-icon.png",
     "splash": {
-      "image": "./assets/images/scarletspots_logo.png",
+      "image": "./assets/images/app-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#000000"
     },
@@ -58,14 +58,14 @@
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/app-icon.png"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/scarletspots_logo.png",
+          "image": "./assets/images/app-icon.png",
           "imageWidth": 300,
           "resizeMode": "contain",
           "backgroundColor": "#000000",
