@@ -16,6 +16,16 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
   private var isEndingSession = false
   private var lastParkingEventAt: Date?
   private let parkingEventCooldown: TimeInterval = 15
+  private let maxArrivalSpeedMps: Double = 6.0
+  private let minArrivalAccuracyMeters: Double = 80.0
+  private let motionTransitionWindow: TimeInterval = 180
+  private let fallbackDepartureDistanceMeters: Double = 300
+  private let fallbackDepartureSpeedMps: Double = 8.0
+  private let fallbackDepartureDuration: TimeInterval = 90
+  private var lastAutomotiveTransitionAt: Date?
+  private var lastMotionConfidence: CMMotionActivityConfidence = .low
+  private var parkedLocation: CLLocation?
+  private var drivingAwayStartAt: Date?
   
   public func definition() -> ModuleDefinition {
     Name("ParkingMagic")
@@ -32,8 +42,13 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
     Function("syncUserData") { (url: String, token: String, permit: String) in
       self.userPermit = permit
       NetworkManager.shared.configure(url: url, token: token)
+      self.reconcileActiveSessionFromServer()
       // Prime the offline queue flush on sync
-      OfflineQueueManager.shared.flushQueue()
+      OfflineQueueManager.shared.flushQueue { event in
+        self.setActiveAutoSession(true)
+        self.parkedLocation = CLLocation(latitude: event.latitude, longitude: event.longitude)
+        self.drivingAwayStartAt = nil
+      }
       print("[ParkingMagic] Synced user data. Permit: \(permit)")
     }
 
@@ -43,6 +58,8 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
       VultureManager.shared.reset()
       OfflineQueueManager.shared.clear()
       self.setActiveAutoSession(false)
+      self.parkedLocation = nil
+      self.drivingAwayStartAt = nil
       print("[ParkingMagic] User data and state purged.")
     }
 
@@ -217,9 +234,12 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
       
       if activity.automotive {
         lastWasAutomotive = true
+        self.lastAutomotiveTransitionAt = Date()
+        self.lastMotionConfidence = activity.confidence
       } else if (activity.walking || activity.stationary) && lastWasAutomotive {
         // Detected transition from driving to walking/standing
         lastWasAutomotive = false
+        self.lastMotionConfidence = activity.confidence
         self.emitParkingEvent(source: "motion_activity")
       }
     }
@@ -259,7 +279,97 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
     userDefaults.set(active, forKey: activeAutoSessionKey)
   }
 
+  private func reconcileActiveSessionFromServer() {
+    NetworkManager.shared.fetchActiveParkingSession { status in
+      guard let status = status else { return }
+
+      self.setActiveAutoSession(status.isActive)
+      if status.isActive,
+         let latitude = status.latitude,
+         let longitude = status.longitude {
+        self.parkedLocation = CLLocation(latitude: latitude, longitude: longitude)
+      }
+      if !status.isActive {
+        self.parkedLocation = nil
+        self.drivingAwayStartAt = nil
+      }
+    }
+  }
+
+  private func passesAutoStartConfidence(source: String, location: CLLocation) -> Bool {
+    let accuracy = location.horizontalAccuracy
+    if accuracy < 0 || accuracy > minArrivalAccuracyMeters {
+      return false
+    }
+
+    let speed = location.speed
+    if speed >= 0 && speed > maxArrivalSpeedMps {
+      return false
+    }
+
+    if source == "motion_activity" {
+      guard let lastTransition = lastAutomotiveTransitionAt,
+            Date().timeIntervalSince(lastTransition) <= motionTransitionWindow,
+            lastMotionConfidence != .low else {
+        return false
+      }
+    }
+
+    return true
+  }
+
+  private func endAutoSession(reason: String) {
+    guard !isEndingSession else { return }
+    isEndingSession = true
+    print("[ParkingMagic] Ending auto-session via \(reason)")
+    NetworkManager.shared.endParkingSession { success in
+      self.isEndingSession = false
+      if success {
+        self.lastParkingEventAt = nil
+        self.setActiveAutoSession(false)
+        self.parkedLocation = nil
+        self.drivingAwayStartAt = nil
+        if #available(iOS 16.1, *) {
+          LiveActivityManager.shared.stopActivity()
+        }
+      }
+    }
+  }
+
+  private func evaluateFallbackDeparture(location: CLLocation) {
+    guard hasActiveAutoSession,
+          let parkedLocation = parkedLocation else {
+      drivingAwayStartAt = nil
+      return
+    }
+
+    let distance = location.distance(from: parkedLocation)
+    let speed = location.speed
+    let drivingAway = (speed >= fallbackDepartureSpeedMps) && (distance >= fallbackDepartureDistanceMeters)
+
+    if drivingAway {
+      if drivingAwayStartAt == nil {
+        drivingAwayStartAt = Date()
+        return
+      }
+
+      if let drivingAwayStartAt,
+         Date().timeIntervalSince(drivingAwayStartAt) >= fallbackDepartureDuration {
+        endAutoSession(reason: "fallback_driveaway")
+      }
+    } else {
+      drivingAwayStartAt = nil
+    }
+  }
+
   private func _dispatchParkingEvent(source: String, location: CLLocation, completion: ((Bool) -> Void)? = nil) {
+    if !passesAutoStartConfidence(source: source, location: location) {
+      print("[ParkingMagic] Dropped low-confidence sensing event: \(source)")
+      isParkingEventInFlight = false
+      completion?(false)
+      return
+    }
+
     let coordinate = location.coordinate
     
     // Phase 7: Resolve lotId natively
@@ -284,6 +394,8 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
 
       if success {
         self.setActiveAutoSession(true)
+        self.parkedLocation = location
+        self.drivingAwayStartAt = nil
       }
 
       if !success {
@@ -345,6 +457,8 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
       
       LiveActivityManager.shared.updateActivity(distance: "\(Int(distance))m")
     }
+
+    evaluateFallbackDeparture(location: location)
   }
 
   public func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
@@ -367,20 +481,8 @@ public class ParkingMagicModule: Module, CLLocationManagerDelegate {
       print("[ParkingMagic] Bluetooth/CarPlay Disconnected - Detecting Arrival")
       emitParkingEvent(source: source)
     case .newDeviceAvailable:
-      guard !isEndingSession else { return }
-      isEndingSession = true
       print("[ParkingMagic] Bluetooth/CarPlay Connected - Detecting Departure")
-      // Phase 9: Native Departure Trigger
-      NetworkManager.shared.endParkingSession { success in
-        self.isEndingSession = false
-        if success {
-          self.lastParkingEventAt = nil
-          self.setActiveAutoSession(false)
-          if #available(iOS 16.1, *) {
-            LiveActivityManager.shared.stopActivity()
-          }
-        }
-      }
+      endAutoSession(reason: "audio_reconnect")
     default:
       break
     }

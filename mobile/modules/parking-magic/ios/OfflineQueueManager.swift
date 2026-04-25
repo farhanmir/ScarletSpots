@@ -36,7 +36,7 @@ class OfflineQueueManager {
     save(events: events)
   }
   
-  func flushQueue() {
+  func flushQueue(onEventFlushed: ((PendingEvent) -> Void)? = nil) {
     let events = getAllEvents()
     guard !events.isEmpty else { return }
     
@@ -48,10 +48,11 @@ class OfflineQueueManager {
         latitude: event.latitude,
         longitude: event.longitude,
         source: event.source
-      ) { success, eventId in
-        if success, let id = eventId {
-          print("[OfflineQueue] Successfully flushed event \(id). Removing from queue.")
-          self.removeEvent(id: id)
+      ) { success, _ in
+        if success {
+          print("[OfflineQueue] Successfully flushed event \(event.id). Removing from queue.")
+          self.removeEvent(id: event.id)
+          onEventFlushed?(event)
         } else {
           print("[OfflineQueue] Failed to flush event. Retrying later.")
         }

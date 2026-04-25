@@ -1,5 +1,12 @@
 import Foundation
 
+struct ActiveSessionStatus {
+  let isActive: Bool
+  let lotId: String?
+  let latitude: Double?
+  let longitude: Double?
+}
+
 class NetworkManager {
   static let shared = NetworkManager()
   
@@ -71,6 +78,47 @@ class NetworkManager {
       let success = (response as? HTTPURLResponse)?.statusCode == 200
       print("[NetworkManager] End session success: \(success)")
       completion(success)
+    }
+    task.resume()
+  }
+
+  func fetchActiveParkingSession(completion: @escaping (ActiveSessionStatus?) -> Void) {
+    guard let urlString = apiBaseUrl,
+          let url = URL(string: "\(urlString)/api/v1/park/session/active"),
+          let token = authToken else {
+      completion(nil)
+      return
+    }
+
+    var request = URLRequest(url: url)
+    request.httpMethod = "GET"
+    request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+    let task = URLSession.shared.dataTask(with: request) { data, response, error in
+      if let error = error {
+        print("[NetworkManager] Active session fetch failed: \(error.localizedDescription)")
+        completion(nil)
+        return
+      }
+
+      guard let httpResponse = response as? HTTPURLResponse,
+            (200...299).contains(httpResponse.statusCode),
+            let data = data,
+            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+        completion(nil)
+        return
+      }
+
+      guard let session = json["session"] as? [String: Any] else {
+        completion(ActiveSessionStatus(isActive: false, lotId: nil, latitude: nil, longitude: nil))
+        return
+      }
+
+      let isActive = (session["active"] as? Bool) ?? false
+      let lotId = session["lotId"] as? String
+      let latitude = session["latitude"] as? Double
+      let longitude = session["longitude"] as? Double
+      completion(ActiveSessionStatus(isActive: isActive, lotId: lotId, latitude: latitude, longitude: longitude))
     }
     task.resume()
   }
