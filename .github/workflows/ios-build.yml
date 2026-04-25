@@ -18,7 +18,10 @@ jobs:
 
       - name: Select latest installed Xcode 26.x
         run: |
-          mapfile -t XCODE_APPS < <(ls -1d /Applications/Xcode_26*.app 2>/dev/null | sort -V)
+          XCODE_APPS=()
+          while IFS= read -r APP; do
+            XCODE_APPS+=("$APP")
+          done < <(ls -1d /Applications/Xcode_26*.app 2>/dev/null | sort -V)
           if [ "${#XCODE_APPS[@]}" -eq 0 ]; then
             echo "::error::No Xcode 26.x installation found on runner."
             ls -1d /Applications/Xcode*.app 2>/dev/null || true
@@ -36,7 +39,8 @@ jobs:
 
           # Fallback to latest 26.x if only prerelease builds are installed.
           if [ -z "$XCODE_APP" ]; then
-            XCODE_APP="${XCODE_APPS[-1]}"
+            LAST_INDEX=$((${#XCODE_APPS[@]} - 1))
+            XCODE_APP="${XCODE_APPS[$LAST_INDEX]}"
           fi
 
           sudo xcode-select -s "$XCODE_APP/Contents/Developer"
