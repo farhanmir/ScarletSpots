@@ -136,7 +136,7 @@ jobs:
             ${{ runner.os }}-ios-prebuild-${{ hashFiles('mobile/package-lock.json', 'mobile/package.json', 'mobile/app.json', 'mobile/app.config.js', 'mobile/app.config.ts', 'mobile/modules/parking-magic/**') }}-
 
       - name: Expo prebuild (generate native iOS project)
-        if: steps.ios_project_cache.outputs.cache-hit != 'true'
+        if: steps.ios_project_cache.outputs.cache-matched-key == ''
         working-directory: mobile
         env:
           EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
@@ -149,7 +149,7 @@ jobs:
         run: npx expo prebuild --platform ios --clean
 
       - name: Save generated iOS project cache
-        if: always() && steps.ios_project_cache.outputs.cache-hit != 'true'
+        if: always() && steps.ios_project_cache.outputs.cache-matched-key == ''
         uses: actions/cache/save@v4
         with:
           path: mobile/ios
@@ -263,7 +263,7 @@ jobs:
             PROVISIONING_PROFILE_SPECIFIER=""
 
       - name: Save DerivedData cache
-        if: always() && steps.derived_data_cache.outputs.cache-hit != 'true'
+        if: always() && steps.derived_data_cache.outputs.cache-matched-key == ''
         uses: actions/cache/save@v4
         with:
           path: build

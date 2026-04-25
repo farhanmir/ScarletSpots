@@ -67,6 +67,8 @@ public class ParkingMagicModule: Module {
   private var diagnosticsHistory: [AutoParkLiveSnapshot] = []
   private var latestDiagnosticsSnapshot: AutoParkLiveSnapshot?
   private var permissionPromise: Promise?
+  private var routeChangeObserver: NSObjectProtocol?
+  private var vultureObserver: NSObjectProtocol?
   
   private func onMain(_ work: @escaping () -> Void) {
     if Thread.isMainThread {
@@ -141,18 +143,20 @@ public class ParkingMagicModule: Module {
       locationManager.startMonitoringSignificantLocationChanges()
       
       // 2. Monitor Audio Route (BT/CarPlay)
-      NotificationCenter.default.addObserver(
-        self,
-        selector: #selector(handleRouteChange),
-        name: AVAudioSession.routeChangeNotification,
-        object: nil
-      )
-      NotificationCenter.default.addObserver(
-        self,
-        selector: #selector(handleVulture(notification:)),
-        name: .vultureDetected,
-        object: nil
-      )
+      routeChangeObserver = NotificationCenter.default.addObserver(
+        forName: AVAudioSession.routeChangeNotification,
+        object: nil,
+        queue: .main
+      ) { [weak self] notification in
+        self?.handleRouteChange(notification: notification)
+      }
+      vultureObserver = NotificationCenter.default.addObserver(
+        forName: .vultureDetected,
+        object: nil,
+        queue: .main
+      ) { [weak self] notification in
+        self?.handleVulture(notification: notification)
+      }
       
       // 3. Monitor Motion (Automotive -> Walking)
       startMotionUpdates()
@@ -165,7 +169,14 @@ public class ParkingMagicModule: Module {
       isEndingSession = false
       lastParkingEventAt = nil
       locationManager.stopMonitoringSignificantLocationChanges()
-      NotificationCenter.default.removeObserver(self)
+      if let routeChangeObserver {
+        NotificationCenter.default.removeObserver(routeChangeObserver)
+        self.routeChangeObserver = nil
+      }
+      if let vultureObserver {
+        NotificationCenter.default.removeObserver(vultureObserver)
+        self.vultureObserver = nil
+      }
       motionManager.stopActivityUpdates()
     }
 
@@ -939,7 +950,7 @@ public class ParkingMagicModule: Module {
   }
 
   // MARK: - Audio Listeners
-  @objc private func handleRouteChange(notification: Notification) {
+  private func handleRouteChange(notification: Notification) {
     guard let userInfo = notification.userInfo,
           let reasonValue = userInfo[AVAudioSessionRouteChangeReasonKey] as? UInt,
           let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue) else { return }
@@ -962,7 +973,7 @@ public class ParkingMagicModule: Module {
 
 // MARK: - Notification Extensions
 extension ParkingMagicModule {
-  @objc private func handleVulture(notification: Notification) {
+  fileprivate func handleVulture(notification: Notification) {
     if let lotId = notification.userInfo?["lotId"] as? String {
       NetworkManager.shared.reportVultureActivity(lotId: lotId)
     }
