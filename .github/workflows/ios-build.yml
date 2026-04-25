@@ -16,14 +16,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Select latest installed Xcode 26.x
+      - name: Select latest installed Xcode (prefer stable)
         run: |
           XCODE_APPS=()
           while IFS= read -r APP; do
             XCODE_APPS+=("$APP")
-          done < <(ls -1d /Applications/Xcode_26*.app 2>/dev/null | sort -V)
+          done < <(ls -1d /Applications/Xcode*.app 2>/dev/null | sort -V)
           if [ "${#XCODE_APPS[@]}" -eq 0 ]; then
-            echo "::error::No Xcode 26.x installation found on runner."
+            echo "::error::No Xcode installation found on runner."
             ls -1d /Applications/Xcode*.app 2>/dev/null || true
             exit 1
           fi
@@ -37,7 +37,7 @@ jobs:
             fi
           done
 
-          # Fallback to latest 26.x if only prerelease builds are installed.
+          # Fallback to latest Xcode if only prerelease builds are installed.
           if [ -z "$XCODE_APP" ]; then
             LAST_INDEX=$((${#XCODE_APPS[@]} - 1))
             XCODE_APP="${XCODE_APPS[$LAST_INDEX]}"
