@@ -31,8 +31,9 @@ private struct AutoParkLiveSnapshot: Codable {
   let checks: [AutoParkGateCheck]
 }
 
-public class ParkingMagicModule: NSObject, Module, CLLocationManagerDelegate {
+public class ParkingMagicModule: Module {
   private let locationManager = CLLocationManager()
+  private lazy var locationDelegateProxy = LocationDelegateProxy(owner: self)
   private let motionManager = CMMotionActivityManager()
   private let userDefaults = UserDefaults.standard
   private let activeAutoSessionKey = "com.scarletspots.parkingmagic.activeAutoSession"
@@ -81,7 +82,7 @@ public class ParkingMagicModule: NSObject, Module, CLLocationManagerDelegate {
     Events("onParkingEvent", "onAutoParkDiagnostics")
 
     OnCreate {
-      locationManager.delegate = self
+      locationManager.delegate = locationDelegateProxy
       locationManager.allowsBackgroundLocationUpdates = true
       locationManager.pausesLocationUpdatesAutomatically = false
       hasActiveAutoSession = userDefaults.bool(forKey: activeAutoSessionKey)
@@ -849,7 +850,7 @@ public class ParkingMagicModule: NSObject, Module, CLLocationManagerDelegate {
     }
   }
 
-  public func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+  fileprivate func handleLocationUpdate(_ locations: [CLLocation]) {
     guard let location = locations.last else { return }
     let coordinate = location.coordinate
     
@@ -883,7 +884,7 @@ public class ParkingMagicModule: NSObject, Module, CLLocationManagerDelegate {
     evaluateFallbackDeparture(location: location)
   }
 
-  public func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+  fileprivate func handleLocationFailure(_ error: Error) {
     if let source = pendingEventSource {
       publishNoLocationBlockedSnapshot(
         source: source,
@@ -896,7 +897,7 @@ public class ParkingMagicModule: NSObject, Module, CLLocationManagerDelegate {
     print("[ParkingMagic] Location Error: \(error.localizedDescription)")
   }
 
-  public func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+  fileprivate func handleAuthorizationChange(_ manager: CLLocationManager) {
     guard let promise = permissionPromise else { return }
     let status = manager.authorizationStatus
     switch status {
@@ -939,6 +940,26 @@ extension ParkingMagicModule {
     if let lotId = notification.userInfo?["lotId"] as? String {
       NetworkManager.shared.reportVultureActivity(lotId: lotId)
     }
+  }
+}
+
+private final class LocationDelegateProxy: NSObject, CLLocationManagerDelegate {
+  weak var owner: ParkingMagicModule?
+
+  init(owner: ParkingMagicModule) {
+    self.owner = owner
+  }
+
+  func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+    owner?.handleLocationUpdate(locations)
+  }
+
+  func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+    owner?.handleLocationFailure(error)
+  }
+
+  func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+    owner?.handleAuthorizationChange(manager)
   }
 }
 
