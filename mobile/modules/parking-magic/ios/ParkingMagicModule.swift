@@ -125,7 +125,7 @@ public class ParkingMagicModule: Module {
   // Run a block that emits to the bridge (sendEvent / promise.resolve) inside
   // an Obj-C @try/@catch so a malformed payload cannot abort the process.
   private func guardBridge(_ label: String, _ work: @escaping () -> Void) {
-    if let exception = ObjCExceptionCatcher.tryBlock({ work() }) {
+    if let exception = ObjCExceptionCatcher.catch(from: { work() }) {
       print("[ParkingMagic] Bridge call \(label) raised NSException: name=\(exception.name.rawValue) reason=\(exception.reason ?? "<nil>")")
     }
   }

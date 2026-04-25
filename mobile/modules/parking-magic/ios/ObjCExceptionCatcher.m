@@ -2,7 +2,7 @@
 
 @implementation ObjCExceptionCatcher
 
-+ (NSException *)tryBlock:(__attribute__((noescape)) void (^)(void))block {
++ (NSException *)catchFrom:(__attribute__((noescape)) void (^)(void))block {
   @try {
     if (block) {
       block();
