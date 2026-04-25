@@ -1,0 +1,203 @@
+name: iOS Native Build
+
+# Manual-only trigger. Kick this off from the Actions tab when you're ready
+# to burn minutes; it will not auto-run on push or pull_request.
+on:
+  workflow_dispatch:
+    inputs:
+      run_archive:
+        description: "Also produce an unsigned .xcarchive and .ipa release"
+        required: false
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+concurrency:
+  group: ios-native-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke-build:
+    name: Simulator Smoke Build
+    runs-on: macos-26
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Cache Swift Package Manager artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ios-native/ScarletSpots/build/DerivedData/SourcePackages
+            ~/Library/Caches/org.swift.swiftpm
+          key: ${{ runner.os }}-spm-${{ hashFiles('ios-native/ScarletSpots/project.yml') }}
+          restore-keys: ${{ runner.os }}-spm-
+
+      - name: Generate Xcode project
+        working-directory: ios-native/ScarletSpots
+        run: xcodegen generate
+
+      # If the runner image is mid-rotation the iOS simulator runtime can be
+      # missing (see actions/runner-images#13853). Pre-download it just in
+      # case; `xcodebuild -downloadPlatform` is a no-op when already present.
+      - name: Ensure iOS simulator runtime
+        run: xcodebuild -downloadPlatform iOS || true
+
+      - name: Build for iOS Simulator (unsigned)
+        working-directory: ios-native/ScarletSpots
+        run: |
+          set -o pipefail
+          xcodebuild clean build \
+            -project ScarletSpots.xcodeproj \
+            -scheme ScarletSpots \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+  archive:
+    name: Unsigned Release Archive
+    if: inputs.run_archive == 'true'
+    runs-on: macos-26
+    timeout-minutes: 45
+    needs: smoke-build
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Cache Swift Package Manager artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ios-native/ScarletSpots/build/DerivedData/SourcePackages
+            ~/Library/Caches/org.swift.swiftpm
+          key: ${{ runner.os }}-spm-${{ hashFiles('ios-native/ScarletSpots/project.yml') }}
+          restore-keys: ${{ runner.os }}-spm-
+
+      # xcconfig files interpret `//` as the start of a line comment which
+      # will silently truncate URLs. We emit them through a helper that
+      # escapes the `//` sequence as `/$()/`.
+      - name: Generate runtime xcconfig from secrets
+        env:
+          API_BASE_URL: ${{ secrets.IOS_API_BASE_URL }}
+          SUPABASE_URL: ${{ secrets.IOS_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.IOS_SUPABASE_ANON_KEY }}
+          TLS_CERT_SHA256: ${{ secrets.IOS_TLS_CERT_SHA256 }}
+        run: |
+          MISSING=0
+          for VAR_NAME in API_BASE_URL SUPABASE_URL SUPABASE_ANON_KEY; do
+            if [ -z "${!VAR_NAME}" ]; then
+              echo "::error::Missing required native iOS secret for ${VAR_NAME}"
+              MISSING=1
+            fi
+          done
+          if [ "$MISSING" -ne 0 ]; then
+            echo "Set IOS_API_BASE_URL, IOS_SUPABASE_URL, and IOS_SUPABASE_ANON_KEY before archiving."
+            exit 1
+          fi
+
+          escape_url() {
+            # Replace all "//" occurrences with "/$()/" so xcconfig does not
+            # treat the rest of the line as a comment.
+            echo "$1" | sed 's|//|/$()/|g'
+          }
+          {
+            echo "API_BASE_URL = $(escape_url "${API_BASE_URL:-}")"
+            echo "SUPABASE_URL = $(escape_url "${SUPABASE_URL:-}")"
+            echo "SUPABASE_ANON_KEY = ${SUPABASE_ANON_KEY:-}"
+            echo "TLS_CERT_SHA256 = ${TLS_CERT_SHA256:-}"
+          } > ios-native/ScarletSpots/Config/ReleaseSecrets.xcconfig
+
+      - name: Generate Xcode project
+        working-directory: ios-native/ScarletSpots
+        run: xcodegen generate
+
+      - name: Archive (unsigned)
+        working-directory: ios-native/ScarletSpots
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project ScarletSpots.xcodeproj \
+            -scheme ScarletSpots \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/ScarletSpots.xcarchive \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+      - name: Package unsigned IPA
+        working-directory: ios-native/ScarletSpots
+        run: |
+          APP_PATH=$(find build/ScarletSpots.xcarchive/Products/Applications -maxdepth 1 -name "*.app" -print -quit)
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: No .app bundle found in unsigned archive" >&2
+            find build/ScarletSpots.xcarchive -maxdepth 5 -type d || true
+            exit 1
+          fi
+
+          rm -rf Payload ScarletSpots.ipa
+          mkdir -p Payload
+          cp -R "$APP_PATH" Payload/
+          zip -r ScarletSpots.ipa Payload/
+          echo "Created ScarletSpots.ipa"
+
+      - name: Upload unsigned archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-native-archive-unsigned
+          path: ios-native/ScarletSpots/build/ScarletSpots.xcarchive
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-native-ipa-unsigned
+          path: ios-native/ScarletSpots/ScarletSpots.ipa
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Prepare release metadata
+        id: release_info
+        run: |
+          TAG="ios-native-build-${{ github.run_number }}"
+          NAME="iOS Native Sideloading Build ${{ github.run_number }}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.release_info.outputs.tag }}" ios-native/ScarletSpots/ScarletSpots.ipa \
+            --title "${{ steps.release_info.outputs.name }}" \
+            --generate-notes \
+            --prerelease
+
+      - name: Notes
+        run: |
+          echo "::notice::The archive and IPA are UNSIGNED. Re-sign the IPA with"\
+               " your sideloading tool before installing on a device."

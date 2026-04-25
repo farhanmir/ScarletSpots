@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>ScarletSpots</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.scarletspots.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>scarletspots</string>
+			</array>
+		</dict>
+	</array>
+	<!-- Export compliance: we only use Apple-standard HTTPS/TLS, no custom -->
+	<!-- crypto, so we qualify for the exemption. Setting this skips the -->
+	<!-- App Store Connect export-compliance questionnaire on every build. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>API_BASE_URL</key>
+	<string>$(API_BASE_URL)</string>
+	<key>SUPABASE_ANON_KEY</key>
+	<string>$(SUPABASE_ANON_KEY)</string>
+	<key>SUPABASE_URL</key>
+	<string>$(SUPABASE_URL)</string>
+	<key>TLS_CERT_SHA256</key>
+	<string>$(TLS_CERT_SHA256)</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>ScarletSpots listens for Bluetooth audio disconnects so it can detect when you leave your car.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>ScarletSpots uses your location to show nearby parking lots and guide you back to your parked car.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>ScarletSpots uses background location so it can start and end parking sessions automatically, even when the app is closed.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>ScarletSpots uses background location so it can start and end parking sessions automatically, even when the app is closed.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>ScarletSpots reads motion activity to tell the difference between driving and walking so it can auto-start and auto-end parking sessions.</string>
+	<key>NSUserNotificationsUsageDescription</key>
+	<string>ScarletSpots notifies you when parking is detected or when a lot fills up.</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
+	<key>NSSupportsLiveActivitiesFrequentUpdates</key>
+	<true/>
+	<!-- `location` for the background geofencing loop, `fetch` for periodic -->
+	<!-- session checks, `remote-notification` for silent pushes that wake -->
+	<!-- auto-park. Intentionally no `processing` — we don't register any -->
+	<!-- BGTaskScheduler handlers, so declaring it triggers an Xcode warning -->
+	<!-- and provides no value. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
+	<key>UILaunchScreen</key>
+	<dict>
+		<key>UIColorName</key>
+		<string></string>
+	</dict>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+	</dict>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>arm64</string>
+	</array>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+</dict>
+</plist>

@@ -1,0 +1,18 @@
+// ScarletSpots Release configuration
+//
+// Release secrets (real endpoints + keys) are injected by CI into
+// ReleaseSecrets.xcconfig at archive time. This file ships only safe
+// placeholders so debug/simulator builds still compile locally.
+//
+// NOTE: `//` inside xcconfig values is parsed as a comment. URLs therefore
+// use `$()` between the slashes so the parser stops before the scheme.
+
+API_BASE_URL = http:/$()/localhost:8000
+SUPABASE_URL = https:/$()/example.supabase.co
+SUPABASE_ANON_KEY = release-anon-key
+TLS_CERT_SHA256 =
+// Unsigned sideload builds use development APNs. Change to `production`
+// when building with production distribution signing.
+APS_ENVIRONMENT = development
+
+#include? "ReleaseSecrets.xcconfig"

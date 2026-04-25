@@ -1,0 +1,12 @@
+// ScarletSpots Debug configuration
+//
+// NOTE: Xcconfig treats `//` as the start of a line comment, so URLs must be
+// escaped with `$()` between the slashes to prevent the value from being
+// truncated to `https:`. See:
+// https://pewpewthespells.com/blog/xcconfig_guide.html
+
+API_BASE_URL = http:/$()/localhost:8000
+SUPABASE_URL = https:/$()/example.supabase.co
+SUPABASE_ANON_KEY = debug-anon-key
+TLS_CERT_SHA256 =
+APS_ENVIRONMENT = development
