@@ -198,7 +198,17 @@ jobs:
             exit 1
           fi
 
-          if [[ "$SUPABASE_VALUE" != https://*".supabase.co"* ]]; then
+          if ! python3 - "$SUPABASE_VALUE" <<'PY'
+          import sys
+          from urllib.parse import urlparse
+
+          value = sys.argv[1]
+          parsed = urlparse(value)
+          host = (parsed.hostname or "").lower()
+          is_valid = parsed.scheme.lower() == "https" and host.endswith(".supabase.co")
+          raise SystemExit(0 if is_valid else 1)
+          PY
+          then
             echo "::error::Archived SUPABASE_URL is not a valid Supabase host."
             exit 1
           fi
