@@ -20,48 +20,6 @@ enum CampusConstants {
     ]
 }
 
-// MARK: - Raw JSON (decoded directly from rutgers_parking_data.json)
-
-/// Raw lot shape as it appears in `rutgers_parking_data.json`.
-///
-/// Modeled as a separate struct from `Lot` so decoding stays tolerant of
-/// legacy/missing fields in the data without polluting the runtime type.
-struct RawLot: Codable {
-    let active: Bool?
-    let mapId: String
-    let propertyCode: String?
-    let propertyName: String
-    let shortName: String
-    let address: Address
-    let location: Coordinate
-    let totalSpaces: Int?
-    let generalAvailable: Int?
-    let visitor: Int?
-    let handicapped: Int?
-    let evCharging: Int?
-    let fifteenMin: Int?
-    let foodTruck: Int?
-    let garage: Bool?
-    let solar: Bool?
-    let uncovered: Bool?
-    let regularGate: Bool?
-    let smartGate: Bool?
-    let student: Bool?
-    let employee: Bool?
-    let evChargeInfo: String?
-    let empHours: String?
-    let note: String?
-    let photos: [String]?
-    let gtfsGeometry: RawGeometry?
-}
-
-struct RawGeometry: Codable {
-    let type: String
-    /// GeoJSON `[[[lng, lat]]]` for Polygon. For this dataset's non-standard
-    /// MultiPolygon variant, it's a flat list of outer rings (no nesting).
-    let coordinates: [[[Double]]]
-}
-
 // MARK: - Address / Coordinate shared value types
 
 struct Address: Codable {
@@ -85,10 +43,10 @@ struct Coordinate: Codable {
 
 /// A single parking lot, in the shape the rest of the app consumes.
 ///
-/// The `Lot` constructor normalizes `RawGeometry` into a list of polygons and
-/// their interior holes, collapsing both Polygon and MultiPolygon geometry
-/// into the same structure. Callers can render every polygon or use the first
-/// one for a representative shape.
+/// Hydrated by `LotRepository` from the bundled SQLite database. Multi-polygon
+/// lots come back as a list of `PolygonRing`s, each with its own outer
+/// boundary plus zero or more interior holes. Callers can render every polygon
+/// or use the first one for a representative shape.
 struct Lot: Identifiable, Hashable {
     /// Polygon = outer boundary + zero or more hole rings.
     struct PolygonRing: Hashable {
@@ -139,35 +97,64 @@ struct Lot: Identifiable, Hashable {
     /// Empty if no geometry was provided in the source data.
     let polygons: [PolygonRing]
 
-    init(raw: RawLot) {
-        self.mapId = raw.mapId
-        self.id = raw.mapId
-        self.active = raw.active ?? true
-        self.propertyCode = raw.propertyCode ?? ""
-        self.propertyName = raw.propertyName
-        self.shortName = raw.shortName
-        self.address = raw.address
-        self.location = raw.location
-        self.totalSpaces = raw.totalSpaces ?? 0
-        self.generalAvailable = raw.generalAvailable ?? 0
-        self.visitor = raw.visitor ?? 0
-        self.handicapped = raw.handicapped ?? 0
-        self.evCharging = raw.evCharging ?? 0
-        self.fifteenMin = raw.fifteenMin ?? 0
-        self.foodTruck = raw.foodTruck ?? 0
-        self.garage = raw.garage ?? false
-        self.solar = raw.solar ?? false
-        self.uncovered = raw.uncovered ?? true
-        self.regularGate = raw.regularGate ?? false
-        self.smartGate = raw.smartGate ?? false
-        self.student = raw.student ?? false
-        self.employee = raw.employee ?? false
-        self.evChargeInfo = raw.evChargeInfo
-        self.empHours = raw.empHours ?? ""
-        self.note = raw.note ?? ""
-        self.photos = raw.photos ?? []
-
-        self.polygons = Lot.parsePolygons(from: raw.gtfsGeometry)
+    /// Designated initializer used by `LotRepository` when hydrating from the
+    /// bundled SQLite database. All fields are already normalized by the
+    /// generator, so this init just forwards them.
+    init(
+        mapId: String,
+        active: Bool,
+        propertyCode: String,
+        propertyName: String,
+        shortName: String,
+        address: Address,
+        location: Coordinate,
+        totalSpaces: Int,
+        generalAvailable: Int,
+        visitor: Int,
+        handicapped: Int,
+        evCharging: Int,
+        fifteenMin: Int,
+        foodTruck: Int,
+        garage: Bool,
+        solar: Bool,
+        uncovered: Bool,
+        regularGate: Bool,
+        smartGate: Bool,
+        student: Bool,
+        employee: Bool,
+        evChargeInfo: String?,
+        empHours: String,
+        note: String,
+        photos: [String],
+        polygons: [PolygonRing]
+    ) {
+        self.id = mapId
+        self.mapId = mapId
+        self.active = active
+        self.propertyCode = propertyCode
+        self.propertyName = propertyName
+        self.shortName = shortName
+        self.address = address
+        self.location = location
+        self.totalSpaces = totalSpaces
+        self.generalAvailable = generalAvailable
+        self.visitor = visitor
+        self.handicapped = handicapped
+        self.evCharging = evCharging
+        self.fifteenMin = fifteenMin
+        self.foodTruck = foodTruck
+        self.garage = garage
+        self.solar = solar
+        self.uncovered = uncovered
+        self.regularGate = regularGate
+        self.smartGate = smartGate
+        self.student = student
+        self.employee = employee
+        self.evChargeInfo = evChargeInfo
+        self.empHours = empHours
+        self.note = note
+        self.photos = photos
+        self.polygons = polygons
     }
 
     // Transient initializer used by unit tests and in-memory construction.
@@ -221,40 +208,3 @@ struct Lot: Identifiable, Hashable {
     }
 }
 
-// MARK: - Geometry parsing
-
-private extension Lot {
-    static func parsePolygons(from geometry: RawGeometry?) -> [PolygonRing] {
-        guard let geometry, !geometry.coordinates.isEmpty else { return [] }
-
-        switch geometry.type {
-        case "Polygon":
-            // coordinates[0] is the outer ring. Any following rings are holes.
-            let rings = geometry.coordinates
-            let outer = Self.coordinates(from: rings[0])
-            let holes = rings.dropFirst().map(Self.coordinates(from:))
-            guard outer.count >= 3 else { return [] }
-            return [PolygonRing(outer: outer, holes: holes)]
-
-        case "MultiPolygon":
-            // This dataset stores MultiPolygon as a flat [[[lng, lat]]] where
-            // each element is a separate outer ring (non-standard). Any ring
-            // with < 3 points is discarded.
-            return geometry.coordinates
-                .map(Self.coordinates(from:))
-                .filter { $0.count >= 3 }
-                .map { PolygonRing(outer: $0, holes: []) }
-
-        default:
-            return []
-        }
-    }
-
-    static func coordinates(from ring: [[Double]]) -> [CLLocationCoordinate2D] {
-        ring.compactMap { point in
-            guard point.count >= 2 else { return nil }
-            // GeoJSON is (lng, lat).
-            return CLLocationCoordinate2D(latitude: point[1], longitude: point[0])
-        }
-    }
-}

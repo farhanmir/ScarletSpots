@@ -2,10 +2,17 @@ import Foundation
 
 /// Permit → allowed lot IDs & operating hours.
 ///
-/// Mirrors the TypeScript logic in `mobile/src/shared/constants/lots.ts` so the
-/// iOS app applies the same permit filtering and time-of-day availability
-/// checks as the React Native app. Loaded once at app launch from the bundled
-/// JSON resources.
+/// Mirrors the TypeScript logic in `mobile/src/shared/constants/lots.ts` so
+/// the iOS app applies the same permit filtering and time-of-day availability
+/// checks as the React Native app.
+///
+/// Source data still lives in the canonical `permit_mapping.json` /
+/// `permit_schedules.json` inside `ios-native/data-sources/`. The generator
+/// turns them into relational tables (`permits`, `permit_lots`,
+/// `permit_schedules`, `permit_schedule_slots`) which this repository reads.
+/// Permit → lot-id mappings are small (~2400 rows) and read often enough to
+/// justify caching in memory; per-lot schedule text and weekday slots are
+/// queried on demand so we don't have to keep a 2 MB JSON tree around.
 @MainActor
 final class PermitRepository: ObservableObject {
     static let shared = PermitRepository()
@@ -16,72 +23,52 @@ final class PermitRepository: ObservableObject {
     /// user's permit.
     static let noPermitCommuter = "__commuter_all"
 
-    struct ScheduleSlot: Decodable, Hashable {
-        let start: String
-        let end: String
-    }
-
-    struct ScheduleInfo: Decodable {
-        /// 7-element array keyed by `Calendar.component(.weekday)` minus 1
-        /// (0 = Sunday … 6 = Saturday) — exactly the same as
-        /// JavaScript's `Date#getDay()`.
-        let schedule: [[ScheduleSlot]]
-        let time_text_1: String?
-        let time_text_2: String?
-    }
-
     private(set) var permitToLotIds: [String: Set<String>] = [:]
     private(set) var allPermitTypes: [String] = []
     private(set) var allCommuterLotIds: Set<String> = []
-    private(set) var schedules: [String: [String: ScheduleInfo]] = [:]
+
+    private let db = Database.shared
 
     private init() {
-        loadPermitMapping()
-        loadSchedules()
+        loadPermitMappings()
     }
 
     // MARK: - Loading
 
-    private func loadPermitMapping() {
-        guard let url = Bundle.main.url(forResource: "permit_mapping", withExtension: "json") else {
-            Logger.log("PermitRepository: permit_mapping.json missing from bundle")
-            return
-        }
-        struct Entry: Decodable { let id: String; let name: String? }
-        do {
-            let data = try Data(contentsOf: url)
-            let decoded = try JSONDecoder().decode([String: [Entry]].self, from: data)
-            var mapping: [String: Set<String>] = [:]
-            var commuter: Set<String> = []
-            for (permit, entries) in decoded {
-                let ids = Set(entries.map(\.id))
-                mapping[permit] = ids
-                if permit.lowercased().contains("commuter") {
-                    commuter.formUnion(ids)
+    private func loadPermitMappings() {
+        var mapping: [String: Set<String>] = [:]
+        var commuter: Set<String> = []
+
+        db.query(
+            """
+            SELECT p.permit_type, p.is_commuter, pl.lot_id
+            FROM permits p
+            LEFT JOIN permit_lots pl ON pl.permit_type = p.permit_type
+            """
+        ) { stmt in
+            while stmt.step() {
+                let permit = stmt.stringOrEmpty(0)
+                let isCommuter = stmt.bool(1)
+                let lotId = stmt.string(2)
+
+                // A permit with no matching lots still needs an entry so it
+                // shows up in `allPermitTypes`.
+                if mapping[permit] == nil {
+                    mapping[permit] = []
+                }
+                if let lotId, !lotId.isEmpty {
+                    mapping[permit]?.insert(lotId)
+                    if isCommuter {
+                        commuter.insert(lotId)
+                    }
                 }
             }
-            self.permitToLotIds = mapping
-            self.allPermitTypes = mapping.keys.sorted()
-            self.allCommuterLotIds = commuter
-            Logger.log("PermitRepository: loaded \(mapping.count) permits (\(commuter.count) commuter lots)")
-        } catch {
-            Logger.log("PermitRepository: failed to decode permit_mapping — \(error)")
         }
-    }
 
-    private func loadSchedules() {
-        guard let url = Bundle.main.url(forResource: "permit_schedules", withExtension: "json") else {
-            Logger.log("PermitRepository: permit_schedules.json missing from bundle")
-            return
-        }
-        do {
-            let data = try Data(contentsOf: url)
-            let decoded = try JSONDecoder().decode([String: [String: ScheduleInfo]].self, from: data)
-            self.schedules = decoded
-            Logger.log("PermitRepository: loaded schedules for \(decoded.count) permits")
-        } catch {
-            Logger.log("PermitRepository: failed to decode permit_schedules — \(error)")
-        }
+        self.permitToLotIds = mapping
+        self.allPermitTypes = mapping.keys.sorted()
+        self.allCommuterLotIds = commuter
+        Logger.log("PermitRepository: loaded \(mapping.count) permits (\(commuter.count) commuter lots)")
     }
 
     // MARK: - Permit → Lot ID lookups
@@ -130,11 +117,17 @@ final class PermitRepository: ObservableObject {
     /// the RN `getLotScheduleInfo` helper — returns nil when no schedule
     /// exists for the pair.
     func scheduleText(permitType: String?, lotId: String) -> (String, String)? {
-        guard let permitType,
-              let info = schedules[permitType]?[lotId],
-              (info.time_text_1?.isEmpty == false) || (info.time_text_2?.isEmpty == false)
-        else { return nil }
-        return (info.time_text_1 ?? "", info.time_text_2 ?? "")
+        guard let permitType else { return nil }
+        return db.query(
+            "SELECT time_text_1, time_text_2 FROM permit_schedules WHERE permit_type = ? AND lot_id = ?",
+            bindings: [permitType, lotId]
+        ) { stmt -> (String, String)? in
+            guard stmt.step() else { return nil }
+            let t1 = stmt.stringOrEmpty(0)
+            let t2 = stmt.stringOrEmpty(1)
+            guard !t1.isEmpty || !t2.isEmpty else { return nil }
+            return (t1, t2)
+        } ?? nil
     }
 
     /// Three-valued availability check:
@@ -147,23 +140,39 @@ final class PermitRepository: ObservableObject {
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> Bool? {
-        guard let permitType,
-              let info = schedules[permitType]?[lotId]
-        else { return nil }
+        guard let permitType else { return nil }
 
-        let weekday = calendar.component(.weekday, from: now) // 1 = Sun
-        let dayIndex = weekday - 1
-        guard dayIndex >= 0, dayIndex < info.schedule.count else { return nil }
-        let slots = info.schedule[dayIndex]
+        let weekday = calendar.component(.weekday, from: now) - 1 // 0 = Sun
+        let currentMinutes =
+            calendar.component(.hour, from: now) * 60 +
+            calendar.component(.minute, from: now)
+
+        // Pull every slot for this (permit, lot) so we can distinguish "no
+        // schedule at all" (→ nil) from "no slot for today" (→ false).
+        let hasAny = db.query(
+            "SELECT COUNT(*) FROM permit_schedules WHERE permit_type = ? AND lot_id = ?",
+            bindings: [permitType, lotId]
+        ) { stmt -> Bool in
+            stmt.step() ? stmt.int(0) > 0 : false
+        } ?? false
+
+        guard hasAny else { return nil }
+
+        let slots = db.select(
+            """
+            SELECT start_minute, end_minute
+            FROM permit_schedule_slots
+            WHERE permit_type = ? AND lot_id = ? AND weekday = ?
+            """,
+            bindings: [permitType, lotId, weekday]
+        ) { stmt in
+            (stmt.int(0), stmt.int(1))
+        }
+
         if slots.isEmpty { return false }
 
-        let hour = calendar.component(.hour, from: now)
-        let minute = calendar.component(.minute, from: now)
-        let currentMinutes = hour * 60 + minute
-
-        for slot in slots {
-            guard let range = parseRange(start: slot.start, end: slot.end) else { continue }
-            if currentMinutes >= range.0, currentMinutes < range.1 {
+        for (start, end) in slots {
+            if currentMinutes >= start, currentMinutes < end {
                 return true
             }
         }
@@ -179,14 +188,16 @@ final class PermitRepository: ObservableObject {
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> Bool? {
-        guard let permitType,
-              let info = schedules[permitType]?[lotId] else { return nil }
+        guard let permitType else { return nil }
+        guard let (t1, t2) = scheduleText(permitType: permitType, lotId: lotId) else {
+            return nil
+        }
 
-        let t1 = (info.time_text_1 ?? "").trimmingCharacters(in: .whitespaces).lowercased()
-        let t2 = (info.time_text_2 ?? "").trimmingCharacters(in: .whitespaces).lowercased()
+        let lower1 = t1.trimmingCharacters(in: .whitespaces).lowercased()
+        let lower2 = t2.trimmingCharacters(in: .whitespaces).lowercased()
         let isMainLotSchedule =
-            t1 == "monday - friday, 6am - 12am" &&
-            t2 == "saturday - sunday, 6am - 12am"
+            lower1 == "monday - friday, 6am - 12am" &&
+            lower2 == "saturday - sunday, 6am - 12am"
 
         guard isMainLotSchedule else {
             return isLotAvailableNow(permitType: permitType, lotId: lotId, now: now, calendar: calendar)
@@ -194,17 +205,9 @@ final class PermitRepository: ObservableObject {
 
         let weekday = calendar.component(.weekday, from: now)
         if weekday == 1 || weekday == 7 { return false }
-        let minutes = calendar.component(.hour, from: now) * 60 + calendar.component(.minute, from: now)
+        let minutes =
+            calendar.component(.hour, from: now) * 60 +
+            calendar.component(.minute, from: now)
         return minutes >= 10 * 60 && minutes < 24 * 60
-    }
-
-    private func parseRange(start: String, end: String) -> (Int, Int)? {
-        func toMinutes(_ text: String) -> Int? {
-            let parts = text.split(separator: ":").compactMap { Int($0) }
-            guard parts.count == 2 else { return nil }
-            return parts[0] * 60 + parts[1]
-        }
-        guard let s = toMinutes(start), let e = toMinutes(end) else { return nil }
-        return (s, e)
     }
 }

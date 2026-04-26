@@ -11,7 +11,8 @@ Rutgers parking app: Expo mobile + FastAPI backend + Supabase. Read `PLAN.md` an
 
 **Static data (lot metadata) = bundled in app. Dynamic data (sessions, occupancy) = Supabase.**
 
-- Lot data: `mobile/data/rutgers_parking_data.json` + `mobile/data/lots.ts` (`getAllLots()`, `getLotById()`, `applyOccupancy()`)
+- Mobile (RN) lot data: `mobile/data/rutgers_parking_data.json` + `mobile/data/lots.ts` (`getAllLots()`, `getLotById()`, `applyOccupancy()`)
+- iOS-native static data: bundled SQLite at `ios-native/ScarletSpots/Resources/scarletspots.sqlite`, generated from JSON under `ios-native/data-sources/` via `python ios-native/scripts/build_sqlite.py`. Read through `Database.shared` + repositories in `ios-native/ScarletSpots/Sources/Data/`. Never hand-edit the `.sqlite`.
 - Never fetch lot metadata from the backend. Never add `parking_lots` table back.
 - `lot_id` is always TEXT (e.g. `"10001"`), never UUID.
 

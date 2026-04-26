@@ -27,6 +27,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Verify bundled SQLite matches JSON sources
+        run: |
+          set -euo pipefail
+          python3 ios-native/scripts/build_sqlite.py --output /tmp/scarletspots.verify.sqlite
+          python3 ios-native/scripts/compare_sqlite.py \
+            ios-native/ScarletSpots/Resources/scarletspots.sqlite \
+            /tmp/scarletspots.verify.sqlite
+
       - name: Set up Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
@@ -78,6 +86,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Verify bundled SQLite matches JSON sources
+        run: |
+          set -euo pipefail
+          python3 ios-native/scripts/build_sqlite.py --output /tmp/scarletspots.verify.sqlite
+          python3 ios-native/scripts/compare_sqlite.py \
+            ios-native/ScarletSpots/Resources/scarletspots.sqlite \
+            /tmp/scarletspots.verify.sqlite
 
       - name: Set up Xcode
         uses: maxim-lobanov/setup-xcode@v1
@@ -158,11 +174,19 @@ jobs:
             exit 1
           fi
 
-          rm -rf Payload ScarletSpots.ipa
+          ICON_SOURCE="Assets.xcassets/AppIcon.appiconset/app-icon-1024.png"
+          if [ ! -f "$ICON_SOURCE" ]; then
+            echo "Error: App icon source not found at $ICON_SOURCE" >&2
+            exit 1
+          fi
+
+          rm -rf Payload ScarletSpots.ipa iTunesArtwork iTunesArtwork@2x
           mkdir -p Payload
           cp -R "$APP_PATH" Payload/
-          zip -r ScarletSpots.ipa Payload/
-          echo "Created ScarletSpots.ipa"
+          sips -s format png -z 512 512 "$ICON_SOURCE" --out iTunesArtwork >/dev/null
+          cp "$ICON_SOURCE" iTunesArtwork@2x
+          zip -r ScarletSpots.ipa Payload/ iTunesArtwork iTunesArtwork@2x
+          echo "Created ScarletSpots.ipa with Sideloadly artwork"
 
       - name: Upload unsigned archive
         uses: actions/upload-artifact@v4

@@ -144,17 +144,10 @@ struct SearchScreen: View {
     // MARK: - Search pipeline
 
     private func runSearch(_ term: String) {
-        let normalized = term.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-
-        let lots = LotRepository.shared.getAll(includeAllCampuses: FeatureFlags.enableAllCampuses)
-        let lotResults = lots
-            .filter { lot in
-                normalized.isEmpty
-                    || lot.propertyName.lowercased().contains(normalized)
-                    || lot.shortName.lowercased().contains(normalized)
-                    || (lot.address.campus?.lowercased().contains(normalized) ?? false)
-            }
-            .prefix(20)
+        // Three-way FTS5 search against the bundled SQLite database. The
+        // repositories handle empty/short-query fallbacks internally.
+        let lotResults = LotRepository.shared
+            .search(term, includeAllCampuses: FeatureFlags.enableAllCampuses, limit: 20)
             .map {
                 SearchResult(
                     id: "lot:\($0.mapId)",
@@ -167,49 +160,34 @@ struct SearchScreen: View {
                 )
             }
 
-        let buildingResults = BuildingRepository.all()
-            .filter { b in
-                normalized.isEmpty
-                    || b.name.lowercased().contains(normalized)
-                    || b.address.lowercased().contains(normalized)
-            }
-            .prefix(15)
-            .map {
-                SearchResult(
-                    id: "bldg:\($0.name)",
-                    kind: .building,
-                    title: $0.name,
-                    subtitle: $0.address,
-                    lotId: nil,
-                    coordinate: CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude),
-                    systemImage: "building.2.fill"
-                )
-            }
+        let buildingResults = BuildingRepository.search(term, limit: 15).map {
+            SearchResult(
+                id: "bldg:\($0.name)",
+                kind: .building,
+                title: $0.name,
+                subtitle: $0.address,
+                lotId: nil,
+                coordinate: CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude),
+                systemImage: "building.2.fill"
+            )
+        }
 
-        let placeResults = PlacesRepository.all()
-            .filter { p in
-                guard !normalized.isEmpty else { return true }
-                if p.name.lowercased().contains(normalized) { return true }
-                if p.aliases?.lowercased().contains(normalized) == true { return true }
-                return p.address.lowercased().contains(normalized)
-            }
-            .prefix(8)
-            .map {
-                SearchResult(
-                    id: "place:\($0.id)",
-                    kind: .place,
-                    title: $0.name,
-                    subtitle: $0.address,
-                    lotId: nil,
-                    coordinate: nil,
-                    systemImage: "mappin.circle.fill"
-                )
-            }
+        let placeResults = PlacesRepository.search(term, limit: 8).map {
+            SearchResult(
+                id: "place:\($0.id)",
+                kind: .place,
+                title: $0.name,
+                subtitle: $0.address,
+                lotId: nil,
+                coordinate: nil,
+                systemImage: "mappin.circle.fill"
+            )
+        }
 
         // De-dup places that share a name with a building we already have.
         let existingNames = Set(buildingResults.map { $0.title.lowercased() })
         let uniquePlaces = placeResults.filter { !existingNames.contains($0.title.lowercased()) }
 
-        results = Array(lotResults) + Array(buildingResults) + Array(uniquePlaces)
+        results = lotResults + buildingResults + uniquePlaces
     }
 }
