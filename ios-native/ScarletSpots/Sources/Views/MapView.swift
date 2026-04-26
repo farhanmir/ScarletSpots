@@ -83,7 +83,7 @@ struct MapView: View {
             .padding(.bottom, 22)
             .animation(.easeInOut(duration: 0.2), value: sessionStore.activeSession?.id)
         }
-        .overlay(alignment: .bottomLeading) {
+        .overlay(alignment: .bottomTrailing) {
             Button {
                 withAnimation(.easeInOut(duration: 0.4)) {
                     if let userLoc = location.latestLocation {
@@ -98,7 +98,7 @@ struct MapView: View {
                     .background(.ultraThinMaterial, in: Circle())
                     .shadow(radius: 2)
             }
-            .padding(.leading, 12)
+            .padding(.trailing, 12)
             .padding(.bottom, 22)
         }
         .sheet(item: $selectedLot) { lot in
@@ -149,11 +149,13 @@ struct MapView: View {
     @ViewBuilder
     private func lotBadge(for lot: Lot) -> some View {
         let occupancy = webSocket.lotOccupancies[lot.mapId] ?? 0
+        let row = webSocket.lotOccupancyRows[lot.mapId]
+        let isEstimated = (row?.source ?? "").contains("heuristic")
         let capacity = max(lot.totalSpaces, 1)
         let ratio = Double(occupancy) / Double(capacity)
         let percent = Int((ratio * 100).rounded())
         
-        Text("\(percent)%")
+        Text(isEstimated ? "~\(percent)%" : "\(percent)%")
             .font(.caption2.bold().monospacedDigit())
             .foregroundStyle(.white)
             .padding(.horizontal, 6)
@@ -242,9 +244,11 @@ struct MapView: View {
 
     private func accessibilityText(for lot: Lot) -> String {
         let occupancy = webSocket.lotOccupancies[lot.mapId] ?? 0
+        let row = webSocket.lotOccupancyRows[lot.mapId]
+        let sourceLabel = (row?.source ?? "") == "realtime" ? "realtime" : "estimated"
         let capacity = max(lot.totalSpaces, 1)
         let freeSpots = max(capacity - occupancy, 0)
-        return "\(lot.shortName), \(freeSpots) spots free out of \(capacity)."
+        return "\(lot.shortName), \(freeSpots) spots free out of \(capacity), \(sourceLabel)."
     }
 
     private func colorForLot(_ lot: Lot) -> Color {
