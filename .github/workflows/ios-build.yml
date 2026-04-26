@@ -14,7 +14,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Select latest installed Xcode (prefer stable)
         run: |
@@ -128,7 +128,7 @@ jobs:
 
       - name: Restore generated iOS project cache
         id: ios_project_cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: mobile/ios
           key: ${{ runner.os }}-ios-prebuild-${{ hashFiles('mobile/package-lock.json', 'mobile/package.json', 'mobile/app.json', 'mobile/app.config.js', 'mobile/app.config.ts', 'mobile/modules/parking-magic/**') }}-${{ github.run_id }}
@@ -150,7 +150,7 @@ jobs:
 
       - name: Save generated iOS project cache
         if: always() && steps.ios_project_cache.outputs.cache-matched-key == ''
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: mobile/ios
           key: ${{ steps.ios_project_cache.outputs.cache-primary-key }}
@@ -221,7 +221,7 @@ jobs:
 
       - name: Restore DerivedData cache
         id: derived_data_cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: build
           key: ${{ runner.os }}-deriveddata-${{ hashFiles('mobile/package-lock.json', 'mobile/package.json', 'mobile/modules/parking-magic/**', 'mobile/ios/Podfile.lock', 'mobile/ios/Podfile', 'mobile/ios/**/*.pbxproj') }}-${{ github.run_id }}
@@ -264,7 +264,7 @@ jobs:
 
       - name: Save DerivedData cache
         if: always() && steps.derived_data_cache.outputs.cache-matched-key == ''
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: build
           key: ${{ steps.derived_data_cache.outputs.cache-primary-key }}
@@ -295,7 +295,7 @@ jobs:
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
 
       - name: Upload IPA artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.xcode_info.outputs.scheme }}-${{ github.run_number }}
           path: ${{ steps.xcode_info.outputs.scheme }}.ipa
