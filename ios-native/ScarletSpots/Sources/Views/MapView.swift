@@ -12,7 +12,7 @@ import CoreLocation
 /// - Surfaces the active parking session (bottom chip) and auto-park
 ///   candidates (pulse pin + confirmation sheet).
 /// - Honors a "focus" search intent so tapping a result in Search jumps the
-///   camera to that lot.
+///   camera to that lot or drops a temporary destination pin.
 struct MapView: View {
     @EnvironmentObject private var tabBarState: TabBarState
     @Namespace private var mapScope
@@ -22,10 +22,13 @@ struct MapView: View {
     @StateObject private var autoPark = AutoParkCoordinator.shared
     @StateObject private var webSocket = WebSocketManager.shared
     @StateObject private var auth = AuthManager.shared
+    @StateObject private var location = LocationEngine.shared
 
     @State private var selectedLot: Lot?
+    @State private var selectedDestination: TabBarState.FocusDestination?
     @State private var favoriteIds: Set<String> = []
     @State private var showCandidateSheet = false
+    @State private var centerAlert: String?
 
     @State private var zoomDistance: Double = 9000
     @State private var position: MapCameraPosition = .camera(
@@ -34,84 +37,28 @@ struct MapView: View {
             distance: 9000
         )
     )
-    var body: some View {
-        ZStack(alignment: .bottom) {
-            Map(position: $position, scope: mapScope) {
-                if zoomLevel == .lot {
-                    ForEach(polygonItems) { item in
-                        polygonShape(for: item)
-                    }
-                    ForEach(visibleLots) { lot in
-                        Annotation("", coordinate: lot.location.clLocationCoordinate2D) {
-                            Button { selectedLot = lot } label: {
-                                lotBadge(for: lot)
-                                    // CI-safe fallback for polygon tap parity:
-                                    // increase hit area so near-miss taps around the pin
-                                    // still open lot details.
-                                    .padding(20)
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(accessibilityText(for: lot))
-                            .accessibilityHint("Opens details for \(lot.shortName).")
-                        }
-                    }
-                } else {
-                    ForEach(clusters) { cluster in
-                        Annotation("", coordinate: cluster.coordinate) {
-                            Button { zoomInTo(cluster: cluster) } label: {
-                                clusterBadge(for: cluster)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("\(cluster.name), \(Int(cluster.occupancyRate.rounded())) percent occupied")
-                            .accessibilityHint("Zooms into \(cluster.name).")
-                        }
-                    }
-                }
-                ForEach(autoPark.pendingCandidates) { candidate in
-                    Annotation("", coordinate: CLLocationCoordinate2D(latitude: candidate.latitude, longitude: candidate.longitude)) {
-                        CandidatePin(candidate: candidate)
-                            .onTapGesture { showCandidateSheet = true }
-                    }
-                }
-                UserAnnotation()
-            }
-            .mapStyle(.standard(elevation: .realistic))
-            .tint(.blue) // Native blue for user location dot
-            .mapControls {
-                MapCompass(scope: mapScope)
-                MapScaleView(scope: mapScope)
-            }
-            .onMapCameraChange(frequency: .onEnd) { context in
-                zoomDistance = context.camera.distance
-            }
 
-            VStack(spacing: 12) {
-                if let session = sessionStore.activeSession {
-                    ActiveSessionChip(session: session)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+    private let lotTapSnapRadiusMeters: CLLocationDistance = 110
+
+    var body: some View {
+        MapReader { proxy in
+            ZStack(alignment: .bottom) {
+                mapBody(proxy: proxy)
+
+                VStack(spacing: 12) {
+                    if let session = sessionStore.activeSession {
+                        ActiveSessionChip(session: session)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
                 }
+                .padding(.bottom, 22)
+                .animation(.easeInOut(duration: 0.2), value: sessionStore.activeSession?.id)
             }
-            .padding(.bottom, 22)
-            .animation(.easeInOut(duration: 0.2), value: sessionStore.activeSession?.id)
         }
         .overlay(alignment: .bottomTrailing) {
-            MapUserLocationButton(scope: mapScope)
-                .labelStyle(.iconOnly)
-                .padding(8)
-                .background(.ultraThinMaterial, in: Circle())
-                .overlay {
-                    Circle().stroke(.white.opacity(0.20), lineWidth: 1)
-                }
-                .overlay {
-                    Image(systemName: "location.fill")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.95))
-                        .allowsHitTesting(false)
-                }
-                .shadow(color: .black.opacity(0.18), radius: 8, y: 4)
-            .padding(.trailing, 16)
-            .padding(.bottom, sessionStore.activeSession == nil ? 24 : 96)
+            goToMeButton
+                .padding(.trailing, 16)
+                .padding(.bottom, sessionStore.activeSession == nil ? 24 : 96)
         }
         .sheet(item: $selectedLot) { lot in
             LotDetailsSheet(lot: lot, favoriteIds: $favoriteIds)
@@ -136,14 +83,35 @@ struct MapView: View {
         }
         .onChange(of: tabBarState.focusLotId) { _, newValue in
             if let id = newValue, let lot = lotRepository.byId(id) {
+                selectedDestination = nil
                 focus(on: lot)
                 tabBarState.focusLotId = nil
             }
         }
-        .onChange(of: tabBarState.focusCoordinate) { _, newValue in
+        .onChange(of: tabBarState.focusDestination) { _, newValue in
             if let target = newValue {
+                selectedLot = nil
+                selectedDestination = target
                 focus(on: CLLocationCoordinate2D(latitude: target.latitude, longitude: target.longitude))
-                tabBarState.focusCoordinate = nil
+                tabBarState.focusDestination = nil
+            }
+        }
+        .onChange(of: selectedDestination) { _, newValue in
+            guard let target = newValue else { return }
+            Task { @MainActor in
+                let remaining = target.expiresAt.timeIntervalSinceNow
+                guard remaining > 0 else {
+                    clearDestination(ifMatching: target)
+                    return
+                }
+                try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000))
+                clearDestination(ifMatching: target)
+            }
+        }
+        .onChange(of: location.authorization) { _, _ in
+            if location.hasForegroundPermission {
+                location.start()
+                location.requestCurrentLocation()
             }
         }
         .task {
@@ -152,11 +120,108 @@ struct MapView: View {
             if let favorites = try? await FavoritesAPI.list() {
                 favoriteIds = Set(favorites)
             }
+            if location.hasForegroundPermission {
+                location.start()
+                location.requestCurrentLocation()
+            }
+        }
+        .alert("Location Unavailable", isPresented: Binding(
+            get: { centerAlert != nil },
+            set: { if !$0 { centerAlert = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(centerAlert ?? "")
         }
     }
 
-    // MARK: - Computed subviews
+    @ViewBuilder
+    private func mapBody(proxy: MapProxy) -> some View {
+        Map(position: $position, scope: mapScope) {
+            if zoomLevel == .lot {
+                ForEach(polygonItems) { item in
+                    polygonShape(for: item)
+                }
+                ForEach(visibleLots) { lot in
+                    Annotation("", coordinate: lot.location.clLocationCoordinate2D) {
+                        Button {
+                            selectedDestination = nil
+                            selectedLot = lot
+                        } label: {
+                            lotBadge(for: lot)
+                                .padding(18)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(accessibilityText(for: lot))
+                        .accessibilityHint("Opens details for \(lot.shortName).")
+                    }
+                }
+            } else {
+                ForEach(clusters) { cluster in
+                    Annotation("", coordinate: cluster.coordinate) {
+                        Button { zoomInTo(cluster: cluster) } label: {
+                            clusterBadge(for: cluster)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("\(cluster.name), \(Int(cluster.occupancyRate.rounded())) percent occupied")
+                        .accessibilityHint("Zooms into \(cluster.name).")
+                    }
+                }
+            }
 
+            if let selectedDestination {
+                Annotation(selectedDestination.title, coordinate: CLLocationCoordinate2D(
+                    latitude: selectedDestination.latitude,
+                    longitude: selectedDestination.longitude
+                )) {
+                    DestinationPin(title: selectedDestination.title)
+                }
+            }
+
+            ForEach(autoPark.pendingCandidates) { candidate in
+                Annotation("", coordinate: CLLocationCoordinate2D(latitude: candidate.latitude, longitude: candidate.longitude)) {
+                    CandidatePin(candidate: candidate)
+                        .onTapGesture { showCandidateSheet = true }
+                }
+            }
+
+            UserAnnotation()
+        }
+        .mapStyle(.standard(elevation: .realistic))
+        .tint(.blue)
+        .mapControls {
+            MapCompass(scope: mapScope)
+        }
+        .onMapCameraChange(frequency: .onEnd) { context in
+            zoomDistance = context.camera.distance
+        }
+        .gesture(
+            SpatialTapGesture()
+                .onEnded { value in
+                    guard let coordinate = proxy.convert(value.location, from: .local) else { return }
+                    handleMapTap(at: coordinate)
+                }
+        )
+    }
+
+    private var goToMeButton: some View {
+        Button {
+            Task { await handleCenterOnUser() }
+        } label: {
+            Image(systemName: "location.north.fill")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.95))
+                .frame(width: 42, height: 42)
+                .liquidGlassCircle()
+                .shadow(color: .black.opacity(0.18), radius: 8, y: 4)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Go to me")
+        .accessibilityHint("Centers the map on your current location.")
+    }
+
+    // MARK: - Computed subviews
 
     @ViewBuilder
     private func lotBadge(for lot: Lot) -> some View {
@@ -164,9 +229,8 @@ struct MapView: View {
         let capacity = max(lot.totalSpaces, 1)
         let ratio = Double(occupancy) / Double(capacity)
         let percent = Int((ratio * 100).rounded())
-        let label = "\(percent)%"
 
-        MapPin(label: label, color: colorForLot(lot))
+        MapPin(label: "\(percent)%", color: colorForLot(lot))
     }
 
     @ViewBuilder
@@ -187,10 +251,6 @@ struct MapView: View {
         let color: Color
     }
 
-    /// Pre-flattened polygon list so the `Map` content builder only has to
-    /// iterate a single `ForEach`. Keeps the API straightforward and dodges
-    /// the "too many outputs" compile-time issue that nested ForEach can hit
-    /// inside `MapContentBuilder`.
     private var polygonItems: [PolygonItem] {
         visibleLots.flatMap { lot in
             let color = colorForLot(lot)
@@ -241,11 +301,6 @@ struct MapView: View {
 
     private enum ZoomLevel { case lot, campus, hidden }
 
-    /// Map camera distance buckets that mirror the React Native zoom logic:
-    ///   `latitudeDelta < 0.05` → individual lot pills
-    ///   `latitudeDelta < 0.6`  → one cluster per campus
-    ///   else                   → single regional cluster
-    /// Converted to MapKit camera distances (rough equivalents, tunable).
     private var zoomLevel: ZoomLevel {
         if zoomDistance < 6_000 { return .lot }
         if zoomDistance < 55_000 { return .campus }
@@ -262,8 +317,6 @@ struct MapView: View {
         let count: Int
     }
 
-    /// Aggregated lot pills used at non-`.lot` zoom levels. Mirrors the
-    /// `clusters` memo in `mobile/src/features/home/screens/HomeScreen.tsx`.
     private var clusters: [LotCluster] {
         guard zoomLevel != .lot else { return [] }
         let lots = visibleLots
@@ -329,14 +382,6 @@ struct MapView: View {
         }
     }
 
-    /// Normalizes raw lot rings before rendering in `MapPolygon`.
-    ///
-    /// Some source polygons (notably Public Safety Deck / Lot 70) contain
-    /// ultra-short zig-zag segments that look like sharp spikes at low zoom.
-    /// We preserve overall shape while stripping those tiny needles:
-    /// - drop near-duplicate points (< 0.35m from previous)
-    /// - collapse "needle" points where adjacent segments are tiny and the
-    ///   path immediately returns near the previous point.
     private func cleanedPolygonCoordinates(_ input: [CLLocationCoordinate2D]) -> [CLLocationCoordinate2D] {
         guard input.count > 4 else { return input }
 
@@ -389,6 +434,8 @@ struct MapView: View {
             .stroke(stroke, lineWidth: 2.0)
     }
 
+    // MARK: - Actions
+
     private func focus(on lot: Lot) {
         withAnimation(.easeInOut(duration: 0.4)) {
             position = .camera(
@@ -406,17 +453,87 @@ struct MapView: View {
             position = .camera(MapCamera(centerCoordinate: coordinate, distance: 1500))
         }
     }
+
+    private func clearDestination(ifMatching destination: TabBarState.FocusDestination) {
+        guard selectedDestination == destination else { return }
+        selectedDestination = nil
+    }
+
+    private func handleMapTap(at coordinate: CLLocationCoordinate2D) {
+        if zoomLevel == .lot {
+            if let exactLot = lotRepository.lotContaining(coordinate), visibleLots.contains(exactLot) {
+                selectedDestination = nil
+                selectedLot = exactLot
+                return
+            }
+
+            let nearest = visibleLots
+                .map { lot in
+                    (
+                        lot: lot,
+                        distance: metersBetween(coordinate, lot.location.clLocationCoordinate2D)
+                    )
+                }
+                .min { $0.distance < $1.distance }
+
+            if let nearest, nearest.distance <= lotTapSnapRadiusMeters {
+                selectedDestination = nil
+                selectedLot = nearest.lot
+                return
+            }
+        }
+
+        selectedLot = nil
+        selectedDestination = nil
+    }
+
+    private func handleCenterOnUser() async {
+        if !location.hasForegroundPermission {
+            location.requestForegroundPermission()
+            try? await Task.sleep(nanoseconds: 400_000_000)
+        }
+
+        guard location.hasForegroundPermission else {
+            centerAlert = "Turn on location access to center the map on you."
+            return
+        }
+
+        location.start()
+        location.requestCurrentLocation()
+
+        if let currentLocation = await waitForCurrentLocation() {
+            withAnimation(.easeInOut(duration: 0.35)) {
+                position = .camera(
+                    MapCamera(
+                        centerCoordinate: currentLocation.coordinate,
+                        distance: 1400
+                    )
+                )
+            }
+        } else {
+            centerAlert = "We couldn't get your current location right now."
+        }
+    }
+
+    private func waitForCurrentLocation() async -> CLLocation? {
+        if let latest = location.latestLocation,
+           let at = location.latestLocationAt,
+           Date().timeIntervalSince(at) < 10 {
+            return latest
+        }
+
+        for _ in 0..<8 {
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            if let latest = location.latestLocation {
+                return latest
+            }
+        }
+        return nil
+    }
 }
 
-// MARK: - Map pin
+// MARK: - Map pins
 
-/// Bubble + downward-pointing triangle marker shared by per-lot pins and
-/// cluster pins. Mirrors the `markerBubble` + `markerArrow` styles in
-/// `mobile/src/features/home/screens/HomeScreen.tsx`:
-///   - 12pt corner radius, 8/4 padding, 40pt minimum width
-///   - 12pt bold white label
-///   - tinted drop shadow for depth
-///   - 12x8 triangle "tail" sitting flush below the bubble
 private struct MapPin: View {
     let label: String
     let color: Color
@@ -424,22 +541,44 @@ private struct MapPin: View {
     var body: some View {
         VStack(spacing: 0) {
             Text(label)
-                .font(.system(size: 12, weight: .bold).monospacedDigit())
+                .font(.system(size: 10, weight: .bold).monospacedDigit())
                 .foregroundStyle(.white)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .frame(minWidth: 40)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .frame(minWidth: 32)
                 .background(
                     color,
-                    in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    in: RoundedRectangle(cornerRadius: 9, style: .continuous)
                 )
 
             DownTriangle()
                 .fill(color)
-                .frame(width: 12, height: 8)
-                .offset(y: -1) // overlap bubble seam, mirrors RN translateY: -1
+                .frame(width: 10, height: 6)
+                .offset(y: -1)
         }
-        .shadow(color: color.opacity(0.38), radius: 5, y: 2)
+        .shadow(color: color.opacity(0.30), radius: 4, y: 2)
+    }
+}
+
+private struct DestinationPin: View {
+    let title: String
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Text(title)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay(Capsule().stroke(.white.opacity(0.30), lineWidth: 1))
+
+            Image(systemName: "mappin.circle.fill")
+                .font(.system(size: 28, weight: .semibold))
+                .foregroundStyle(Color(hex: 0xCC0033), .white)
+                .shadow(color: .black.opacity(0.18), radius: 4, y: 2)
+        }
     }
 }
 
@@ -451,5 +590,20 @@ private struct DownTriangle: Shape {
         path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
         path.closeSubpath()
         return path
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func liquidGlassCircle() -> some View {
+        if #available(iOS 18.0, *) {
+            self.glassEffect()
+        } else {
+            self
+                .background(.ultraThinMaterial, in: Circle())
+                .overlay {
+                    Circle().stroke(.white.opacity(0.20), lineWidth: 1)
+                }
+        }
     }
 }

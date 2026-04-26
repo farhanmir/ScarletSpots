@@ -16,10 +16,13 @@ struct LotDetailsSheet: View {
     @StateObject private var permit = PermitRepository.shared
     @StateObject private var webSocket = WebSocketManager.shared
     @StateObject private var session = NativeSessionStore.shared
+    @StateObject private var location = LocationEngine.shared
 
     @State private var parking = false
     @State private var forecast: [ForecastPoint] = []
     @State private var toastText: String?
+    @State private var wobble = 0.0
+    @State private var didWobble = false
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -42,6 +45,8 @@ struct LotDetailsSheet: View {
             .padding(.horizontal, 18)
             .padding(.top, 20)
             .padding(.bottom, 12)
+            .rotationEffect(.degrees(-wobble * 5))
+            .offset(y: abs(wobble) * 2)
         }
         .background(
             ZStack {
@@ -53,6 +58,7 @@ struct LotDetailsSheet: View {
         )
         .task {
             await loadForecast()
+            await triggerLot67WobbleIfNeeded()
         }
     }
 
@@ -156,11 +162,13 @@ struct LotDetailsSheet: View {
                     .background((lotAvailable ? Color(hex: 0x4ADE80) : Color(hex: 0xEF4444)).opacity(0.12), in: Capsule())
             }
 
-            if let primaryPermit = auth.permitType, let text = permit.scheduleText(permitType: primaryPermit, lotId: lot.mapId) {
-                accessRow(icon: accessIcon, title: "Primary: \(primaryPermit)", detail: text.0, accent: accessColor)
-                if !text.1.isEmpty {
-                    accessRow(icon: "clock.fill", title: "Hours", detail: text.1, accent: Color(hex: 0x60A5FA))
-                }
+            if let primaryRule = primaryAccessRule {
+                accessRow(
+                    icon: accessIcon,
+                    title: "Your permit",
+                    detail: primaryRule,
+                    accent: accessColor
+                )
             } else {
                 accessRow(
                     icon: "questionmark.circle.fill",
@@ -170,9 +178,13 @@ struct LotDetailsSheet: View {
                 )
             }
 
-            if let secondary = auth.secondaryPermitType, let text = permit.scheduleText(permitType: secondary, lotId: lot.mapId) {
-                Divider().overlay(Color.white.opacity(0.10))
-                accessRow(icon: "person.crop.rectangle.badge.plus", title: "Secondary: \(secondary)", detail: text.0, accent: Color(hex: 0xC084FC))
+            if let secondaryRule {
+                accessRow(
+                    icon: "person.crop.rectangle.badge.plus",
+                    title: "Secondary permit",
+                    detail: secondaryRule,
+                    accent: Color(hex: 0xC084FC)
+                )
             }
         }
         .padding(14)
@@ -236,7 +248,7 @@ struct LotDetailsSheet: View {
 
     private var forecastSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Occupancy Trend")
+            Text("Forecast")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.white.opacity(0.58))
                 .tracking(0.7)
@@ -250,30 +262,36 @@ struct LotDetailsSheet: View {
 
     private var actionButtons: some View {
         HStack(spacing: 10) {
-            Button {
-                Task { await park() }
-            } label: {
-                HStack(spacing: 10) {
-                    if parking { ProgressView().tint(.white) }
-                    Image(systemName: "p.circle.fill")
-                    Text(parking ? "Parking..." : "Park Here")
+            if !isCurrentlyParkedHere {
+                Button {
+                    Task { await park() }
+                } label: {
+                    HStack(spacing: 10) {
+                        if parking { ProgressView().tint(.white) }
+                        Image(systemName: "p.circle.fill")
+                        Text(parking ? "Parking..." : "Park Here")
+                    }
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 54)
+                    .background(Color(hex: 0xCC0033), in: RoundedRectangle(cornerRadius: 16))
+                    .shadow(color: Color(hex: 0xCC0033).opacity(0.3), radius: 8, y: 4)
                 }
-                .font(.headline)
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .frame(height: 54)
-                .background(isCurrentlyParkedHere ? Color.gray : Color(hex: 0xCC0033), in: RoundedRectangle(cornerRadius: 16))
-                .shadow(color: (isCurrentlyParkedHere ? Color.clear : Color(hex: 0xCC0033)).opacity(0.3), radius: 8, y: 4)
+                .disabled(parking)
             }
-            .disabled(parking || isCurrentlyParkedHere)
 
             Button {
                 openDirections()
             } label: {
-                Image(systemName: "arrow.triangle.turn.up.right.diamond.fill")
-                    .font(.system(size: 18, weight: .semibold))
+                HStack(spacing: 10) {
+                    Image(systemName: "arrow.triangle.turn.up.right.diamond.fill")
+                    Text("Navigate")
+                }
+                    .font(.headline)
                     .foregroundStyle(Color(hex: 0x60A5FA))
-                    .frame(width: 54, height: 54)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 54)
                     .background(Color(hex: 0x60A5FA).opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -304,7 +322,7 @@ struct LotDetailsSheet: View {
         guard !forecast.isEmpty else { return [] }
         return forecast.enumerated().map { index, point in
             ForecastPoint(
-                label: normalizedForecastLabel(point.label, index: index),
+                label: relativeForecastLabel(for: index, total: forecast.count),
                 count: point.count,
                 occupancyRate: point.occupancyRate
             )
@@ -324,6 +342,14 @@ struct LotDetailsSheet: View {
         lotAvailable ? Color(hex: 0x4ADE80) : Color(hex: 0xEF4444)
     }
 
+    private var primaryAccessRule: String? {
+        conciseAccessRule(for: auth.permitType)
+    }
+
+    private var secondaryRule: String? {
+        conciseAccessRule(for: auth.secondaryPermitType)
+    }
+
     private var isCurrentlyParkedHere: Bool {
         session.activeSession?.lotId == lot.mapId
     }
@@ -333,11 +359,12 @@ struct LotDetailsSheet: View {
         parking = true
         defer { parking = false }
         let idempotencyKey = "manual_\(lot.mapId)_\(Int(Date().timeIntervalSince1970))"
+        let coordinate = parkingStartCoordinate
         do {
             try await ParkAPI.startSession(
                 lotId: lot.mapId,
-                latitude: lot.location.lat,
-                longitude: lot.location.lng,
+                latitude: coordinate.latitude,
+                longitude: coordinate.longitude,
                 autoStarted: false,
                 source: "manual",
                 idempotencyKey: idempotencyKey
@@ -349,8 +376,8 @@ struct LotDetailsSheet: View {
         } catch let urlError as URLError where urlError.code == .notConnectedToInternet || urlError.code == .timedOut || urlError.code == .networkConnectionLost {
             let payload = try? JSONSerialization.data(withJSONObject: [
                 "lotId": lot.mapId,
-                "latitude": lot.location.lat,
-                "longitude": lot.location.lng,
+                "latitude": coordinate.latitude,
+                "longitude": coordinate.longitude,
                 "autoStarted": false,
                 "source": "manual"
             ])
@@ -363,6 +390,20 @@ struct LotDetailsSheet: View {
             toastText = "Offline — we'll start the session when you reconnect."
         } catch {
             toastText = "Error: \(error.localizedDescription)"
+        }
+    }
+
+    private var parkingStartCoordinate: CLLocationCoordinate2D {
+        guard let current = location.latestLocation?.coordinate else {
+            return lot.location.clLocationCoordinate2D
+        }
+        return isInsideCurrentLot(current) ? current : lot.location.clLocationCoordinate2D
+    }
+
+    private func isInsideCurrentLot(_ coordinate: CLLocationCoordinate2D) -> Bool {
+        lot.polygons.contains { ring in
+            GeometryMath.pointInPolygon(coordinate, polygon: ring.outer)
+                && !ring.holes.contains(where: { GeometryMath.pointInPolygon(coordinate, polygon: $0) })
         }
     }
 
@@ -398,24 +439,44 @@ struct LotDetailsSheet: View {
         }
     }
 
-    private func normalizedForecastLabel(_ label: String, index: Int) -> String {
-        let trimmed = label.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty { return "T+\(index * 15)m" }
-        let lower = trimmed.lowercased()
-        if lower == "now" { return "Now" }
-        if lower.hasSuffix("m") || lower.hasSuffix("h") { return trimmed.uppercased() }
-        if let date = ISO8601DateFormatter().date(from: trimmed) {
-            return Self.forecastLabelFormatter.string(from: date)
-        }
-        return trimmed
-    }
-}
+    @MainActor
+    private func triggerLot67WobbleIfNeeded() async {
+        guard !didWobble, lot.shortName.contains("67") else { return }
+        didWobble = true
 
-private extension LotDetailsSheet {
-    static let forecastLabelFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = .current
-        formatter.dateFormat = "h:mm"
-        return formatter
-    }()
+        let sequence: [(Double, UInt64)] = [
+            (1.0, 120_000_000),
+            (-1.0, 180_000_000),
+            (0.7, 110_000_000),
+            (-0.7, 160_000_000),
+            (0.4, 100_000_000),
+            (-0.4, 140_000_000),
+            (0.0, 120_000_000),
+        ]
+
+        for (value, duration) in sequence {
+            withAnimation(.linear(duration: Double(duration) / 1_000_000_000)) {
+                wobble = value
+            }
+            try? await Task.sleep(nanoseconds: duration)
+        }
+    }
+
+    private func conciseAccessRule(for permitType: String?) -> String? {
+        guard let permitType else { return nil }
+        guard let text = permit.scheduleText(permitType: permitType, lotId: lot.mapId) else { return permitType }
+
+        let pieces = [permitType, text.0, text.1]
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return pieces.joined(separator: " · ")
+    }
+
+    private func relativeForecastLabel(for index: Int, total: Int) -> String {
+        let nowIndex = min(2, max(total - 1, 0))
+        let delta = index - nowIndex
+        if delta == 0 { return "Now" }
+        if delta < 0 { return "-\(-delta) hr" }
+        return "+\(delta) hr"
+    }
 }

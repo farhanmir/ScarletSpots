@@ -46,8 +46,15 @@ final class LocationEngine: NSObject, ObservableObject {
     }
 
     func requestForegroundPermission() {
-        guard authorization == .notDetermined else { return }
-        manager.requestWhenInUseAuthorization()
+        switch authorization {
+        case .notDetermined:
+            manager.requestWhenInUseAuthorization()
+        case .authorizedAlways, .authorizedWhenInUse:
+            start()
+            requestCurrentLocation()
+        default:
+            Logger.log("LocationEngine: foreground permission denied/restricted")
+        }
     }
 
     func requestAlwaysPermission() {
@@ -98,6 +105,9 @@ extension LocationEngine: CLLocationManagerDelegate {
             self.accuracyAuthorization = manager.accuracyAuthorization
             if self.didStart {
                 manager.allowsBackgroundLocationUpdates = (status == .authorizedAlways)
+            } else if self.hasForegroundPermission {
+                self.start()
+                self.requestCurrentLocation()
             }
         }
     }
@@ -109,6 +119,9 @@ extension LocationEngine: CLLocationManagerDelegate {
             self.accuracyAuthorization = manager.accuracyAuthorization
             if self.didStart {
                 manager.allowsBackgroundLocationUpdates = (manager.authorizationStatus == .authorizedAlways)
+            } else if self.hasForegroundPermission {
+                self.start()
+                self.requestCurrentLocation()
             }
         }
     }

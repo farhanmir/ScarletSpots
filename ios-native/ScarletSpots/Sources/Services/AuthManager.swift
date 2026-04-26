@@ -196,7 +196,9 @@ final class AuthManager: ObservableObject, AuthTokenProvider {
 
     func toggleCampus(_ campus: String) {
         if enabledCampuses.contains(campus) {
-            enabledCampuses.remove(campus)
+            if enabledCampuses.count > 1 {
+                enabledCampuses.remove(campus)
+            }
         } else {
             enabledCampuses.insert(campus)
         }
@@ -204,7 +206,7 @@ final class AuthManager: ObservableObject, AuthTokenProvider {
     }
 
     func setEnabledCampuses(_ campuses: Set<String>) {
-        enabledCampuses = campuses
+        enabledCampuses = Self.sanitizeEnabledCampuses(campuses)
         persistEnabledCampuses()
     }
 
@@ -234,14 +236,34 @@ final class AuthManager: ObservableObject, AuthTokenProvider {
     // MARK: - Persistence helpers
 
     private func persistEnabledCampuses() {
-        UserDefaults.standard.set(Array(enabledCampuses), forKey: Keys.enabledCampuses)
+        let sanitized = Self.sanitizeEnabledCampuses(enabledCampuses)
+        enabledCampuses = sanitized
+        UserDefaults.standard.set(Array(sanitized).sorted(), forKey: Keys.enabledCampuses)
     }
 
     private static func loadEnabledCampuses() -> Set<String> {
         if let stored = UserDefaults.standard.stringArray(forKey: Keys.enabledCampuses) {
-            return Set(stored)
+            return sanitizeEnabledCampuses(stored)
         }
         return Set(CampusConstants.newBrunswickCampusNames)
+    }
+
+    private static func sanitizeEnabledCampuses<S: Sequence>(_ campuses: S) -> Set<String> where S.Element == String {
+        let valid = Set(CampusConstants.newBrunswickCampusNames)
+        var next = Set<String>()
+
+        for campus in campuses {
+            if campus == "Cook/Douglass" {
+                next.insert("Cook")
+                next.insert("Douglass")
+                continue
+            }
+            if valid.contains(campus) {
+                next.insert(campus)
+            }
+        }
+
+        return next.isEmpty ? valid : next
     }
 
     private func secondaryPermitKey(ownerId: String?) -> String {

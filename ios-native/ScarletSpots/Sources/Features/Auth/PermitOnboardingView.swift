@@ -41,7 +41,7 @@ struct PermitOnboardingView: View {
         }
         .background(
             LinearGradient(
-                colors: [Color(.systemBackground), Color(.secondarySystemBackground)],
+                colors: [Color(.systemBackground), Color(.systemGroupedBackground)],
                 startPoint: .top,
                 endPoint: .bottom
             )
@@ -68,11 +68,11 @@ struct PermitOnboardingView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(14)
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
         )
         .padding(.horizontal, 16)
         .padding(.top, 8)
@@ -94,10 +94,10 @@ struct PermitOnboardingView: View {
             }
         }
         .padding(12)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
         )
         .padding(.horizontal, 16)
         .padding(.top, 10)
@@ -107,7 +107,7 @@ struct PermitOnboardingView: View {
 
     private var content: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 14) {
                 if step == .primary {
                     noPermitCard
                 }
@@ -211,10 +211,10 @@ struct PermitOnboardingView: View {
                                mode: .commuterAll)
             }
         }
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
         )
         .padding(.horizontal, 16)
     }
@@ -271,7 +271,7 @@ struct PermitOnboardingView: View {
         .padding(.horizontal, 20)
         .padding(.top, 12)
         .padding(.bottom, 16)
-        .background(.bar)
+        .background(Color(.systemBackground))
     }
 
     private func stepPill(label: String, active: Bool) -> some View {

@@ -162,19 +162,21 @@ struct SearchScreen: View {
             }
         case .building:
             if let coord = result.coordinate {
-                tabBarState.focusCoordinate = .init(
+                tabBarState.focusDestination = .init(
                     latitude: coord.latitude,
                     longitude: coord.longitude,
-                    title: result.title
+                    title: result.title,
+                    expiresAt: Date().addingTimeInterval(30)
                 )
                 tabBarState.selectedTab = 1
             }
         case .place:
             if let coord = result.coordinate {
-                tabBarState.focusCoordinate = .init(
+                tabBarState.focusDestination = .init(
                     latitude: coord.latitude,
                     longitude: coord.longitude,
-                    title: result.title
+                    title: result.title,
+                    expiresAt: Date().addingTimeInterval(30)
                 )
                 tabBarState.selectedTab = 1
             } else {
@@ -195,10 +197,11 @@ struct SearchScreen: View {
             )
             guard let item = try? await MKLocalSearch(request: request).start().mapItems.first else { return }
             let coordinate = item.placemark.coordinate
-            tabBarState.focusCoordinate = .init(
+            tabBarState.focusDestination = .init(
                 latitude: coordinate.latitude,
                 longitude: coordinate.longitude,
-                title: result.title
+                title: result.title,
+                expiresAt: Date().addingTimeInterval(30)
             )
             tabBarState.selectedTab = 1
         }

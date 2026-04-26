@@ -21,13 +21,8 @@ struct ForecastChart: View {
                     x: .value("Time", point.label),
                     y: .value("Occupancy", point.count)
                 )
-                .foregroundStyle(colorForRatio(normalized).gradient)
-                .cornerRadius(8)
-                .annotation(position: .top) {
-                    Text("\(point.count)")
-                        .font(.caption2.monospacedDigit().weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.74))
-                }
+                .foregroundStyle(colorForRatio(normalized))
+                .cornerRadius(6)
             }
             .chartYAxis(.hidden)
             .chartLegend(.hidden)
@@ -40,8 +35,6 @@ struct ForecastChart: View {
                                 .foregroundStyle(.white.opacity(0.64))
                         }
                     }
-                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
-                        .foregroundStyle(.white.opacity(0.08))
                 }
             }
             .chartXScale(range: .plotDimension(padding: 18))
@@ -72,9 +65,9 @@ struct ForecastChart: View {
     }
 
     private func colorForRatio(_ ratio: Double) -> Color {
-        if ratio > 0.9 { return NativeAuthColors.occupancyHigh }
-        if ratio > 0.6 { return NativeAuthColors.occupancyMedium }
-        if ratio > 0.3 { return Color(hex: 0xFCD34D) }
-        return NativeAuthColors.occupancyLow
+        if ratio >= 0.9 { return Color(hex: 0xD86C72) }
+        if ratio >= 0.7 { return Color(hex: 0xD89A6C) }
+        if ratio >= 0.45 { return Color(hex: 0xD7BF6B) }
+        return Color(hex: 0x70B98A)
     }
 }

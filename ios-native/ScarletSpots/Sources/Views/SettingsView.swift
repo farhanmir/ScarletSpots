@@ -13,6 +13,7 @@ import Charts
 struct ProfileView: View {
     @EnvironmentObject private var tabBarState: TabBarState
     @EnvironmentObject private var authManager: AuthManager
+    @Environment(\.colorScheme) private var colorScheme
     @AppStorage("theme_mode_v1") private var themeMode = "system"
     @StateObject private var lotRepository = LotRepository.shared
     @StateObject private var offlineQueue = OfflineQueue.shared
@@ -32,6 +33,7 @@ struct ProfileView: View {
     @State private var isDeleting = false
     @State private var expandedCampuses = false
     @State private var expandedTheme = false
+    @State private var expandedLegal = false
     @State private var diagnosticsSamples: [Double] = []
 
     /// Canonical legal URLs — published copies live on the marketing site.
@@ -39,6 +41,14 @@ struct ProfileView: View {
     private let termsURL = URL(string: "https://scarletspots.com/terms")!
     private let supportURL = URL(string: "https://scarletspots.com/support")!
     private let diagnosticsTicker = Timer.publish(every: 2.0, on: .main, in: .common).autoconnect()
+
+    private var isDark: Bool { colorScheme == .dark }
+    private var primaryText: Color { isDark ? .white : Color(hex: 0x111827) }
+    private var secondaryText: Color { isDark ? .white.opacity(0.56) : Color(hex: 0x6B7280) }
+    private var tertiaryText: Color { isDark ? .white.opacity(0.45) : Color(hex: 0x9CA3AF) }
+    private var cardFill: Color { isDark ? Color.white.opacity(0.06) : Color.white.opacity(0.92) }
+    private var cardStroke: Color { isDark ? Color.white.opacity(0.10) : Color.black.opacity(0.08) }
+    private var dividerColor: Color { isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.08) }
 
     var body: some View {
         NavigationStack {
@@ -60,7 +70,9 @@ struct ProfileView: View {
             }
             .background(
                 LinearGradient(
-                    colors: [Color(hex: 0x08090E), Color(hex: 0x12050A), Color(hex: 0x22050E)],
+                    colors: isDark
+                        ? [Color(hex: 0x08090E), Color(hex: 0x12050A), Color(hex: 0x22050E)]
+                        : [Color(hex: 0xF8FAFC), Color(hex: 0xFFF7F7), Color(hex: 0xF3F4F6)],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
@@ -130,14 +142,16 @@ struct ProfileView: View {
             RoundedRectangle(cornerRadius: 26, style: .continuous)
                 .fill(
                     LinearGradient(
-                        colors: [Color(hex: 0x2A070E), Color(hex: 0x14080D), Color(hex: 0x0A0F16)],
+                        colors: isDark
+                            ? [Color(hex: 0x2A070E), Color(hex: 0x14080D), Color(hex: 0x0A0F16)]
+                            : [Color(hex: 0xFFF4F4), Color(hex: 0xFFFFFF), Color(hex: 0xF8FAFC)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
                 )
                 .overlay {
                     RoundedRectangle(cornerRadius: 26, style: .continuous)
-                        .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                        .stroke(isDark ? Color.white.opacity(0.10) : Color.black.opacity(0.08), lineWidth: 1)
                 }
                 .shadow(color: Color(hex: 0xCC0033).opacity(0.22), radius: 24, y: 8)
 
@@ -150,7 +164,7 @@ struct ProfileView: View {
             VStack(spacing: 12) {
                 ZStack {
                     Circle()
-                        .fill(Color(hex: 0x0A0F16))
+                        .fill(isDark ? Color(hex: 0x0A0F16) : .white)
                     Circle()
                         .stroke(Color(hex: 0xEF4444).opacity(0.75), lineWidth: 2)
                     Text(initial)
@@ -168,11 +182,11 @@ struct ProfileView: View {
                     .multilineTextAlignment(.center)
                     .lineSpacing(1)
                     .kerning(-0.2)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(primaryText)
 
                 Text(user?.email ?? "Unknown email")
                     .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.74))
+                    .foregroundStyle(secondaryText)
 
                 NavigationLink {
                     PermitOnboardingView(fromProfile: true)
@@ -196,7 +210,7 @@ struct ProfileView: View {
                     Text("MEMBER SINCE \(monthYearFormatter.string(from: createdAt).uppercased())")
                         .font(.caption2.weight(.semibold))
                         .kerning(1.0)
-                        .foregroundStyle(.white.opacity(0.45))
+                        .foregroundStyle(tertiaryText)
                 }
             }
             .frame(maxWidth: .infinity)
@@ -223,16 +237,16 @@ struct ProfileView: View {
             Text(title.uppercased())
                 .font(.caption.weight(.semibold))
                 .kerning(0.8)
-                .foregroundStyle(.white.opacity(0.56))
+                .foregroundStyle(secondaryText)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 16)
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.white.opacity(0.06))
+                .fill(cardFill)
                 .overlay(
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                        .stroke(cardStroke, lineWidth: 1)
                 )
         )
     }
@@ -290,7 +304,13 @@ struct ProfileView: View {
                     sectionDivider
                     campusToggle("Livingston")
                     sectionDivider
-                    campusToggle("Cook/Douglass")
+                    campusToggle("Cook")
+                    sectionDivider
+                    campusToggle("Douglass")
+                    sectionDivider
+                    campusToggle("Health - Piscataway")
+                    sectionDivider
+                    campusToggle("Health - New Brunswick")
                 }
                 .padding(.top, 8)
             } label: {
@@ -300,10 +320,10 @@ struct ProfileView: View {
                     Spacer()
                     Text(campusFilterSummary)
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.52))
+                        .foregroundStyle(secondaryText)
                         .fixedSize(horizontal: true, vertical: false)
                 }
-                .foregroundStyle(.white.opacity(0.9))
+                .foregroundStyle(primaryText)
                 .padding(.trailing, 2)
             }
         }
@@ -334,11 +354,11 @@ struct ProfileView: View {
                     Spacer()
                     Text(themeLabel(themeMode))
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.52))
+                        .foregroundStyle(secondaryText)
                         .fixedSize(horizontal: true, vertical: false)
                 }
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.9))
+                .foregroundStyle(primaryText)
                 .padding(.trailing, 2)
             }
         }
@@ -527,11 +547,11 @@ struct ProfileView: View {
             Button { showFeedback = true } label: {
                 HStack {
                     Label("Send Session Feedback", systemImage: "paperplane.fill")
-                        .foregroundStyle(.white)
+                        .foregroundStyle(primaryText)
                     Spacer()
                     Image(systemName: "chevron.right")
                         .font(.caption.bold())
-                        .foregroundStyle(.white.opacity(0.45))
+                        .foregroundStyle(tertiaryText)
                 }
                 .padding(.vertical, 4)
             }
@@ -542,7 +562,16 @@ struct ProfileView: View {
     }
 
     private var legalSection: some View {
-        profileCard(title: "Legal & Support", subtitle: "Privacy, terms, and app version.") {
+        DisclosureGroup(
+            isExpanded: Binding(
+                get: { expandedLegal },
+                set: { newValue in
+                    withAnimation(.spring(response: 0.38, dampingFraction: 0.84)) {
+                        expandedLegal = newValue
+                    }
+                }
+            )
+        ) {
             VStack(spacing: 0) {
                 legalLink(label: "Privacy Policy", systemImage: "hand.raised", url: privacyPolicyURL)
                 sectionDivider
@@ -552,15 +581,30 @@ struct ProfileView: View {
                 sectionDivider
                 HStack {
                     Text("Version")
-                        .foregroundStyle(.white.opacity(0.80))
+                        .foregroundStyle(primaryText)
                     Spacer()
                     Text(Self.versionString)
-                        .foregroundStyle(.white.opacity(0.56))
+                        .foregroundStyle(secondaryText)
                 }
                 .font(.subheadline)
                 .padding(.vertical, 10)
             }
+            .padding(.top, 10)
+        } label: {
+            HStack(spacing: 12) {
+                Label("Legal & Support", systemImage: "hand.raised.circle")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(primaryText)
+                Spacer()
+                Text(expandedLegal ? "Hide" : "Show")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(tertiaryText)
+                    .textCase(.uppercase)
+            }
         }
+        .tint(primaryText)
+        .padding(.horizontal, 2)
+        .padding(.top, 2)
     }
 
     private var accountActionsSection: some View {
@@ -594,10 +638,10 @@ struct ProfileView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.headline.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(primaryText)
                 Text(subtitle)
                     .font(.caption)
-                    .foregroundStyle(.white.opacity(0.56))
+                    .foregroundStyle(secondaryText)
             }
 
             content()
@@ -605,16 +649,16 @@ struct ProfileView: View {
         .padding(15)
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.white.opacity(0.06))
+                .fill(cardFill)
                 .overlay(
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                        .stroke(cardStroke, lineWidth: 1)
                 )
         )
     }
 
     private var sectionDivider: some View {
-        Divider().overlay(Color.white.opacity(0.08))
+        Divider().overlay(dividerColor)
     }
 
     @ViewBuilder
@@ -644,17 +688,17 @@ struct ProfileView: View {
                         .overlay(
                             Image(systemName: "car.fill")
                                 .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(.white.opacity(0.72))
+                                .foregroundStyle(secondaryText)
                         )
                         .frame(width: 36, height: 36)
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(lot?.shortName ?? id)
                             .font(.subheadline.bold())
-                            .foregroundStyle(.white)
+                            .foregroundStyle(primaryText)
                         Text(lotSubtitle(for: lot))
                             .font(.caption)
-                            .foregroundStyle(.white.opacity(0.56))
+                            .foregroundStyle(secondaryText)
                             .lineLimit(1)
                     }
                     Spacer()
@@ -697,11 +741,11 @@ struct ProfileView: View {
         Link(destination: url) {
             HStack {
                 Label(label, systemImage: systemImage)
-                    .foregroundStyle(.white.opacity(0.84))
+                    .foregroundStyle(primaryText)
                 Spacer()
                 Image(systemName: "arrow.up.right")
                     .font(.caption.bold())
-                    .foregroundStyle(.white.opacity(0.45))
+                    .foregroundStyle(tertiaryText)
             }
             .font(.subheadline)
             .padding(.vertical, 10)
@@ -761,7 +805,7 @@ struct ProfileView: View {
             set: { _ in authManager.toggleCampus(campus) }
         ))
         .tint(Color(hex: 0xCC0033))
-        .foregroundStyle(.white.opacity(0.92))
+        .foregroundStyle(primaryText)
         .font(.subheadline)
         .padding(.vertical, 7)
         .padding(.trailing, 8)

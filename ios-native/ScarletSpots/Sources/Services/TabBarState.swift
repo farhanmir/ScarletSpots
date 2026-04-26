@@ -19,12 +19,15 @@ final class TabBarState: ObservableObject {
     /// resets it.
     @Published var focusLotId: String?
 
-    /// Same concept for searching a building/place by coordinate.
-    @Published var focusCoordinate: FocusCoordinate?
+    /// Same concept for searching a building/place by coordinate, but with
+    /// destination-pin metadata so the Map can surface a temporary marker.
+    @Published var focusDestination: FocusDestination?
 
-    struct FocusCoordinate: Equatable {
+    struct FocusDestination: Equatable, Identifiable {
+        let id = UUID()
         let latitude: Double
         let longitude: Double
         let title: String
+        let expiresAt: Date
     }
 }
