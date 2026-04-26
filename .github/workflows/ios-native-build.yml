@@ -205,7 +205,8 @@ jobs:
           value = sys.argv[1]
           parsed = urlparse(value)
           host = (parsed.hostname or "").lower()
-          is_valid = parsed.scheme.lower() == "https" and host.endswith(".supabase.co")
+          scheme = (parsed.scheme or "").lower()
+          is_valid = scheme == "https" and host.endswith(".supabase.co")
           raise SystemExit(0 if is_valid else 1)
           PY
           then
