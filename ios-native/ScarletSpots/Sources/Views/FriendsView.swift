@@ -79,11 +79,17 @@ struct FriendsView: View {
             } message: {
                 Text("Someone just sent you a friend request.")
             }
+            .onAppear {
+                selectedTab = 0
+            }
             .task {
                 await load()
                 startRealtimeRefresh()
             }
-            .onDisappear { stopRealtimeRefresh() }
+            .onDisappear {
+                selectedTab = 0
+                stopRealtimeRefresh()
+            }
             .onChange(of: selectedTab) { _, _ in error = nil }
         }
     }

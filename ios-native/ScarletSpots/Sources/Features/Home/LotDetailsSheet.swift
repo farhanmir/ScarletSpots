@@ -173,7 +173,7 @@ struct LotDetailsSheet: View {
                 accessRow(
                     icon: "questionmark.circle.fill",
                     title: "No Permit Set",
-                    detail: "Set your permit in Profile to see lot access rules.",
+                    detail: "Set a permit in Profile.",
                     accent: .white.opacity(0.7)
                 )
             }
@@ -262,7 +262,7 @@ struct LotDetailsSheet: View {
 
     private var actionButtons: some View {
         HStack(spacing: 10) {
-            if !isCurrentlyParkedHere {
+            if !hasActiveSession {
                 Button {
                     Task { await park() }
                 } label: {
@@ -286,7 +286,11 @@ struct LotDetailsSheet: View {
             } label: {
                 HStack(spacing: 10) {
                     Image(systemName: "arrow.triangle.turn.up.right.diamond.fill")
-                    Text("Navigate")
+                    if hasActiveSession {
+                        Text("Directions")
+                    } else {
+                        Text("Navigate")
+                    }
                 }
                     .font(.headline)
                     .foregroundStyle(Color(hex: 0x60A5FA))
@@ -352,6 +356,10 @@ struct LotDetailsSheet: View {
 
     private var isCurrentlyParkedHere: Bool {
         session.activeSession?.lotId == lot.mapId
+    }
+
+    private var hasActiveSession: Bool {
+        session.activeSession != nil
     }
 
     private func park() async {
@@ -464,12 +472,23 @@ struct LotDetailsSheet: View {
 
     private func conciseAccessRule(for permitType: String?) -> String? {
         guard let permitType else { return nil }
-        guard let text = permit.scheduleText(permitType: permitType, lotId: lot.mapId) else { return permitType }
+        guard let text = permit.scheduleText(permitType: permitType, lotId: lot.mapId) else {
+            return shortenedPermitName(permitType)
+        }
 
-        let pieces = [permitType, text.0, text.1]
+        let pieces = [text.0, text.1]
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-        return pieces.joined(separator: " · ")
+        if pieces.isEmpty {
+            return shortenedPermitName(permitType)
+        }
+        return pieces.joined(separator: " • ")
+    }
+
+    private func shortenedPermitName(_ permitType: String) -> String {
+        permitType
+            .replacingOccurrences(of: " Permit", with: "")
+            .replacingOccurrences(of: " permit", with: "")
     }
 
     private func relativeForecastLabel(for index: Int, total: Int) -> String {

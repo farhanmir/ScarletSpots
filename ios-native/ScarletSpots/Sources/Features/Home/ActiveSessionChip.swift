@@ -23,7 +23,7 @@ struct ActiveSessionChip: View {
                 .foregroundStyle(.primary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
-                .frame(maxWidth: 130, alignment: .leading)
+                .layoutPriority(1)
 
             if let findCarState {
                 Divider()
@@ -39,7 +39,8 @@ struct ActiveSessionChip: View {
                         Text(findCarState.distanceText)
                             .font(.system(size: 13, weight: .semibold).monospacedDigit())
                             .foregroundStyle(Color.blue)
-                            .frame(minWidth: 44, alignment: .leading)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
                     }
                 }
                 .buttonStyle(.plain)
@@ -132,7 +133,17 @@ struct ActiveSessionChip: View {
         let meters = CLLocation(latitude: user.latitude, longitude: user.longitude)
             .distance(from: CLLocation(latitude: target.latitude, longitude: target.longitude))
         let feet = meters * 3.28084
-        let distanceText = feet < 500 ? "\(Int(feet.rounded())) ft" : "\(Int(meters.rounded())) m"
+        let distanceText: String
+        if feet < 1000 {
+            distanceText = "\(Int(feet.rounded())) ft"
+        } else {
+            let miles = feet / 5280
+            if miles < 10 {
+                distanceText = String(format: "%.1f mi", miles)
+            } else {
+                distanceText = "\(Int(miles.rounded())) mi"
+            }
+        }
         let bearing = bearingDegrees(from: user, to: target)
         let heading = currentHeading
         let arrowRotation = (bearing - heading + 360).truncatingRemainder(dividingBy: 360)

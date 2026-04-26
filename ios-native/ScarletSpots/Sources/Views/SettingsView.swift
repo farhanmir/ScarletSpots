@@ -394,7 +394,7 @@ struct ProfileView: View {
                     )
                     diagnosticGauge(
                         title: "Accuracy",
-                        value: formatDouble(snapshot.horizontalAccuracy, suffix: "m"),
+                        value: formatImperialDistanceShort(snapshot.horizontalAccuracy),
                         normalized: 1 - min(max((snapshot.horizontalAccuracy ?? 120) / 120.0, 0), 1)
                     )
                     diagnosticGauge(
@@ -410,28 +410,31 @@ struct ProfileView: View {
                     .overlay(alignment: .topLeading) {
                         Text("Signal Trace")
                             .font(.caption2.weight(.semibold))
-                            .foregroundStyle(.white.opacity(0.46))
+                            .foregroundStyle(secondaryText)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(Color.black.opacity(0.25), in: Capsule())
+                            .background(
+                                isDark ? Color.black.opacity(0.25) : Color.white.opacity(0.92),
+                                in: Capsule()
+                            )
                     }
                     .background(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(Color.white.opacity(0.04))
+                            .fill(isDark ? Color.white.opacity(0.04) : Color.black.opacity(0.03))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                                    .stroke(dividerColor, lineWidth: 1)
                             )
                     )
 
                 HStack {
                     Label(snapshot.isDriving ? "Vehicle moving" : "Vehicle stopped", systemImage: snapshot.isDriving ? "car.fill" : "pause.circle.fill")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(snapshot.isDriving ? NativeAuthColors.occupancyLow : .white.opacity(0.65))
+                        .foregroundStyle(snapshot.isDriving ? NativeAuthColors.occupancyLow : secondaryText)
                     Spacer()
                     Text(snapshot.timestamp.formatted(date: .omitted, time: .standard))
                         .font(.caption.monospacedDigit())
-                        .foregroundStyle(.white.opacity(0.5))
+                        .foregroundStyle(tertiaryText)
                 }
 
                 NavigationLink {
@@ -444,13 +447,16 @@ struct ProfileView: View {
                             .font(.caption.bold())
                     }
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(primaryText)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
-                    .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .background(
+                        isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.04),
+                        in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    )
                     .overlay(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(Color.white.opacity(0.11), lineWidth: 1)
+                            .stroke(dividerColor, lineWidth: 1)
                     )
                 }
                 .buttonStyle(.plain)
@@ -468,7 +474,7 @@ struct ProfileView: View {
             } currentValueLabel: {
                 Text(value)
                     .font(.system(size: 15, weight: .bold, design: .monospaced))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(primaryText)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             }
@@ -484,29 +490,35 @@ struct ProfileView: View {
             Text(title.uppercased())
                 .font(.caption2.weight(.semibold))
                 .kerning(0.7)
-                .foregroundStyle(.white.opacity(0.46))
+                .foregroundStyle(secondaryText)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 10)
         .padding(.vertical, 10)
-        .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(
+            isDark ? Color.white.opacity(0.07) : Color.black.opacity(0.04),
+            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+        )
     }
 
     private func diagnosticsStatusLight(title: String, isOn: Bool, onColor: Color) -> some View {
         HStack(spacing: 7) {
             Circle()
-                .fill(isOn ? onColor : Color.white.opacity(0.22))
+                .fill(isOn ? onColor : (isDark ? Color.white.opacity(0.22) : Color.black.opacity(0.16)))
                 .frame(width: 8, height: 8)
                 .shadow(color: isOn ? onColor.opacity(0.45) : .clear, radius: 6)
             Text(title.uppercased())
                 .font(.caption2.weight(.semibold))
                 .kerning(0.6)
-                .foregroundStyle(.white.opacity(0.6))
+                .foregroundStyle(secondaryText)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
-        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(
+            isDark ? Color.white.opacity(0.06) : Color.black.opacity(0.04),
+            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+        )
     }
 
     private var diagnosticsSparkline: some View {
@@ -856,6 +868,20 @@ struct ProfileView: View {
         if value < 0 { return "n/a" }
         let mph = value * 2.23694
         return String(format: "%.1f mph", mph)
+    }
+
+    private func formatImperialDistanceShort(_ meters: Double?) -> String {
+        guard let meters else { return "n/a" }
+        guard meters >= 0 else { return "n/a" }
+        let feet = meters * 3.28084
+        if feet < 1000 {
+            return "\(Int(feet.rounded())) ft"
+        }
+        let miles = feet / 5280
+        if miles < 10 {
+            return String(format: "%.1f mi", miles)
+        }
+        return "\(Int(miles.rounded())) mi"
     }
 
     private func seedDiagnosticsIfNeeded() {

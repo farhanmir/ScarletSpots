@@ -171,7 +171,7 @@ struct MapView: View {
             }
 
             if let selectedDestination {
-                Annotation(selectedDestination.title, coordinate: CLLocationCoordinate2D(
+                Annotation("", coordinate: CLLocationCoordinate2D(
                     latitude: selectedDestination.latitude,
                     longitude: selectedDestination.longitude
                 )) {
@@ -230,7 +230,7 @@ struct MapView: View {
         let ratio = Double(occupancy) / Double(capacity)
         let percent = Int((ratio * 100).rounded())
 
-        MapPin(label: "\(percent)%", color: colorForLot(lot))
+        MapPin(label: "\(percent)%", color: colorForLot(lot), fontSize: 12)
     }
 
     @ViewBuilder
@@ -238,7 +238,8 @@ struct MapView: View {
         let percent = Int(cluster.occupancyRate.rounded())
         MapPin(
             label: "\(cluster.name): \(percent)%",
-            color: OccupancyPalette.clusterColor(for: cluster.occupancyRate)
+            color: OccupancyPalette.clusterColor(for: cluster.occupancyRate),
+            fontSize: 13
         )
     }
 
@@ -537,11 +538,12 @@ struct MapView: View {
 private struct MapPin: View {
     let label: String
     let color: Color
+    let fontSize: CGFloat
 
     var body: some View {
         VStack(spacing: 0) {
             Text(label)
-                .font(.system(size: 10, weight: .bold).monospacedDigit())
+                .font(.system(size: fontSize, weight: .bold).monospacedDigit())
                 .foregroundStyle(.white)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 3)
