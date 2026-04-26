@@ -164,6 +164,50 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY=""
 
+      - name: Validate archived native API/Supabase settings
+        working-directory: ios-native/ScarletSpots
+        run: |
+          set -euo pipefail
+
+          APP_PLIST="build/ScarletSpots.xcarchive/Products/Applications/ScarletSpots.app/Info.plist"
+          if [ ! -f "$APP_PLIST" ]; then
+            echo "::error::Missing archived app Info.plist at $APP_PLIST"
+            exit 1
+          fi
+
+          read_plist_value() {
+            /usr/libexec/PlistBuddy -c "Print :$1" "$APP_PLIST" 2>/dev/null || true
+          }
+
+          API_VALUE="$(read_plist_value API_BASE_URL)"
+          SUPABASE_VALUE="$(read_plist_value SUPABASE_URL)"
+          ANON_VALUE="$(read_plist_value SUPABASE_ANON_KEY)"
+
+          if [ -z "$API_VALUE" ] || [ -z "$SUPABASE_VALUE" ] || [ -z "$ANON_VALUE" ]; then
+            echo "::error::Archived app is missing one or more required Info.plist keys (API_BASE_URL, SUPABASE_URL, SUPABASE_ANON_KEY)."
+            exit 1
+          fi
+
+          if [[ "$API_VALUE" == *'$('* ]] || [[ "$SUPABASE_VALUE" == *'$('* ]]; then
+            echo "::error::Archived app still has unresolved xcconfig placeholders in API_BASE_URL or SUPABASE_URL."
+            exit 1
+          fi
+
+          if [[ "$API_VALUE" != http://* && "$API_VALUE" != https://* ]]; then
+            echo "::error::Archived API_BASE_URL is not an http(s) URL."
+            exit 1
+          fi
+
+          if [[ "$SUPABASE_VALUE" != https://*".supabase.co"* ]]; then
+            echo "::error::Archived SUPABASE_URL is not a valid Supabase host."
+            exit 1
+          fi
+
+          if [[ "$ANON_VALUE" == "release-anon-key" || "$ANON_VALUE" == "debug-anon-key" || "$ANON_VALUE" == "placeholder" || "$ANON_VALUE" == *'$('* ]]; then
+            echo "::error::Archived SUPABASE_ANON_KEY is still a placeholder."
+            exit 1
+          fi
+
       - name: Package unsigned IPA
         working-directory: ios-native/ScarletSpots
         run: |

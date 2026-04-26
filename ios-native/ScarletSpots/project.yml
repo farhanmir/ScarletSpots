@@ -23,13 +23,15 @@ targets:
       - path: Assets.xcassets
       - path: PrivacyInfo.xcprivacy
         buildPhase: resources
-    info:
-      path: Info.plist
     configFiles:
       Debug: Config/Debug.xcconfig
       Release: Config/Release.xcconfig
     settings:
       base:
+        # Keep the handcrafted Info.plist (custom URL schemes, usage strings,
+        # and native API/Supabase keys). Using `info.path` makes XcodeGen
+        # regenerate and strip it during CI.
+        INFOPLIST_FILE: Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: com.scarletspots.app
         INFOPLIST_KEY_UILaunchStoryboardName: LaunchScreen
         # Xcode 26's template default is GENERATE_INFOPLIST_FILE=YES, which
