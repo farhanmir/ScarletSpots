@@ -47,7 +47,9 @@ class HeuristicForecastProvider(ForecastProvider):
                 _clamp(target_baseline, 1.0, 99.0) * (1.0 - momentum_weight)
             )
 
-            deterministic = random.Random(f"{lot_id}:{target_time.hour}:{target_time.minute}")
+            deterministic = random.Random(
+                f"{lot_id}:{target_time.hour}:{target_time.minute}"
+            )
             variance = deterministic.uniform(-3.0, 3.0)  # nosec B311
             expected = _clamp(expected + variance, 0.0, 100.0)
             band_width = 5.0 + (minutes_ahead * 0.14)
@@ -89,6 +91,8 @@ class HeuristicForecastProvider(ForecastProvider):
         current_occupancy: int,
         capacity: int,
         should_seed: bool = True,
+        prefer_heuristic_for_sparse_realtime: bool = False,
+        sparse_realtime_max_ratio: float = 0.015,
     ) -> Dict[str, Any]:
         """Build current + forecast payload used by occupancy bootstrap endpoints."""
         forecast = self.get_lot_forecast(
@@ -98,11 +102,30 @@ class HeuristicForecastProvider(ForecastProvider):
         )
         now_slice = (forecast.get("slices") or {}).get("now") or {}
 
+        predicted_rate = float(now_slice.get("expected_occupancy") or 0.0)
+        heuristic_count = min(
+            capacity, max(0, round(capacity * (predicted_rate / 100.0)))
+        )
+
+        sparse_limit = max(2, round(capacity * max(0.0, sparse_realtime_max_ratio)))
+
         if should_seed and current_occupancy <= 0:
-            predicted_rate = float(now_slice.get("expected_occupancy") or 0.0)
-            seeded_count = min(capacity, max(0, round(capacity * (predicted_rate / 100.0))))
             source = "seeded_heuristic"
-            count = seeded_count
+            count = heuristic_count
+        elif prefer_heuristic_for_sparse_realtime and current_occupancy <= sparse_limit:
+            # Early-stage datasets often report tiny realtime counts (1-2 spots),
+            # which under-represent true demand. Blend toward heuristic baseline.
+            # The lower the realtime count relative to sparse_limit, the stronger
+            # the heuristic pull.
+            if sparse_limit <= 0:
+                blend_weight = 0.85
+            else:
+                scarcity = 1.0 - min(1.0, current_occupancy / max(1, sparse_limit))
+                blend_weight = _clamp(0.65 + (0.25 * scarcity), 0.65, 0.90)
+            blended_count = round((heuristic_count * blend_weight) + (current_occupancy * (1.0 - blend_weight)))
+            count = min(capacity, max(0, blended_count))
+            source = "blended_heuristic"
+            predicted_rate = (count / max(1, capacity)) * 100.0
         else:
             count = max(0, current_occupancy)
             source = "realtime"

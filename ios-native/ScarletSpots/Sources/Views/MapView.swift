@@ -38,19 +38,32 @@ struct MapView: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             Map(position: $position) {
-                ForEach(polygonItems) { item in
-                    MapPolygon(coordinates: item.coordinates)
-                        .foregroundStyle(item.color.opacity(0.60))
-                        .stroke(item.color.opacity(0.9), lineWidth: 2.0)
-                }
-                ForEach(visibleLots) { lot in
-                    Annotation(zoomDistance < 2500 ? lot.shortName : "", coordinate: lot.location.clLocationCoordinate2D) {
-                        Button { selectedLot = lot } label: {
-                            lotBadge(for: lot)
+                if zoomLevel == .lot {
+                    ForEach(polygonItems) { item in
+                        MapPolygon(coordinates: item.coordinates)
+                            .foregroundStyle(item.color.opacity(0.60))
+                            .stroke(item.color.opacity(0.9), lineWidth: 2.0)
+                    }
+                    ForEach(visibleLots) { lot in
+                        Annotation("", coordinate: lot.location.clLocationCoordinate2D) {
+                            Button { selectedLot = lot } label: {
+                                lotBadge(for: lot)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(accessibilityText(for: lot))
+                            .accessibilityHint("Opens details for \(lot.shortName).")
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(accessibilityText(for: lot))
-                        .accessibilityHint("Opens details for \(lot.shortName).")
+                    }
+                } else {
+                    ForEach(clusters) { cluster in
+                        Annotation("", coordinate: cluster.coordinate) {
+                            Button { zoomInTo(cluster: cluster) } label: {
+                                clusterBadge(for: cluster)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("\(cluster.name), \(Int(cluster.occupancyRate.rounded())) percent occupied")
+                            .accessibilityHint("Zooms into \(cluster.name).")
+                        }
                     }
                 }
                 ForEach(autoPark.pendingCandidates) { candidate in
@@ -159,15 +172,18 @@ struct MapView: View {
         let capacity = max(lot.totalSpaces, 1)
         let ratio = Double(occupancy) / Double(capacity)
         let percent = Int((ratio * 100).rounded())
-        
-        Text(isEstimated ? "~\(percent)%" : "\(percent)%")
-            .font(.caption2.bold().monospacedDigit())
-            .foregroundStyle(.white)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
-            .background(colorForLot(lot), in: Capsule())
-            .overlay(Capsule().stroke(.white.opacity(0.5), lineWidth: 1))
-            .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+        let label = isEstimated ? "~\(percent)%" : "\(percent)%"
+
+        MapPin(label: label, color: colorForLot(lot))
+    }
+
+    @ViewBuilder
+    private func clusterBadge(for cluster: LotCluster) -> some View {
+        let percent = Int(cluster.occupancyRate.rounded())
+        MapPin(
+            label: "\(cluster.name): \(percent)%",
+            color: OccupancyPalette.clusterColor(for: cluster.occupancyRate)
+        )
     }
 
     private func findCarChip(distance: String) -> some View {
@@ -214,7 +230,7 @@ struct MapView: View {
             return lot.polygons.enumerated().map { index, ring in
                 PolygonItem(
                     id: "\(lot.mapId)#\(index)",
-                    coordinates: ring.outer,
+                    coordinates: cleanedPolygonCoordinates(ring.outer),
                     color: color
                 )
             }
@@ -260,10 +276,150 @@ struct MapView: View {
         let occupancy = webSocket.lotOccupancies[lot.mapId] ?? 0
         let capacity = max(lot.totalSpaces, 1)
         let ratio = Double(occupancy) / Double(capacity)
+        return OccupancyPalette.color(forRatio: ratio)
+    }
 
-        if ratio > 0.9 { return .red }
-        if ratio > 0.6 { return .orange }
-        return .green
+    // MARK: - Clustering
+
+    private enum ZoomLevel { case lot, campus, hidden }
+
+    /// Map camera distance buckets that mirror the React Native zoom logic:
+    ///   `latitudeDelta < 0.05` → individual lot pills
+    ///   `latitudeDelta < 0.6`  → one cluster per campus
+    ///   else                   → single regional cluster
+    /// Converted to MapKit camera distances (rough equivalents, tunable).
+    private var zoomLevel: ZoomLevel {
+        if zoomDistance < 6_000 { return .lot }
+        if zoomDistance < 55_000 { return .campus }
+        return .hidden
+    }
+
+    private struct LotCluster: Identifiable {
+        enum Kind { case campus, region }
+        let id: String
+        let kind: Kind
+        let name: String
+        let coordinate: CLLocationCoordinate2D
+        let occupancyRate: Double
+        let count: Int
+    }
+
+    /// Aggregated lot pills used at non-`.lot` zoom levels. Mirrors the
+    /// `clusters` memo in `mobile/src/features/home/screens/HomeScreen.tsx`.
+    private var clusters: [LotCluster] {
+        guard zoomLevel != .lot else { return [] }
+        let lots = visibleLots
+        guard !lots.isEmpty else { return [] }
+
+        if zoomLevel == .hidden {
+            let avgOccupancy = lots.reduce(0.0) { $0 + occupancyRate(for: $1) } / Double(lots.count)
+            return [
+                LotCluster(
+                    id: "region:rutgers",
+                    kind: .region,
+                    name: "Rutgers University",
+                    coordinate: CLLocationCoordinate2D(latitude: 40.5008, longitude: -74.4474),
+                    occupancyRate: avgOccupancy,
+                    count: lots.count
+                )
+            ]
+        }
+
+        struct Bucket { var latSum: Double = 0; var lngSum: Double = 0; var occSum: Double = 0; var count: Int = 0 }
+        var buckets: [String: Bucket] = [:]
+        for lot in lots {
+            let key = lot.address.campus ?? "Other"
+            var bucket = buckets[key] ?? Bucket()
+            bucket.latSum += lot.location.lat
+            bucket.lngSum += lot.location.lng
+            bucket.occSum += occupancyRate(for: lot)
+            bucket.count += 1
+            buckets[key] = bucket
+        }
+
+        return buckets.map { name, bucket in
+            let n = max(bucket.count, 1)
+            return LotCluster(
+                id: "campus:\(name)",
+                kind: .campus,
+                name: name,
+                coordinate: CLLocationCoordinate2D(
+                    latitude: bucket.latSum / Double(n),
+                    longitude: bucket.lngSum / Double(n)
+                ),
+                occupancyRate: bucket.occSum / Double(n),
+                count: bucket.count
+            )
+        }
+        .sorted { $0.id < $1.id }
+    }
+
+    private func occupancyRate(for lot: Lot) -> Double {
+        let occupancy = webSocket.lotOccupancies[lot.mapId] ?? 0
+        let capacity = max(lot.totalSpaces, 1)
+        return min(100, Double(occupancy) / Double(capacity) * 100)
+    }
+
+    private func zoomInTo(cluster: LotCluster) {
+        withAnimation(.easeInOut(duration: 0.4)) {
+            position = .camera(
+                MapCamera(
+                    centerCoordinate: cluster.coordinate,
+                    distance: cluster.kind == .region ? 9_000 : 3_500
+                )
+            )
+        }
+    }
+
+    /// Normalizes raw lot rings before rendering in `MapPolygon`.
+    ///
+    /// Some source polygons (notably Public Safety Deck / Lot 70) contain
+    /// ultra-short zig-zag segments that look like sharp spikes at low zoom.
+    /// We preserve overall shape while stripping those tiny needles:
+    /// - drop near-duplicate points (< 0.35m from previous)
+    /// - collapse "needle" points where adjacent segments are tiny and the
+    ///   path immediately returns near the previous point.
+    private func cleanedPolygonCoordinates(_ input: [CLLocationCoordinate2D]) -> [CLLocationCoordinate2D] {
+        guard input.count > 4 else { return input }
+
+        var points: [CLLocationCoordinate2D] = []
+        points.reserveCapacity(input.count)
+        for point in input {
+            if let last = points.last, metersBetween(last, point) < 0.35 {
+                continue
+            }
+            points.append(point)
+        }
+
+        guard points.count > 4 else { return input }
+        var cleaned: [CLLocationCoordinate2D] = []
+        cleaned.reserveCapacity(points.count)
+        cleaned.append(points[0])
+
+        for idx in 1..<(points.count - 1) {
+            let prev = cleaned.last ?? points[idx - 1]
+            let current = points[idx]
+            let next = points[idx + 1]
+            let a = metersBetween(prev, current)
+            let b = metersBetween(current, next)
+            let c = metersBetween(prev, next)
+
+            let looksLikeNeedle = a < 6.0 && b < 6.0 && c < 3.0
+            if looksLikeNeedle {
+                continue
+            }
+            cleaned.append(current)
+        }
+        if let last = points.last {
+            cleaned.append(last)
+        }
+
+        return cleaned.count >= 3 ? cleaned : points
+    }
+
+    private func metersBetween(_ a: CLLocationCoordinate2D, _ b: CLLocationCoordinate2D) -> CLLocationDistance {
+        CLLocation(latitude: a.latitude, longitude: a.longitude)
+            .distance(from: CLLocation(latitude: b.latitude, longitude: b.longitude))
     }
 
     private func formatDistance(meters: Double) -> String {
@@ -289,5 +445,51 @@ struct MapView: View {
         withAnimation(.easeInOut(duration: 0.4)) {
             position = .camera(MapCamera(centerCoordinate: coordinate, distance: 1500))
         }
+    }
+}
+
+// MARK: - Map pin
+
+/// Bubble + downward-pointing triangle marker shared by per-lot pins and
+/// cluster pins. Mirrors the `markerBubble` + `markerArrow` styles in
+/// `mobile/src/features/home/screens/HomeScreen.tsx`:
+///   - 12pt corner radius, 8/4 padding, 40pt minimum width
+///   - 12pt bold white label
+///   - tinted drop shadow for depth
+///   - 12x8 triangle "tail" sitting flush below the bubble
+private struct MapPin: View {
+    let label: String
+    let color: Color
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Text(label)
+                .font(.system(size: 12, weight: .bold).monospacedDigit())
+                .foregroundStyle(.white)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .frame(minWidth: 40)
+                .background(
+                    color,
+                    in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                )
+
+            DownTriangle()
+                .fill(color)
+                .frame(width: 12, height: 8)
+                .offset(y: -1) // overlap bubble seam, mirrors RN translateY: -1
+        }
+        .shadow(color: color.opacity(0.4), radius: 4, y: 2)
+    }
+}
+
+private struct DownTriangle: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: 0, y: 0))
+        path.addLine(to: CGPoint(x: rect.maxX, y: 0))
+        path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
+        path.closeSubpath()
+        return path
     }
 }

@@ -3,6 +3,11 @@ import json
 import time
 from urllib.parse import parse_qs
 
+from app.core.attestation import _validate_attestation_token
+from app.core.config import settings
+from app.core.logger import get_logger
+from app.core.security import decode_supabase_jwt_token
+from app.core.websocket import manager
 from fastapi import (
     APIRouter,
     WebSocket,
@@ -11,12 +16,6 @@ from fastapi import (
     status,
 )
 from jose.exceptions import JWTError
-
-from app.core.logger import get_logger
-from app.core.attestation import _validate_attestation_token
-from app.core.config import settings
-from app.core.security import decode_supabase_jwt_token
-from app.core.websocket import manager
 
 router = APIRouter(tags=["websocket"])
 log = get_logger(__name__)
@@ -76,7 +75,22 @@ def _check_ws_attestation(auth_data: dict, user_id: str) -> None:
     if not settings.REQUIRE_ATTESTATION_ON_AVAILABILITY:
         return
     token = str(auth_data.get("attestation_token") or "")
-    result = _validate_attestation_token(token=token, user_id=user_id)
+    platform = str(auth_data.get("attestation_platform") or "").strip().lower()
+    device_id = str(auth_data.get("attestation_device_id") or "").strip()
+    if not platform or not device_id:
+        if settings.ATTESTATION_ENFORCE:
+            raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION)
+        log.warning(
+            "WS attestation bypass (monitor): user_id=%s reason=missing_device_binding",
+            user_id,
+        )
+        return
+    result = _validate_attestation_token(
+        token=token,
+        user_id=user_id,
+        expected_platform=platform,
+        expected_device_id=device_id,
+    )
     if result.trusted:
         return
     if not settings.ATTESTATION_ENFORCE:
@@ -91,7 +105,9 @@ def _check_ws_attestation(auth_data: dict, user_id: str) -> None:
 
 async def _receive_auth_message(websocket: WebSocket) -> dict:
     try:
-        raw = await asyncio.wait_for(websocket.receive_text(), timeout=AUTH_MESSAGE_TIMEOUT_SECONDS)
+        raw = await asyncio.wait_for(
+            websocket.receive_text(), timeout=AUTH_MESSAGE_TIMEOUT_SECONDS
+        )
     except asyncio.TimeoutError as exc:
         raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION) from exc
     except Exception as exc:
@@ -112,7 +128,11 @@ async def _receive_auth_message(websocket: WebSocket) -> dict:
 
 @router.websocket("/ws/occupancy")
 async def occupancy_socket(websocket: WebSocket) -> None:
-    client = f"{websocket.client.host}:{websocket.client.port}" if websocket.client else "unknown"
+    client = (
+        f"{websocket.client.host}:{websocket.client.port}"
+        if websocket.client
+        else "unknown"
+    )
     await websocket.accept()
     log.info("WS occupancy connected: client=%s", client)
 
@@ -187,7 +207,11 @@ async def occupancy_socket(websocket: WebSocket) -> None:
 
 @router.websocket("/ws/notifications")
 async def notifications_socket(websocket: WebSocket) -> None:
-    client = f"{websocket.client.host}:{websocket.client.port}" if websocket.client else "unknown"
+    client = (
+        f"{websocket.client.host}:{websocket.client.port}"
+        if websocket.client
+        else "unknown"
+    )
     await websocket.accept()
     log.info("WS notifications connected: client=%s", client)
 

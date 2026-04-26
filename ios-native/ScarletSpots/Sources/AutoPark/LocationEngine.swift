@@ -13,8 +13,13 @@ final class LocationEngine: NSObject, ObservableObject {
     private let manager = CLLocationManager()
 
     @Published private(set) var latestLocation: CLLocation?
+    @Published private(set) var latestLocationAt: Date?
     @Published private(set) var authorization: CLAuthorizationStatus = .notDetermined
     @Published private(set) var accuracyAuthorization: CLAccuracyAuthorization = .reducedAccuracy
+
+    /// Downstream observer for raw CoreLocation updates (used by AutoPark to
+    /// evaluate location-driven triggers without polling).
+    var onLocationUpdate: ((CLLocation) -> Void)?
 
     private var didStart = false
 
@@ -108,6 +113,8 @@ extension LocationEngine: CLLocationManagerDelegate {
         guard let last = locations.last else { return }
         Task { @MainActor [weak self] in
             self?.latestLocation = last
+            self?.latestLocationAt = Date()
+            self?.onLocationUpdate?(last)
             NativeSessionStore.shared.updateLiveActivityDistance(currentLocation: last)
         }
     }

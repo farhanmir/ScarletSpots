@@ -11,9 +11,8 @@ final class TabBarState: ObservableObject {
     /// Hides the tab bar behind modals / full-screen flows.
     @Published var isHidden = false
 
-    /// Which tab is currently selected. The Map tab is 0 by default —
-    /// matches the RN drawer layout.
-    @Published var selectedTab: Int = 0
+    /// Which tab is currently selected. Default to Map on cold start.
+    @Published var selectedTab: Int = 1
 
     /// When Search wants to navigate the Map to a specific lot, it sets
     /// `focusLotId` after switching to the Map tab. `MapView` consumes &

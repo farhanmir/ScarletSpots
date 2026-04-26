@@ -5,6 +5,10 @@ enum UsersAPI {
         try await APIClient.shared.request("users/me")
     }
 
+    static func exportData() async throws -> UserExportResponse {
+        try await APIClient.shared.request("users/me/export")
+    }
+
     /// Permanently deletes the current user's account and all server-side
     /// data. Required by App Store Review Guideline 5.1.1(v) for any app
     /// that allows account creation.

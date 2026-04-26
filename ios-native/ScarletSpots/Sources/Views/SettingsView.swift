@@ -1,16 +1,14 @@
 import SwiftUI
 import CoreLocation
+import Combine
 
 /// Profile / Settings tab.
 ///
-/// Parity with the RN Profile screen:
-/// - Account info + sign-out.
-/// - Edit permit / secondary permit.
-/// - Favorite lots (resolved to proper lot names, not just IDs).
-/// - Campus toggles.
-/// - Theme picker.
-/// - Diagnostics pane (offline queue depth, auto-park status).
-/// - Feedback form (lightweight — only shown when there was a recent session).
+/// Rebuilt to mirror the polished RN profile presentation:
+/// - Rich profile hero card with initial avatar, permit CTA, and member-since.
+/// - High-signal metric strip (favorites, friends, lifetime sessions).
+/// - Better section hierarchy with modern cards + collapsible controls.
+/// - Live diagnostics dashboard entry point for Auto-Park telemetry.
 struct ProfileView: View {
     @EnvironmentObject private var authManager: AuthManager
     @StateObject private var themePreference = ThemePreference.shared
@@ -19,52 +17,66 @@ struct ProfileView: View {
     @StateObject private var location = LocationEngine.shared
     @StateObject private var autoPark = AutoParkCoordinator.shared
     @StateObject private var session = NativeSessionStore.shared
+    @StateObject private var webSocket = WebSocketManager.shared
 
     @State private var favorites: [String] = []
     @State private var favoritesLoading = true
+    @State private var friendsCount = 0
+    @State private var sessionsCount = 0
     @State private var showFeedback = false
     @State private var showSignOutConfirm = false
     @State private var showDeleteConfirm = false
     @State private var deleteError: String?
     @State private var isDeleting = false
+    @State private var expandedCampuses = false
+    @State private var expandedTheme = false
+    @State private var diagnosticsPulse = false
+    @State private var diagnosticsSamples: [Double] = []
 
     /// Canonical legal URLs — published copies live on the marketing site.
     private let privacyPolicyURL = URL(string: "https://scarletspots.com/privacy")!
     private let termsURL = URL(string: "https://scarletspots.com/terms")!
     private let supportURL = URL(string: "https://scarletspots.com/support")!
+    private let diagnosticsTicker = Timer.publish(every: 2.0, on: .main, in: .common).autoconnect()
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: 18) {
                     heroCard
                     statsStrip
-                    mapFiltersSection
-                    
-                    VStack(spacing: 20) {
-                        favoritesSection
-                        campusesSection
-                        appearanceSection
-                        diagnosticsSection
-                        feedbackSection
-                        legalSection
-                        accountActionsSection
-                    }
-                    .padding(.horizontal, 16)
+                    favoritesSection
+                    campusesSection
+                    appearanceSection
+                    diagnosticsSection
+                    feedbackSection
+                    legalSection
+                    accountActionsSection
                 }
-                .padding(.bottom, 32)
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 34)
             }
-            .background(Color(uiColor: .systemGroupedBackground))
+            .background(
+                LinearGradient(
+                    colors: [Color(hex: 0x08090E), Color(hex: 0x12050A), Color(hex: 0x22050E)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
+            )
             .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.inline)
-            .task {
-                favoritesLoading = true
-                favorites = (try? await FavoritesAPI.list())
-                    ?? OfflineCache.shared.getCachedFavorites()
-                favoritesLoading = false
+            .task { await refreshAll() }
+            .refreshable { await refreshAll() }
+            .onAppear {
+                withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
+                    diagnosticsPulse = true
+                }
+                seedDiagnosticsIfNeeded()
             }
-            .refreshable {
-                favorites = (try? await FavoritesAPI.list()) ?? favorites
+            .onReceive(diagnosticsTicker) { _ in
+                appendDiagnosticsSample()
             }
             .sheet(isPresented: $showFeedback) {
                 if let recentSession = session.activeSession {
@@ -108,165 +120,474 @@ struct ProfileView: View {
         }
     }
 
+    // MARK: - Top sections
+
     private var heroCard: some View {
-        ZStack(alignment: .bottomLeading) {
-            // Background Gradient
-            LinearGradient(
-                colors: [Color(hex: 0xCC0033), Color(hex: 0x80001A)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .frame(height: 200)
-            
-            VStack(alignment: .leading, spacing: 4) {
-                if let user = authManager.currentUser {
-                    Text([user.firstName, user.lastName].compactMap { $0 }.joined(separator: " "))
-                        .font(.title.bold())
-                        .foregroundStyle(.white)
-                    
-                    Text(user.email)
-                        .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.8))
+        let user = authManager.currentUser
+        let displayName = fullName(for: user)
+        let initial = displayName.first.map { String($0).uppercased() } ?? "?"
+        let permitText = Self.prettyPermit(authManager.permitType ?? "No permit set")
+
+        return ZStack(alignment: .bottomLeading) {
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [Color(hex: 0x2A070E), Color(hex: 0x14080D), Color(hex: 0x0A0F16)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 26, style: .continuous)
+                        .stroke(Color.white.opacity(0.10), lineWidth: 1)
                 }
-                
-                HStack(spacing: 12) {
-                    NavigationLink {
-                        PermitOnboardingView(fromProfile: true)
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "creditcard.fill")
-                            Text(Self.prettyPermit(authManager.permitType ?? "None"))
-                        }
-                        .font(.caption.bold())
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(.white.opacity(0.2), in: Capsule())
-                        .foregroundStyle(.white)
-                    }
-                    
-                    if let secondary = authManager.secondaryPermitType {
-                        HStack(spacing: 6) {
-                            Image(systemName: "plus.circle.fill")
-                            Text(secondary)
-                        }
-                        .font(.caption.bold())
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(.white.opacity(0.2), in: Capsule())
-                        .foregroundStyle(.white)
-                    }
+                .shadow(color: Color(hex: 0xCC0033).opacity(0.22), radius: 24, y: 8)
+
+            Circle()
+                .fill(Color(hex: 0xCC0033).opacity(0.16))
+                .frame(width: 160, height: 160)
+                .offset(x: 46, y: -68)
+                .blur(radius: 1)
+
+            VStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(Color(hex: 0x0A0F16))
+                    Circle()
+                        .stroke(Color(hex: 0xEF4444).opacity(0.75), lineWidth: 2)
+                    Text(initial)
+                        .font(.system(size: 45, weight: .black, design: .rounded))
+                        .italic()
+                        .foregroundStyle(Color(hex: 0xEF4444))
                 }
-                .padding(.top, 8)
+                .frame(width: 112, height: 112)
+                .shadow(color: Color(hex: 0xEF4444).opacity(0.28), radius: 14, y: 6)
+
+                Text(displayName)
+                    .font(.system(size: 36, weight: .heavy, design: .rounded))
+                    .minimumScaleFactor(0.72)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(1)
+                    .kerning(-0.2)
+                    .foregroundStyle(.white)
+
+                Text(user?.email ?? "Unknown email")
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.74))
+
+                NavigationLink {
+                    PermitOnboardingView(fromProfile: true)
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "p.circle.fill")
+                        Text(permitText)
+                        Image(systemName: "chevron.right")
+                            .font(.caption.bold())
+                    }
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(Color(hex: 0xEF4444))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(Color(hex: 0x33070F), in: Capsule())
+                    .overlay(Capsule().stroke(Color(hex: 0xEF4444).opacity(0.30), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+
+                if let createdAt = user?.createdAt {
+                    Text("MEMBER SINCE \(monthYearFormatter.string(from: createdAt).uppercased())")
+                        .font(.caption2.weight(.semibold))
+                        .kerning(1.0)
+                        .foregroundStyle(.white.opacity(0.45))
+                }
             }
-            .padding(20)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 22)
+            .padding(.horizontal, 20)
         }
     }
 
     private var statsStrip: some View {
-        HStack(spacing: 0) {
-            statItem(label: "Favorites", value: "\(favorites.count)", systemImage: "star.fill", color: .yellow)
-            divider
-            statItem(label: "Friends", value: "—", systemImage: "person.2.fill", color: .blue)
-            divider
-            statItem(label: "Parked", value: "—", systemImage: "parkingsign.circle.fill", color: .green)
+        HStack(spacing: 10) {
+            statTile(title: "Favorites", value: "\(favorites.count)", accent: NativeAuthColors.occupancyHigh)
+            statTile(title: "Friends", value: "\(friendsCount)", accent: Color(hex: 0x60A5FA))
+            statTile(title: "Sessions", value: "\(sessionsCount)", accent: NativeAuthColors.occupancyLow)
         }
-        .padding(.vertical, 16)
-        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
-        .padding(.horizontal, 16)
     }
 
-    private func statItem(label: String, value: String, systemImage: String, color: Color) -> some View {
-        VStack(spacing: 4) {
-            HStack(spacing: 4) {
-                Image(systemName: systemImage)
-                    .font(.caption2)
-                    .foregroundStyle(color)
-                Text(value)
-                    .font(.headline.bold())
-            }
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+    private func statTile(title: String, value: String, accent: Color) -> some View {
+        VStack(spacing: 8) {
+            Text(value)
+                .font(.system(size: 40, weight: .heavy, design: .rounded))
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .foregroundStyle(accent)
+            Text(title.uppercased())
+                .font(.caption.weight(.semibold))
+                .kerning(0.8)
+                .foregroundStyle(.white.opacity(0.56))
         }
         .frame(maxWidth: .infinity)
+        .padding(.vertical, 16)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.white.opacity(0.06))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                )
+        )
     }
 
-    private var divider: some View {
-        Divider()
-            .frame(height: 24)
-            .padding(.horizontal, 8)
-    }
-
-    private var mapFiltersSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Map Filters")
-                .font(.headline)
-                .padding(.leading, 4)
-            
-            HStack {
-                Label("Visibility Mode", systemImage: "line.3.horizontal.decrease.circle")
-                    .font(.body)
-                Spacer()
-                Menu {
-                    Button { authManager.setNoPermitMode(nil) } label: {
-                        Label("My Permit", systemImage: authManager.noPermitMode == nil ? "checkmark" : "")
-                    }
-                    Divider()
-                    Button { authManager.setNoPermitMode("all") } label: {
-                        Label("Show All", systemImage: authManager.noPermitMode == "all" ? "checkmark" : "")
-                    }
-                    Button { authManager.setNoPermitMode("commuter_all") } label: {
-                        Label("Commuter (All)", systemImage: authManager.noPermitMode == "commuter_all" ? "checkmark" : "")
-                    }
-                } label: {
-                    HStack(spacing: 4) {
-                        Text(authManager.noPermitMode == nil ? "My Permit" : (authManager.noPermitMode == "all" ? "Show All" : "Commuter"))
-                        Image(systemName: "chevron.up.chevron.down")
-                            .font(.caption2)
-                    }
-                    .font(.subheadline.bold())
-                    .foregroundStyle(.blue)
-                }
-            }
-            .padding()
-            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
-        }
-        .padding(.horizontal, 16)
-    }
+    // MARK: - Content sections
 
     private var favoritesSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Favorites")
-                .font(.headline)
-                .padding(.leading, 4)
-            
-            VStack(spacing: 0) {
-                if favoritesLoading {
-                    ForEach(0..<2, id: \.self) { _ in
-                        favoriteRowPlaceholder
-                    }
-                } else if favorites.isEmpty {
-                    VStack(spacing: 12) {
-                        Image(systemName: "star")
-                            .font(.largeTitle)
-                            .foregroundStyle(.tertiary)
-                        Text("No favorite lots")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 32)
-                } else {
-                    ForEach(favorites, id: \.self) { id in
-                        favoriteRow(id: id)
-                        if id != favorites.last {
-                            Divider().padding(.leading, 16)
-                        }
+        profileCard(title: "Saved Lots", subtitle: "Quick access to your starred lots.") {
+            if favoritesLoading {
+                ForEach(0..<2, id: \.self) { _ in
+                    favoriteRowPlaceholder
+                    if $0 == 0 { Divider().overlay(Color.white.opacity(0.08)) }
+                }
+            } else if favorites.isEmpty {
+                VStack(spacing: 12) {
+                    Image(systemName: "star")
+                        .font(.system(size: 28, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.45))
+                    Text("No saved lots")
+                        .font(.headline)
+                        .foregroundStyle(.white.opacity(0.72))
+                    Text("Long-press any lot on the map to save it.")
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.45))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 24)
+            } else {
+                ForEach(favorites, id: \.self) { id in
+                    favoriteRow(id: id)
+                    if id != favorites.last {
+                        Divider().overlay(Color.white.opacity(0.08))
                     }
                 }
             }
-            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
         }
+    }
+
+    private var campusesSection: some View {
+        profileCard(title: "Campuses", subtitle: "Toggle lots visible on the map.") {
+            DisclosureGroup(
+                isExpanded: Binding(
+                    get: { expandedCampuses },
+                    set: { withAnimation(.spring(response: 0.38, dampingFraction: 0.84)) { expandedCampuses = $0 } }
+                )
+            ) {
+                VStack(spacing: 0) {
+                    campusToggle("Busch")
+                    sectionDivider
+                    campusToggle("College Ave")
+                    sectionDivider
+                    campusToggle("Livingston")
+                    sectionDivider
+                    campusToggle("Cook/Douglass")
+                }
+                .padding(.top, 8)
+            } label: {
+                HStack {
+                    Label("Campus Filters", systemImage: "map")
+                        .font(.subheadline.weight(.semibold))
+                    Spacer()
+                    Text("\(authManager.enabledCampuses.count) on")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.52))
+                    Image(systemName: "chevron.down")
+                        .font(.caption.bold())
+                        .foregroundStyle(.white.opacity(0.45))
+                        .rotationEffect(.degrees(expandedCampuses ? 180 : 0))
+                        .animation(.spring(response: 0.34, dampingFraction: 0.84), value: expandedCampuses)
+                }
+                .foregroundStyle(.white.opacity(0.9))
+            }
+        }
+    }
+
+    private var appearanceSection: some View {
+        profileCard(title: "Appearance", subtitle: "Light, dark, or automatic.") {
+            DisclosureGroup(
+                isExpanded: Binding(
+                    get: { expandedTheme },
+                    set: { withAnimation(.spring(response: 0.38, dampingFraction: 0.84)) { expandedTheme = $0 } }
+                )
+            ) {
+                Picker("Theme", selection: $themePreference.mode) {
+                    Text("System").tag("system")
+                    Text("Light").tag("light")
+                    Text("Dark").tag("dark")
+                }
+                .pickerStyle(.segmented)
+                .padding(.top, 8)
+            } label: {
+                HStack {
+                    Label("Theme", systemImage: "circle.lefthalf.filled")
+                    Spacer()
+                    Text(themeLabel(themePreference.mode))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.52))
+                    Image(systemName: "chevron.down")
+                        .font(.caption.bold())
+                        .foregroundStyle(.white.opacity(0.45))
+                        .rotationEffect(.degrees(expandedTheme ? 180 : 0))
+                        .animation(.spring(response: 0.34, dampingFraction: 0.84), value: expandedTheme)
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.9))
+            }
+        }
+    }
+
+    private var diagnosticsSection: some View {
+        profileCard(title: "Diagnostics", subtitle: "Auto-Park signal intelligence.") {
+            let snapshot = autoPark.liveSnapshot
+            VStack(spacing: 12) {
+                HStack(spacing: 8) {
+                    diagnosticsStatusLight(
+                        title: "Drive",
+                        isOn: snapshot.isDriving,
+                        onColor: NativeAuthColors.occupancyLow
+                    )
+                    diagnosticsStatusLight(
+                        title: "Always",
+                        isOn: snapshot.hasAlwaysLocationPermission,
+                        onColor: .blue
+                    )
+                    diagnosticsStatusLight(
+                        title: "Queue",
+                        isOn: snapshot.queueDepth > 0,
+                        onColor: NativeAuthColors.occupancyMedium
+                    )
+                }
+
+                HStack(spacing: 10) {
+                    diagnosticGauge(title: "Speed", value: formatSpeedShort(snapshot.speedMetersPerSecond))
+                    diagnosticGauge(title: "Accuracy", value: formatDouble(snapshot.horizontalAccuracy, suffix: "m"))
+                    diagnosticGauge(title: "Queue", value: "\(snapshot.queueDepth)")
+                }
+
+                diagnosticsSparkline
+                    .frame(height: 52)
+                    .padding(.horizontal, 2)
+                    .overlay(alignment: .topLeading) {
+                        Text("Signal Trace")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.white.opacity(0.46))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.black.opacity(0.25), in: Capsule())
+                    }
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color.white.opacity(0.04))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                            )
+                    )
+
+                HStack {
+                    Label(snapshot.isDriving ? "Vehicle moving" : "Vehicle stopped", systemImage: snapshot.isDriving ? "car.fill" : "pause.circle.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(snapshot.isDriving ? NativeAuthColors.occupancyLow : .white.opacity(0.65))
+                    Spacer()
+                    Text(snapshot.timestamp.formatted(date: .omitted, time: .standard))
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.white.opacity(0.5))
+                }
+
+                NavigationLink {
+                    AutoParkInsightsView()
+                } label: {
+                    HStack {
+                        Text("Open Live Sensor Dashboard")
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.bold())
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color.white.opacity(0.11), lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+            .task {
+                autoPark.refreshLiveSnapshot()
+            }
+        }
+    }
+
+    private func diagnosticGauge(title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title.uppercased())
+                .font(.caption2.weight(.semibold))
+                .kerning(0.7)
+                .foregroundStyle(.white.opacity(0.46))
+            Text(value)
+                .font(.system(size: 15, weight: .bold, design: .monospaced))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 10)
+        .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private func diagnosticsStatusLight(title: String, isOn: Bool, onColor: Color) -> some View {
+        HStack(spacing: 7) {
+            Circle()
+                .fill(isOn ? onColor : Color.white.opacity(0.22))
+                .frame(width: 8, height: 8)
+                .shadow(color: isOn ? onColor.opacity(diagnosticsPulse ? 0.65 : 0.25) : .clear, radius: diagnosticsPulse ? 8 : 2)
+            Text(title.uppercased())
+                .font(.caption2.weight(.semibold))
+                .kerning(0.6)
+                .foregroundStyle(.white.opacity(0.6))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private var diagnosticsSparkline: some View {
+        GeometryReader { geo in
+            let values = diagnosticsSamples.isEmpty ? [0.2, 0.4, 0.3, 0.55, 0.48] : diagnosticsSamples
+            ZStack(alignment: .bottomLeading) {
+                SparklineShape(values: values)
+                    .stroke(
+                        LinearGradient(
+                            colors: [NativeAuthColors.occupancyLow, Color(hex: 0x60A5FA), NativeAuthColors.occupancyHigh],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        ),
+                        style: StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round)
+                    )
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 8)
+
+                SparklineFillShape(values: values)
+                    .fill(
+                        LinearGradient(
+                            colors: [NativeAuthColors.occupancyLow.opacity(0.18), .clear],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 8)
+            }
+            .frame(width: geo.size.width, height: geo.size.height)
+        }
+    }
+
+    private var feedbackSection: some View {
+        profileCard(title: "Feedback", subtitle: "Rate your latest parking session.") {
+            Button { showFeedback = true } label: {
+                HStack {
+                    Label("Send Session Feedback", systemImage: "paperplane.fill")
+                        .foregroundStyle(.white)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption.bold())
+                        .foregroundStyle(.white.opacity(0.45))
+                }
+                .padding(.vertical, 4)
+            }
+            .buttonStyle(.plain)
+            .disabled(session.activeSession == nil)
+            .opacity(session.activeSession == nil ? 0.45 : 1)
+        }
+    }
+
+    private var legalSection: some View {
+        profileCard(title: "Legal & Support", subtitle: "Privacy, terms, and app version.") {
+            VStack(spacing: 0) {
+                legalLink(label: "Privacy Policy", systemImage: "hand.raised", url: privacyPolicyURL)
+                sectionDivider
+                legalLink(label: "Terms of Service", systemImage: "doc.text", url: termsURL)
+                sectionDivider
+                legalLink(label: "Support", systemImage: "lifepreserver", url: supportURL)
+                sectionDivider
+                HStack {
+                    Text("Version")
+                        .foregroundStyle(.white.opacity(0.80))
+                    Spacer()
+                    Text(Self.versionString)
+                        .foregroundStyle(.white.opacity(0.56))
+                }
+                .font(.subheadline)
+                .padding(.vertical, 10)
+            }
+        }
+    }
+
+    private var accountActionsSection: some View {
+        VStack(spacing: 12) {
+            Button { showSignOutConfirm = true } label: {
+                Text("Sign Out")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(NativeAuthColors.occupancyHigh, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+
+            Button(role: .destructive) { showDeleteConfirm = true } label: {
+                Text(isDeleting ? "Deleting..." : "Delete Account")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.red.opacity(0.9))
+            }
+            .disabled(isDeleting)
+        }
+    }
+
+    // MARK: - Shared card / rows
+
+    private func profileCard<Content: View>(
+        title: String,
+        subtitle: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(.white)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.50))
+            }
+
+            content()
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.white.opacity(0.06))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                )
+        )
+    }
+
+    private var sectionDivider: some View {
+        Divider().overlay(Color.white.opacity(0.08))
     }
 
     @ViewBuilder
@@ -277,25 +598,41 @@ struct ProfileView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
-        .padding()
+        .padding(.vertical, 8)
         .redacted(reason: .placeholder)
     }
 
     @ViewBuilder
     private func favoriteRow(id: String) -> some View {
         let lot = lotRepository.byId(id)
-        HStack {
+        HStack(spacing: 10) {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.white.opacity(0.08))
+                .overlay(
+                    Image(systemName: "car.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.72))
+                )
+                .frame(width: 36, height: 36)
+
             VStack(alignment: .leading, spacing: 2) {
                 Text(lot?.shortName ?? id)
-                    .font(.body.bold())
-                if let name = lot?.propertyName {
-                    Text(name)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.white)
+                Text(lotSubtitle(for: lot))
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.56))
+                    .lineLimit(1)
             }
             Spacer()
+
+            if let lot {
+                let capacity = max(lot.totalSpaces, 1)
+                let occupancy = webSocket.lotOccupancies[lot.mapId] ?? 0
+                let rate = Double(occupancy) / Double(capacity) * 100
+                OccupancyPill(rate: min(rate, 100))
+            }
+
             Button {
                 Task {
                     try? await FavoritesAPI.remove(lotId: id)
@@ -308,157 +645,56 @@ struct ProfileView: View {
             }
             .buttonStyle(.plain)
         }
-        .padding()
+        .padding(.vertical, 6)
     }
 
-    private var campusesSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Campuses")
-                .font(.headline)
-                .padding(.leading, 4)
-            
-            VStack(spacing: 0) {
-                campusToggle("Busch")
-                Divider().padding(.leading, 16)
-                campusToggle("College Ave")
-                Divider().padding(.leading, 16)
-                campusToggle("Livingston")
-                Divider().padding(.leading, 16)
-                campusToggle("Cook/Douglass")
-            }
-            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
-        }
-    }
-
-    private var appearanceSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Appearance")
-                .font(.headline)
-                .padding(.leading, 4)
-            
-            HStack {
-                Text("Theme")
-                Spacer()
-                Picker("Theme", selection: $themePreference.mode) {
-                    Text("System").tag("system")
-                    Text("Light").tag("light")
-                    Text("Dark").tag("dark")
-                }
-                .pickerStyle(.menu)
-            }
-            .padding()
-            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
-        }
-    }
-
-    private var diagnosticsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Diagnostics")
-                .font(.headline)
-                .padding(.leading, 4)
-            
-            VStack(spacing: 0) {
-                diagnosticRow(label: "Location", value: authorizationLabel(location.authorization))
-                Divider().padding(.leading, 16)
-                diagnosticRow(label: "Auto-Park", value: autoPark.isRunning ? "Running" : "Idle")
-                Divider().padding(.leading, 16)
-                diagnosticRow(label: "Pending Sync", value: "\(offlineQueue.pendingCount)")
-                if let last = autoPark.lastAutoCommitAt {
-                    Divider().padding(.leading, 16)
-                    diagnosticRow(label: "Last Auto-Park", value: last.formatted(date: .abbreviated, time: .shortened))
-                }
-            }
-            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
-        }
-    }
-
-    private func diagnosticRow(label: String, value: String) -> some View {
-        HStack {
-            Text(label)
-            Spacer()
-            Text(value)
-                .foregroundStyle(.secondary)
-        }
-        .padding()
-    }
-
-    private var feedbackSection: some View {
-        Button { showFeedback = true } label: {
-            HStack {
-                Text("Send Feedback")
-                    .foregroundStyle(.primary)
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
-            .padding()
-            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
-        }
-        .disabled(session.activeSession == nil)
-    }
-
-    private var legalSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Legal & Support")
-                .font(.headline)
-                .padding(.leading, 4)
-            
-            VStack(spacing: 0) {
-                legalLink(label: "Privacy Policy", systemImage: "hand.raised", url: privacyPolicyURL)
-                Divider().padding(.leading, 16)
-                legalLink(label: "Terms of Service", systemImage: "doc.text", url: termsURL)
-                Divider().padding(.leading, 16)
-                legalLink(label: "Support", systemImage: "lifepreserver", url: supportURL)
-                Divider().padding(.leading, 16)
-                HStack {
-                    Text("Version")
-                    Spacer()
-                    Text(Self.versionString)
-                        .foregroundStyle(.secondary)
-                }
-                .padding()
-            }
-            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
-        }
+    private func lotSubtitle(for lot: Lot?) -> String {
+        guard let lot else { return "Loading lot metadata" }
+        let campus = lot.address.campus ?? "Rutgers"
+        let spots = lot.totalSpaces
+        let unit = spots == 1 ? "spot" : "spots"
+        return "\(campus) · \(spots) \(unit)"
     }
 
     private func legalLink(label: String, systemImage: String, url: URL) -> some View {
         Link(destination: url) {
             HStack {
                 Label(label, systemImage: systemImage)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(.white.opacity(0.84))
                 Spacer()
                 Image(systemName: "arrow.up.right")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .font(.caption.bold())
+                    .foregroundStyle(.white.opacity(0.45))
             }
-            .padding()
+            .font(.subheadline)
+            .padding(.vertical, 10)
         }
-    }
-
-    private var accountActionsSection: some View {
-        VStack(spacing: 12) {
-            Button { showSignOutConfirm = true } label: {
-                Text("Sign Out")
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.red, in: RoundedRectangle(cornerRadius: 12))
-            }
-            
-            Button(role: .destructive) { showDeleteConfirm = true } label: {
-                Text("Delete Account")
-                    .font(.subheadline)
-                    .foregroundStyle(.red)
-                    .padding(.vertical, 8)
-            }
-        }
-        .padding(.top, 12)
     }
 
     // MARK: - Actions
+
+    private func refreshAll() async {
+        favoritesLoading = true
+        async let favoritesTask: [String] = {
+            (try? await FavoritesAPI.list()) ?? OfflineCache.shared.getCachedFavorites()
+        }()
+        async let friendsTask: Int = {
+            let response = try? await FriendsAPI.list()
+            return response?.friends.count ?? 0
+        }()
+        async let sessionsTask: Int = {
+            let export = try? await UsersAPI.exportData()
+            return export?.sessions.count ?? 0
+        }()
+
+        let loadedFavorites = await favoritesTask
+        favorites = loadedFavorites
+        OfflineCache.shared.cacheFavorites(loadedFavorites)
+        friendsCount = await friendsTask
+        sessionsCount = await sessionsTask
+        favoritesLoading = false
+        seedDiagnosticsIfNeeded()
+    }
 
     private func performDelete() {
         isDeleting = true
@@ -487,17 +723,68 @@ struct ProfileView: View {
             get: { authManager.enabledCampuses.contains(campus) },
             set: { _ in authManager.toggleCampus(campus) }
         ))
+        .tint(Color(hex: 0xCC0033))
+        .foregroundStyle(.white.opacity(0.92))
+        .font(.subheadline)
+        .padding(.vertical, 7)
         .accessibilityHint("Show or hide \(campus) lots on the map.")
     }
 
-    private func authorizationLabel(_ status: CLAuthorizationStatus) -> String {
-        switch status {
-        case .authorizedAlways: return "Always"
-        case .authorizedWhenInUse: return "While Using"
-        case .denied: return "Denied"
-        case .restricted: return "Restricted"
-        case .notDetermined: return "Not Set"
-        @unknown default: return "Unknown"
+    private func themeLabel(_ mode: String) -> String {
+        switch mode {
+        case "light": return "Light"
+        case "dark": return "Dark"
+        default: return "System"
+        }
+    }
+
+    private func fullName(for profile: Profile?) -> String {
+        let composed = [profile?.firstName, profile?.lastName]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        if !composed.isEmpty { return composed }
+        if let email = profile?.email, !email.isEmpty {
+            return String(email.split(separator: "@").first ?? "ScarletSpots")
+        }
+        return "ScarletSpots"
+    }
+
+    private var monthYearFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.locale = .current
+        formatter.dateFormat = "MMMM yyyy"
+        return formatter
+    }
+
+    private func formatDouble(_ value: Double?, digits: Int = 1, suffix: String = "") -> String {
+        guard let value else { return "n/a" }
+        return String(format: "%.*f%@", digits, value, suffix)
+    }
+
+    private func formatSpeedShort(_ value: Double?) -> String {
+        guard let value else { return "n/a" }
+        if value < 0 { return "n/a" }
+        let mph = value * 2.23694
+        return String(format: "%.1f mph", mph)
+    }
+
+    private func seedDiagnosticsIfNeeded() {
+        guard diagnosticsSamples.isEmpty else { return }
+        diagnosticsSamples = [0.22, 0.28, 0.31, 0.36, 0.33, 0.42, 0.39, 0.45]
+    }
+
+    private func appendDiagnosticsSample() {
+        let snapshot = autoPark.liveSnapshot
+        let speed = max(0, snapshot.speedMetersPerSecond ?? 0)
+        let speedNormalized = min(speed / 14.0, 1.0)
+        let queueNormalized = min(Double(snapshot.queueDepth) / 8.0, 1.0)
+        let accuracyValue = snapshot.horizontalAccuracy ?? 0
+        let accuracyPenalty = min(max(accuracyValue, 0) / 120.0, 1.0)
+        let sample = max(0.05, min(0.95, (speedNormalized * 0.55) + (queueNormalized * 0.25) + ((1 - accuracyPenalty) * 0.20)))
+        diagnosticsSamples.append(sample)
+        if diagnosticsSamples.count > 24 {
+            diagnosticsSamples.removeFirst(diagnosticsSamples.count - 24)
         }
     }
 
@@ -505,8 +792,42 @@ struct ProfileView: View {
         switch raw {
         case PermitRepository.noPermitAll: return "All lots (no permit)"
         case PermitRepository.noPermitCommuter: return "Commuter lots (no permit)"
+        case "None": return "No permit set"
         default: return raw
         }
+    }
+}
+
+private struct SparklineShape: Shape {
+    let values: [Double]
+
+    func path(in rect: CGRect) -> Path {
+        guard values.count >= 2 else { return Path() }
+        var path = Path()
+        let stepX = rect.width / CGFloat(max(values.count - 1, 1))
+        for (index, value) in values.enumerated() {
+            let x = CGFloat(index) * stepX
+            let y = rect.maxY - (CGFloat(max(0, min(1, value))) * rect.height)
+            if index == 0 {
+                path.move(to: CGPoint(x: x, y: y))
+            } else {
+                path.addLine(to: CGPoint(x: x, y: y))
+            }
+        }
+        return path
+    }
+}
+
+private struct SparklineFillShape: Shape {
+    let values: [Double]
+
+    func path(in rect: CGRect) -> Path {
+        guard values.count >= 2 else { return Path() }
+        var path = SparklineShape(values: values).path(in: rect)
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.closeSubpath()
+        return path
     }
 }
 

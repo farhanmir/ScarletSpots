@@ -33,6 +33,9 @@ class Settings(BaseSettings):
 
     # Bootstrap forecasting controls
     ENABLE_HEURISTIC_SEEDED_OCCUPANCY: bool = Field(default=True)
+    PREFER_HEURISTIC_FOR_SPARSE_REALTIME: bool = Field(default=True)
+    SPARSE_REALTIME_MAX_RATIO: float = Field(default=0.015)
+    OCCUPANCY_STALE_MINUTES: int = Field(default=90)
     TRAFFIC_PROVIDER: str = Field(default="none")
     TOMTOM_API_KEY: str = Field(default="")
     TRAFFIC_CACHE_TTL_SECONDS: int = Field(default=300)
@@ -43,6 +46,7 @@ class Settings(BaseSettings):
     ATTESTATION_ENFORCE: bool = Field(default=False)
     ATTESTATION_ALLOW_GRACE_MINUTES: int = Field(default=10)
     ATTESTATION_NONCE_MAX_AGE_SECONDS: int = Field(default=300)
+    ATTESTATION_TOKEN_TTL_SECONDS: int = Field(default=180)
     ATTESTATION_SIGNING_SECRET: str = Field(default="")
 
     # CORS

@@ -14,6 +14,8 @@ struct RootView: View {
                 AuthChoiceView()
             } else if !hasForegroundLocation {
                 PermissionsOnboardingView(onFinished: {})
+            } else if auth.currentUser == nil {
+                bootLoadingView
             } else if auth.permitType == nil {
                 PermitOnboardingView(fromProfile: false)
             } else {
@@ -36,6 +38,17 @@ struct RootView: View {
 
     private var hasForegroundLocation: Bool {
         locationEngine.hasForegroundPermission
+    }
+
+    /// Avoid flashing onboarding/permit routes while the user profile is still
+    /// being hydrated after auth restore.
+    private var bootLoadingView: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            ProgressView("Loading ScarletSpots...")
+                .tint(.white)
+                .foregroundStyle(.white.opacity(0.82))
+        }
     }
 
     /// Start AutoPark only when the user is signed in AND has granted

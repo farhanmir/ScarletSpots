@@ -92,6 +92,8 @@ async def get_all_occupancy(
                 current_occupancy=observed_count,
                 capacity=capacity,
                 should_seed=should_seed,
+                prefer_heuristic_for_sparse_realtime=settings.PREFER_HEURISTIC_FOR_SPARSE_REALTIME,
+                sparse_realtime_max_ratio=settings.SPARSE_REALTIME_MAX_RATIO,
             )
             current = bootstrap["current"]
             occupancy_payload.append(

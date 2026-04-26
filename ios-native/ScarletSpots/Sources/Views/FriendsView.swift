@@ -68,7 +68,12 @@ struct FriendsView: View {
                     .accessibilityLabel("Invite a friend")
                 }
             }
-            .sheet(isPresented: $showAddFriend) { addFriendSheet }
+            .sheet(isPresented: $showAddFriend) {
+                addFriendSheet
+                    .presentationDetents([.height(280), .medium])
+                    .presentationDragIndicator(.visible)
+                    .presentationCornerRadius(24)
+            }
             .alert("New Friend Request", isPresented: $showFriendRequestAlert) {
                 Button("OK", role: .cancel) {}
             } message: {
@@ -223,21 +228,27 @@ struct FriendsView: View {
 
     private var addFriendSheet: some View {
         NavigationStack {
-            Form {
-                Section {
-                    TextField("name@scarletmail.rutgers.edu", text: $friendEmail)
-                        .textInputAutocapitalization(.never)
-                        .keyboardType(.emailAddress)
-                        .autocorrectionDisabled()
-                } header: {
-                    Text("Invite by email")
-                } footer: {
-                    Text("They'll get a notification and can accept from their Requests tab.")
-                }
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Invite by email")
+                    .font(.headline)
+                TextField("name@scarletmail.rutgers.edu", text: $friendEmail)
+                    .textInputAutocapitalization(.never)
+                    .keyboardType(.emailAddress)
+                    .autocorrectionDisabled()
+                    .padding(.horizontal, 12)
+                    .frame(height: 46)
+                    .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                Text("They'll get a notification and can accept from Requests.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 if let error {
-                    Text(error).foregroundStyle(.red).font(.caption)
+                    Text(error)
+                        .foregroundStyle(.red)
+                        .font(.caption)
                 }
+                Spacer(minLength: 0)
             }
+            .padding(16)
             .navigationTitle("Add Friend")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

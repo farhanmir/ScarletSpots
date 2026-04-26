@@ -9,6 +9,7 @@ final class WebSocketManager: ObservableObject {
     private var pollingTask: Task<Void, Never>?
 
     @Published var lotOccupancies: [String: Int] = [:]
+    @Published var lotOccupancyRows: [String: OccupancyRow] = [:]
 
     private init() {}
 
@@ -28,6 +29,15 @@ final class WebSocketManager: ObservableObject {
                 guard let self else { return }
                 if let lot = payload["lot_id"] as? String, let count = payload["count"] as? Int {
                     self.lotOccupancies[lot] = count
+                    let existing = self.lotOccupancyRows[lot]
+                    self.lotOccupancyRows[lot] = OccupancyRow(
+                        lotId: lot,
+                        count: count,
+                        occupancyRate: existing?.occupancyRate,
+                        source: "realtime",
+                        confidenceInterval: existing?.confidenceInterval,
+                        updatedAt: Date()
+                    )
                 }
             }
         }
@@ -40,6 +50,7 @@ final class WebSocketManager: ObservableObject {
                     await MainActor.run { [weak self] in
                         for row in rows {
                             self?.lotOccupancies[row.lotId] = row.count ?? 0
+                            self?.lotOccupancyRows[row.lotId] = row
                         }
                     }
                 }

@@ -10,12 +10,16 @@ struct OccupancyRow: Codable {
     let count: Int?
     let occupancyRate: Double?
     let source: String?
+    let confidenceInterval: Double?
+    let updatedAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case lotId = "lot_id"
         case count
         case occupancyRate = "occupancy_rate"
         case source
+        case confidenceInterval = "confidence_interval"
+        case updatedAt = "updated_at"
     }
 }
 
@@ -142,6 +146,16 @@ struct FriendsListResponse: Codable {
     let friends: [Friendship]
     let requests: [Friendship]
     let blocked: [Friendship]
+}
+
+/// Lightweight subset of `/users/me/export` used by Profile UI for aggregate
+/// counters without pulling every field into strongly typed models.
+struct UserExportResponse: Codable {
+    struct SessionSummary: Codable, Identifiable {
+        let id: UUID
+    }
+
+    let sessions: [SessionSummary]
 }
 
 struct ParkingCandidate: Codable, Identifiable {

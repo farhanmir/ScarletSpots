@@ -31,9 +31,11 @@ actor AttestationService {
         guard let token = try? await getToken(accessToken: accessToken) else {
             return [:]
         }
+        let device = deviceId()
         return [
             "x-attestation-token": token,
-            "x-attestation-platform": "ios"
+            "x-attestation-platform": "ios",
+            "x-attestation-device-id": device
         ]
     }
 
@@ -41,9 +43,11 @@ actor AttestationService {
         guard let token = try? await getToken(accessToken: accessToken) else {
             return [:]
         }
+        let device = deviceId()
         return [
             "attestation_token": token,
-            "attestation_platform": "ios"
+            "attestation_platform": "ios",
+            "attestation_device_id": device
         ]
     }
 
@@ -56,7 +60,8 @@ actor AttestationService {
         let payload: [String: String] = [
             "platform": "ios",
             "device_id": deviceId(),
-            "provider": "self_reported"
+            "provider": "local_integrity_v1",
+            "assertion": localIntegrityAssertion()
         ]
         var request = URLRequest(url: Env.apiV1BaseURL.appendingPathComponent("system/attestation/session"))
         request.httpMethod = "POST"
@@ -78,5 +83,45 @@ actor AttestationService {
         let base = "ios:\(UIDevice.current.identifierForVendor?.uuidString ?? "scarletspots")"
         let digest = SHA256.hash(data: Data(base.utf8))
         return String(digest.compactMap { String(format: "%02x", $0) }.joined().prefix(40))
+    }
+
+    private func localIntegrityAssertion() -> String {
+        let compromised = isLikelyCompromised()
+        let payload: [String: Any] = [
+            "integrity": compromised ? "compromised" : "ok",
+            "jailbreak_detected": compromised,
+            "timestamp": Int(Date().timeIntervalSince1970)
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: payload, options: []),
+              let text = String(data: data, encoding: .utf8) else {
+            return "{\"integrity\":\"failed\"}"
+        }
+        return text
+    }
+
+    private func isLikelyCompromised() -> Bool {
+        if UIApplication.shared.canOpenURL(URL(string: "cydia://package/com.example")!) {
+            return true
+        }
+
+        let suspiciousPaths = [
+            "/Applications/Cydia.app",
+            "/Library/MobileSubstrate/MobileSubstrate.dylib",
+            "/bin/bash",
+            "/usr/sbin/sshd",
+            "/etc/apt"
+        ]
+        if suspiciousPaths.contains(where: { FileManager.default.fileExists(atPath: $0) }) {
+            return true
+        }
+
+        let testPath = "/private/\(UUID().uuidString)"
+        do {
+            try "x".write(toFile: testPath, atomically: true, encoding: .utf8)
+            try FileManager.default.removeItem(atPath: testPath)
+            return true
+        } catch {
+            return false
+        }
     }
 }

@@ -24,6 +24,14 @@ enum NativeAuthColors {
 
     // Near-black backgrounds. zinc-950 ≈ #09090B.
     static let zinc950 = Color(hex: 0x09090B)
+
+    // Occupancy palette mirrors mobile/src/features/home/screens/HomeScreen.tsx
+    // `getOccupancyColor` (#10B981 / #F59E0B / #EF4444). The cluster low
+    // green is the slightly darker `#059669` used by `getClusterColor`.
+    static let occupancyLow = Color(hex: 0x10B981)
+    static let occupancyMedium = Color(hex: 0xF59E0B)
+    static let occupancyHigh = Color(hex: 0xEF4444)
+    static let clusterLow = Color(hex: 0x059669)
 }
 
 extension Color {

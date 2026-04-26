@@ -153,6 +153,11 @@ struct LotDetailsSheet: View {
                     Text("out of \(displayCapacity) total")
                         .font(.caption)
                         .foregroundStyle(.tertiary)
+                    if let source = liveOccupancySource {
+                        Text(source)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 
                 Spacer()
@@ -284,6 +289,26 @@ struct LotDetailsSheet: View {
 
     private var liveOccupancy: Int {
         liveOccupancyOverride ?? (webSocket.lotOccupancies[lot.mapId] ?? lot.generalAvailable)
+    }
+
+    private var liveOccupancySource: String? {
+        guard let row = webSocket.lotOccupancyRows[lot.mapId] else { return nil }
+        let source = row.source ?? "unknown"
+        let prettySource: String
+        switch source {
+        case "realtime":
+            prettySource = "Realtime occupancy"
+        case "blended_heuristic":
+            prettySource = "Heuristic + realtime estimate"
+        case "seeded_heuristic":
+            prettySource = "Heuristic estimate"
+        default:
+            prettySource = source.replacingOccurrences(of: "_", with: " ").capitalized
+        }
+        if let ci = row.confidenceInterval {
+            return "\(prettySource) (±\(Int(ci.rounded()))%)"
+        }
+        return prettySource
     }
 
     private var displayCapacity: Int {

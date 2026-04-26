@@ -31,6 +31,26 @@ TOMTOM_API_KEY=
 TRAFFIC_CACHE_TTL_SECONDS=300
 ```
 
+### High-value data protection (anti-scraping / anti-clone)
+
+Enable strict policy in production so occupancy and forecast data only flows to
+authenticated, attested app sessions:
+
+```bash
+REQUIRE_AUTH_ON_AVAILABILITY=True
+REQUIRE_ATTESTATION_ON_AVAILABILITY=True
+ATTESTATION_ENFORCE=True
+ATTESTATION_SIGNING_SECRET=<strong-random-secret>
+ATTESTATION_TOKEN_TTL_SECONDS=180
+```
+
+Notes:
+
+- `REQUIRE_ATTESTATION_ON_AVAILABILITY` + `ATTESTATION_ENFORCE` gates both
+  REST high-value routes and realtime WebSocket channels.
+- Attestation tokens are device/platform-bound and short-lived.
+- Rotate `ATTESTATION_SIGNING_SECRET` periodically and immediately on any leak.
+
 ### Bootstrap forecasting flags
 
 - `ENABLE_HEURISTIC_SEEDED_OCCUPANCY`: when true, `/lots/occupancy` seeds non-zero
