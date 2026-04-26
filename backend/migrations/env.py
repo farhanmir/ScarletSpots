@@ -5,7 +5,7 @@ from alembic import context
 from app.core.database import Base
 from app.models.favorite import UserFavorite
 from app.models.friendship import Friendship
-from app.models.parking import LotOccupancy, ParkingSession, SessionFeedback
+from app.models.parking import IdempotencyRecord, LotOccupancy, ParkingSession, SessionFeedback
 
 # This part is crucial: You must import your models here
 from app.models.user import Profile

@@ -39,25 +39,43 @@ struct PermitOnboardingView: View {
             content
             footer
         }
-        .background(Color(.systemBackground).ignoresSafeArea())
+        .background(
+            LinearGradient(
+                colors: [Color(.systemBackground), Color(.secondarySystemBackground)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+        )
+        .toolbar(fromProfile ? .hidden : .visible, for: .tabBar)
         .onAppear { seedFromStoredPreferences() }
     }
 
     // MARK: - Header
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            // Removed redundant custom back button (SwiftUI provides one via NavigationStack)
+        VStack(alignment: .leading, spacing: 8) {
             Text(step == .primary ? "Your Parking Permit" : "Secondary Permit")
-                .font(.title.bold())
+                .font(.title2.bold())
             Text(step == .primary
                  ? (fromProfile ? "Update your permit to filter lots on the map." : "Tell us your permit so we only show relevant lots.")
                  : "Commuters can pick a secondary lot on another campus.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                stepPill(label: "Primary", active: step == .primary)
+                stepPill(label: "Secondary", active: step == .secondary)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(20)
+        .padding(16)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+        )
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
     }
 
     // MARK: - Search bar
@@ -75,9 +93,14 @@ struct PermitOnboardingView: View {
                 }
             }
         }
-        .padding(10)
-        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+        .padding(12)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+        )
         .padding(.horizontal, 16)
+        .padding(.top, 10)
     }
 
     // MARK: - Content
@@ -87,7 +110,6 @@ struct PermitOnboardingView: View {
             VStack(alignment: .leading, spacing: 16) {
                 if step == .primary {
                     noPermitCard
-                    Divider().padding(.horizontal, 20)
                 }
 
                 ForEach(groupedSections, id: \.title) { section in
@@ -96,7 +118,7 @@ struct PermitOnboardingView: View {
                             .font(.caption.bold())
                             .foregroundStyle(.secondary)
                             .tracking(1)
-                            .padding(.horizontal, 20)
+                            .padding(.horizontal, 16)
                         ForEach(section.permits, id: \.self) { permit in
                             permitRow(permit: permit)
                         }
@@ -106,11 +128,11 @@ struct PermitOnboardingView: View {
                 if groupedSections.isEmpty {
                     Text("No permits match \"\(query)\"")
                         .foregroundStyle(.secondary)
-                        .padding(.horizontal, 20)
+                        .padding(.horizontal, 16)
                         .padding(.top, 16)
                 }
             }
-            .padding(.vertical, 12)
+            .padding(.vertical, 14)
         }
     }
 
@@ -134,14 +156,14 @@ struct PermitOnboardingView: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 11)
             .background(isActive ? Color.red.opacity(0.08) : Color(.secondarySystemBackground),
-                        in: RoundedRectangle(cornerRadius: 10))
+                        in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 10)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .stroke(isActive ? Color.red.opacity(0.5) : Color.clear, lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 16)
         .padding(.vertical, 2)
         .accessibilityLabel(permit)
         .accessibilityAddTraits(isActive ? [.isSelected, .isButton] : .isButton)
@@ -188,7 +210,11 @@ struct PermitOnboardingView: View {
                                mode: .commuterAll)
             }
         }
-        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+        )
         .padding(.horizontal, 16)
     }
 
@@ -240,6 +266,15 @@ struct PermitOnboardingView: View {
         .padding(.horizontal, 20)
         .padding(.vertical, 16)
         .background(.bar)
+    }
+
+    private func stepPill(label: String, active: Bool) -> some View {
+        Text(label)
+            .font(.caption.weight(.semibold))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(active ? Color.red.opacity(0.16) : Color.secondary.opacity(0.15), in: Capsule())
+            .foregroundStyle(active ? Color.red : .secondary)
     }
 
     private var primaryTitle: String {

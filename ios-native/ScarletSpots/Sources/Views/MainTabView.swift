@@ -29,6 +29,7 @@ struct MainTabView: View {
                 }
                 .tag(3)
         }
+        .toolbar(tabBarState.isHidden ? .hidden : .visible, for: .tabBar)
         .tint(.red)
         .environmentObject(tabBarState)
     }

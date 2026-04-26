@@ -10,15 +10,11 @@ import SwiftUI
 struct OccupancyPill: View {
     /// Occupancy rate as a percentage (0 – 100).
     let rate: Double
-    /// Whether the underlying number was estimated by a heuristic.
-    /// When true the pill renders `~X%` instead of `X%`, matching the
-    /// convention used by the map markers.
-    var isEstimated: Bool = false
 
     var body: some View {
         let color = OccupancyPalette.color(for: rate)
         let percent = Int(rate.rounded())
-        let label = isEstimated ? "~\(percent)%" : "\(percent)%"
+        let label = "\(percent)%"
 
         HStack(spacing: 5) {
             Circle()

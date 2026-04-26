@@ -80,7 +80,7 @@ struct MapView: View {
                 MapCompass()
                 MapScaleView()
             }
-            .onMapCameraChange(frequency: .continuous) { context in
+            .onMapCameraChange(frequency: .onEnd) { context in
                 zoomDistance = context.camera.distance
             }
 
@@ -98,23 +98,36 @@ struct MapView: View {
         }
         .overlay(alignment: .bottomTrailing) {
             Button {
-                withAnimation(.easeInOut(duration: 0.4)) {
-                    if let userLoc = location.latestLocation {
+                if let userLoc = location.latestLocation {
+                    withAnimation(.easeInOut(duration: 0.4)) {
                         position = .camera(MapCamera(centerCoordinate: userLoc.coordinate, distance: 1500))
+                    }
+                } else {
+                    location.requestCurrentLocation()
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 350_000_000)
+                        guard let refreshed = location.latestLocation else { return }
+                        withAnimation(.easeInOut(duration: 0.4)) {
+                            position = .camera(MapCamera(centerCoordinate: refreshed.coordinate, distance: 1500))
+                        }
                     }
                 }
             } label: {
-                Image(systemName: "location.fill")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 52, height: 52)
-                    .background(.ultraThinMaterial)
-                    .clipShape(Circle())
-                    .overlay {
-                        Circle()
-                            .stroke(.white.opacity(0.15), lineWidth: 1)
-                    }
-                    .shadow(color: .black.opacity(0.15), radius: 10, y: 5)
+                HStack(spacing: 8) {
+                    Image(systemName: "location.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                    Text("Me")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 14)
+                .frame(height: 44)
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay {
+                    Capsule()
+                        .stroke(.white.opacity(0.20), lineWidth: 1)
+                }
+                .shadow(color: .black.opacity(0.18), radius: 8, y: 4)
             }
             .padding(.trailing, 16)
             .padding(.bottom, 26)
@@ -167,12 +180,10 @@ struct MapView: View {
     @ViewBuilder
     private func lotBadge(for lot: Lot) -> some View {
         let occupancy = webSocket.lotOccupancies[lot.mapId] ?? 0
-        let row = webSocket.lotOccupancyRows[lot.mapId]
-        let isEstimated = (row?.source ?? "").contains("heuristic")
         let capacity = max(lot.totalSpaces, 1)
         let ratio = Double(occupancy) / Double(capacity)
         let percent = Int((ratio * 100).rounded())
-        let label = isEstimated ? "~\(percent)%" : "\(percent)%"
+        let label = "\(percent)%"
 
         MapPin(label: label, color: colorForLot(lot))
     }

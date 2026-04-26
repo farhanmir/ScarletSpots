@@ -10,6 +10,7 @@ import Combine
 /// - Better section hierarchy with modern cards + collapsible controls.
 /// - Live diagnostics dashboard entry point for Auto-Park telemetry.
 struct ProfileView: View {
+    @EnvironmentObject private var tabBarState: TabBarState
     @EnvironmentObject private var authManager: AuthManager
     @StateObject private var themePreference = ThemePreference.shared
     @StateObject private var lotRepository = LotRepository.shared
@@ -303,13 +304,9 @@ struct ProfileView: View {
                     Text("\(authManager.enabledCampuses.count) on")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.white.opacity(0.52))
-                    Image(systemName: "chevron.down")
-                        .font(.caption.bold())
-                        .foregroundStyle(.white.opacity(0.45))
-                        .rotationEffect(.degrees(expandedCampuses ? 180 : 0))
-                        .animation(.spring(response: 0.34, dampingFraction: 0.84), value: expandedCampuses)
                 }
                 .foregroundStyle(.white.opacity(0.9))
+                .padding(.trailing, 6)
             }
         }
     }
@@ -340,14 +337,10 @@ struct ProfileView: View {
                     Text(themeLabel(themePreference.mode))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.white.opacity(0.52))
-                    Image(systemName: "chevron.down")
-                        .font(.caption.bold())
-                        .foregroundStyle(.white.opacity(0.45))
-                        .rotationEffect(.degrees(expandedTheme ? 180 : 0))
-                        .animation(.spring(response: 0.34, dampingFraction: 0.84), value: expandedTheme)
                 }
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.white.opacity(0.9))
+                .padding(.trailing, 6)
             }
         }
     }
@@ -614,25 +607,34 @@ struct ProfileView: View {
     private func favoriteRow(id: String) -> some View {
         let lot = lotRepository.byId(id)
         HStack(spacing: 10) {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.white.opacity(0.08))
-                .overlay(
-                    Image(systemName: "car.fill")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.72))
-                )
-                .frame(width: 36, height: 36)
+            Button {
+                guard lot != nil else { return }
+                tabBarState.focusLotId = id
+                tabBarState.selectedTab = 1
+            } label: {
+                HStack(spacing: 10) {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color.white.opacity(0.08))
+                        .overlay(
+                            Image(systemName: "car.fill")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.72))
+                        )
+                        .frame(width: 36, height: 36)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(lot?.shortName ?? id)
-                    .font(.subheadline.bold())
-                    .foregroundStyle(.white)
-                Text(lotSubtitle(for: lot))
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.56))
-                    .lineLimit(1)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(lot?.shortName ?? id)
+                            .font(.subheadline.bold())
+                            .foregroundStyle(.white)
+                        Text(lotSubtitle(for: lot))
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.56))
+                            .lineLimit(1)
+                    }
+                    Spacer()
+                }
             }
-            Spacer()
+            .buttonStyle(.plain)
 
             if let lot {
                 let capacity = max(lot.totalSpaces, 1)
@@ -735,6 +737,7 @@ struct ProfileView: View {
         .foregroundStyle(.white.opacity(0.92))
         .font(.subheadline)
         .padding(.vertical, 7)
+        .padding(.trailing, 8)
         .accessibilityHint("Show or hide \(campus) lots on the map.")
     }
 

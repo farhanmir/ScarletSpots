@@ -30,11 +30,13 @@ from app.routers.websocket import router as websocket_router
 async def lifespan(application: FastAPI):
     # Initialize shared clients once per process
     from app.core.cache import close_cache, init_cache
+    from app.core.database import ensure_idempotency_table
     from app.core.security import close_supabase_clients, init_supabase_clients
 
     clients = init_supabase_clients()
     application.state.supabase = clients["supabase"]
     application.state.admin_supabase = clients["admin_supabase"]
+    await ensure_idempotency_table()
     await init_cache()
     await websocket_manager.startup()
     print("!!! BACKEND STARTING UP !!!", flush=True)
