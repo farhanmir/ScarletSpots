@@ -1,6 +1,7 @@
 import SwiftUI
 import CoreLocation
 import CoreMotion
+import CoreLocationUI
 import UserNotifications
 
 /// Four-step permissions flow shown after account creation (and before the
@@ -68,14 +69,9 @@ struct PermissionsOnboardingView: View {
 
     private var progressHeader: some View {
         VStack(spacing: 10) {
-            HStack(spacing: 8) {
-                ForEach(Step.allCases, id: \.rawValue) { s in
-                    Capsule()
-                        .fill(s.rawValue <= step.rawValue ? Color.red : Color.gray.opacity(0.3))
-                        .frame(height: 4)
-                }
-            }
-            .padding(.horizontal, 20)
+            ProgressView(value: Double(step.rawValue + 1), total: Double(Step.allCases.count))
+                .tint(.red)
+                .padding(.horizontal, 20)
             Text("Step \(step.rawValue + 1) of 4")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -115,14 +111,27 @@ struct PermissionsOnboardingView: View {
 
     @ViewBuilder
     private var primaryButton: some View {
-        Button(action: primaryAction) {
-            Text(primaryButtonTitle)
-                .font(.headline)
-                .frame(maxWidth: .infinity)
+        if step == .foreground && !location.hasForegroundPermission {
+            LocationButton(.shareCurrentLocation) {
+                location.requestForegroundPermission()
+            }
+            .labelStyle(.titleOnly)
+            .font(.headline)
+            .frame(maxWidth: .infinity)
+            .frame(height: 50)
+            .tint(.red)
+            .cornerRadius(12)
+            .padding(.horizontal, 20)
+        } else {
+            Button(action: primaryAction) {
+                Text(primaryButtonTitle)
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.red)
+            .padding(.horizontal, 20)
         }
-        .buttonStyle(.borderedProminent)
-        .tint(.red)
-        .padding(.horizontal, 20)
     }
 
     @ViewBuilder

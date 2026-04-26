@@ -1,5 +1,6 @@
 import SwiftUI
 import CoreLocation
+import MapKit
 
 /// Search result model used by the Search tab.
 ///
@@ -54,6 +55,7 @@ struct SearchScreen: View {
     @State private var query = ""
     @State private var results: [SearchResult] = []
     @State private var geocodingId: String?
+    @StateObject private var placeCompleter = PlaceCompleter()
 
     var body: some View {
         NavigationStack {
@@ -75,9 +77,16 @@ struct SearchScreen: View {
                 prompt: "Lots, buildings, places"
             )
             .onChange(of: query) { _, newValue in
+                placeCompleter.updateQuery(newValue)
                 runSearch(newValue)
             }
-            .onAppear { runSearch("") }
+            .onAppear {
+                placeCompleter.updateQuery("")
+                runSearch("")
+            }
+            .onReceive(placeCompleter.$results) { _ in
+                runSearch(query)
+            }
         }
     }
 
@@ -176,18 +185,22 @@ struct SearchScreen: View {
 
     private func geocodeAndNavigate(_ result: SearchResult) {
         geocodingId = result.id
-        let query = "\(result.title), \(result.subtitle)"
-        CLGeocoder().geocodeAddressString(query) { placemarks, _ in
-            Task { @MainActor in
-                geocodingId = nil
-                guard let location = placemarks?.first?.location else { return }
-                tabBarState.focusCoordinate = .init(
-                    latitude: location.coordinate.latitude,
-                    longitude: location.coordinate.longitude,
-                    title: result.title
-                )
-                tabBarState.selectedTab = 1
-            }
+        Task { @MainActor in
+            defer { geocodingId = nil }
+            var request = MKLocalSearch.Request()
+            request.naturalLanguageQuery = "\(result.title), \(result.subtitle)"
+            request.region = MKCoordinateRegion(
+                center: CLLocationCoordinate2D(latitude: 40.5008, longitude: -74.4474),
+                span: MKCoordinateSpan(latitudeDelta: 0.25, longitudeDelta: 0.25)
+            )
+            guard let item = try? await MKLocalSearch(request: request).start().mapItems.first else { return }
+            let coordinate = item.placemark.coordinate
+            tabBarState.focusCoordinate = .init(
+                latitude: coordinate.latitude,
+                longitude: coordinate.longitude,
+                title: result.title
+            )
+            tabBarState.selectedTab = 1
         }
     }
 
@@ -212,12 +225,12 @@ struct SearchScreen: View {
             )
         }
 
-        let placeResults = PlacesRepository.search(term, limit: 8).map {
+        let placeResults = placeCompleter.results.prefix(8).map {
             SearchResult(
-                id: "place:\($0.id)",
+                id: "place:\($0.title)|\($0.subtitle)",
                 kind: .place,
-                title: $0.name,
-                subtitle: $0.address,
+                title: $0.title,
+                subtitle: $0.subtitle,
                 lotId: nil,
                 coordinate: nil,
                 systemImage: "mappin.circle.fill"
@@ -260,6 +273,41 @@ struct SearchScreen: View {
         let spots = lot.totalSpaces
         let plural = spots == 1 ? "spot" : "spots"
         return "\(campus) · \(spots) \(plural)"
+    }
+}
+
+private final class PlaceCompleter: NSObject, ObservableObject, MKLocalSearchCompleterDelegate {
+    @Published var results: [MKLocalSearchCompletion] = []
+
+    private let completer: MKLocalSearchCompleter = {
+        let c = MKLocalSearchCompleter()
+        c.resultTypes = .pointOfInterest
+        c.region = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 40.5008, longitude: -74.4474),
+            span: MKCoordinateSpan(latitudeDelta: 0.35, longitudeDelta: 0.35)
+        )
+        return c
+    }()
+
+    override init() {
+        super.init()
+        completer.delegate = self
+    }
+
+    func updateQuery(_ query: String) {
+        completer.queryFragment = query.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {
+        DispatchQueue.main.async {
+            self.results = completer.results
+        }
+    }
+
+    func completer(_ completer: MKLocalSearchCompleter, didFailWithError error: Error) {
+        DispatchQueue.main.async {
+            self.results = []
+        }
     }
 }
 

@@ -330,8 +330,8 @@ struct LotDetailsSheet: View {
     }
 
     private var lotAvailable: Bool {
-        permit.isLotAvailableNow(permitType: auth.permitType, lotId: lot.mapId)
-            || permit.isLotAvailableNow(permitType: auth.secondaryPermitType, lotId: lot.mapId)
+        (permit.isLotAvailableNow(permitType: auth.permitType, lotId: lot.mapId) ?? false)
+            || (permit.isLotAvailableNow(permitType: auth.secondaryPermitType, lotId: lot.mapId) ?? false)
     }
 
     private var accessIcon: String {

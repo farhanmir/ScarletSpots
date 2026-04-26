@@ -1,6 +1,7 @@
 import SwiftUI
 import CoreLocation
 import Combine
+import Charts
 
 /// Profile / Settings tab.
 ///
@@ -12,7 +13,7 @@ import Combine
 struct ProfileView: View {
     @EnvironmentObject private var tabBarState: TabBarState
     @EnvironmentObject private var authManager: AuthManager
-    @StateObject private var themePreference = ThemePreference.shared
+    @AppStorage("theme_mode_v1") private var themeMode = "system"
     @StateObject private var lotRepository = LotRepository.shared
     @StateObject private var offlineQueue = OfflineQueue.shared
     @StateObject private var location = LocationEngine.shared
@@ -31,7 +32,6 @@ struct ProfileView: View {
     @State private var isDeleting = false
     @State private var expandedCampuses = false
     @State private var expandedTheme = false
-    @State private var diagnosticsPulse = false
     @State private var diagnosticsSamples: [Double] = []
 
     /// Canonical legal URLs — published copies live on the marketing site.
@@ -71,9 +71,6 @@ struct ProfileView: View {
             .task { await refreshAll() }
             .refreshable { await refreshAll() }
             .onAppear {
-                withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
-                    diagnosticsPulse = true
-                }
                 seedDiagnosticsIfNeeded()
             }
             .onReceive(diagnosticsTicker) { _ in
@@ -324,7 +321,7 @@ struct ProfileView: View {
                     }
                 )
             ) {
-                Picker("Theme", selection: $themePreference.mode) {
+                Picker("Theme", selection: $themeMode) {
                     Text("System").tag("system")
                     Text("Light").tag("light")
                     Text("Dark").tag("dark")
@@ -335,7 +332,7 @@ struct ProfileView: View {
                 HStack {
                     Label("Theme", systemImage: "circle.lefthalf.filled")
                     Spacer()
-                    Text(themeLabel(themePreference.mode))
+                    Text(themeLabel(themeMode))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.white.opacity(0.52))
                         .fixedSize(horizontal: true, vertical: false)
@@ -370,9 +367,21 @@ struct ProfileView: View {
                 }
 
                 HStack(spacing: 10) {
-                    diagnosticGauge(title: "Speed", value: formatSpeedShort(snapshot.speedMetersPerSecond))
-                    diagnosticGauge(title: "Accuracy", value: formatDouble(snapshot.horizontalAccuracy, suffix: "m"))
-                    diagnosticGauge(title: "Queue", value: "\(snapshot.queueDepth)")
+                    diagnosticGauge(
+                        title: "Speed",
+                        value: formatSpeedShort(snapshot.speedMetersPerSecond),
+                        normalized: min(max((snapshot.speedMetersPerSecond ?? 0) / 20.0, 0), 1)
+                    )
+                    diagnosticGauge(
+                        title: "Accuracy",
+                        value: formatDouble(snapshot.horizontalAccuracy, suffix: "m"),
+                        normalized: 1 - min(max((snapshot.horizontalAccuracy ?? 120) / 120.0, 0), 1)
+                    )
+                    diagnosticGauge(
+                        title: "Queue",
+                        value: "\(snapshot.queueDepth)",
+                        normalized: min(Double(snapshot.queueDepth) / 8.0, 1.0)
+                    )
                 }
 
                 diagnosticsSparkline
@@ -432,17 +441,30 @@ struct ProfileView: View {
         }
     }
 
-    private func diagnosticGauge(title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
+    private func diagnosticGauge(title: String, value: String, normalized: Double) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Gauge(value: normalized) {
+                EmptyView()
+            } currentValueLabel: {
+                Text(value)
+                    .font(.system(size: 15, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            .gaugeStyle(.accessoryLinearCapacity)
+            .tint(
+                LinearGradient(
+                    colors: [NativeAuthColors.occupancyLow, Color(hex: 0x60A5FA), NativeAuthColors.occupancyHigh],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+
             Text(title.uppercased())
                 .font(.caption2.weight(.semibold))
                 .kerning(0.7)
                 .foregroundStyle(.white.opacity(0.46))
-            Text(value)
-                .font(.system(size: 15, weight: .bold, design: .monospaced))
-                .foregroundStyle(.white)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 10)
@@ -455,7 +477,7 @@ struct ProfileView: View {
             Circle()
                 .fill(isOn ? onColor : Color.white.opacity(0.22))
                 .frame(width: 8, height: 8)
-                .shadow(color: isOn ? onColor.opacity(diagnosticsPulse ? 0.65 : 0.25) : .clear, radius: diagnosticsPulse ? 8 : 2)
+                .shadow(color: isOn ? onColor.opacity(0.45) : .clear, radius: 6)
             Text(title.uppercased())
                 .font(.caption2.weight(.semibold))
                 .kerning(0.6)
@@ -468,34 +490,36 @@ struct ProfileView: View {
     }
 
     private var diagnosticsSparkline: some View {
-        GeometryReader { geo in
-            let values = diagnosticsSamples.isEmpty ? [0.2, 0.4, 0.3, 0.55, 0.48] : diagnosticsSamples
-            ZStack(alignment: .bottomLeading) {
-                SparklineShape(values: values)
-                    .stroke(
-                        LinearGradient(
-                            colors: [NativeAuthColors.occupancyLow, Color(hex: 0x60A5FA), NativeAuthColors.occupancyHigh],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        ),
-                        style: StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round)
-                    )
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 8)
+        let values = diagnosticsSamples.isEmpty ? [0.2, 0.4, 0.3, 0.55, 0.48] : diagnosticsSamples
+        return Chart(Array(values.enumerated()), id: \.offset) { entry in
+            AreaMark(
+                x: .value("Sample", entry.offset),
+                y: .value("Signal", entry.element)
+            )
+            .foregroundStyle(
+                LinearGradient(
+                    colors: [NativeAuthColors.occupancyLow.opacity(0.22), .clear],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
 
-                SparklineFillShape(values: values)
-                    .fill(
-                        LinearGradient(
-                            colors: [NativeAuthColors.occupancyLow.opacity(0.18), .clear],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 8)
-            }
-            .frame(width: geo.size.width, height: geo.size.height)
+            LineMark(
+                x: .value("Sample", entry.offset),
+                y: .value("Signal", entry.element)
+            )
+            .foregroundStyle(
+                LinearGradient(
+                    colors: [NativeAuthColors.occupancyLow, Color(hex: 0x60A5FA), NativeAuthColors.occupancyHigh],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+            .lineStyle(StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round))
         }
+        .chartYAxis(.hidden)
+        .chartXAxis(.hidden)
+        .chartLegend(.hidden)
     }
 
     private var feedbackSection: some View {
@@ -816,39 +840,6 @@ struct ProfileView: View {
         case "None": return "No permit set"
         default: return raw
         }
-    }
-}
-
-private struct SparklineShape: Shape {
-    let values: [Double]
-
-    func path(in rect: CGRect) -> Path {
-        guard values.count >= 2 else { return Path() }
-        var path = Path()
-        let stepX = rect.width / CGFloat(max(values.count - 1, 1))
-        for (index, value) in values.enumerated() {
-            let x = CGFloat(index) * stepX
-            let y = rect.maxY - (CGFloat(max(0, min(1, value))) * rect.height)
-            if index == 0 {
-                path.move(to: CGPoint(x: x, y: y))
-            } else {
-                path.addLine(to: CGPoint(x: x, y: y))
-            }
-        }
-        return path
-    }
-}
-
-private struct SparklineFillShape: Shape {
-    let values: [Double]
-
-    func path(in rect: CGRect) -> Path {
-        guard values.count >= 2 else { return Path() }
-        var path = SparklineShape(values: values).path(in: rect)
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
-        path.closeSubpath()
-        return path
     }
 }
 

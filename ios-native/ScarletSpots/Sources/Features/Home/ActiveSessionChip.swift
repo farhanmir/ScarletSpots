@@ -9,10 +9,7 @@ struct ActiveSessionChip: View {
     let session: ParkingSession
     @StateObject private var lotRepository = LotRepository.shared
     @State private var ending = false
-    @State private var now = Date()
     @State private var showEndConfirm = false
-
-    private let tick = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
     var body: some View {
         HStack(spacing: 12) {
@@ -25,7 +22,7 @@ struct ActiveSessionChip: View {
                         .foregroundStyle(.primary)
                         .lineLimit(1)
                 }
-                Text(elapsedText)
+                Text(timerInterval: session.startTime...Date.now, pauseTime: nil, countsDown: false, showsHours: true)
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
@@ -52,9 +49,8 @@ struct ActiveSessionChip: View {
         )
         .shadow(color: .black.opacity(0.18), radius: 6, y: 2)
         .padding(.horizontal, 16)
-        .onReceive(tick) { value in now = value }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Active parking session at \(lotTitle), \(elapsedText)")
+        .accessibilityLabel("Active parking session at \(lotTitle)")
         .confirmationDialog(
             "End parking session?",
             isPresented: $showEndConfirm,
@@ -92,12 +88,4 @@ struct ActiveSessionChip: View {
         return "Parked in \(session.lotId)"
     }
 
-    private var elapsedText: String {
-        let elapsed = now.timeIntervalSince(session.startTime)
-        let minutes = Int(elapsed / 60)
-        if minutes < 60 { return "Parked \(max(minutes, 0))m" }
-        let hours = minutes / 60
-        let rem = minutes % 60
-        return "Parked \(hours)h \(rem)m"
-    }
 }

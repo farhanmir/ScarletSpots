@@ -4,14 +4,13 @@ import SwiftUI
 struct ScarletSpotsApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var authManager = AuthManager.shared
-    @StateObject private var themePreference = ThemePreference.shared
+    @AppStorage(ThemePreference.key) private var themeMode = "system"
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environmentObject(authManager)
-                .environmentObject(themePreference)
-                .preferredColorScheme(themePreference.colorScheme)
+                .preferredColorScheme(ThemePreference.colorScheme(for: themeMode))
                 .task {
                     OfflineQueue.shared.start()
                     await PushRegistration.shared.bootstrap()

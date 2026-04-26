@@ -1,4 +1,5 @@
 import SwiftUI
+import Charts
 
 /// Compact bar-chart forecast view used in `LotDetailsSheet`.
 ///
@@ -10,10 +11,6 @@ struct ForecastChart: View {
     let points: [ForecastPoint]
     let capacity: Int
 
-    @State private var didAnimate = false
-
-    private let maxHeight: CGFloat = 84
-
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Forecast")
@@ -21,30 +18,27 @@ struct ForecastChart: View {
             if points.isEmpty {
                 emptyState
             } else {
-                HStack(alignment: .bottom, spacing: 10) {
-                    ForEach(points.prefix(8)) { point in
-                        VStack(spacing: 6) {
-                            Text("\(point.count)")
-                                .font(.caption2.monospacedDigit())
-                                .foregroundStyle(.secondary)
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(colorForRatio(ratio(for: point)))
-                                .frame(width: 28, height: didAnimate ? normalizedHeight(for: point) : 0)
-                                .animation(.easeOut(duration: 0.5), value: didAnimate)
-                            Text(point.label)
-                                .font(.system(size: 10).weight(.medium))
-                                .foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: .infinity)
+                Chart(Array(points.prefix(8))) { point in
+                    let normalized = ratio(for: point)
+                    BarMark(
+                        x: .value("Time", point.label),
+                        y: .value("Occupancy", point.count)
+                    )
+                    .foregroundStyle(colorForRatio(normalized))
+                    .cornerRadius(6)
+                    .annotation(position: .top) {
+                        Text("\(point.count)")
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.secondary)
                     }
                 }
-                .frame(maxWidth: .infinity)
+                .chartYAxis(.hidden)
+                .chartLegend(.hidden)
+                .chartPlotStyle { plot in
+                    plot
+                        .frame(height: 90)
+                }
             }
-        }
-        .onAppear { didAnimate = true }
-        .onChange(of: points.count) { _, _ in
-            didAnimate = false
-            DispatchQueue.main.async { didAnimate = true }
         }
     }
 
@@ -57,25 +51,12 @@ struct ForecastChart: View {
         .padding(.vertical, 8)
     }
 
-    private var maxCount: Int {
-        max(points.map(\.count).max() ?? 1, 1)
-    }
-
     private func ratio(for point: ForecastPoint) -> Double {
         if let rate = point.occupancyRate, rate > 0 {
             return min(1.0, max(0.0, rate / 100.0))
         }
         guard capacity > 0 else { return 0 }
         return min(1.0, Double(point.count) / Double(capacity))
-    }
-
-    private func normalizedHeight(for point: ForecastPoint) -> CGFloat {
-        let rate = ratio(for: point)
-        // Use the higher of the occupancy ratio vs. relative-to-max so
-        // charts never render as nothing at low absolute values.
-        let relative = Double(point.count) / Double(maxCount)
-        let height = max(rate, relative)
-        return max(4, CGFloat(height) * maxHeight)
     }
 
     private func colorForRatio(_ ratio: Double) -> Color {

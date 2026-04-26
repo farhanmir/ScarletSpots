@@ -35,6 +35,13 @@ struct MapView: View {
             distance: 9000
         )
     )
+    private let distanceFormatter: MeasurementFormatter = {
+        let formatter = MeasurementFormatter()
+        formatter.unitOptions = .naturalScale
+        formatter.unitStyle = .short
+        formatter.numberFormatter.maximumFractionDigits = 1
+        return formatter
+    }()
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -45,8 +52,7 @@ struct MapView: View {
                             .foregroundStyle(item.color.opacity(0.60))
                             .stroke(item.color.opacity(0.9), lineWidth: 2.0)
                             .onTapGesture {
-                                guard let lot = lotRepository.byId(item.lotId) else { return }
-                                selectedLot = lot
+                                selectPolygonLot(item.lotId)
                             }
                     }
                     ForEach(visibleLots) { lot in
@@ -417,10 +423,12 @@ struct MapView: View {
     }
 
     private func formatDistance(meters: Double) -> String {
-        let feet = meters * 3.28084
-        if feet < 528 { return "\(Int(feet)) ft" }
-        let miles = feet / 5280
-        return String(format: "%.1f mi", miles)
+        distanceFormatter.string(from: Measurement(value: meters, unit: UnitLength.meters))
+    }
+
+    private func selectPolygonLot(_ lotId: String) {
+        guard let lot = lotRepository.byId(lotId) else { return }
+        selectedLot = lot
     }
 
     private func focus(on lot: Lot) {
