@@ -36,8 +36,8 @@ final class AuthManager: ObservableObject, AuthTokenProvider {
 
     private init() {
         client = SupabaseClient(supabaseURL: Env.supabaseURL, supabaseKey: Env.supabaseAnonKey)
-        APIClient.shared.authTokenProvider = self
         self.enabledCampuses = Self.loadEnabledCampuses()
+        APIClient.shared.authTokenProvider = self
         Task { await checkSession() }
         Task {
             for await (_, newSession) in client.auth.authStateChanges {
