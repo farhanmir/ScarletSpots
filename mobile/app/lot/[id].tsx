@@ -53,6 +53,7 @@ import {
   getCachedFavorites,
 } from "@/shared/services/OfflineCache";
 import { queueParkAction } from "@/shared/services/OfflineQueue";
+import { startParkingSession } from "../../../modules/parking-magic";
 
 export default function LotDetailsScreen() {
   const theme = useGlassTheme();
@@ -279,12 +280,16 @@ export default function LotDetailsScreen() {
         return;
       }
 
-      const data = await authApiCall("/park/session", {
-        method: "POST",
-        body: JSON.stringify(payload),
+      const nativeStart = await startParkingSession({
+        lotId: lot.id,
+        latitude: lot.latitude,
+        longitude: lot.longitude,
+        autoStarted: false,
+        source: "manual",
       });
 
-      if (data?.success) {
+      if (nativeStart?.success) {
+        const data = nativeStart;
         const session = data.session ?? {
           id: `offline-${Date.now()}`,
           lotId: lot.id,
@@ -295,6 +300,16 @@ export default function LotDetailsScreen() {
         updateOptimisticOccupancy(lot.id, 1);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         router.dismiss();
+        if (data._offline) {
+          Alert.alert("Parked Offline", "Session queued and will sync shortly.");
+        }
+      } else {
+        Alert.alert(
+          "Parking Rejected",
+          nativeStart?.error === "server_rejected"
+            ? "Server rejected this parking request. Please try again."
+            : "Unable to start parking session.",
+        );
       }
     } catch (e: any) {
       Alert.alert("Error", e.message || "Failed to start parking session");

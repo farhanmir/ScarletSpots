@@ -1,4 +1,5 @@
 import json
+from contextlib import asynccontextmanager
 from enum import Enum
 from pathlib import Path
 from typing import Optional
@@ -93,6 +94,22 @@ def _session_response(session: ParkingSession) -> dict:
         "active": bool(session.active),
         "autoStarted": bool(session.auto_started),
     }
+
+
+@asynccontextmanager
+async def _transaction_scope(db: AsyncSession):
+    """
+    Open a transaction only if one is not already active.
+
+    SQLAlchemy 2.0 sessions auto-begin on first query; idempotency lookups can
+    therefore start a transaction before we reach mutation logic.
+    """
+    if db.in_transaction():
+        yield
+        return
+
+    async with db.begin():
+        yield
 
 
 async def _load_idempotent_response(
@@ -250,7 +267,7 @@ async def start_parking_session(
     changed_lot_counts: dict[str, int] = {}
 
     try:
-        async with db.begin():
+        async with _transaction_scope(db):
             ended_sessions = await db.execute(
                 update(ParkingSession)
                 .where(
@@ -387,7 +404,7 @@ async def end_parking_session(
     changed_lot_counts: dict[str, int] = {}
 
     try:
-        async with db.begin():
+        async with _transaction_scope(db):
             ended_sessions = await db.execute(
                 update(ParkingSession)
                 .where(
