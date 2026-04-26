@@ -31,7 +31,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.scarletspots.app
-        INFOPLIST_KEY_UILaunchStoryboardName: ""
+        INFOPLIST_KEY_UILaunchStoryboardName: LaunchScreen
         ENABLE_USER_SCRIPT_SANDBOXING: NO
         TARGETED_DEVICE_FAMILY: "1"
         IPHONEOS_DEPLOYMENT_TARGET: "17.0"

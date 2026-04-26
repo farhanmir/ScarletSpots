@@ -8,7 +8,9 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            if !auth.isAuthenticated {
+            if !Env.isConfigurationValid {
+                NativeConfigErrorView(issues: Env.configurationIssues)
+            } else if !auth.isAuthenticated {
                 AuthChoiceView()
             } else if !hasForegroundLocation {
                 PermissionsOnboardingView(onFinished: {})
@@ -46,4 +48,53 @@ struct RootView: View {
             AutoParkCoordinator.shared.stop()
         }
     }
+}
+
+private struct NativeConfigErrorView: View {
+    let issues: [String]
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: isDark
+                    ? [Color(red: 0.27, green: 0.04, blue: 0.04), Color(red: 0.09, green: 0.09, blue: 0.11), .black]
+                    : [Color(red: 1, green: 0.96, blue: 0.96), Color(red: 1, green: 0.98, blue: 0.98), .white],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+
+            VStack(spacing: 18) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 56, weight: .semibold))
+                    .foregroundStyle(Color(red: 0.86, green: 0.15, blue: 0.15))
+
+                Text("Configuration Missing")
+                    .font(.title.bold())
+                    .multilineTextAlignment(.center)
+
+                Text("This IPA is missing the native iOS API/Supabase settings, so sign in cannot reach the right host.")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(3)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(issues, id: \.self) { issue in
+                        Label(issue, systemImage: "xmark.circle.fill")
+                            .font(.footnote)
+                    }
+                }
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            }
+            .padding(28)
+            .frame(maxWidth: 420)
+        }
+    }
+
+    private var isDark: Bool { colorScheme != .light }
 }

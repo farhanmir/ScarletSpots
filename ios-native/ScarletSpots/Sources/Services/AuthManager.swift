@@ -38,6 +38,12 @@ final class AuthManager: ObservableObject, AuthTokenProvider {
         client = SupabaseClient(supabaseURL: Env.supabaseURL, supabaseKey: Env.supabaseAnonKey)
         self.enabledCampuses = Self.loadEnabledCampuses()
         APIClient.shared.authTokenProvider = self
+
+        guard Env.isConfigurationValid else {
+            Logger.log("Native iOS config missing: \(Env.configurationIssues.joined(separator: " "))")
+            return
+        }
+
         Task { await checkSession() }
         Task {
             for await (_, newSession) in client.auth.authStateChanges {
