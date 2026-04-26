@@ -22,7 +22,6 @@ struct MapView: View {
     @StateObject private var autoPark = AutoParkCoordinator.shared
     @StateObject private var webSocket = WebSocketManager.shared
     @StateObject private var auth = AuthManager.shared
-    @StateObject private var location = LocationEngine.shared
 
     @State private var selectedLot: Lot?
     @State private var favoriteIds: Set<String> = []
@@ -35,14 +34,6 @@ struct MapView: View {
             distance: 9000
         )
     )
-    private let distanceFormatter: MeasurementFormatter = {
-        let formatter = MeasurementFormatter()
-        formatter.unitOptions = .naturalScale
-        formatter.unitStyle = .short
-        formatter.numberFormatter.maximumFractionDigits = 1
-        return formatter
-    }()
-
     var body: some View {
         ZStack(alignment: .bottom) {
             Map(position: $position, scope: mapScope) {
@@ -100,9 +91,6 @@ struct MapView: View {
                     ActiveSessionChip(session: session)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
-                if let distance = findCarDistanceText {
-                    findCarChip(distance: distance)
-                }
             }
             .padding(.bottom, 22)
             .animation(.easeInOut(duration: 0.2), value: sessionStore.activeSession?.id)
@@ -115,9 +103,15 @@ struct MapView: View {
                 .overlay {
                     Circle().stroke(.white.opacity(0.20), lineWidth: 1)
                 }
+                .overlay {
+                    Image(systemName: "location.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.95))
+                        .allowsHitTesting(false)
+                }
                 .shadow(color: .black.opacity(0.18), radius: 8, y: 4)
             .padding(.trailing, 16)
-            .padding(.bottom, 24)
+            .padding(.bottom, sessionStore.activeSession == nil ? 24 : 96)
         }
         .sheet(item: $selectedLot) { lot in
             LotDetailsSheet(lot: lot, favoriteIds: $favoriteIds)
@@ -184,32 +178,6 @@ struct MapView: View {
         )
     }
 
-    private func findCarChip(distance: String) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: "car.fill")
-                .foregroundStyle(.white)
-            Text("\(distance) to car")
-                .font(.callout.weight(.semibold))
-                .foregroundStyle(.white)
-            Button {
-                if let session = sessionStore.activeSession, let lot = lotRepository.byId(session.lotId) {
-                    focus(on: lot)
-                }
-            } label: {
-                Text("Find")
-                    .font(.caption.bold())
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(.white.opacity(0.2), in: Capsule())
-                    .foregroundStyle(.white)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(Color.red.gradient, in: Capsule())
-    }
-
     // MARK: - Data
 
     private struct PolygonItem: Identifiable {
@@ -251,16 +219,6 @@ struct MapView: View {
             primary: auth.permitType,
             secondary: auth.secondaryPermitType
         )
-    }
-
-    private var findCarDistanceText: String? {
-        guard let session = sessionStore.activeSession else { return nil }
-        guard let sessionLat = session.latitude,
-              let sessionLng = session.longitude,
-              let current = location.latestLocation else { return nil }
-        let to = CLLocation(latitude: sessionLat, longitude: sessionLng)
-        let meters = current.distance(from: to)
-        return formatDistance(meters: meters)
     }
 
     private func accessibilityText(for lot: Lot) -> String {
@@ -420,10 +378,6 @@ struct MapView: View {
     private func metersBetween(_ a: CLLocationCoordinate2D, _ b: CLLocationCoordinate2D) -> CLLocationDistance {
         CLLocation(latitude: a.latitude, longitude: a.longitude)
             .distance(from: CLLocation(latitude: b.latitude, longitude: b.longitude))
-    }
-
-    private func formatDistance(meters: Double) -> String {
-        distanceFormatter.string(from: Measurement(value: meters, unit: UnitLength.meters))
     }
 
     @MapContentBuilder

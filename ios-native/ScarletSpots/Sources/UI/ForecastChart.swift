@@ -12,32 +12,44 @@ struct ForecastChart: View {
     let capacity: Int
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Forecast")
-                .font(.headline.weight(.semibold))
-            if points.isEmpty {
-                emptyState
-            } else {
-                Chart(Array(points.prefix(8))) { point in
-                    let normalized = ratio(for: point)
-                    BarMark(
-                        x: .value("Time", point.label),
-                        y: .value("Occupancy", point.count)
-                    )
-                    .foregroundStyle(colorForRatio(normalized))
-                    .cornerRadius(6)
-                    .annotation(position: .top) {
-                        Text("\(point.count)")
-                            .font(.caption2.monospacedDigit())
-                            .foregroundStyle(.secondary)
+        if points.isEmpty {
+            emptyState
+        } else {
+            Chart(Array(points.prefix(8))) { point in
+                let normalized = ratio(for: point)
+                BarMark(
+                    x: .value("Time", point.label),
+                    y: .value("Occupancy", point.count)
+                )
+                .foregroundStyle(colorForRatio(normalized).gradient)
+                .cornerRadius(8)
+                .annotation(position: .top) {
+                    Text("\(point.count)")
+                        .font(.caption2.monospacedDigit().weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.74))
+                }
+            }
+            .chartYAxis(.hidden)
+            .chartLegend(.hidden)
+            .chartXAxis {
+                AxisMarks(values: .automatic(desiredCount: min(points.count, 6))) { value in
+                    AxisValueLabel {
+                        if let label = value.as(String.self) {
+                            Text(label)
+                                .font(.caption2.weight(.medium))
+                                .foregroundStyle(.white.opacity(0.64))
+                        }
                     }
+                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                        .foregroundStyle(.white.opacity(0.08))
                 }
-                .chartYAxis(.hidden)
-                .chartLegend(.hidden)
-                .chartPlotStyle { plot in
-                    plot
-                        .frame(height: 90)
-                }
+            }
+            .chartXScale(range: .plotDimension(padding: 18))
+            .chartPlotStyle { plot in
+                plot
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 126)
+                    .background(.clear)
             }
         }
     }

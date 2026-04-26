@@ -14,6 +14,7 @@ final class LocationEngine: NSObject, ObservableObject {
 
     @Published private(set) var latestLocation: CLLocation?
     @Published private(set) var latestLocationAt: Date?
+    @Published private(set) var latestHeading: CLLocationDirection?
     @Published private(set) var authorization: CLAuthorizationStatus = .notDetermined
     @Published private(set) var accuracyAuthorization: CLAccuracyAuthorization = .reducedAccuracy
 
@@ -29,6 +30,7 @@ final class LocationEngine: NSObject, ObservableObject {
         manager.desiredAccuracy = kCLLocationAccuracyBest
         manager.activityType = .automotiveNavigation
         manager.pausesLocationUpdatesAutomatically = false
+        manager.headingFilter = 5
         self.authorization = manager.authorizationStatus
         self.accuracyAuthorization = manager.accuracyAuthorization
     }
@@ -69,12 +71,14 @@ final class LocationEngine: NSObject, ObservableObject {
         // whenInUse triggers a runtime crash on real devices.
         manager.allowsBackgroundLocationUpdates = hasBackgroundPermission
         manager.startUpdatingLocation()
+        manager.startUpdatingHeading()
         manager.startMonitoringSignificantLocationChanges()
     }
 
     func stop() {
         didStart = false
         manager.stopUpdatingLocation()
+        manager.stopUpdatingHeading()
         manager.stopMonitoringSignificantLocationChanges()
         manager.allowsBackgroundLocationUpdates = false
     }
@@ -122,6 +126,15 @@ extension LocationEngine: CLLocationManagerDelegate {
     nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         Task { @MainActor in
             Logger.log("LocationEngine: didFailWithError \(error.localizedDescription)")
+        }
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
+        Task { @MainActor [weak self] in
+            let trueHeading = newHeading.trueHeading
+            let magnetic = newHeading.magneticHeading
+            let value = trueHeading >= 0 ? trueHeading : magnetic
+            self?.latestHeading = value >= 0 ? value : nil
         }
     }
 }

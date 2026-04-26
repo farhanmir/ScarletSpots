@@ -45,14 +45,9 @@ struct LotDetailsSheet: View {
         }
         .background(
             ZStack {
-                LinearGradient(
-                    colors: [Color(hex: 0x0A0C12), Color(hex: 0x111725)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
+                Color.black.opacity(0.86).ignoresSafeArea()
                 Rectangle()
-                    .fill(.ultraThinMaterial.opacity(0.18))
+                    .fill(.ultraThinMaterial.opacity(0.46))
                     .ignoresSafeArea()
             }
         )
@@ -245,7 +240,7 @@ struct LotDetailsSheet: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.white.opacity(0.58))
                 .tracking(0.7)
-            ForecastChart(points: forecast, capacity: displayCapacity)
+            ForecastChart(points: displayForecastPoints, capacity: displayCapacity)
                 .padding(12)
                 .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.white.opacity(0.10), lineWidth: 1))
@@ -303,6 +298,17 @@ struct LotDetailsSheet: View {
 
     private var ringColor: Color {
         OccupancyPalette.color(forRatio: occupancyRatio)
+    }
+
+    private var displayForecastPoints: [ForecastPoint] {
+        guard !forecast.isEmpty else { return [] }
+        return forecast.enumerated().map { index, point in
+            ForecastPoint(
+                label: normalizedForecastLabel(point.label, index: index),
+                count: point.count,
+                occupancyRate: point.occupancyRate
+            )
+        }
     }
 
     private var lotAvailable: Bool {
@@ -391,4 +397,25 @@ struct LotDetailsSheet: View {
             forecast = []
         }
     }
+
+    private func normalizedForecastLabel(_ label: String, index: Int) -> String {
+        let trimmed = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return "T+\(index * 15)m" }
+        let lower = trimmed.lowercased()
+        if lower == "now" { return "Now" }
+        if lower.hasSuffix("m") || lower.hasSuffix("h") { return trimmed.uppercased() }
+        if let date = ISO8601DateFormatter().date(from: trimmed) {
+            return Self.forecastLabelFormatter.string(from: date)
+        }
+        return trimmed
+    }
+}
+
+private extension LotDetailsSheet {
+    static let forecastLabelFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = .current
+        formatter.dateFormat = "h:mm"
+        return formatter
+    }()
 }

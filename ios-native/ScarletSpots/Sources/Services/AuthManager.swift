@@ -154,6 +154,9 @@ final class AuthManager: ObservableObject, AuthTokenProvider {
                 ?? loadLocalSecondaryPermit(ownerId: ownerId)
         } catch {
             Logger.log("Failed to fetch /users/me: \(error.localizedDescription)")
+            if currentUser == nil, let fallback = fallbackProfile() {
+                currentUser = fallback
+            }
             permitType = loadLocalPermitType(ownerId: ownerId)
             secondaryPermitType = loadLocalSecondaryPermit(ownerId: ownerId)
         }
@@ -281,5 +284,19 @@ final class AuthManager: ObservableObject, AuthTokenProvider {
 
     private func loadLocalNoPermitMode(ownerId: String?) -> String? {
         UserDefaults.standard.string(forKey: noPermitModeKey(ownerId: ownerId))
+    }
+
+    private func fallbackProfile() -> Profile? {
+        guard let user = session?.user else { return nil }
+        return Profile(
+            id: user.id,
+            email: user.email ?? "unknown@email.com",
+            firstName: nil,
+            lastName: nil,
+            avatarUrl: nil,
+            permitType: permitType,
+            secondaryPermitType: secondaryPermitType,
+            createdAt: Date()
+        )
     }
 }
