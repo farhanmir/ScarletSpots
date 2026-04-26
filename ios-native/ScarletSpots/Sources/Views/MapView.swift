@@ -48,12 +48,7 @@ struct MapView: View {
             Map(position: $position, scope: mapScope) {
                 if zoomLevel == .lot {
                     ForEach(polygonItems) { item in
-                        MapPolygon(coordinates: item.coordinates)
-                            .foregroundStyle(item.color.opacity(0.60))
-                            .stroke(item.color.opacity(0.9), lineWidth: 2.0)
-                            .onTapGesture {
-                                selectPolygonLot(item.lotId)
-                            }
+                        polygonShape(for: item)
                     }
                     ForEach(visibleLots) { lot in
                         Annotation("", coordinate: lot.location.clLocationCoordinate2D) {
@@ -424,6 +419,18 @@ struct MapView: View {
 
     private func formatDistance(meters: Double) -> String {
         distanceFormatter.string(from: Measurement(value: meters, unit: UnitLength.meters))
+    }
+
+    @ViewBuilder
+    private func polygonShape(for item: PolygonItem) -> some MapContent {
+        let fill = item.color.opacity(0.60)
+        let stroke = item.color.opacity(0.9)
+        MapPolygon(coordinates: item.coordinates)
+            .foregroundStyle(fill)
+            .stroke(stroke, lineWidth: 2.0)
+            .onTapGesture {
+                selectPolygonLot(item.lotId)
+            }
     }
 
     private func selectPolygonLot(_ lotId: String) {
