@@ -71,8 +71,8 @@ struct FavoritesResponse: Codable {
     enum CodingKeys: String, CodingKey { case favoriteLots = "favorite_lots" }
 }
 
-struct ForecastResponse: Codable {
-    struct Slice: Codable {
+struct ForecastResponse: Decodable {
+    struct Slice: Decodable {
         let label: String
         let count: Int
         let occupancyRate: Double?
@@ -128,7 +128,7 @@ struct ForecastResponse: Codable {
     }
 }
 
-private struct BackendPoint: Codable {
+private struct BackendPoint: Decodable {
     let time: String
     let expectedOccupancy: Double
 

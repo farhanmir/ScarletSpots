@@ -41,4 +41,16 @@ struct ParkingSession: Codable, Identifiable {
             ?? c.decodeIfPresent(Bool.self, forKey: .autoStarted)
             ?? false
     }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(lotId, forKey: .lotId)
+        try c.encodeIfPresent(latitude, forKey: .latitude)
+        try c.encodeIfPresent(longitude, forKey: .longitude)
+        try c.encode(startTime, forKey: .startTime)
+        try c.encodeIfPresent(endTime, forKey: .endTime)
+        try c.encode(active, forKey: .active)
+        try c.encode(autoStarted, forKey: .autoStarted)
+    }
 }

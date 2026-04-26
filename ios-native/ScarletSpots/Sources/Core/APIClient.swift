@@ -33,7 +33,7 @@ final class APIClient {
         config.timeoutIntervalForRequest = 20
         config.timeoutIntervalForResource = 45
         config.waitsForConnectivity = false
-        config.httpAdditionalHeaders = ["User-Agent": Self.userAgent]
+        config.httpAdditionalHeaders = ["User-Agent": APIClient.userAgent]
         let delegate = PinnedURLSessionDelegate(pins: Env.tlsPins)
         return URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
     }()
