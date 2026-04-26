@@ -1,147 +1,60 @@
-# ScarletSpots — Roadmap
+# ScarletSpots Roadmap
 
----
+## Completed foundations
 
-## Phase 1 — Architecture Pivot ✅
+### Static-data pivot
+- bundled lot/building/place data moved client-side
+- iOS native app now reads generated SQLite instead of decoding large JSON at startup
+- backend lot CRUD was collapsed down to dynamic occupancy/forecast responsibilities
 
-**Goal:** Replace database-first lot architecture with bundled static JSON.
+### Core product flows
+- parking session start/end
+- active session restore
+- friends and requests
+- favorites
+- search to map handoff
+- lot detail sheet, forecast, and directions
 
-- [x] Copy `rutgers_parking_data.json` into `mobile/data/`
-- [x] Create `mobile/data/lots.ts` — typed wrapper, NB campus filter, `ENABLE_ALL_CAMPUSES` feature flag
-- [x] Remove all `GET /lots` and `GET /lots/{id}` API calls from mobile
-- [x] Simplify `backend/app/routers/lots.py` — remove admin CRUD, keep forecast + occupancy
-- [x] New migration: drop `parking_lots`, `occupancy_logs`, PostGIS. Create `lot_occupancy (TEXT, INT)`
-- [x] Update `GeofenceManager.ts` to use static lot coordinates (no API)
-- [x] Simplify `KnightCompass` / navigate tab to look up lot from JSON by `lot_id`
-- [x] Wire Realtime subscription on `lot_occupancy` table (was on `parking_lots`)
+### Native iOS rebuild
+- SwiftUI app is now the active product client
+- foreground and background sensing paths exist in Swift
+- lot polygons, pins, and search are native
+- profile/settings/permit onboarding are native
 
-**Exit criteria:** Map loads with 193+ NB lots, no `/lots` API call on startup.
+### Operational base
+- backend tests and migrations
+- website/legal pages
+- manual iOS build workflow
+- load-test scaffold
 
----
+## Current priorities
 
-## Phase 2 — Core Fixes ✅
+### 1. Release hardening
+- run realistic backend load tests
+- finish App Store review notes / screenshots / rollout package
+- verify push, background sensing, and permission copy on physical devices
 
-**Goal:** Fix all known incomplete or broken flows before any new features.
+### 2. Occupancy quality
+- improve sampling-bias correction
+- tighten confidence ranges
+- move popular-lots/search ranking from placeholder data to actual usage-driven ranking
 
-- [x] Password reset: `POST /users/password-reset` + mobile forgot-password screen with resend cooldown
-- [x] Active session banner: replaced with subtle floating chip above tab bar
-- [x] Compass simplification: bearing + distance only, no proximity state machine
-- [x] Friends "Locate" button: wired to navigate to Map tab at friend's lot
-- [x] Crash audit: removed periodic location broadcast loop (was firing every 10s when focused). Fixed Realtime subscription cleanup on unmount.
-- [x] Offline UX: map always loads (data is local). OfflineBanner redesigned to be subtle. Offline message updated to reflect new architecture.
+### 3. Native polish
+- continue meaningful haptics
+- keep reducing noisy or overly wordy UI
+- expand Live Activity / lock-screen support only after core reliability is steady
 
-**Exit criteria:** No known crashes. All navigation flows complete. App usable fully offline (map + cached session).
+## Deferred on purpose
 
----
+- monetization / premium
+- App Clip
+- CarPlay
+- Siri / App Intents
+- multi-campus expansion beyond the current supported data set
 
-## Phase 3 — Forecasting ✅
+## Keep in mind
 
-**Goal:** Replace the heuristic forecast with a real trained model.
+- `mobile/` stays in the repo as a historical/reference implementation
+- new product work should target `ios-native/`, `backend/`, `website/`, and `docs/`
 
-- [x] `MLForecastProvider` — loads per-lot models from `forecast_models/*.joblib`, falls back to heuristic
-- [x] `train_forecast_model.py` — training script that queries `parking_sessions` and builds gradient boosting models
-- [x] `POST /park/session/feedback` — users can correct detection quality, feeds future model tuning
-- [x] `session_feedback` migration
-
-**Next step (sampling-bias correction):** Implement the physics-based “Inference & Ground Truth” system (Rutgers SOC oracle + departure/opening + “Vulture” searching demand proxy + incentivized verification + confidence intervals).
-
-**Deployment:** Launch with heuristic. After 2–4 weeks of session data, run `python -m app.services.train_forecast_model`. Models appear automatically.
-
-**Exit criteria:** `GET /lots/{lot_id}/forecast` returns sensible predictions with confidence bands.
-
----
-
-## Phase 4 — UI/UX Upgrade
-
-**Goal:** Take the visual design to the next level. Only after core is stable.
-
-- [x] Map redesign: richer lot cards, better occupancy color encoding, color-coded markers (green/yellow/red)
-- [x] Parking confirmation UX pivot: precise-location auto-start + correction path ("Detected parked; if wrong, End")
-- [x] Friends tab: richer friend cards with lot info, campus indicator
-- [x] Profile: full settings, data export
-
-**Exit criteria:** App looks beautiful. UX is delightful. Ship.
-
----
-
-## Phase 5 — Launch Readiness ✅ (partial)
-
-- [x] Bundle ID fixed: `com.scarletspots.app` (was `com.anonymous.mobile`)
-- [x] EAS build config: development, preview, production profiles
-- [x] GitHub Actions CI: backend pytest, mobile TypeScript check, migration syntax, native module file validation, Swift lint
-- [ ] Load test: simulate 50k users at 3 calls/day peak (k6 or locust)
-- [ ] App Store: configure `apple.com` App Review notes, screenshots
-- [ ] Privacy Policy: publish at `scarletspots.app/privacy`
-- [ ] Staged rollout: internal alpha → Rutgers student beta → public App Store
-
----
-
-## Phase 6 — Native Magic Pivot ✅ (feat/native-magic-pivot)
-
-**Goal:** Move all parking detection and map rendering out of the JavaScript bridge and into a hardened Swift native module. Eliminate battery-draining GPS polling.
-
-**"ParkingMagic" Expo Module (`modules/parking-magic/ios/`):**
-- [x] `ParkingMagicModule.swift` — unified sensing orchestrator (AVAudioSession + CMMotionActivityManager + CLLocationManager)
-- [x] `DatabaseManager.swift` — SQLite hydration of 245+ lots from bundled JSON. Polygon cache + Point-In-Polygon ray-cast engine for native lot resolution
-- [x] `NetworkManager.swift` — Direct `URLSession` API client. Reports parking events, ends sessions, and reports vulture activity without the JS bridge
-- [x] `TicketShield.swift` — Offline permit validation from `permit_mapping.json` on arrival
-- [x] `VultureManager.swift` — Dwell time + circling detection for proactive occupancy inference
-- [x] `HapticManager.swift` — Distance-scaled `CoreHaptics` pulses (hot/cold navigation)
-- [x] `LiveActivityManager.swift` — ActivityKit Live Activity + Dynamic Island navigation
-- [x] `OfflineQueueManager.swift` — Offline park event buffering via UserDefaults (persists through concrete garage dead zones)
-- [x] `ScarletMapView.swift` — Custom Apple MapKit engine replacing `react-native-maps`
-
-**Backend Hardening:**
-- [x] `POST /lots/{lot_id}/vulture` — authenticated vulture ingestion endpoint
-- [x] Silent push `contentAvailable: true` fan-out on occupancy updates (batched per request)
-- [x] Forecast API includes `confidence_interval` field
-- [x] `/lots/occupancy` includes `confidence_interval` per lot
-
-**Deep Link Note:** The `scarletspots://park-intent` and `scarletspots://unpark-intent` routes that were planned for the Siri Shortcuts approach were **superseded** by the native sensing engine. Bluetooth/CarPlay disconnect/connect is handled directly in Swift — no Shortcut setup required from the user.
-
-**Exit criteria:** App requires `npx expo run:ios` (Expo Go no longer supported). Native sensing detects parking without any user setup. SQLite is the single source of truth for lot polygons.
-
----
-
-## Backlog (v2+)
-
-These are real ideas, just not for v1:
-
-### iOS Live Activities + Dynamic Island
-
-- **Active parking session Live Activity**: show lot short name, parked elapsed time, and quick actions (End, Directions, report wrong lot)
-- **Compact/Minimal Dynamic Island states**: lot short code + timer for at-a-glance status
-- **Expanded Dynamic Island state**: richer controls + contextual messaging when a session was auto-started
-- **Parking confidence confirmation**: when detection is uncertain, show a quick "Did you park at X?" confirm/dismiss flow
-- **Exit/re-entry nudges**: if user exits lot with active session, prompt with "Still parked?" and provide one-tap end
-- **Lot surge alerts (opt-in)**: brief high-signal alerts for favorites when occupancy rapidly rises
-
-### Widgets + StandBy
-
-- **Where I Parked widget** (small/medium): lot name, parked time, distance, Find Car shortcut
-- **Best Lot Right Now widget**: top nearby lots with occupancy and trend direction
-- **Favorites occupancy widget**: 1-3 favorite lots with green/yellow/red status
-- **Commuter context widget**: morning lot suggestion by permit; afternoon reminder to end session
-- **Parking habits widget**: weekly routine insight (e.g., usual lot/time)
-- **StandBy campus heat panel**: large glanceable occupancy summary by campus
-- **StandBy return panel**: session status on one side, Find Car/End on the other
-
-### Rollout plan for iOS surfaces
-
-- **Phase A (MVP)**: Active parking Live Activity + one medium "Where I Parked" widget + one small favorites widget
-- **Phase B**: add App Intents for End Session, Find Car, and open favorite lot
-- **Phase C**: support push-updated Live Activity state for low-latency occupancy/session changes
-- **Phase D**: add confidence confirmation and exit nudges once reliability metrics are stable
-- **Privacy defaults**: show lot labels by default (not raw coordinates), and keep location-rich updates opt-in
-
-- **Push notifications**: "Your lot is almost full" / "Your friend just parked nearby"
-- **Account deletion**: Full GDPR-compliant flow (export + delete data)
-- **All campuses by default**: Enable Newark, Camden, Piscataway in the main build
-- **Event integration**: Boost forecasts during football games, graduation, etc.
-- **Common Commuter Spots database**: Pre-populate high-traffic Rutgers buildings (student centers, athletic facilities, lecture halls, admin buildings) for destination-based parking suggestions
-- **ScarletSpots Premium** (post-launch, monetization):
-  - Ticket reporting system: report tickets with lot/time/date/agency
-  - Real-time enforcement alerts for users currently parked in flagged lots
-  - Enforcement analytics: identify lots and times with higher ticket activity
-  - Parking recommendations based on enforcement risk
-  - Subscription model (positioned as cheaper than a parking permit)
+Last reviewed: 2026-04-26

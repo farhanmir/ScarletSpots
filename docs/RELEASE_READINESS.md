@@ -1,67 +1,40 @@
-# ScarletSpots Release Readiness
+# Release Readiness
 
-This document closes the remaining v1 launch-readiness checklist items from `ROADMAP.md`.
+This checklist is for the current native iOS app, backend, and website stack.
 
-## App Review Notes Template
+## Native iOS ship gate
 
-Use this text in App Store Connect review notes and update values before submission.
+- verify sign-in, sign-out, and delete/export flows
+- verify manual park + end session
+- verify auto-park signal handling on real devices
+- verify websocket occupancy updates and push token sync
+- verify permissions copy and fallback UX when permissions are denied
+- verify light/dark theme readability on Profile and lot details surfaces
 
-- App: ScarletSpots (`com.scarletspots.app`)
-- Audience: Rutgers students and commuters.
-- Core behavior: User starts/ends parking sessions; occupancy is crowd-sourced in near real time.
-- Background behavior:
-  - Location and motion are used to detect likely parking transitions.
-  - Bluetooth route-change signals may contribute to confidence scoring.
-  - Background notifications sync occupancy/session state.
-- Data minimization:
-  - Static lot geometry is bundled in-app.
-  - Backend stores only dynamic session/occupancy/social state.
-- User controls:
-  - Permissions are optional and can be disabled in settings.
-  - Session actions can still be performed manually.
-  - Data export and account deletion endpoints are available.
+## App Store package
 
-## Screenshot Plan (iPhone)
+- screenshots from the native iOS app
+- review notes describing background sensing and location usage
+- privacy/terms/support links pointing to live website pages
+- TestFlight beta pass completed
 
-Capture and upload at minimum:
+## Backend gate
 
-1. Map with color-coded occupancy.
-2. Lot detail card with live count and confidence.
-3. Parked session chip and quick actions.
-4. Compass/navigation to parked lot.
-5. Friends tab with lot-only friend presence.
+- migrations apply cleanly
+- core tests pass
+- websocket and push paths behave in staging
+- load test run documented
 
-Optional:
-- Offline banner/map loaded offline.
-- Forecast chart and confidence bands.
+## Website gate
 
-## Staged Rollout Plan
+- landing page builds cleanly
+- privacy / terms / support pages are live
+- metadata and canonical URLs are correct
 
-1. Internal alpha (`build train A`)
-   - Team devices only.
-   - Verify auth, parking session lifecycle, occupancy sync, push token sync.
-2. Rutgers student beta (`build train B`)
-   - 20-50 testers for 2 weeks.
-   - Track crash-free sessions, false-positive rate, battery impact.
-3. Public App Store launch (`build train C`)
-   - Monitor backend saturation, push queue latency, feedback quality.
+## Do before public launch
 
-## Manual Pre-Ship Checklist
+- capture staging/prod backend capacity notes
+- record rollback and hotfix owner
+- freeze a release commit/tag
 
-- [ ] Apple Developer certificates/profiles valid.
-- [ ] App Store Connect metadata finalized.
-- [ ] Screenshots uploaded for required device classes.
-- [ ] Privacy policy URL points to `https://scarletspots.app/privacy.html`.
-- [ ] Terms URL points to `https://scarletspots.app/terms.html`.
-- [ ] Review notes pasted and updated for current build behavior.
-- [ ] TestFlight feedback triaged for blocking bugs.
-- [ ] Rollback and hotfix path documented.
-
-## Load Test Gate
-
-- Target: 50k users at 3-4 calls/day with peak burst handling.
-- Script location: `backend/loadtests/occupancy_peak.js`.
-- Success criteria:
-  - error rate < 1%
-  - p95 latency under agreed threshold
-  - no data integrity regressions in occupancy/session writes
+Last reviewed: 2026-04-26

@@ -366,10 +366,6 @@ struct LotDetailsSheet: View {
         conciseAccessRule(for: auth.secondaryPermitType)
     }
 
-    private var isCurrentlyParkedHere: Bool {
-        session.activeSession?.lotId == lot.mapId
-    }
-
     private var hasActiveSession: Bool {
         session.activeSession != nil
     }

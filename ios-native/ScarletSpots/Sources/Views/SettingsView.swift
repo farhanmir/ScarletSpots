@@ -858,11 +858,6 @@ struct ProfileView: View {
         return formatter
     }
 
-    private func formatDouble(_ value: Double?, digits: Int = 1, suffix: String = "") -> String {
-        guard let value else { return "n/a" }
-        return String(format: "%.*f%@", digits, value, suffix)
-    }
-
     private func formatSpeedShort(_ value: Double?) -> String {
         guard let value else { return "n/a" }
         if value < 0 { return "n/a" }

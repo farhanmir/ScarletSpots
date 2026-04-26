@@ -1,44 +1,33 @@
 # Mobile Store Hardening Notes
 
-## Permission Rationale (for review notes and in-app copy)
+## Native iOS permission rationale
 
-- `NSLocationAlwaysAndWhenInUseUsageDescription`
-  - Needed for passive parking transition detection and parked-lot resolution.
-- `NSMotionUsageDescription`
-  - Used to detect driving-to-walking transitions and reduce false park events.
-- `NSBluetoothAlwaysUsageDescription`
-  - Used as an auxiliary arrival/departure signal when connected to vehicle audio routes.
-- `UIBackgroundModes` (`location`, `fetch`, `remote-notification`)
-  - Supports low-power sensing and closed-app state synchronization after occupancy/session changes.
+- Location:
+  used for lot resolution, manual centering, and parking-session flows
+- Motion:
+  used to improve parking-transition confidence
+- Bluetooth / audio-route signals:
+  used only as a supporting confidence signal where available
+- Background modes:
+  support low-power sensing and state synchronization
 
-## Privacy Manifest
+## Review-note themes
 
-- Added: `mobile/modules/parking-magic/ios/PrivacyInfo.xcprivacy`
-- Purpose: declare native module data collection expectations for App Store privacy review.
+- the app stores lot IDs / parking state, not a raw location timeline as the main product primitive
+- bundled static lot data reduces backend collection needs
+- permissions should degrade gracefully, not brick manual usage
 
-## Push + Deep Link Verification
+## Manual checks before submission
 
-- Existing deep-link scheme: `scarletspots://`
-- Existing push token lifecycle:
-  - mobile registration and sync
-  - backend upsert/deactivate endpoints
-  - park flow fan-out to friend notifications
-- Manual checks before release:
-  - verify push token registration on login/logout
-  - verify notification tap routes to expected screen
-  - verify auto-start notifications do not open unsafe routes while locked
+- permission prompts match actual behavior
+- notification taps route safely
+- denial flows still allow manual park/end/search
+- legal/support URLs are live
 
-## Crash Triage (2026-04-25 .ips)
+## Remaining hardening work
 
-Crash file: `ScarletSpots-2026-04-25-153013.ips`
+- keep privacy manifest aligned with actual native data access
+- re-check copy any time sensing behavior changes
+- repeat review-note pass before each release candidate
 
-Initial read indicates:
-- faulting thread: JS runtime thread
-- exception: `EXC_BAD_ACCESS / SIGSEGV`
-- stack points into Hermes string handling and React runtime scheduling
-
-Recommended minimal follow-up loop:
-1. Reproduce with same build/runtime flags.
-2. Capture breadcrumbs immediately before large string operations or JSON parsing in JS paths.
-3. Validate no oversized or malformed strings crossing native/JS boundaries.
-4. Confirm Hermes and RN versions in lockfile match tested Expo SDK matrix.
+Last reviewed: 2026-04-26

@@ -1,19 +1,28 @@
-# Load Tests
+# Backend Load Tests
 
-## Occupancy Peak Test (k6)
+## Purpose
 
-Script: `occupancy_peak.js`
+Exercise the backend under realistic parking-app traffic before launch.
 
-### Run locally
+## Current script
+
+- `occupancy_peak.js`
+
+## Example run
 
 ```bash
 k6 run -e BASE_URL=http://localhost:8000/api/v1 occupancy_peak.js
 ```
 
-### Goal
-
-Exercise the public occupancy endpoint under peak read pressure while tracking:
+## What to watch
 
 - request failure rate
-- p95 latency
-- backend stability during sustained concurrency
+- p95/p99 latency
+- websocket stability during concurrent writes
+- occupancy/session integrity under burst traffic
+
+## Notes
+
+This directory is scaffolding, not proof that launch-scale validation is complete. Results still need to be run, saved, and reviewed.
+
+Last reviewed: 2026-04-26

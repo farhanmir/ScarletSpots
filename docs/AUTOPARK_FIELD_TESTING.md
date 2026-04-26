@@ -1,23 +1,36 @@
-# Auto-park field testing (without driving to campus)
+# Auto-Park Field Testing
 
-Use these flows to validate geofence wake, background location, and the detection pipeline on a **physical iPhone**. The iOS Simulator is weak for gesture-heavy flows and imperfect for background location.
+Use this for the current native iOS app on a physical device.
 
-## 1. Xcode GPX (full OS path)
+## Preferred validation path
 
-1. Connect the device, open the **native** project (`expo prebuild` / EAS dev client), and run from Xcode.
-2. In Xcode: **Debug → Simulate Location → Add GPX Fixture to Project**, or select an existing route.
-3. Build a GPX that passes near a lot coordinate from bundled data (`mobile/data` / `getLotById`) so a **500 m** geofence can fire.
-4. While the route runs, confirm:
-   - Geofence enter wakes the app (check **Profile → Auto-park diagnostics** after opening the app).
-   - **Export Auto-Park Logs** contains `reason=` lines and geofence entries.
+1. run the native app from Xcode
+2. grant the intended location/motion permissions
+3. test real arrival/departure behavior on-device
+4. confirm:
+   - session start/end correctness
+   - lot resolution correctness
+   - diagnostics updates
+   - push / websocket follow-through where applicable
 
-## 2. Profile simulator (JS detection only)
+## Simulator limits
 
-With **`__DEV__`** or `EXPO_PUBLIC_SHOW_AUTOPARK_SIMULATOR=true`, **Simulate Auto-Park** runs synthetic GPS samples through the same `detectParking` path as production. It does **not** exercise iOS geofence delivery.
+The simulator is fine for UI and some location fixtures, but it is not enough for confidence work on:
+- route/audio disconnect signals
+- real background sensing
+- device motion behavior
 
-## 3. Diagnostics and logs
+## What to capture
 
-- **Auto-park diagnostics** shows the last saved decision: branch, signal snapshot, and top candidate summary.
-- **Export Auto-Park Logs** includes the full `BackgroundLogger` file (`autopark_debug.log`).
+- false positive examples
+- false negative examples
+- diagnostics screenshot or log context
+- exact lot and route details
 
-Together, GPX + export proves the stack end-to-end; diagnostics + simulator prove the scoring logic without leaving home.
+## Success criteria
+
+- park detection feels explainable
+- manual correction paths are obvious
+- no permission configuration traps the user
+
+Last reviewed: 2026-04-26
