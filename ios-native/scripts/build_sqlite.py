@@ -571,7 +571,12 @@ def build(sources: Path, output: Path) -> None:
     tmp_output.replace(output)
 
     kb = output.stat().st_size / 1024
-    print(f"Wrote {output.relative_to(IOS_NATIVE_ROOT.parent)} ({kb:,.1f} KB)")
+    try:
+        display_path = str(output.relative_to(IOS_NATIVE_ROOT.parent))
+    except ValueError:
+        # Allow callers (e.g. CI) to write verification DBs outside the repo.
+        display_path = str(output)
+    print(f"Wrote {display_path} ({kb:,.1f} KB)")
     print(
         "  lots={lots}  buildings={b}  places={p}  permits={perm}  "
         "permit_lots={pl}  schedules={s}  slots={sl}".format(
