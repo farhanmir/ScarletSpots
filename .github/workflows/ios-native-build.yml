@@ -206,7 +206,8 @@ jobs:
           parsed = urlparse(value)
           host = (parsed.hostname or "").lower()
           scheme = (parsed.scheme or "").lower()
-          is_valid = scheme == "https" and host.endswith(".supabase.co")
+          disallowed = {"example.supabase.co", "placeholder.supabase.co"}
+          is_valid = scheme == "https" and bool(host) and host not in disallowed and not host.endswith(".example.com")
           raise SystemExit(0 if is_valid else 1)
           PY
           then
