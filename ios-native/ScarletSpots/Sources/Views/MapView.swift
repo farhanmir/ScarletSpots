@@ -145,6 +145,7 @@ struct MapView: View {
                 ForEach(visibleLots) { lot in
                     Annotation("", coordinate: lot.location.clLocationCoordinate2D) {
                         Button {
+                            HapticManager.shared.selection()
                             selectedDestination = nil
                             selectedLot = lot
                         } label: {
@@ -207,6 +208,7 @@ struct MapView: View {
 
     private var goToMeButton: some View {
         Button {
+            HapticManager.shared.softImpact()
             Task { await handleCenterOnUser() }
         } label: {
             Image(systemName: "location.north.fill")
@@ -463,6 +465,7 @@ struct MapView: View {
     private func handleMapTap(at coordinate: CLLocationCoordinate2D) {
         if zoomLevel == .lot {
             if let exactLot = lotRepository.lotContaining(coordinate), visibleLots.contains(exactLot) {
+                HapticManager.shared.selection()
                 selectedDestination = nil
                 selectedLot = exactLot
                 return
@@ -478,6 +481,7 @@ struct MapView: View {
                 .min { $0.distance < $1.distance }
 
             if let nearest, nearest.distance <= lotTapSnapRadiusMeters {
+                HapticManager.shared.selection()
                 selectedDestination = nil
                 selectedLot = nearest.lot
                 return

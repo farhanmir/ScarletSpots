@@ -49,6 +49,7 @@ struct ActiveSessionChip: View {
             Spacer(minLength: 0)
             Button {
                 guard !ending else { return }
+                HapticManager.shared.softImpact()
                 showEndConfirm = true
             } label: {
                 Text(ending ? "Ending…" : "End")
@@ -88,6 +89,7 @@ struct ActiveSessionChip: View {
             do {
                 try await ParkAPI.endSession(idempotencyKey: key)
                 await NativeSessionStore.shared.refresh()
+                HapticManager.shared.success()
             } catch {
                 await OfflineQueue.shared.enqueue(
                     type: "END_SESSION",
@@ -95,6 +97,7 @@ struct ActiveSessionChip: View {
                     payload: nil,
                     idempotencyKey: key
                 )
+                HapticManager.shared.warning()
             }
             ending = false
         }

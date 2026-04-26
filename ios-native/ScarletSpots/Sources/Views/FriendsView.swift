@@ -142,6 +142,7 @@ struct FriendsView: View {
                         Task {
                             guard let id = b.userId ?? b.friendId else { return }
                             try? await FriendsAPI.unblock(id)
+                            HapticManager.shared.success()
                             await load()
                         }
                     }
@@ -173,11 +174,14 @@ struct FriendsView: View {
                     Toggle("Share my parking", isOn: Binding(
                         get: { friend.sharingEnabled ?? false },
                         set: { newValue in
+                            HapticManager.shared.selection()
                             Task {
                                 do {
                                     try await FriendsAPI.setSharing(friend.id, enabled: newValue)
                                     toggleSharingLocally(friend: friend, enabled: newValue)
+                                    HapticManager.shared.success()
                                 } catch {
+                                    HapticManager.shared.error()
                                     self.error = error.localizedDescription
                                     await load(showSpinner: false)
                                 }
@@ -187,7 +191,9 @@ struct FriendsView: View {
                     Button("Block", role: .destructive) {
                         Task {
                             guard let userId = friend.userId ?? friend.friendId else { return }
+                            HapticManager.shared.warning()
                             try? await FriendsAPI.block(userId)
+                            HapticManager.shared.success()
                             await load()
                         }
                     }
@@ -209,13 +215,31 @@ struct FriendsView: View {
             }
             Spacer()
             Button("Accept") {
-                Task { try? await FriendsAPI.accept(request.id); await load() }
+                Task {
+                    do {
+                        try await FriendsAPI.accept(request.id)
+                        HapticManager.shared.success()
+                        await load()
+                    } catch {
+                        HapticManager.shared.error()
+                        self.error = error.localizedDescription
+                    }
+                }
             }
             .buttonStyle(.borderedProminent)
             .tint(.red)
             .controlSize(.small)
             Button("Decline") {
-                Task { try? await FriendsAPI.decline(request.id); await load() }
+                Task {
+                    do {
+                        try await FriendsAPI.decline(request.id)
+                        HapticManager.shared.selection()
+                        await load()
+                    } catch {
+                        HapticManager.shared.error()
+                        self.error = error.localizedDescription
+                    }
+                }
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
@@ -340,10 +364,12 @@ struct FriendsView: View {
         guard !friendEmail.isEmpty else { return }
         do {
             try await FriendsAPI.request(email: friendEmail)
+            HapticManager.shared.success()
             friendEmail = ""
             showAddFriend = false
             await load()
         } catch {
+            HapticManager.shared.error()
             self.error = error.localizedDescription
         }
     }

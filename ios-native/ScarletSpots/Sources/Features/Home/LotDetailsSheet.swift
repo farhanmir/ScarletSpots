@@ -45,15 +45,26 @@ struct LotDetailsSheet: View {
             .padding(.horizontal, 18)
             .padding(.top, 20)
             .padding(.bottom, 12)
+            .lotDetailsGlass()
+            .padding(.horizontal, 10)
+            .padding(.top, 10)
+            .padding(.bottom, 8)
             .rotationEffect(.degrees(-wobble * 5))
             .offset(y: abs(wobble) * 2)
         }
         .background(
             ZStack {
-                Color.black.opacity(0.86).ignoresSafeArea()
-                Rectangle()
-                    .fill(.ultraThinMaterial.opacity(0.46))
-                    .ignoresSafeArea()
+                Color.black.opacity(0.72).ignoresSafeArea()
+                LinearGradient(
+                    colors: [
+                        Color.black.opacity(0.38),
+                        Color(hex: 0x14080D).opacity(0.30),
+                        Color(hex: 0x08090E).opacity(0.34)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
             }
         )
         .task {
@@ -264,6 +275,7 @@ struct LotDetailsSheet: View {
         HStack(spacing: 10) {
             if !hasActiveSession {
                 Button {
+                    HapticManager.shared.softImpact()
                     Task { await park() }
                 } label: {
                     HStack(spacing: 10) {
@@ -378,8 +390,10 @@ struct LotDetailsSheet: View {
                 idempotencyKey: idempotencyKey
             )
             await session.refresh()
+            HapticManager.shared.success()
             toastText = "Session started."
         } catch let apiError as APIError {
+            HapticManager.shared.error()
             toastText = apiError.localizedDescription
         } catch let urlError as URLError where urlError.code == .notConnectedToInternet || urlError.code == .timedOut || urlError.code == .networkConnectionLost {
             let payload = try? JSONSerialization.data(withJSONObject: [
@@ -395,8 +409,10 @@ struct LotDetailsSheet: View {
                 payload: payload,
                 idempotencyKey: idempotencyKey
             )
+            HapticManager.shared.warning()
             toastText = "Offline — we'll start the session when you reconnect."
         } catch {
+            HapticManager.shared.error()
             toastText = "Error: \(error.localizedDescription)"
         }
     }
@@ -419,9 +435,11 @@ struct LotDetailsSheet: View {
         if favoriteIds.contains(lot.mapId) {
             try? await FavoritesAPI.remove(lotId: lot.mapId)
             favoriteIds.remove(lot.mapId)
+            HapticManager.shared.selection()
         } else {
             try? await FavoritesAPI.add(lotId: lot.mapId)
             favoriteIds.insert(lot.mapId)
+            HapticManager.shared.selection()
         }
         OfflineCache.shared.cacheFavorites(Array(favoriteIds))
     }
@@ -497,5 +515,31 @@ struct LotDetailsSheet: View {
         if delta == 0 { return "Now" }
         if delta < 0 { return "-\(-delta) hr" }
         return "+\(delta) hr"
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func lotDetailsGlass() -> some View {
+        if #available(iOS 26.0, *) {
+            self
+                .background(Color.black.opacity(0.34), in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+                .glassEffect(in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                )
+        } else {
+            self
+                .background(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .fill(.ultraThinMaterial)
+                        .overlay(Color.black.opacity(0.46))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                )
+        }
     }
 }

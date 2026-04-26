@@ -1,5 +1,6 @@
 import CoreHaptics
 import Foundation
+import UIKit
 
 final class HapticManager {
     static let shared = HapticManager()
@@ -13,6 +14,34 @@ final class HapticManager {
         } catch {
             Logger.log("Haptic engine init failed: \(error.localizedDescription)")
         }
+    }
+
+    func selection() {
+        Task { @MainActor in
+            let generator = UISelectionFeedbackGenerator()
+            generator.prepare()
+            generator.selectionChanged()
+        }
+    }
+
+    func success() {
+        notification(.success)
+    }
+
+    func warning() {
+        notification(.warning)
+    }
+
+    func error() {
+        notification(.error)
+    }
+
+    func softImpact() {
+        impact(.soft)
+    }
+
+    func mediumImpact() {
+        impact(.medium)
     }
 
     func playGuidancePulse(distance: Double) {
@@ -33,6 +62,22 @@ final class HapticManager {
             try player.start(atTime: 0)
         } catch {
             Logger.log("Haptic pulse failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func notification(_ type: UINotificationFeedbackGenerator.FeedbackType) {
+        Task { @MainActor in
+            let generator = UINotificationFeedbackGenerator()
+            generator.prepare()
+            generator.notificationOccurred(type)
+        }
+    }
+
+    private func impact(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
+        Task { @MainActor in
+            let generator = UIImpactFeedbackGenerator(style: style)
+            generator.prepare()
+            generator.impactOccurred()
         }
     }
 }
