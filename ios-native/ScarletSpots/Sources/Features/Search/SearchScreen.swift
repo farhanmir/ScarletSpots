@@ -125,6 +125,7 @@ struct SearchScreen: View {
             )
         }
         .buttonStyle(.plain)
+        .contentShape(Rectangle())
         .accessibilityLabel(rowAccessibilityLabel(for: result))
         .accessibilityHint(
             result.kind == .lot
@@ -279,7 +280,7 @@ private struct SearchRow: View {
         HStack(spacing: 12) {
             iconTile
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(result.title)
                     .font(.system(size: 15, weight: result.kind == .lot ? .bold : .semibold))
                     .foregroundStyle(.primary)
@@ -294,7 +295,7 @@ private struct SearchRow: View {
 
             trailing
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
         .contentShape(Rectangle())
     }
 
@@ -303,9 +304,9 @@ private struct SearchRow: View {
         if result.kind == .lot {
             ZStack {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.primary.opacity(0.06))
+                    .fill(Color.primary.opacity(0.055))
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color.primary.opacity(0.10), lineWidth: 0.5)
+                    .stroke(Color.primary.opacity(0.12), lineWidth: 0.7)
                 Image(systemName: "car.fill")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(.secondary)

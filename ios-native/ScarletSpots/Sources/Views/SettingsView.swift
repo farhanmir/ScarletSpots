@@ -219,7 +219,7 @@ struct ProfileView: View {
     private func statTile(title: String, value: String, accent: Color) -> some View {
         VStack(spacing: 8) {
             Text(value)
-                .font(.system(size: 40, weight: .heavy, design: .rounded))
+                .font(.system(size: 34, weight: .heavy, design: .rounded))
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
                 .foregroundStyle(accent)
@@ -301,12 +301,13 @@ struct ProfileView: View {
                     Label("Campus Filters", systemImage: "map")
                         .font(.subheadline.weight(.semibold))
                     Spacer()
-                    Text("\(authManager.enabledCampuses.count) on")
+                    Text(campusFilterSummary)
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.white.opacity(0.52))
+                        .fixedSize(horizontal: true, vertical: false)
                 }
                 .foregroundStyle(.white.opacity(0.9))
-                .padding(.trailing, 6)
+                .padding(.trailing, 2)
             }
         }
     }
@@ -337,10 +338,11 @@ struct ProfileView: View {
                     Text(themeLabel(themePreference.mode))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.white.opacity(0.52))
+                        .fixedSize(horizontal: true, vertical: false)
                 }
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.white.opacity(0.9))
-                .padding(.trailing, 6)
+                .padding(.trailing, 2)
             }
         }
     }
@@ -571,12 +573,12 @@ struct ProfileView: View {
                     .foregroundStyle(.white)
                 Text(subtitle)
                     .font(.caption)
-                    .foregroundStyle(.white.opacity(0.50))
+                    .foregroundStyle(.white.opacity(0.56))
             }
 
             content()
         }
-        .padding(14)
+        .padding(15)
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(Color.white.opacity(0.06))
@@ -652,6 +654,7 @@ struct ProfileView: View {
             } label: {
                 Image(systemName: "star.fill")
                     .foregroundStyle(.yellow)
+                    .frame(width: 30, height: 30)
             }
             .buttonStyle(.plain)
         }
@@ -747,6 +750,13 @@ struct ProfileView: View {
         case "dark": return "Dark"
         default: return "System"
         }
+    }
+
+    private var campusFilterSummary: String {
+        let count = authManager.enabledCampuses.count
+        if count == 0 { return "Off" }
+        if count == 1 { return "1 enabled" }
+        return "\(count) enabled"
     }
 
     private func fullName(for profile: Profile?) -> String {

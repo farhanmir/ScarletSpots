@@ -15,8 +15,9 @@ struct ForecastChart: View {
     private let maxHeight: CGFloat = 84
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Forecast").font(.headline)
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Forecast")
+                .font(.headline.weight(.semibold))
             if points.isEmpty {
                 emptyState
             } else {
@@ -26,7 +27,7 @@ struct ForecastChart: View {
                             Text("\(point.count)")
                                 .font(.caption2.monospacedDigit())
                                 .foregroundStyle(.secondary)
-                            RoundedRectangle(cornerRadius: 5)
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
                                 .fill(colorForRatio(ratio(for: point)))
                                 .frame(width: 28, height: didAnimate ? normalizedHeight(for: point) : 0)
                                 .animation(.easeOut(duration: 0.5), value: didAnimate)
@@ -34,9 +35,10 @@ struct ForecastChart: View {
                                 .font(.system(size: 10).weight(.medium))
                                 .foregroundStyle(.secondary)
                         }
+                        .frame(maxWidth: .infinity)
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity)
             }
         }
         .onAppear { didAnimate = true }
@@ -77,9 +79,9 @@ struct ForecastChart: View {
     }
 
     private func colorForRatio(_ ratio: Double) -> Color {
-        if ratio > 0.9 { return .red }
-        if ratio > 0.6 { return .orange }
-        if ratio > 0.3 { return .yellow }
-        return .green
+        if ratio > 0.9 { return NativeAuthColors.occupancyHigh }
+        if ratio > 0.6 { return NativeAuthColors.occupancyMedium }
+        if ratio > 0.3 { return Color(hex: 0xFCD34D) }
+        return NativeAuthColors.occupancyLow
     }
 }

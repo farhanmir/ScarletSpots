@@ -12,6 +12,8 @@ struct LotDetailsSheet: View {
     let lot: Lot
     @Binding var favoriteIds: Set<String>
 
+    @StateObject private var auth = AuthManager.shared
+    @StateObject private var permit = PermitRepository.shared
     @StateObject private var webSocket = WebSocketManager.shared
     @StateObject private var session = NativeSessionStore.shared
 
@@ -25,6 +27,7 @@ struct LotDetailsSheet: View {
                 headerSection
                 statsRow
                 featurePills
+                permitInfoCard
                 notesCard
                 forecastSection
                 actionButtons
@@ -41,12 +44,17 @@ struct LotDetailsSheet: View {
             .padding(.bottom, 12)
         }
         .background(
-            LinearGradient(
-                colors: [Color(hex: 0x0A0C12), Color(hex: 0x111725)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
+            ZStack {
+                LinearGradient(
+                    colors: [Color(hex: 0x0A0C12), Color(hex: 0x111725)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
+                Rectangle()
+                    .fill(.ultraThinMaterial.opacity(0.18))
+                    .ignoresSafeArea()
+            }
         )
         .task {
             await loadForecast()
@@ -95,7 +103,7 @@ struct LotDetailsSheet: View {
     private var statsRow: some View {
         HStack(spacing: 10) {
             statCard(value: "\(Int((occupancyRatio * 100).rounded()))%", label: "Full", color: ringColor)
-            statCard(value: "\(liveOccupancy)", label: "Sessions", color: .white)
+            statCard(value: "\(liveOccupancy)", label: "Occupied", color: .white)
             statCard(value: "\(displayCapacity)", label: "Capacity", color: .white)
         }
     }
@@ -137,6 +145,63 @@ struct LotDetailsSheet: View {
         }
     }
 
+    private var permitInfoCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("Access Rules", systemImage: "checkmark.shield")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                Spacer()
+                Text(lotAvailable ? "OPEN" : "CLOSED")
+                    .font(.caption2.bold())
+                    .tracking(0.5)
+                    .foregroundStyle(lotAvailable ? Color(hex: 0x4ADE80) : Color(hex: 0xEF4444))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background((lotAvailable ? Color(hex: 0x4ADE80) : Color(hex: 0xEF4444)).opacity(0.12), in: Capsule())
+            }
+
+            if let primaryPermit = auth.permitType, let text = permit.scheduleText(permitType: primaryPermit, lotId: lot.mapId) {
+                accessRow(icon: accessIcon, title: "Primary: \(primaryPermit)", detail: text.0, accent: accessColor)
+                if !text.1.isEmpty {
+                    accessRow(icon: "clock.fill", title: "Hours", detail: text.1, accent: Color(hex: 0x60A5FA))
+                }
+            } else {
+                accessRow(
+                    icon: "questionmark.circle.fill",
+                    title: "No Permit Set",
+                    detail: "Set your permit in Profile to see lot access rules.",
+                    accent: .white.opacity(0.7)
+                )
+            }
+
+            if let secondary = auth.secondaryPermitType, let text = permit.scheduleText(permitType: secondary, lotId: lot.mapId) {
+                Divider().overlay(Color.white.opacity(0.10))
+                accessRow(icon: "person.crop.rectangle.badge.plus", title: "Secondary: \(secondary)", detail: text.0, accent: Color(hex: 0xC084FC))
+            }
+        }
+        .padding(14)
+        .background(Color.black.opacity(0.20), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.white.opacity(0.08), lineWidth: 1))
+    }
+
+    private func accessRow(icon: String, title: String, detail: String, accent: Color) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(accent)
+                .frame(width: 20)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.white)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.70))
+            }
+        }
+    }
+
     private func featurePill(icon: String, text: String, color: Color) -> some View {
         HStack(spacing: 5) {
             Image(systemName: icon)
@@ -166,28 +231,21 @@ struct LotDetailsSheet: View {
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(.white.opacity(0.90))
                 .lineSpacing(3)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.black.opacity(0.20), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.white.opacity(0.08), lineWidth: 1))
     }
 
     private var forecastSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 0) {
-                ForEach(["12AM", "Now", "1AM", "2AM", "3AM"], id: \.self) { label in
-                    VStack(spacing: 7) {
-                        Text(label)
-                            .font(.caption2.weight(label == "Now" ? .bold : .regular))
-                            .foregroundStyle(label == "Now" ? .white : .white.opacity(0.45))
-                        Circle()
-                            .fill(NativeAuthColors.occupancyLow.opacity(label == "Now" ? 0.95 : 0.75))
-                            .frame(width: 7, height: 7)
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-            }
-            ForecastChart(points: forecast, capacity: displayCapacity)
+            Text("Occupancy Trend")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.58))
+                .tracking(0.7)
+            ForecastChart(points: displayForecastPoints, capacity: displayCapacity)
                 .padding(12)
                 .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.white.opacity(0.10), lineWidth: 1))
@@ -243,8 +301,45 @@ struct LotDetailsSheet: View {
         min(1.0, Double(liveOccupancy) / Double(displayCapacity))
     }
 
+    /// Convert backend slices into user-friendly offset labels.
+    private var displayForecastPoints: [ForecastPoint] {
+        let nowCount = forecast.first?.count ?? liveOccupancy
+        let oneHourCount = forecast.last?.count ?? nowCount
+        let delta = oneHourCount - nowCount
+
+        let oneHourBefore = max(0, nowCount - delta)
+        let twoHoursLater = max(0, oneHourCount + delta)
+        let threeHoursLater = max(0, twoHoursLater + delta)
+
+        let pairs: [(String, Int)] = [
+            ("-1h", oneHourBefore),
+            ("Now", nowCount),
+            ("+1h", oneHourCount),
+            ("+2h", twoHoursLater),
+            ("+3h", threeHoursLater)
+        ]
+
+        return pairs.map { label, count in
+            let rate = displayCapacity > 0 ? (Double(count) / Double(displayCapacity)) * 100 : 0
+            return ForecastPoint(label: label, count: min(count, displayCapacity), occupancyRate: rate)
+        }
+    }
+
     private var ringColor: Color {
         OccupancyPalette.color(forRatio: occupancyRatio)
+    }
+
+    private var lotAvailable: Bool {
+        permit.isLotAvailableNow(permitType: auth.permitType, lotId: lot.mapId)
+            || permit.isLotAvailableNow(permitType: auth.secondaryPermitType, lotId: lot.mapId)
+    }
+
+    private var accessIcon: String {
+        lotAvailable ? "checkmark.shield.fill" : "xmark.shield.fill"
+    }
+
+    private var accessColor: Color {
+        lotAvailable ? Color(hex: 0x4ADE80) : Color(hex: 0xEF4444)
     }
 
     private var isCurrentlyParkedHere: Bool {

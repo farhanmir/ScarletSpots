@@ -235,6 +235,7 @@ struct FriendsView: View {
                     .textInputAutocapitalization(.never)
                     .keyboardType(.emailAddress)
                     .autocorrectionDisabled()
+                    .submitLabel(.send)
                     .padding(.horizontal, 12)
                     .frame(height: 46)
                     .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -259,7 +260,7 @@ struct FriendsView: View {
                     Button("Send") {
                         Task { await sendInvite() }
                     }
-                    .disabled(friendEmail.isEmpty)
+                    .disabled(friendEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
         }
@@ -322,6 +323,8 @@ struct FriendsView: View {
     }
 
     private func sendInvite() async {
+        friendEmail = friendEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !friendEmail.isEmpty else { return }
         do {
             try await FriendsAPI.request(email: friendEmail)
             friendEmail = ""

@@ -15,6 +15,7 @@ import CoreLocation
 ///   camera to that lot.
 struct MapView: View {
     @EnvironmentObject private var tabBarState: TabBarState
+    @Namespace private var mapScope
     @StateObject private var sessionStore = NativeSessionStore.shared
     @StateObject private var lotRepository = LotRepository.shared
     @StateObject private var permitRepository = PermitRepository.shared
@@ -37,12 +38,16 @@ struct MapView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            Map(position: $position) {
+            Map(position: $position, scope: mapScope) {
                 if zoomLevel == .lot {
                     ForEach(polygonItems) { item in
                         MapPolygon(coordinates: item.coordinates)
                             .foregroundStyle(item.color.opacity(0.60))
                             .stroke(item.color.opacity(0.9), lineWidth: 2.0)
+                            .onTapGesture {
+                                guard let lot = lotRepository.byId(item.lotId) else { return }
+                                selectedLot = lot
+                            }
                     }
                     ForEach(visibleLots) { lot in
                         Annotation("", coordinate: lot.location.clLocationCoordinate2D) {
@@ -77,8 +82,8 @@ struct MapView: View {
             .mapStyle(.standard(elevation: .realistic))
             .tint(.blue) // Native blue for user location dot
             .mapControls {
-                MapCompass()
-                MapScaleView()
+                MapCompass(scope: mapScope)
+                MapScaleView(scope: mapScope)
             }
             .onMapCameraChange(frequency: .onEnd) { context in
                 zoomDistance = context.camera.distance
@@ -97,44 +102,20 @@ struct MapView: View {
             .animation(.easeInOut(duration: 0.2), value: sessionStore.activeSession?.id)
         }
         .overlay(alignment: .bottomTrailing) {
-            Button {
-                if let userLoc = location.latestLocation {
-                    withAnimation(.easeInOut(duration: 0.4)) {
-                        position = .camera(MapCamera(centerCoordinate: userLoc.coordinate, distance: 1500))
-                    }
-                } else {
-                    location.requestCurrentLocation()
-                    Task { @MainActor in
-                        try? await Task.sleep(nanoseconds: 350_000_000)
-                        guard let refreshed = location.latestLocation else { return }
-                        withAnimation(.easeInOut(duration: 0.4)) {
-                            position = .camera(MapCamera(centerCoordinate: refreshed.coordinate, distance: 1500))
-                        }
-                    }
-                }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "location.fill")
-                        .font(.system(size: 16, weight: .semibold))
-                    Text("Me")
-                        .font(.subheadline.weight(.semibold))
-                }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 14)
-                .frame(height: 44)
-                .background(.ultraThinMaterial, in: Capsule())
+            MapUserLocationButton(scope: mapScope)
+                .labelStyle(.iconOnly)
+                .padding(8)
+                .background(.ultraThinMaterial, in: Circle())
                 .overlay {
-                    Capsule()
-                        .stroke(.white.opacity(0.20), lineWidth: 1)
+                    Circle().stroke(.white.opacity(0.20), lineWidth: 1)
                 }
                 .shadow(color: .black.opacity(0.18), radius: 8, y: 4)
-            }
             .padding(.trailing, 16)
-            .padding(.bottom, 26)
+            .padding(.bottom, 24)
         }
         .sheet(item: $selectedLot) { lot in
             LotDetailsSheet(lot: lot, favoriteIds: $favoriteIds)
-                .presentationDetents([.medium, .large])
+                .presentationDetents([.large])
         }
         .sheet(isPresented: $showCandidateSheet) {
             ParkingConfirmationSheet(
@@ -227,6 +208,7 @@ struct MapView: View {
 
     private struct PolygonItem: Identifiable {
         let id: String
+        let lotId: String
         let coordinates: [CLLocationCoordinate2D]
         let color: Color
     }
@@ -241,6 +223,7 @@ struct MapView: View {
             return lot.polygons.enumerated().map { index, ring in
                 PolygonItem(
                     id: "\(lot.mapId)#\(index)",
+                    lotId: lot.mapId,
                     coordinates: cleanedPolygonCoordinates(ring.outer),
                     color: color
                 )
@@ -490,7 +473,7 @@ private struct MapPin: View {
                 .frame(width: 12, height: 8)
                 .offset(y: -1) // overlap bubble seam, mirrors RN translateY: -1
         }
-        .shadow(color: color.opacity(0.4), radius: 4, y: 2)
+        .shadow(color: color.opacity(0.38), radius: 5, y: 2)
     }
 }
 

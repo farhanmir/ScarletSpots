@@ -133,6 +133,7 @@ struct PermitOnboardingView: View {
                 }
             }
             .padding(.vertical, 14)
+            .padding(.bottom, 8)
         }
     }
 
@@ -184,7 +185,7 @@ struct PermitOnboardingView: View {
                 if !cardExpanded { selected = nil }
             } label: {
                 HStack {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: 3) {
                         Text("I don't have a permit")
                             .font(.subheadline.bold())
                         Text("Choose what to show on the map")
@@ -251,9 +252,13 @@ struct PermitOnboardingView: View {
                 }
                 .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.red)
+            .buttonStyle(.plain)
             .disabled(!canConfirm || isSaving)
+            .opacity(!canConfirm || isSaving ? 0.6 : 1)
+            .frame(height: 52)
+            .background(Color(hex: 0xCC0033), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .foregroundStyle(.white)
+            .shadow(color: Color(hex: 0xCC0033).opacity(0.25), radius: 10, y: 5)
 
             Button {
                 Task { await skip() }
@@ -264,7 +269,8 @@ struct PermitOnboardingView: View {
             }
         }
         .padding(.horizontal, 20)
-        .padding(.vertical, 16)
+        .padding(.top, 12)
+        .padding(.bottom, 16)
         .background(.bar)
     }
 
