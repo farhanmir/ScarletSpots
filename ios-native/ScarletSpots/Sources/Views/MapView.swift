@@ -92,14 +92,19 @@ struct MapView: View {
                 }
             } label: {
                 Image(systemName: "location.fill")
-                    .font(.title3)
-                    .foregroundStyle(.primary)
-                    .padding(10)
-                    .background(.ultraThinMaterial, in: Circle())
-                    .shadow(radius: 2)
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 52, height: 52)
+                    .background(.ultraThinMaterial)
+                    .clipShape(Circle())
+                    .overlay {
+                        Circle()
+                            .stroke(.white.opacity(0.15), lineWidth: 1)
+                    }
+                    .shadow(color: .black.opacity(0.15), radius: 10, y: 5)
             }
-            .padding(.trailing, 12)
-            .padding(.bottom, 22)
+            .padding(.trailing, 16)
+            .padding(.bottom, 26)
         }
         .sheet(item: $selectedLot) { lot in
             LotDetailsSheet(lot: lot, favoriteIds: $favoriteIds)
