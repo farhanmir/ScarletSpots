@@ -37,6 +37,10 @@ Estimate real occupancy more accurately while exposing confidence, not fake cert
 
 If confidence is weak, the UI should say so. A useful range is better than a precise lie.
 
+## Pre-launch rule
+
+Before launch, occupancy should default to pattern-first messaging. `observed` app sessions are raw signal, not campus-wide truth, so clients should distinguish `observed`, `mixed`, and `typical_pattern` output explicitly.
+
 ## Implementation direction
 
 - keep current forecast providers as fallback/prior infrastructure

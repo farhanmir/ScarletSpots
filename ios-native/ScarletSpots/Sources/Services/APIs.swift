@@ -94,9 +94,20 @@ enum ParkAPI {
     }
 
     static func endSession(idempotencyKey: String? = nil) async throws {
+        try await endSession(source: nil, idempotencyKey: idempotencyKey)
+    }
+
+    static func endSession(source: String?, idempotencyKey: String? = nil) async throws {
+        let body: Data?
+        if let source {
+            body = try JSONSerialization.data(withJSONObject: ["source": source])
+        } else {
+            body = nil
+        }
         _ = try await APIClient.shared.rawRequest(
             "park/session/end",
             method: "POST",
+            body: body,
             idempotencyKey: idempotencyKey
         )
     }

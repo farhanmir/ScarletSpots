@@ -74,6 +74,11 @@ struct LotDetailsSheet: View {
                     .foregroundStyle(.white)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
+                if let occupancyRow, !occupancyRow.isLivePrimary {
+                    Text("\(occupancyRow.statusLabel) • \(occupancyRow.sourceSummary)")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.68))
+                }
             }
 
             Spacer()
@@ -94,8 +99,13 @@ struct LotDetailsSheet: View {
 
     private var statsRow: some View {
         HStack(spacing: 10) {
-            statCard(value: "\(Int((occupancyRatio * 100).rounded()))%", label: "Full", color: ringColor)
-            statCard(value: "\(liveOccupancy)", label: "Occupied", color: .white)
+            if let occupancyRow, !occupancyRow.isLivePrimary {
+                statCard(value: patternStatusValue, label: "Typical now", color: ringColor)
+                statCard(value: occupancyRow.signalStrength == "sparse" ? "Sparse" : "Typical", label: "Signal", color: .white)
+            } else {
+                statCard(value: "\(Int((occupancyRatio * 100).rounded()))%", label: "Full", color: ringColor)
+                statCard(value: "\(liveOccupancy)", label: "Occupied", color: .white)
+            }
             statCard(value: "\(displayCapacity)", label: "Capacity", color: .white)
         }
     }
@@ -235,10 +245,17 @@ struct LotDetailsSheet: View {
 
     private var forecastSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Forecast")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.58))
-                .tracking(0.7)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Forecast")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.58))
+                    .tracking(0.7)
+                if let occupancyRow, !occupancyRow.isLivePrimary {
+                    Text("Expected pattern from now")
+                        .font(.caption2)
+                        .foregroundStyle(.white.opacity(0.48))
+                }
+            }
             ForecastChart(points: displayForecastPoints, capacity: displayCapacity)
                 .padding(12)
                 .forecastCardGlass()
@@ -303,7 +320,11 @@ struct LotDetailsSheet: View {
     }
 
     private var liveOccupancy: Int {
-        webSocket.lotOccupancies[lot.mapId] ?? lot.generalAvailable
+        occupancyRow?.count ?? webSocket.lotOccupancies[lot.mapId] ?? lot.generalAvailable
+    }
+
+    private var occupancyRow: OccupancyRow? {
+        webSocket.lotOccupancyRows[lot.mapId]
     }
 
     private var displayCapacity: Int {
@@ -316,6 +337,20 @@ struct LotDetailsSheet: View {
 
     private var ringColor: Color {
         OccupancyPalette.color(forRatio: occupancyRatio)
+    }
+
+    private var patternStatusValue: String {
+        guard let occupancyRow else { return "Open" }
+        switch occupancyRow.statusLabel {
+        case "Likely busy":
+            return "Busy"
+        case "Likely open":
+            return "Open"
+        case "No live signal":
+            return "No live"
+        default:
+            return "Moderate"
+        }
     }
 
     private var displayForecastPoints: [ForecastPoint] {

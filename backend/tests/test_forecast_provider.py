@@ -31,6 +31,7 @@ def test_heuristic_forecast_provider():
     # Check curve length
     curve = forecast["curve"]
     assert len(curve) > 0
+    assert forecast["metadata"]["mode"] in {"pattern_based", "observed_informed"}
 
     # Test label generation logic
     assert provider._get_label(90) == "full"
@@ -48,12 +49,28 @@ def test_bootstrap_snapshot_seeds_when_empty():
         should_seed=True,
     )
     current = payload["current"]
-    assert current["source"] == "seeded_heuristic"
+    assert current["source"] == "typical_pattern"
+    assert current["display_mode"] == "pattern"
+    assert current["confidence"] == "low"
     assert 0 <= current["count"] <= 250
     assert 0 <= current["occupancy_rate"] <= 100
 
 
-def test_bootstrap_snapshot_keeps_realtime_count_when_present():
+def test_bootstrap_snapshot_marks_sparse_signal_as_mixed():
+    provider = HeuristicForecastProvider()
+    payload = provider.bootstrap_current_snapshot(
+        lot_id="10001",
+        current_occupancy=2,
+        capacity=250,
+        should_seed=True,
+    )
+    current = payload["current"]
+    assert current["source"] == "mixed"
+    assert current["display_mode"] == "pattern"
+    assert current["observed_count"] == 2
+
+
+def test_bootstrap_snapshot_marks_strong_signal_as_observed():
     provider = HeuristicForecastProvider()
     payload = provider.bootstrap_current_snapshot(
         lot_id="10001",
@@ -62,5 +79,13 @@ def test_bootstrap_snapshot_keeps_realtime_count_when_present():
         should_seed=True,
     )
     current = payload["current"]
-    assert current["source"] == "realtime"
+    assert current["source"] == "observed"
+    assert current["display_mode"] == "live"
     assert current["count"] == 42
+
+
+def test_forecast_is_stable_for_same_input():
+    provider = HeuristicForecastProvider()
+    first = provider.get_lot_forecast("10001", current_occupancy=0, capacity=250)
+    second = provider.get_lot_forecast("10001", current_occupancy=0, capacity=250)
+    assert first["slices"]["now"]["expected_occupancy"] == second["slices"]["now"]["expected_occupancy"]

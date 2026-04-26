@@ -24,6 +24,8 @@ final class OfflineQueue: ObservableObject {
     static let shared = OfflineQueue()
 
     @Published private(set) var pendingCount = 0
+    @Published private(set) var pendingTypes: [String] = []
+    @Published private(set) var pendingEndpoints: [String] = []
     private let monitor = NWPathMonitor()
     private let monitorQueue = DispatchQueue(label: "com.scarletspots.offline.monitor")
     private var ownerId: String = "anon"
@@ -77,7 +79,7 @@ final class OfflineQueue: ObservableObject {
         )
         actions.append(action)
         save(actions)
-        pendingCount = actions.count
+        publishQueueState(actions)
         Logger.log("OfflineQueue: enqueued \(type) (\(action.id)) depth=\(actions.count)")
     }
 
@@ -119,14 +121,14 @@ final class OfflineQueue: ObservableObject {
             }
         }
         save(remaining)
-        pendingCount = remaining.count
+        publishQueueState(remaining)
         actions = remaining
     }
 
     /// Remove every action belonging to the current owner (used on sign-out).
     func clearQueue() async {
         save([])
-        pendingCount = 0
+        publishQueueState([])
     }
 
     // MARK: - Introspection
@@ -136,7 +138,7 @@ final class OfflineQueue: ObservableObject {
     // MARK: - Storage
 
     private func refreshCount() {
-        pendingCount = load().count
+        publishQueueState(load())
     }
 
     private func storageKey() -> String {
@@ -156,6 +158,12 @@ final class OfflineQueue: ObservableObject {
         encoder.dateEncodingStrategy = .iso8601
         let data = try? encoder.encode(items)
         UserDefaults.standard.set(data, forKey: storageKey())
+    }
+
+    private func publishQueueState(_ items: [QueuedAction]) {
+        pendingCount = items.count
+        pendingTypes = items.map(\.type)
+        pendingEndpoints = items.map(\.endpoint)
     }
 
     // MARK: - Helpers

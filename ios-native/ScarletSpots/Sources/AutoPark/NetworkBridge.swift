@@ -18,4 +18,11 @@ enum NetworkBridge {
             idempotencyKey: idempotencyKey
         )
     }
+
+    static func endSession(
+        source: String?,
+        idempotencyKey: String? = nil
+    ) async throws {
+        try await ParkAPI.endSession(source: source, idempotencyKey: idempotencyKey)
+    }
 }

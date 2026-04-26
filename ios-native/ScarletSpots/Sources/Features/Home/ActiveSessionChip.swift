@@ -94,14 +94,14 @@ struct ActiveSessionChip: View {
         Task {
             let key = "end_\(session.id.uuidString)"
             do {
-                try await ParkAPI.endSession(idempotencyKey: key)
+                try await ParkAPI.endSession(source: "manual", idempotencyKey: key)
                 await NativeSessionStore.shared.refresh()
                 HapticManager.shared.success()
             } catch {
                 await OfflineQueue.shared.enqueue(
                     type: "END_SESSION",
                     endpoint: "park/session/end",
-                    payload: nil,
+                    payload: try? JSONSerialization.data(withJSONObject: ["source": "manual"]),
                     idempotencyKey: key
                 )
                 HapticManager.shared.warning()

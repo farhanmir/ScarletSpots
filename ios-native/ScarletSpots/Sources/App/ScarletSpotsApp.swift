@@ -11,10 +11,6 @@ struct ScarletSpotsApp: App {
             RootView()
                 .environmentObject(authManager)
                 .preferredColorScheme(ThemePreference.colorScheme(for: themeMode))
-                .task {
-                    OfflineQueue.shared.start()
-                    await PushRegistration.shared.bootstrap()
-                }
         }
     }
 }

@@ -129,7 +129,7 @@ struct SearchScreen: View {
         Button { select(result) } label: {
             SearchRow(
                 result: result,
-                occupancy: result.lot.flatMap { webSocket.lotOccupancies[$0.mapId] },
+                occupancyRow: result.lot.flatMap { webSocket.lotOccupancyRows[$0.mapId] },
                 isGeocoding: geocodingId == result.id
             )
         }
@@ -144,9 +144,12 @@ struct SearchScreen: View {
     }
 
     private func rowAccessibilityLabel(for result: SearchResult) -> String {
-        if let lot = result.lot, let occupancy = webSocket.lotOccupancies[lot.mapId] {
-            let percent = Int((Double(occupancy) / Double(max(lot.totalSpaces, 1)) * 100).rounded())
-            return "\(result.title), \(result.subtitle), \(percent) percent occupied."
+        if let lot = result.lot, let row = webSocket.lotOccupancyRows[lot.mapId] {
+            if row.isLivePrimary {
+                let percent = Int(row.displayRate.rounded())
+                return "\(result.title), \(result.subtitle), \(percent) percent occupied live."
+            }
+            return "\(result.title), \(result.subtitle), \(row.statusLabel), \(row.sourceSummary.lowercased())."
         }
         return "\(result.title). \(result.subtitle)"
     }
@@ -324,7 +327,7 @@ private final class PlaceCompleter: NSObject, ObservableObject, MKLocalSearchCom
 /// results keep the simpler one-line layout with a chevron.
 private struct SearchRow: View {
     let result: SearchResult
-    let occupancy: Int?
+    let occupancyRow: OccupancyRow?
     let isGeocoding: Bool
 
     var body: some View {
@@ -376,9 +379,16 @@ private struct SearchRow: View {
         if isGeocoding {
             ProgressView().scaleEffect(0.8)
         } else if result.kind == .lot, let lot = result.lot {
-            let capacity = max(lot.totalSpaces, 1)
-            let rate = Double(occupancy ?? 0) / Double(capacity) * 100
-            OccupancyPill(rate: min(100, rate))
+            let rate = occupancyRow?.displayRate ?? 0
+            if let row = occupancyRow, !row.isLivePrimary {
+                OccupancyPill(
+                    status: row.statusLabel,
+                    emphasisRate: rate,
+                    accessibilityLabel: "\(row.statusLabel), \(row.sourceSummary.lowercased())"
+                )
+            } else {
+                OccupancyPill(rate: min(100, rate))
+            }
         } else {
             Image(systemName: "chevron.right")
                 .font(.caption)

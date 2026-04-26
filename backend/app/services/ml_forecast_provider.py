@@ -65,6 +65,11 @@ class MLForecastProvider(ForecastProvider):
         self, lot_id: str, current_occupancy: int, capacity: int
     ) -> Dict[str, Any]:
         model = self._load_model(lot_id)
+        current_state = self._fallback.describe_current_state(
+            lot_id=lot_id,
+            current_occupancy=current_occupancy,
+            capacity=capacity,
+        )
 
         if model is None:
             # No model trained yet — fall back to heuristic
@@ -125,6 +130,14 @@ class MLForecastProvider(ForecastProvider):
                 "is_weekend": now.weekday() >= 5,
                 "generated_at": now.isoformat().replace("+00:00", "Z"),
                 "source": "ml",
+                "mode": (
+                    "observed_informed"
+                    if current_state["signal_strength"] == "strong"
+                    else "pattern_based"
+                ),
+                "current_source": current_state["source"],
+                "signal_strength": current_state["signal_strength"],
+                "confidence": current_state["confidence"],
             },
         }
 

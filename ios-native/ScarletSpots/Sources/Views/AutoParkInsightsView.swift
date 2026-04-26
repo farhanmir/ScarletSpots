@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Live explainability panel for Auto-Park trigger decisions.
+/// Live explainability panel for Auto-Park and Auto-End decisions.
 struct AutoParkInsightsView: View {
     @StateObject private var autoPark = AutoParkCoordinator.shared
 
@@ -10,6 +10,7 @@ struct AutoParkInsightsView: View {
                 statusHeader
                 telemetryCard
                 checksCard
+                queueCard
                 historyCard
             }
             .padding(16)
@@ -27,6 +28,14 @@ struct AutoParkInsightsView: View {
         )
         .navigationTitle("Auto-Park Live Insights")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Clear") {
+                    autoPark.clearDiagnostics()
+                }
+                .foregroundStyle(.white)
+            }
+        }
         .task {
             autoPark.refreshLiveSnapshot()
         }
@@ -36,7 +45,7 @@ struct AutoParkInsightsView: View {
         let snapshot = autoPark.liveSnapshot
         return VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .center) {
-                Image(systemName: "car.side.fill")
+                Image(systemName: snapshot.decisionKind == "end" ? "figure.walk.motion" : "car.side.fill")
                     .font(.title2)
                     .foregroundStyle(.white)
                     .frame(width: 44, height: 44)
@@ -46,9 +55,10 @@ struct AutoParkInsightsView: View {
                     Text(snapshot.decision.replacingOccurrences(of: "_", with: " ").uppercased())
                         .font(.headline.weight(.semibold))
                         .foregroundStyle(.white)
-                    Text(snapshot.reason.replacingOccurrences(of: "_", with: " "))
+                    Text(snapshot.explanation)
                         .font(.subheadline)
                         .foregroundStyle(.white.opacity(0.75))
+                        .lineLimit(3)
                 }
 
                 Spacer()
@@ -68,11 +78,10 @@ struct AutoParkInsightsView: View {
             Divider().overlay(Color.white.opacity(0.15))
 
             HStack(spacing: 8) {
-                metricPill("Mode", snapshot.mode)
+                metricPill("Mode", snapshot.monitoringMode)
+                metricPill("Wake", snapshot.wakeReason)
+                metricPill("Kind", snapshot.decisionKind)
                 metricPill("Source", snapshot.triggerSource ?? "none")
-                if let lot = snapshot.lotId {
-                    metricPill("Lot", lot)
-                }
             }
         }
         .padding(16)
@@ -82,7 +91,7 @@ struct AutoParkInsightsView: View {
     private var telemetryCard: some View {
         let snapshot = autoPark.liveSnapshot
         return VStack(alignment: .leading, spacing: 10) {
-            Text("Raw Sensors")
+            Text("Telemetry")
                 .font(.headline)
                 .foregroundStyle(.white)
 
@@ -90,18 +99,25 @@ struct AutoParkInsightsView: View {
             telemetryRow("Longitude", value: formatDouble(snapshot.longitude, digits: 6))
             telemetryRow("Accuracy", value: formatDouble(snapshot.horizontalAccuracy, suffix: "m"))
             telemetryRow("Speed", value: formatSpeed(snapshot.speedMetersPerSecond))
+            telemetryRow("Course", value: formatDouble(snapshot.courseDegrees, suffix: "°"))
+            telemetryRow("Heading", value: formatDouble(snapshot.headingDegrees, suffix: "°"))
             telemetryRow("Location age", value: formatDouble(snapshot.locationAgeSeconds, suffix: "s"))
-            telemetryRow("Driving", value: snapshot.isDriving ? "true" : "false")
             telemetryRow("Cooldown", value: "\(Int(snapshot.cooldownRemainingSeconds.rounded()))s")
+            telemetryRow("Wake reason", value: snapshot.wakeReason)
+            telemetryRow("Session truth", value: snapshot.sessionTruthSource)
+            telemetryRow("Lot", value: snapshot.lotName ?? snapshot.lotId ?? "n/a")
+            telemetryRow("Active session", value: snapshot.activeSessionLotId ?? (snapshot.activeSessionPresent ? "yes" : "no"))
             telemetryRow("Auth", value: snapshot.locationAuthorizationLabel)
             telemetryRow("Always permission", value: snapshot.hasAlwaysLocationPermission ? "true" : "false")
             telemetryRow("Reduced accuracy", value: snapshot.reducedAccuracy ? "true" : "false")
             telemetryRow("Motion available", value: snapshot.motionAvailable ? "true" : "false")
             telemetryRow("Motion authorized", value: snapshot.motionAuthorized ? "true" : "false")
-            telemetryRow("Audio disconnect age", value: formatDouble(snapshot.lastAudioDisconnectSecondsAgo, suffix: "s"))
-            telemetryRow("Active session", value: snapshot.activeSessionPresent ? "true" : "false")
-            telemetryRow("Offline queue", value: "\(snapshot.queueDepth)")
-            telemetryRow("Updated", value: snapshot.timestamp.formatted(date: .omitted, time: .standard))
+            telemetryRow("Driving", value: snapshot.isDriving ? "true" : "false")
+            telemetryRow("Last disconnect", value: formatDouble(snapshot.lastAudioDisconnectSecondsAgo, suffix: "s"))
+            telemetryRow("Last reconnect", value: formatDouble(snapshot.lastAudioReconnectSecondsAgo, suffix: "s"))
+            if let failure = snapshot.lastFailure {
+                telemetryRow("Last failure", value: failure)
+            }
         }
         .padding(16)
         .background(Color.black.opacity(0.28), in: RoundedRectangle(cornerRadius: 18))
@@ -131,12 +147,32 @@ struct AutoParkInsightsView: View {
                             Text(check.detail)
                                 .font(.caption)
                                 .foregroundStyle(.white.opacity(0.72))
+                            if let reasonCode = check.reasonCode, !reasonCode.isEmpty {
+                                Text(reasonCode)
+                                    .font(.caption2.monospaced())
+                                    .foregroundStyle(.white.opacity(0.52))
+                            }
                         }
                         Spacer()
                     }
                     .padding(.vertical, 3)
                 }
             }
+        }
+        .padding(16)
+        .background(Color.black.opacity(0.28), in: RoundedRectangle(cornerRadius: 18))
+    }
+
+    private var queueCard: some View {
+        let snapshot = autoPark.liveSnapshot
+        return VStack(alignment: .leading, spacing: 10) {
+            Text("Queue State")
+                .font(.headline)
+                .foregroundStyle(.white)
+
+            telemetryRow("Depth", value: "\(snapshot.queueDepth)")
+            telemetryRow("Types", value: snapshot.queueTypes.isEmpty ? "none" : snapshot.queueTypes.joined(separator: ", "))
+            telemetryRow("Endpoints", value: snapshot.queueEndpoints.isEmpty ? "none" : snapshot.queueEndpoints.joined(separator: ", "))
         }
         .padding(16)
         .background(Color.black.opacity(0.28), in: RoundedRectangle(cornerRadius: 18))
@@ -153,22 +189,27 @@ struct AutoParkInsightsView: View {
                     .font(.subheadline)
                     .foregroundStyle(.white.opacity(0.7))
             } else {
-                ForEach(Array(autoPark.decisionHistory.prefix(12))) { item in
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text(item.timestamp.formatted(date: .omitted, time: .standard))
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(.white.opacity(0.72))
-                            .frame(width: 76, alignment: .leading)
+                ForEach(Array(autoPark.decisionHistory.prefix(20))) { item in
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text(item.timestamp.formatted(date: .omitted, time: .standard))
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.white.opacity(0.72))
+                                .frame(width: 76, alignment: .leading)
 
-                        Text(item.decision.replacingOccurrences(of: "_", with: " "))
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(colorForDecision(item.decision))
+                            Text(item.decision.replacingOccurrences(of: "_", with: " "))
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(colorForDecision(item.decision))
 
-                        Text(item.reason.replacingOccurrences(of: "_", with: " "))
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.85))
+                            Text(item.reason.replacingOccurrences(of: "_", with: " "))
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.85))
 
-                        Spacer(minLength: 0)
+                            Spacer(minLength: 0)
+                        }
+                        Text("\(item.decisionKind.uppercased()) · \(item.wakeReason) · \(item.triggerSource ?? "no source")")
+                            .font(.caption2.monospaced())
+                            .foregroundStyle(.white.opacity(0.58))
                     }
                 }
             }
@@ -193,7 +234,7 @@ struct AutoParkInsightsView: View {
     }
 
     private func telemetryRow(_ label: String, value: String) -> some View {
-        HStack {
+        HStack(alignment: .top) {
             Text(label)
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.72))
@@ -201,6 +242,7 @@ struct AutoParkInsightsView: View {
             Text(value)
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.white)
+                .multilineTextAlignment(.trailing)
         }
     }
 
@@ -220,10 +262,10 @@ struct AutoParkInsightsView: View {
 
     private func colorForDecision(_ decision: String) -> Color {
         switch decision {
-        case "session_started": return .green
+        case "session_started", "session_ended": return .green
         case "queued_offline": return .yellow
-        case "needs_confirmation": return .orange
-        case "ready_to_start": return .mint
+        case "candidate_created", "trigger_received": return .orange
+        case "monitoring", "idle": return .blue
         default: return .red
         }
     }

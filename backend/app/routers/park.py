@@ -60,6 +60,11 @@ class ParkSessionCreate(BaseModel):
     longitude: Optional[float] = None
     confirmed: bool = True
     autoStarted: bool = False
+    source: Optional[str] = None
+
+
+class ParkSessionEndRequest(BaseModel):
+    source: Optional[str] = None
 
 
 class DetectionQuality(str, Enum):
@@ -93,6 +98,8 @@ def _session_response(session: ParkingSession) -> dict:
         "startTime": session.start_time or session.created_at,
         "active": bool(session.active),
         "autoStarted": bool(session.auto_started),
+        "startSource": session.start_source,
+        "endSource": session.end_source,
     }
 
 
@@ -289,6 +296,7 @@ async def start_parking_session(
                 longitude=body.longitude,
                 active=True,
                 auto_started=body.autoStarted,
+                start_source=(body.source or "").strip() or None,
             )
             db.add(new_session)
             await db.flush()
@@ -378,6 +386,7 @@ async def start_parking_session(
 @router.post("/end")
 async def end_parking_session(
     request: Request,
+    body: Optional[ParkSessionEndRequest] = None,
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -404,7 +413,11 @@ async def end_parking_session(
                     ParkingSession.user_id == user_id,
                     ParkingSession.active.is_(True),
                 )
-                .values(active=False, end_time=text("CURRENT_TIMESTAMP"))
+                .values(
+                    active=False,
+                    end_time=text("CURRENT_TIMESTAMP"),
+                    end_source=((body.source or "").strip() if body else None) or None,
+                )
                 .returning(ParkingSession.lot_id)
             )
             ended_lot_ids = [row[0] for row in ended_sessions.fetchall() if row[0]]

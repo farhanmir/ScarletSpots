@@ -8,26 +8,48 @@ import SwiftUI
 /// `"<rate>%"` text on a translucent background, with the same threshold
 /// palette (`>= 90` red, `>= 70` amber, else green).
 struct OccupancyPill: View {
+    private enum Content {
+        case rate(Double)
+        case status(String, Double, String)
+    }
+
+    private let content: Content
+
     /// Occupancy rate as a percentage (0 – 100).
-    let rate: Double
+    init(rate: Double) {
+        self.content = .rate(rate)
+    }
+
+    init(status: String, emphasisRate: Double, accessibilityLabel: String) {
+        self.content = .status(status, emphasisRate, accessibilityLabel)
+    }
 
     var body: some View {
-        let color = OccupancyPalette.color(for: rate)
-        let percent = Int(rate.rounded())
-        let label = "\(percent)%"
+        let resolved = resolvedContent
+        let color = OccupancyPalette.color(for: resolved.emphasisRate)
 
         HStack(spacing: 5) {
             Circle()
                 .fill(color)
                 .frame(width: 6, height: 6)
-            Text(label)
+            Text(resolved.label)
                 .font(.system(size: 12, weight: .bold).monospacedDigit())
                 .foregroundStyle(color)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
         .pillGlass(color: color)
-        .accessibilityLabel("\(percent) percent occupied")
+        .accessibilityLabel(resolved.accessibilityLabel)
+    }
+
+    private var resolvedContent: (label: String, emphasisRate: Double, accessibilityLabel: String) {
+        switch content {
+        case .rate(let rate):
+            let percent = Int(rate.rounded())
+            return ("\(percent)%", rate, "\(percent) percent occupied")
+        case .status(let text, let rate, let accessibilityLabel):
+            return (text, rate, accessibilityLabel)
+        }
     }
 }
 

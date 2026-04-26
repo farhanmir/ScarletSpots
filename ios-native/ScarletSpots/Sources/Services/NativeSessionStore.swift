@@ -4,18 +4,41 @@ import CoreLocation
 
 @MainActor
 final class NativeSessionStore: ObservableObject {
+    enum TruthSource: String, Codable {
+        case server
+        case cache
+        case none
+        case pendingQueue
+    }
+
     static let shared = NativeSessionStore()
     @Published var activeSession: ParkingSession?
+    @Published private(set) var truthSource: TruthSource = .none
+    @Published private(set) var lastSyncAt: Date?
+    @Published private(set) var lastError: String?
     private init() {}
 
     func refresh() async {
         do {
             activeSession = try await ParkAPI.activeSession()
             OfflineCache.shared.cacheSession(activeSession)
+            truthSource = activeSession == nil ? .none : .server
+            lastError = nil
+            lastSyncAt = Date()
             syncLiveActivity()
         } catch {
             activeSession = OfflineCache.shared.getCachedSession()
+            truthSource = activeSession == nil ? .none : .cache
+            lastError = error.localizedDescription
+            lastSyncAt = Date()
             syncLiveActivity()
+        }
+    }
+
+    func bootstrapRefresh() async {
+        await refresh()
+        if activeSession == nil, OfflineQueue.shared.pendingTypes.contains("PARK") {
+            truthSource = .pendingQueue
         }
     }
 

@@ -9,7 +9,14 @@ struct OccupancyRow: Codable {
     let lotId: String
     let count: Int?
     let occupancyRate: Double?
+    let observedCount: Int?
+    let observedOccupancyRate: Double?
+    let typicalCount: Int?
+    let typicalOccupancyRate: Double?
     let source: String?
+    let confidence: String?
+    let signalStrength: String?
+    let displayMode: String?
     let confidenceInterval: Double?
     let updatedAt: Date?
 
@@ -17,7 +24,14 @@ struct OccupancyRow: Codable {
         case lotId = "lot_id"
         case count
         case occupancyRate = "occupancy_rate"
+        case observedCount = "observed_count"
+        case observedOccupancyRate = "observed_occupancy_rate"
+        case typicalCount = "typical_count"
+        case typicalOccupancyRate = "typical_occupancy_rate"
         case source
+        case confidence
+        case signalStrength = "signal_strength"
+        case displayMode = "display_mode"
         case confidenceInterval = "confidence_interval"
         case updatedAt = "updated_at"
     }
@@ -76,6 +90,50 @@ struct FavoritesResponse: Codable {
 }
 
 struct ForecastResponse: Decodable {
+    struct CurrentSnapshot: Decodable {
+        let count: Int?
+        let occupancyRate: Double?
+        let observedCount: Int?
+        let observedOccupancyRate: Double?
+        let typicalCount: Int?
+        let typicalOccupancyRate: Double?
+        let source: String?
+        let confidence: String?
+        let signalStrength: String?
+        let displayMode: String?
+
+        enum CodingKeys: String, CodingKey {
+            case count
+            case occupancyRate = "occupancy_rate"
+            case observedCount = "observed_count"
+            case observedOccupancyRate = "observed_occupancy_rate"
+            case typicalCount = "typical_count"
+            case typicalOccupancyRate = "typical_occupancy_rate"
+            case source
+            case confidence
+            case signalStrength = "signal_strength"
+            case displayMode = "display_mode"
+        }
+    }
+
+    struct Metadata: Decodable {
+        let source: String?
+        let mode: String?
+        let currentSource: String?
+        let signalStrength: String?
+        let confidence: String?
+        let profileType: String?
+
+        enum CodingKeys: String, CodingKey {
+            case source
+            case mode
+            case currentSource = "current_source"
+            case signalStrength = "signal_strength"
+            case confidence
+            case profileType = "profile_type"
+        }
+    }
+
     struct ServerPoint: Decodable {
         let time: String
         let expectedOccupancy: Double
@@ -94,14 +152,20 @@ struct ForecastResponse: Decodable {
     }
 
     let serverPoints: [ServerPoint]
+    let metadata: Metadata?
+    let current: CurrentSnapshot?
 
     enum CodingKeys: String, CodingKey {
         case slices
         case curve
+        case metadata
+        case current
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        metadata = try? container.decode(Metadata.self, forKey: .metadata)
+        current = try? container.decode(CurrentSnapshot.self, forKey: .current)
         if let curve = try? container.decode([ServerPoint].self, forKey: .curve), !curve.isEmpty {
             serverPoints = curve
             return
@@ -115,6 +179,31 @@ struct ForecastResponse: Decodable {
             return
         }
         serverPoints = []
+    }
+}
+
+extension OccupancyRow {
+    var displayRate: Double {
+        occupancyRate ?? typicalOccupancyRate ?? observedOccupancyRate ?? 0
+    }
+
+    var isLivePrimary: Bool {
+        displayMode == "live" || source == "observed"
+    }
+
+    var statusLabel: String {
+        if signalStrength == "none", displayRate < 15 {
+            return "No live signal"
+        }
+        if displayRate >= 75 { return "Likely busy" }
+        if displayRate >= 45 { return "Moderate" }
+        return "Likely open"
+    }
+
+    var sourceSummary: String {
+        if isLivePrimary { return "Live now" }
+        if signalStrength == "sparse" { return "Sparse live signal" }
+        return "Typical now"
     }
 }
 

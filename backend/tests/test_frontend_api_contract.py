@@ -152,6 +152,12 @@ def test_core_public_response_shapes() -> None:
         occ_data = occupancy.json()
         assert "occupancy" in occ_data
         assert isinstance(occ_data["occupancy"], (list, dict))
+        rows = occ_data["occupancy"]
+        if isinstance(rows, list) and rows:
+            sample = rows[0]
+            assert "source" in sample
+            assert "observed_count" in sample
+            assert "display_mode" in sample
 
     forecast = client.get(
         "/api/v1/lots/10001/forecast",
@@ -162,6 +168,8 @@ def test_core_public_response_shapes() -> None:
         forecast_data = forecast.json()
         assert "slices" in forecast_data
         assert "curve" in forecast_data
+        assert "current" in forecast_data
+        assert "metadata" in forecast_data
 
         for key in ["now", "15m", "30m", "60m"]:
             assert key in forecast_data["slices"]

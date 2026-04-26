@@ -12,9 +12,12 @@ final class MotionEngine: ObservableObject {
     private let manager = CMMotionActivityManager()
     private var lastTransitionAt: Date?
     private let minInterval: TimeInterval = 8
+    private(set) var lastDrivingStartAt: Date?
+    private(set) var lastDrivingStopAt: Date?
 
     @Published private(set) var isDriving = false
     var onParkingTransition: (() -> Void)?
+    var onDrivingResumed: (() -> Void)?
 
     private init() {}
 
@@ -32,10 +35,16 @@ final class MotionEngine: ObservableObject {
                 let wasDriving = self.isDriving
                 let nowDriving = activity.automotive && (activity.confidence != .low)
                 self.isDriving = nowDriving
+                self.lastMotionConfidence = activity.confidence
+                if !wasDriving && nowDriving {
+                    self.lastDrivingStartAt = Date()
+                    self.onDrivingResumed?()
+                }
                 if wasDriving && !nowDriving {
                     let last = self.lastTransitionAt ?? .distantPast
                     if Date().timeIntervalSince(last) >= self.minInterval {
                         self.lastTransitionAt = Date()
+                        self.lastDrivingStopAt = self.lastTransitionAt
                         self.onParkingTransition?()
                     }
                 }
@@ -46,4 +55,6 @@ final class MotionEngine: ObservableObject {
     func stop() {
         manager.stopActivityUpdates()
     }
+
+    @Published private(set) var lastMotionConfidence: CMMotionActivityConfidence = .low
 }

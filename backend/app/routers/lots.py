@@ -101,7 +101,14 @@ async def get_all_occupancy(
                     "lot_id": lot_id,
                     "count": current["count"],
                     "occupancy_rate": current["occupancy_rate"],
+                    "observed_count": current["observed_count"],
+                    "observed_occupancy_rate": current["observed_occupancy_rate"],
+                    "typical_count": current["typical_count"],
+                    "typical_occupancy_rate": current["typical_occupancy_rate"],
                     "source": current["source"],
+                    "confidence": current["confidence"],
+                    "signal_strength": current["signal_strength"],
+                    "display_mode": current["display_mode"],
                     "confidence_interval": current["confidence_interval"],
                     "updated_at": row.updated_at if row else None,
                 }
@@ -117,7 +124,14 @@ async def get_all_occupancy(
                     "lot_id": row.lot_id,
                     "count": row.count,
                     "occupancy_rate": None,
-                    "source": "realtime",
+                    "observed_count": row.count,
+                    "observed_occupancy_rate": None,
+                    "typical_count": None,
+                    "typical_occupancy_rate": None,
+                    "source": "observed",
+                    "confidence": "high",
+                    "signal_strength": "strong",
+                    "display_mode": "live",
                     "confidence_interval": 0.05,
                     "updated_at": row.updated_at,
                 }
@@ -154,12 +168,24 @@ def get_lot_forecast(
         # than a 422 that shows up as a console error on the client.
         return {"slices": [], "curve": []}
     try:
+        current_state = _heuristic_provider.describe_current_state(
+            lot_id=lot_id,
+            current_occupancy=current_occupancy,
+            capacity=capacity,
+        )
         forecast = provider.get_lot_forecast(lot_id, current_occupancy, capacity)
         return {
             "current": {
-                "count": current_occupancy,
-                "occupancy_rate": round((current_occupancy / max(1, capacity)) * 100, 1),
-                "source": "realtime",
+                "count": current_state["count"],
+                "occupancy_rate": current_state["occupancy_rate"],
+                "observed_count": current_state["observed_count"],
+                "observed_occupancy_rate": current_state["observed_occupancy_rate"],
+                "typical_count": current_state["typical_count"],
+                "typical_occupancy_rate": current_state["typical_occupancy_rate"],
+                "source": current_state["source"],
+                "confidence": current_state["confidence"],
+                "signal_strength": current_state["signal_strength"],
+                "display_mode": current_state["display_mode"],
             },
             "forecast": forecast,
             **forecast,

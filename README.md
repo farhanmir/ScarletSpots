@@ -30,6 +30,7 @@ Dynamic data:
 - active/historical parking sessions
 - live occupancy counts
 - occupancy forecast output
+- pre-launch pattern-first occupancy metadata (`source`, `confidence`, `signal_strength`)
 - favorites
 - friendships
 - push / notification events
@@ -85,6 +86,7 @@ npm run dev
 - [FUTURE_FEATURES.md](FUTURE_FEATURES.md): intentionally deferred ideas
 - [WEBSOCKET_BACKGROUND_PARKING_ARCHITECTURE.md](WEBSOCKET_BACKGROUND_PARKING_ARCHITECTURE.md): realtime + background sync notes
 - [INFERENCE_GROUND_TRUTH.md](INFERENCE_GROUND_TRUTH.md): occupancy estimation and confidence planning
+- pre-launch clients should treat weak-signal occupancy as a typical-pattern estimate, not realtime truth
 - [docs/RELEASE_READINESS.md](docs/RELEASE_READINESS.md): launch checklist
 
 ## Status snapshot

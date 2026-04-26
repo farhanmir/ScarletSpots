@@ -28,13 +28,26 @@ final class WebSocketManager: ObservableObject {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 if let lot = payload["lot_id"] as? String, let count = payload["count"] as? Int {
-                    self.lotOccupancies[lot] = count
                     let existing = self.lotOccupancyRows[lot]
+                    let capacity = LotRepository.shared.byId(lot)?.totalSpaces ?? max(count, 1)
+                    let observedRate = Double(count) / Double(max(capacity, 1)) * 100
+                    let preservePatternDisplay = existing.map { !$0.isLivePrimary } ?? false
+                    let displayCount = preservePatternDisplay ? (existing?.count ?? count) : count
+                    let displayRate = preservePatternDisplay ? (existing?.occupancyRate ?? observedRate) : observedRate
+
+                    self.lotOccupancies[lot] = displayCount
                     self.lotOccupancyRows[lot] = OccupancyRow(
                         lotId: lot,
-                        count: count,
-                        occupancyRate: existing?.occupancyRate,
-                        source: "realtime",
+                        count: displayCount,
+                        occupancyRate: displayRate,
+                        observedCount: count,
+                        observedOccupancyRate: observedRate,
+                        typicalCount: existing?.typicalCount,
+                        typicalOccupancyRate: existing?.typicalOccupancyRate,
+                        source: preservePatternDisplay ? (existing?.source ?? "mixed") : "observed",
+                        confidence: preservePatternDisplay ? (existing?.confidence ?? "medium") : "high",
+                        signalStrength: preservePatternDisplay ? "sparse" : "strong",
+                        displayMode: preservePatternDisplay ? "pattern" : "live",
                         confidenceInterval: existing?.confidenceInterval,
                         updatedAt: Date()
                     )

@@ -32,6 +32,7 @@ Responsibilities:
 - parking session lifecycle
 - lot occupancy counters
 - forecast responses
+- pre-launch source/confidence classification for occupancy + forecast display
 - friendships and favorites
 - websocket fan-out
 - push token registration and notification dispatch
@@ -78,7 +79,8 @@ Status:
 User parks or ends session
   -> backend updates parking_sessions + lot_occupancy
   -> backend publishes occupancy change
-  -> websocket clients update open apps
+  -> websocket clients update open apps with observed counts
+  -> clients preserve pattern-first display until live signal is strong
   -> push / local refresh paths handle closed-app awareness where applicable
 ```
 
@@ -96,8 +98,8 @@ User searches
 ```text
 Lot selected
   -> native sheet requests /lots/{lot_id}/forecast
-  -> backend returns curve/confidence data
-  -> native chart renders relative-time forecast bars
+  -> backend returns curve/confidence/source metadata
+  -> native chart renders expected-pattern bars unless signal is strongly observed
 ```
 
 ## Cleanup note

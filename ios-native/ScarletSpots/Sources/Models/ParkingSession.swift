@@ -9,6 +9,8 @@ struct ParkingSession: Codable, Identifiable {
     let endTime: Date?
     let active: Bool
     let autoStarted: Bool
+    let startSource: String?
+    let endSource: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -22,6 +24,10 @@ struct ParkingSession: Codable, Identifiable {
         case active
         case autoStarted = "auto_started"
         case autoStartedCamel = "autoStarted"
+        case startSource = "start_source"
+        case startSourceCamel = "startSource"
+        case endSource = "end_source"
+        case endSourceCamel = "endSource"
     }
 
     init(from decoder: Decoder) throws {
@@ -40,6 +46,10 @@ struct ParkingSession: Codable, Identifiable {
         autoStarted = try c.decodeIfPresent(Bool.self, forKey: .autoStartedCamel)
             ?? c.decodeIfPresent(Bool.self, forKey: .autoStarted)
             ?? false
+        startSource = try c.decodeIfPresent(String.self, forKey: .startSourceCamel)
+            ?? c.decodeIfPresent(String.self, forKey: .startSource)
+        endSource = try c.decodeIfPresent(String.self, forKey: .endSourceCamel)
+            ?? c.decodeIfPresent(String.self, forKey: .endSource)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -52,5 +62,7 @@ struct ParkingSession: Codable, Identifiable {
         try c.encodeIfPresent(endTime, forKey: .endTime)
         try c.encode(active, forKey: .active)
         try c.encode(autoStarted, forKey: .autoStarted)
+        try c.encodeIfPresent(startSource, forKey: .startSource)
+        try c.encodeIfPresent(endSource, forKey: .endSource)
     }
 }

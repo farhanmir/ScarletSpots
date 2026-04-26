@@ -24,10 +24,10 @@ struct RootView: View {
             }
         }
         .onChange(of: auth.isAuthenticated) { _, isAuthed in
-            Task { await applyAutoParkGate(isAuthed: isAuthed) }
+            Task { await AutoParkCoordinator.shared.handleEligibilityChange(wakeReason: isAuthed ? "auth_signed_in" : "auth_signed_out") }
         }
         .onChange(of: locationEngine.authorization) { _, _ in
-            Task { await applyAutoParkGate(isAuthed: auth.isAuthenticated) }
+            Task { await AutoParkCoordinator.shared.handleEligibilityChange(wakeReason: "permission_changed") }
         }
         .onChange(of: auth.isAuthenticated) { _, isAuthed in
             if !isAuthed { bootTimeoutElapsed = false }
@@ -38,7 +38,8 @@ struct RootView: View {
         .task {
             if !didBoot {
                 didBoot = true
-                await applyAutoParkGate(isAuthed: auth.isAuthenticated)
+                AutoParkCoordinator.shared.noteManualOpen()
+                await AutoParkCoordinator.shared.handleEligibilityChange(wakeReason: "manual_open")
             }
         }
         .task(id: auth.isAuthenticated) {
@@ -64,17 +65,6 @@ struct RootView: View {
             ProgressView("Loading ScarletSpots...")
                 .tint(.white)
                 .foregroundStyle(.white.opacity(0.82))
-        }
-    }
-
-    /// Start AutoPark only when the user is signed in AND has granted
-    /// "Always" location. Otherwise we waste battery and get a runtime crash
-    /// from `allowsBackgroundLocationUpdates = true` without Always.
-    private func applyAutoParkGate(isAuthed: Bool) async {
-        if isAuthed, locationEngine.hasBackgroundPermission {
-            AutoParkCoordinator.shared.start()
-        } else {
-            AutoParkCoordinator.shared.stop()
         }
     }
 }

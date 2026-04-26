@@ -14,6 +14,12 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         UNUserNotificationCenter.current().delegate = self
+        let launchReason = launchOptions?[.location] != nil ? "location_launch" : "cold_launch"
+        Task { @MainActor in
+            OfflineQueue.shared.start()
+            await PushRegistration.shared.bootstrap()
+            await AutoParkCoordinator.shared.bootstrap(launchReason: launchReason)
+        }
         return true
     }
 
@@ -32,6 +38,19 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         didFailToRegisterForRemoteNotificationsWithError error: Error
     ) {
         Logger.log("APNS registration failed: \(error.localizedDescription)")
+    }
+
+    func application(
+        _ application: UIApplication,
+        didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+        fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+    ) {
+        Task { @MainActor in
+            let type = userInfo["type"] as? String ?? "silent_push"
+            await NativeSessionStore.shared.bootstrapRefresh()
+            await AutoParkCoordinator.shared.handleEligibilityChange(wakeReason: "silent_push_\(type)")
+            completionHandler(.newData)
+        }
     }
 
     // MARK: - UNUserNotificationCenterDelegate

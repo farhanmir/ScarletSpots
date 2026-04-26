@@ -11,7 +11,9 @@ final class AudioRouteEngine {
     static let shared = AudioRouteEngine()
 
     var onLikelyArrival: (() -> Void)?
+    var onLikelyDeparture: (() -> Void)?
     private(set) var lastDisconnectAt: Date?
+    private(set) var lastReconnectAt: Date?
     private(set) var lastRouteChangeReason: AVAudioSession.RouteChangeReason?
     private var observer: NSObjectProtocol?
 
@@ -32,10 +34,13 @@ final class AudioRouteEngine {
                   let reasonValue = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
                   let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue)
             else { return }
+            self.lastRouteChangeReason = reason
             if reason == .oldDeviceUnavailable {
                 self.lastDisconnectAt = Date()
-                self.lastRouteChangeReason = reason
                 self.onLikelyArrival?()
+            } else if reason == .newDeviceAvailable {
+                self.lastReconnectAt = Date()
+                self.onLikelyDeparture?()
             }
         }
     }

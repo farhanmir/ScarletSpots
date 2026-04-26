@@ -367,20 +367,23 @@ struct ProfileView: View {
     private var diagnosticsSection: some View {
         profileCard(title: "Diagnostics", subtitle: "Auto-Park signal intelligence.") {
             let snapshot = autoPark.liveSnapshot
+            let blockedCount = autoPark.decisionHistory.filter { $0.decision == "blocked" }.count
+            let startedCount = autoPark.decisionHistory.filter { $0.decision == "session_started" }.count
+            let endedCount = autoPark.decisionHistory.filter { $0.decision == "session_ended" }.count
             VStack(spacing: 12) {
                 HStack(spacing: 8) {
                     diagnosticsStatusLight(
-                        title: "Drive",
-                        isOn: snapshot.isDriving,
+                        title: snapshot.monitoringMode,
+                        isOn: autoPark.isRunning,
                         onColor: NativeAuthColors.occupancyLow
                     )
                     diagnosticsStatusLight(
-                        title: "Always",
+                        title: snapshot.wakeReason,
                         isOn: snapshot.hasAlwaysLocationPermission,
                         onColor: .blue
                     )
                     diagnosticsStatusLight(
-                        title: "Queue",
+                        title: snapshot.sessionTruthSource,
                         isOn: snapshot.queueDepth > 0,
                         onColor: NativeAuthColors.occupancyMedium
                     )
@@ -388,19 +391,19 @@ struct ProfileView: View {
 
                 HStack(spacing: 10) {
                     diagnosticGauge(
-                        title: "Speed",
-                        value: formatSpeedShort(snapshot.speedMetersPerSecond),
-                        normalized: min(max((snapshot.speedMetersPerSecond ?? 0) / 20.0, 0), 1)
+                        title: "Started",
+                        value: "\(startedCount)",
+                        normalized: min(Double(startedCount) / 8.0, 1.0)
                     )
                     diagnosticGauge(
-                        title: "Accuracy",
-                        value: formatImperialDistanceShort(snapshot.horizontalAccuracy),
-                        normalized: 1 - min(max((snapshot.horizontalAccuracy ?? 120) / 120.0, 0), 1)
+                        title: "Ended",
+                        value: "\(endedCount)",
+                        normalized: min(Double(endedCount) / 8.0, 1.0)
                     )
                     diagnosticGauge(
-                        title: "Queue",
-                        value: "\(snapshot.queueDepth)",
-                        normalized: min(Double(snapshot.queueDepth) / 8.0, 1.0)
+                        title: "Blocked",
+                        value: "\(blockedCount)",
+                        normalized: min(Double(blockedCount) / 8.0, 1.0)
                     )
                 }
 
@@ -428,13 +431,57 @@ struct ProfileView: View {
                     )
 
                 HStack {
-                    Label(snapshot.isDriving ? "Vehicle moving" : "Vehicle stopped", systemImage: snapshot.isDriving ? "car.fill" : "pause.circle.fill")
+                    Label(snapshot.explanation, systemImage: snapshot.decisionKind == "end" ? "figure.walk.motion" : "car.fill")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(snapshot.isDriving ? NativeAuthColors.occupancyLow : secondaryText)
+                        .foregroundStyle(primaryText)
+                        .lineLimit(2)
                     Spacer()
                     Text(snapshot.timestamp.formatted(date: .omitted, time: .standard))
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(tertiaryText)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    infoPill(label: "Decision", value: snapshot.decision.replacingOccurrences(of: "_", with: " "))
+                    infoPill(label: "Reason", value: snapshot.reason.replacingOccurrences(of: "_", with: " "))
+                    infoPill(label: "Trigger", value: snapshot.triggerSource ?? "none")
+                    infoPill(label: "Lot", value: snapshot.lotName ?? snapshot.lotId ?? "unknown")
+                    infoPill(label: "Queue", value: snapshot.queueTypes.isEmpty ? "empty" : snapshot.queueTypes.joined(separator: ", "))
+                    if let failure = snapshot.lastFailure, !failure.isEmpty {
+                        infoPill(label: "Last failure", value: failure)
+                    }
+                }
+
+                HStack(spacing: 10) {
+                    Button {
+                        Task { await autoPark.refreshSessionTruth() }
+                    } label: {
+                        Label("Refresh Session Truth", systemImage: "arrow.clockwise")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(primaryText)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 9)
+                    }
+                    .buttonStyle(.plain)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.04))
+                    )
+
+                    Button {
+                        autoPark.clearDiagnostics()
+                    } label: {
+                        Label("Clear History", systemImage: "trash")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(primaryText)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 9)
+                    }
+                    .buttonStyle(.plain)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.04))
+                    )
                 }
 
                 NavigationLink {
@@ -465,6 +512,25 @@ struct ProfileView: View {
                 autoPark.refreshLiveSnapshot()
             }
         }
+    }
+
+    private func infoPill(label: String, value: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text(label.uppercased())
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(secondaryText)
+                .frame(width: 92, alignment: .leading)
+            Text(value)
+                .font(.caption)
+                .foregroundStyle(primaryText)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            isDark ? Color.white.opacity(0.06) : Color.black.opacity(0.04),
+            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+        )
     }
 
     private func diagnosticGauge(title: String, value: String, normalized: Double) -> some View {

@@ -58,6 +58,8 @@ def test_get_lot_forecast():
         assert "high" in s
         assert "label" in s
         assert s["low"] <= s["expected_occupancy"] <= s["high"]
+    assert data["current"]["source"] in {"typical_pattern", "mixed", "observed"}
+    assert data["metadata"]["mode"] in {"pattern_based", "observed_informed"}
 
 
 def test_forecast_curve_ordered():
@@ -83,12 +85,18 @@ def test_get_all_occupancy():
         assert "lot_id" in sample
         assert "count" in sample
         assert "source" in sample
+        assert "observed_count" in sample
+        assert "confidence" in sample
+        assert "signal_strength" in sample
+        assert "display_mode" in sample
         assert "confidence_interval" in sample
 
 
-def test_get_all_occupancy_returns_seeded_rows_when_no_realtime_data():
+def test_get_all_occupancy_returns_pattern_rows_when_no_realtime_data():
     response = client.get("/api/v1/lots/occupancy")
     assert response.status_code == 200
     rows = response.json().get("occupancy") or []
-    # During bootstrap phase, at least one lot should be synthetic when sparse.
-    assert any(row.get("source") in {"seeded_heuristic", "realtime"} for row in rows)
+    assert any(
+        row.get("source") == "typical_pattern" and row.get("display_mode") == "pattern"
+        for row in rows
+    )

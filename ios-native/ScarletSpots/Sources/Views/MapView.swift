@@ -227,12 +227,10 @@ struct MapView: View {
 
     @ViewBuilder
     private func lotBadge(for lot: Lot) -> some View {
-        let occupancy = webSocket.lotOccupancies[lot.mapId] ?? 0
-        let capacity = max(lot.totalSpaces, 1)
-        let ratio = Double(occupancy) / Double(capacity)
-        let percent = Int((ratio * 100).rounded())
-
-        MapPin(label: "\(percent)%", color: colorForLot(lot), fontSize: 12)
+        let row = webSocket.lotOccupancyRows[lot.mapId]
+        let rate = row?.displayRate ?? occupancyRate(for: lot)
+        let label = row?.isLivePrimary == false ? shortStatusLabel(for: row) : "\(Int(rate.rounded()))%"
+        MapPin(label: label, color: colorForLot(lot), fontSize: 12)
     }
 
     @ViewBuilder
@@ -285,19 +283,19 @@ struct MapView: View {
     }
 
     private func accessibilityText(for lot: Lot) -> String {
-        let occupancy = webSocket.lotOccupancies[lot.mapId] ?? 0
         let row = webSocket.lotOccupancyRows[lot.mapId]
-        let sourceLabel = (row?.source ?? "") == "realtime" ? "realtime" : "estimated"
+        let occupancy = row?.count ?? webSocket.lotOccupancies[lot.mapId] ?? 0
         let capacity = max(lot.totalSpaces, 1)
         let freeSpots = max(capacity - occupancy, 0)
-        return "\(lot.shortName), \(freeSpots) spots free out of \(capacity), \(sourceLabel)."
+        if let row, !row.isLivePrimary {
+            return "\(lot.shortName), \(row.statusLabel), \(row.sourceSummary.lowercased())."
+        }
+        return "\(lot.shortName), \(freeSpots) spots free out of \(capacity), live now."
     }
 
     private func colorForLot(_ lot: Lot) -> Color {
-        let occupancy = webSocket.lotOccupancies[lot.mapId] ?? 0
-        let capacity = max(lot.totalSpaces, 1)
-        let ratio = Double(occupancy) / Double(capacity)
-        return OccupancyPalette.color(forRatio: ratio)
+        let rate = webSocket.lotOccupancyRows[lot.mapId]?.displayRate ?? occupancyRate(for: lot)
+        return OccupancyPalette.color(for: rate)
     }
 
     // MARK: - Clustering
@@ -369,9 +367,24 @@ struct MapView: View {
     }
 
     private func occupancyRate(for lot: Lot) -> Double {
+        if let row = webSocket.lotOccupancyRows[lot.mapId] {
+            return min(100, row.displayRate)
+        }
         let occupancy = webSocket.lotOccupancies[lot.mapId] ?? 0
         let capacity = max(lot.totalSpaces, 1)
         return min(100, Double(occupancy) / Double(capacity) * 100)
+    }
+
+    private func shortStatusLabel(for row: OccupancyRow?) -> String {
+        guard let row else { return "Open" }
+        switch row.statusLabel {
+        case "Likely busy":
+            return "Busy"
+        case "Likely open":
+            return row.signalStrength == "none" ? "No live" : "Open"
+        default:
+            return "Moderate"
+        }
     }
 
     private func zoomInTo(cluster: LotCluster) {
