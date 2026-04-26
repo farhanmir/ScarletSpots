@@ -596,7 +596,7 @@ private struct DownTriangle: Shape {
 private extension View {
     @ViewBuilder
     func liquidGlassCircle() -> some View {
-        if #available(iOS 18.0, *) {
+        if #available(iOS 26.0, *) {
             self.glassEffect()
         } else {
             self

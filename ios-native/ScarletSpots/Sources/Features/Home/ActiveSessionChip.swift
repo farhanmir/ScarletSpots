@@ -19,35 +19,39 @@ struct ActiveSessionChip: View {
                 .fill(Color.red)
                 .frame(width: 8, height: 8)
             Text(lotTitle)
-                .font(.system(size: 30, weight: .semibold))
+                .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(.primary)
                 .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: 130, alignment: .leading)
 
             if let findCarState {
                 Divider()
-                    .frame(height: 14)
+                    .frame(height: 16)
                     .overlay(Color.primary.opacity(0.20))
                 Button(action: openDirectionsToCar) {
-                    HStack(spacing: 5) {
+                    HStack(spacing: 6) {
                         Image(systemName: "location.north.fill")
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(Color.blue)
                             .rotationEffect(.degrees(findCarState.arrowRotation))
+                            .frame(width: 20, height: 20)
                         Text(findCarState.distanceText)
-                            .font(.system(size: 16, weight: .semibold).monospacedDigit())
+                            .font(.system(size: 13, weight: .semibold).monospacedDigit())
                             .foregroundStyle(Color.blue)
+                            .frame(minWidth: 44, alignment: .leading)
                     }
                 }
                 .buttonStyle(.plain)
             }
 
-            Spacer(minLength: 8)
+            Spacer(minLength: 0)
             Button {
                 guard !ending else { return }
                 showEndConfirm = true
             } label: {
                 Text(ending ? "Ending…" : "End")
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(Color.red)
                     .padding(.horizontal, 2)
             }
@@ -55,14 +59,11 @@ struct ActiveSessionChip: View {
             .disabled(ending)
             .accessibilityLabel(ending ? "Ending session" : "End parking session")
         }
-        .padding(.vertical, 9)
-        .padding(.horizontal, 12)
-        .background(.ultraThinMaterial, in: Capsule())
-        .overlay(
-            Capsule().stroke(Color.red.opacity(0.25), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.18), radius: 6, y: 2)
-        .frame(maxWidth: 350)
+        .padding(.vertical, 11)
+        .padding(.horizontal, 16)
+        .activeSessionGlass()
+        .shadow(color: Color.red.opacity(0.22), radius: 12, y: 4)
+        .frame(maxWidth: 320)
         .padding(.horizontal, 14)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Active parking session at \(lotTitle)")
@@ -171,5 +172,24 @@ struct ActiveSessionChip: View {
         mapItem.openInMaps(launchOptions: [
             MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeWalking
         ])
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func activeSessionGlass() -> some View {
+        if #available(iOS 26.0, *) {
+            self
+                .glassEffect(in: Capsule())
+                .overlay(
+                    Capsule().stroke(Color.red.opacity(0.40), lineWidth: 1)
+                )
+        } else {
+            self
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay(
+                    Capsule().stroke(Color.red.opacity(0.40), lineWidth: 1)
+                )
+        }
     }
 }
