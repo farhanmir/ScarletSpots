@@ -182,6 +182,8 @@ jobs:
           API_VALUE="$(read_plist_value API_BASE_URL)"
           SUPABASE_VALUE="$(read_plist_value SUPABASE_URL)"
           ANON_VALUE="$(read_plist_value SUPABASE_ANON_KEY)"
+          # Keep in sync with placeholder checks in Sources/Core/Env.swift and
+          # placeholder defaults in Config/Debug.xcconfig + Config/Release.xcconfig.
           ANON_PLACEHOLDERS=("release-anon-key" "debug-anon-key" "placeholder")
 
           if [ -z "$API_VALUE" ] || [ -z "$SUPABASE_VALUE" ] || [ -z "$ANON_VALUE" ]; then
@@ -207,6 +209,7 @@ jobs:
           parsed = urlparse(value)
           host = (parsed.hostname or "").lower()
           scheme = (parsed.scheme or "").lower()
+          # Keep in sync with Sources/Core/Env.swift disallowed hosts.
           disallowed = {"example.supabase.co", "placeholder.supabase.co"}
           is_https = scheme == "https"
           has_host = bool(host)
