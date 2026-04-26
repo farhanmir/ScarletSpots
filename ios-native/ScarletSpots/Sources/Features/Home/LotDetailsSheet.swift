@@ -245,7 +245,7 @@ struct LotDetailsSheet: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.white.opacity(0.58))
                 .tracking(0.7)
-            ForecastChart(points: displayForecastPoints, capacity: displayCapacity)
+            ForecastChart(points: forecast, capacity: displayCapacity)
                 .padding(12)
                 .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.white.opacity(0.10), lineWidth: 1))
@@ -299,30 +299,6 @@ struct LotDetailsSheet: View {
 
     private var occupancyRatio: Double {
         min(1.0, Double(liveOccupancy) / Double(displayCapacity))
-    }
-
-    /// Convert backend slices into user-friendly offset labels.
-    private var displayForecastPoints: [ForecastPoint] {
-        let nowCount = forecast.first?.count ?? liveOccupancy
-        let oneHourCount = forecast.last?.count ?? nowCount
-        let delta = oneHourCount - nowCount
-
-        let oneHourBefore = max(0, nowCount - delta)
-        let twoHoursLater = max(0, oneHourCount + delta)
-        let threeHoursLater = max(0, twoHoursLater + delta)
-
-        let pairs: [(String, Int)] = [
-            ("-1h", oneHourBefore),
-            ("Now", nowCount),
-            ("+1h", oneHourCount),
-            ("+2h", twoHoursLater),
-            ("+3h", threeHoursLater)
-        ]
-
-        return pairs.map { label, count in
-            let rate = displayCapacity > 0 ? (Double(count) / Double(displayCapacity)) * 100 : 0
-            return ForecastPoint(label: label, count: min(count, displayCapacity), occupancyRate: rate)
-        }
     }
 
     private var ringColor: Color {

@@ -11,6 +11,7 @@ class ProfileBase(BaseModel):
     last_name: str | None = None
     avatar_url: str | None = None
     permit_type: str | None = None
+    secondary_permit_type: str | None = None
 
 
 class UserCreate(BaseModel):

@@ -53,7 +53,8 @@ async def test_sharing_toggle_updates_friendship():
         user_id=user_id,
         friend_id=UUID("00000000-0000-0000-0000-000000000123"),
         status="accepted",
-        sharing_enabled=False,
+        initiator_sharing_enabled=False,
+        recipient_sharing_enabled=False,
     )
     db_mock.get = AsyncMock(return_value=friendship)
     db_mock.commit = AsyncMock(return_value=None)
@@ -70,7 +71,8 @@ async def test_sharing_toggle_updates_friendship():
         db=db_mock,
     )
     assert result == {"success": True, "sharing_enabled": True}
-    assert friendship.sharing_enabled is True
+    assert friendship.initiator_sharing_enabled is True
+    assert friendship.recipient_sharing_enabled is False
 
     # Test False (Disabled) — should call update with sharing_enabled=False
     body_false = SharingToggle(enabled=False)
@@ -81,7 +83,46 @@ async def test_sharing_toggle_updates_friendship():
         db=db_mock,
     )
     assert result == {"success": True, "sharing_enabled": False}
-    assert friendship.sharing_enabled is False
+    assert friendship.initiator_sharing_enabled is False
+    assert friendship.recipient_sharing_enabled is False
+
+
+@pytest.mark.asyncio
+async def test_sharing_toggle_updates_recipient_owned_flag():
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.models.friendship import Friendship
+    from app.routers.friends import SharingToggle, toggle_sharing
+
+    db_mock = MagicMock()
+    initiator_id = UUID("00000000-0000-0000-0000-000000000456")
+    recipient_id = UUID("00000000-0000-0000-0000-000000000123")
+    friendship_id = UUID("00000000-0000-0000-0000-000000000000")
+
+    friendship = Friendship(
+        id=friendship_id,
+        user_id=initiator_id,
+        friend_id=recipient_id,
+        status="accepted",
+        initiator_sharing_enabled=True,
+        recipient_sharing_enabled=False,
+    )
+    db_mock.get = AsyncMock(return_value=friendship)
+    db_mock.commit = AsyncMock(return_value=None)
+
+    recipient_user_mock = MagicMock()
+    recipient_user_mock.id = str(recipient_id)
+
+    body = SharingToggle(enabled=True)
+    result = await toggle_sharing(
+        friendship_id=friendship_id,
+        body=body,
+        current_user=recipient_user_mock,
+        db=db_mock,
+    )
+    assert result == {"success": True, "sharing_enabled": True}
+    assert friendship.initiator_sharing_enabled is True
+    assert friendship.recipient_sharing_enabled is True
 
 
 @pytest.mark.asyncio

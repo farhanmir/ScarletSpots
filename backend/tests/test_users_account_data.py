@@ -40,7 +40,8 @@ async def test_export_user_data_returns_profile_and_related_rows(
             user_id=user_id,
             friend_id="00000000-0000-0000-0000-000000000999",
             status="accepted",
-            sharing_enabled=True,
+            initiator_sharing_enabled=True,
+            recipient_sharing_enabled=False,
         )
     )
     db_session.add(
@@ -116,3 +117,30 @@ async def test_delete_my_account_removes_data_and_calls_auth_delete(
 
     profile = await db_session.get(Profile, user_id)
     assert profile is None
+
+
+@pytest.mark.asyncio
+async def test_delete_my_account_returns_auth_deleted_false_when_auth_delete_fails(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    auth_user: SimpleNamespace,
+    override_current_user,
+):
+    _ = override_current_user
+    user_id = auth_user.id
+
+    db_session.add(Profile(id=user_id, email=auth_user.email, role="user"))
+    await db_session.commit()
+
+    admin_auth = MagicMock()
+    admin_auth.auth.admin.delete_user.side_effect = RuntimeError("auth unavailable")
+    app.dependency_overrides[get_admin_auth_client] = lambda: admin_auth
+    try:
+        response = await client.request("DELETE", "/api/v1/users/me", json={"confirm": True})
+    finally:
+        app.dependency_overrides.pop(get_admin_auth_client, None)
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["success"] is True
+    assert payload["auth_deleted"] is False

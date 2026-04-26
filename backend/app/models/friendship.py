@@ -27,7 +27,8 @@ class Friendship(Base):
         nullable=False,
     )
     status = Column(String, default="pending")  # pending, accepted, blocked
-    sharing_enabled = Column(Boolean, default=True)
+    initiator_sharing_enabled = Column(Boolean, default=False)
+    recipient_sharing_enabled = Column(Boolean, default=False)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

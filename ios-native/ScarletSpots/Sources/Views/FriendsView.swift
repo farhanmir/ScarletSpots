@@ -167,8 +167,15 @@ struct FriendsView: View {
                     Toggle("Share my parking", isOn: Binding(
                         get: { friend.sharingEnabled ?? false },
                         set: { newValue in
-                            Task { try? await FriendsAPI.setSharing(friend.id, enabled: newValue) }
-                            toggleSharingLocally(friend: friend, enabled: newValue)
+                            Task {
+                                do {
+                                    try await FriendsAPI.setSharing(friend.id, enabled: newValue)
+                                    toggleSharingLocally(friend: friend, enabled: newValue)
+                                } catch {
+                                    self.error = error.localizedDescription
+                                    await load(showSpinner: false)
+                                }
+                            }
                         }
                     ))
                     Button("Block", role: .destructive) {

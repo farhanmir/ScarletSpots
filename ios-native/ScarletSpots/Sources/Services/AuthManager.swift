@@ -105,7 +105,10 @@ final class AuthManager: ObservableObject, AuthTokenProvider {
     /// the error and retry rather than end up locally signed-out but still
     /// registered on the server.
     func deleteAccount() async throws {
-        try await UsersAPI.deleteAccount()
+        let response = try await UsersAPI.deleteAccount()
+        guard response.success, response.authDeleted else {
+            throw APIError.server(status: 500, message: "Account deletion could not be completed. Please retry.")
+        }
         await PushRegistration.shared.clearOnSignOut()
         await signOut()
     }
@@ -168,6 +171,11 @@ final class AuthManager: ObservableObject, AuthTokenProvider {
         // is `nil`. Only include keys with concrete values.
         var payload: [String: Any] = [:]
         if let primary { payload["permit_type"] = primary } else { payload["permit_type"] = NSNull() }
+        if let secondary {
+            payload["secondary_permit_type"] = secondary
+        } else {
+            payload["secondary_permit_type"] = NSNull()
+        }
         if let first = currentUser?.firstName { payload["first_name"] = first }
         if let last = currentUser?.lastName { payload["last_name"] = last }
 

@@ -14,6 +14,7 @@ class Profile(Base):
     full_name = Column(String, nullable=True)
     avatar_url = Column(String, nullable=True)
     permit_type = Column(String, nullable=True)
+    secondary_permit_type = Column(String, nullable=True)
     role = Column(String, default="user")
 
     # Location tracking (added in recent migration)

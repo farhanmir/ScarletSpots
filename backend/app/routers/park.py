@@ -98,16 +98,9 @@ def _session_response(session: ParkingSession) -> dict:
 
 @asynccontextmanager
 async def _transaction_scope(db: AsyncSession):
-    """
-    Open a transaction only if one is not already active.
-
-    SQLAlchemy 2.0 sessions auto-begin on first query; idempotency lookups can
-    therefore start a transaction before we reach mutation logic.
-    """
+    """Run writes inside a fresh transaction boundary."""
     if db.in_transaction():
-        yield
-        return
-
+        await db.rollback()
     async with db.begin():
         yield
 
@@ -143,21 +136,23 @@ async def _save_idempotent_response(
 ) -> None:
     if not idempotency_key:
         return
-    await db.execute(
-        text(
-            """
-            INSERT INTO idempotency_records (user_id, endpoint, idempotency_key, response_body, status_code)
-            VALUES (:user_id, :endpoint, :idempotency_key, :response_body, :status_code)
-            ON CONFLICT (user_id, endpoint, idempotency_key) DO NOTHING
-            """
-        ),
-        {
-            "user_id": str(user_id),
-            "endpoint": endpoint,
-            "idempotency_key": idempotency_key,
-            "response_body": json.dumps(payload),
-            "status_code": 200,
-        },
+    existing = await db.execute(
+        select(IdempotencyRecord).where(
+            IdempotencyRecord.user_id == user_id,
+            IdempotencyRecord.endpoint == endpoint,
+            IdempotencyRecord.idempotency_key == idempotency_key,
+        )
+    )
+    if existing.scalars().first() is not None:
+        return
+    db.add(
+        IdempotencyRecord(
+            user_id=user_id,
+            endpoint=endpoint,
+            idempotency_key=idempotency_key,
+            response_body=json.dumps(payload, default=str),
+            status_code=200,
+        )
     )
 
 
@@ -208,15 +203,17 @@ async def _increment_lot_occupancy_atomic(db: AsyncSession, lot_id: str) -> int:
 async def _get_friend_user_ids(db: AsyncSession, user_id: str) -> list[str]:
     stmt = select(Friendship).where(
         Friendship.status == "accepted",
-        Friendship.sharing_enabled.is_(True),
         or_(Friendship.user_id == user_id, Friendship.friend_id == user_id),
     )
     rows = (await db.execute(stmt)).scalars().all()
     friend_ids: list[str] = []
+    user_id_str = str(user_id)
     for friendship in rows:
-        friend_ids.append(
-            str(friendship.friend_id) if friendship.user_id == user_id else str(friendship.user_id)
-        )
+        if str(friendship.user_id) == user_id_str:
+            if friendship.initiator_sharing_enabled:
+                friend_ids.append(str(friendship.friend_id))
+        elif friendship.recipient_sharing_enabled:
+            friend_ids.append(str(friendship.user_id))
     return friend_ids
 
 
@@ -265,6 +262,8 @@ async def start_parking_session(
 
     lot_id = body.lotId.strip()
     changed_lot_counts: dict[str, int] = {}
+    friend_targets: list[str] = []
+    display_name: str | None = None
 
     try:
         async with _transaction_scope(db):
@@ -295,28 +294,36 @@ async def start_parking_session(
             await db.flush()
 
             changed_lot_counts[lot_id] = await _increment_lot_occupancy_atomic(db, lot_id)
+            response_payload = {
+                "success": True,
+                "session": _session_response(new_session),
+                "confirmedOccupancy": changed_lot_counts.get(lot_id),
+            }
+            await _save_idempotent_response(
+                db,
+                user_id,
+                endpoint_key,
+                idempotency_key,
+                response_payload,
+            )
 
-        confirmed_occupancy = changed_lot_counts.get(lot_id)
+        profile = await db.get(Profile, user_id)
+        if profile is not None:
+            display_name = profile.full_name or profile.first_name or profile.email
+        friend_targets = list(dict.fromkeys(await _get_friend_user_ids(db, str(user_id))))
 
         for changed_lot_id, changed_count in changed_lot_counts.items():
             await ws_manager.publish_occupancy_update(changed_lot_id, changed_count)
 
-        # Phase 5: Silent Push for background awareness — batched into one call per request
         if changed_lot_counts:
-            await send_silent_push_to_all(db, data={
-                "type": "lot_occupancy_update",
-                "updates": [
-                    {"lotId": lid, "count": cnt}
-                    for lid, cnt in changed_lot_counts.items()
-                ],
-            })
+            await send_silent_push_to_all(
+                db,
+                data={
+                    "type": "lot_occupancy_update",
+                    "updates": [{"lotId": lid, "count": cnt} for lid, cnt in changed_lot_counts.items()],
+                },
+            )
 
-        display_name = None
-        profile = await db.get(Profile, user_id)
-        if profile is not None:
-            display_name = profile.full_name or profile.first_name or profile.email
-
-        friend_targets = list(dict.fromkeys(await _get_friend_user_ids(db, str(user_id))))
         if friend_targets:
             actor = display_name or "Your friend"
             lot_display = LOT_DISPLAY_NAME_BY_ID.get(lot_id, f"Lot {lot_id}")
@@ -344,20 +351,6 @@ async def start_parking_session(
                     "lotId": lot_id,
                 },
             )
-
-        response_payload = {
-            "success": True,
-            "session": _session_response(new_session),
-            "confirmedOccupancy": confirmed_occupancy,
-        }
-        await _save_idempotent_response(
-            db,
-            user_id,
-            endpoint_key,
-            idempotency_key,
-            response_payload,
-        )
-        await db.commit()
         return response_payload
     except IntegrityError as exc:
         log.warning(
@@ -419,20 +412,19 @@ async def end_parking_session(
                 changed_lot_counts[ended_lot_id] = await _decrement_lot_occupancy_atomic(
                     db, ended_lot_id
                 )
+            response_payload = {"success": True}
+            await _save_idempotent_response(
+                db,
+                user_id,
+                endpoint_key,
+                idempotency_key,
+                response_payload,
+            )
 
         for changed_lot_id, changed_count in changed_lot_counts.items():
             await ws_manager.publish_occupancy_update(changed_lot_id, changed_count)
 
         log.info("Ended %d active session(s) for user %s", len(ended_lot_ids), user_id)
-        response_payload = {"success": True}
-        await _save_idempotent_response(
-            db,
-            user_id,
-            endpoint_key,
-            idempotency_key,
-            response_payload,
-        )
-        await db.commit()
         return response_payload
     except Exception as exc:
         log.error("Failed to end parking session for user %s: %s", user_id, exc)

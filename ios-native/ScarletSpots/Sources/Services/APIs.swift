@@ -12,8 +12,13 @@ enum UsersAPI {
     /// Permanently deletes the current user's account and all server-side
     /// data. Required by App Store Review Guideline 5.1.1(v) for any app
     /// that allows account creation.
-    static func deleteAccount() async throws {
-        _ = try await APIClient.shared.rawRequest("users/me", method: "DELETE")
+    static func deleteAccount() async throws -> AccountDeletionResponse {
+        let body = try JSONSerialization.data(withJSONObject: ["confirm": true])
+        return try await APIClient.shared.request(
+            "users/me",
+            method: "DELETE",
+            body: body
+        )
     }
 }
 
@@ -26,19 +31,35 @@ enum LotsAPI {
     static func forecast(lotId: String, capacity: Int, currentOccupancy: Int) async throws -> [ForecastPoint] {
         let path = "lots/\(lotId)/forecast?capacity=\(capacity)&current_occupancy=\(currentOccupancy)"
         let response: ForecastResponse = try await APIClient.shared.request(path)
-        return response.slices.map { slice in
-            let percent = slice.occupancyRate ?? Double(slice.count)
-            let expectedCount = Int((Double(capacity) * percent / 100.0).rounded())
+        return response.serverPoints.map { point in
+            let expectedCount = Int((Double(capacity) * point.expectedOccupancy / 100.0).rounded())
             return ForecastPoint(
-                label: slice.label,
+                label: point.displayLabel,
                 count: max(0, min(capacity, expectedCount)),
-                occupancyRate: percent
+                occupancyRate: point.expectedOccupancy
             )
         }
     }
 }
 
 enum ParkAPI {
+    static func feedbackPayload(sessionId: UUID, lotId: String, rating: Int, notes: String?) -> [String: Any] {
+        let quality: String
+        switch rating {
+        case 5: quality = "correct"
+        case 3...4: quality = "wrong_lot"
+        case 2: quality = "missed"
+        default: quality = "false_positive"
+        }
+        var payload: [String: Any] = [
+            "session_id": sessionId.uuidString,
+            "lot_id": lotId,
+            "quality": quality
+        ]
+        if let notes, !notes.isEmpty { payload["notes"] = notes }
+        return payload
+    }
+
     static func activeSession() async throws -> ParkingSession? {
         let envelope: ActiveSessionResponse = try await APIClient.shared.request("park/session/active")
         return envelope.session
@@ -80,12 +101,8 @@ enum ParkAPI {
         )
     }
 
-    static func sendFeedback(sessionId: UUID, rating: Int, notes: String?) async throws {
-        var payload: [String: Any] = [
-            "session_id": sessionId.uuidString,
-            "rating": rating
-        ]
-        if let notes, !notes.isEmpty { payload["notes"] = notes }
+    static func sendFeedback(sessionId: UUID, lotId: String, rating: Int, notes: String?) async throws {
+        let payload = feedbackPayload(sessionId: sessionId, lotId: lotId, rating: rating, notes: notes)
         let body = try JSONSerialization.data(withJSONObject: payload)
         _ = try await APIClient.shared.rawRequest("park/session/feedback", method: "POST", body: body)
     }
@@ -133,5 +150,15 @@ enum FriendsAPI {
     static func setSharing(_ friendshipId: UUID, enabled: Bool) async throws {
         let body = try JSONSerialization.data(withJSONObject: ["enabled": enabled])
         _ = try await APIClient.shared.rawRequest("friends/\(friendshipId.uuidString)/sharing", method: "PUT", body: body)
+    }
+}
+
+struct AccountDeletionResponse: Codable {
+    let success: Bool
+    let authDeleted: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case success
+        case authDeleted = "auth_deleted"
     }
 }

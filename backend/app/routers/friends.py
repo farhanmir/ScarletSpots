@@ -124,8 +124,14 @@ async def get_friends(
                 continue
             seen_friend_ids.add(profile.id)
 
-            sharing = bool(friendship.sharing_enabled)
-            parked = sharing and profile.id in active_sessions
+            if friendship.user_id == user_id:
+                my_sharing = bool(friendship.initiator_sharing_enabled)
+                friend_sharing_to_me = bool(friendship.recipient_sharing_enabled)
+            else:
+                my_sharing = bool(friendship.recipient_sharing_enabled)
+                friend_sharing_to_me = bool(friendship.initiator_sharing_enabled)
+
+            parked = friend_sharing_to_me and profile.id in active_sessions
             lot_id = active_sessions.get(profile.id) if parked else None
             status_text = f"Parked at Lot {lot_id}" if lot_id else "Not parked"
 
@@ -138,7 +144,7 @@ async def get_friends(
                     "parked": parked,
                     "lot_id": lot_id,
                     "avatar": profile.avatar_url,
-                    "sharing_enabled": sharing,
+                    "sharing_enabled": my_sharing,
                 }
             )
 
@@ -246,7 +252,7 @@ async def send_friend_request(
                 "user_id": str(friendship.user_id),
                 "friend_id": str(friendship.friend_id),
                 "status": friendship.status,
-                "sharing_enabled": bool(friendship.sharing_enabled),
+                "sharing_enabled": False,
             },
         }
     except HTTPException:
@@ -366,10 +372,15 @@ async def toggle_sharing(
     try:
         user_id = _to_uuid_or_401(current_user.id)
         friendship = await db.get(Friendship, friendship_id)
-        if friendship is None or friendship.user_id != user_id:
+        if friendship is None:
             raise HTTPException(status_code=404, detail="Friendship not found")
 
-        friendship.sharing_enabled = body.enabled  # type: ignore[assignment]
+        if friendship.user_id == user_id:
+            friendship.initiator_sharing_enabled = body.enabled  # type: ignore[assignment]
+        elif friendship.friend_id == user_id:
+            friendship.recipient_sharing_enabled = body.enabled  # type: ignore[assignment]
+        else:
+            raise HTTPException(status_code=404, detail="Friendship not found")
         await db.commit()
 
         return {"success": True, "sharing_enabled": body.enabled}

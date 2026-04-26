@@ -76,18 +76,24 @@ struct FavoritesResponse: Codable {
 }
 
 struct ForecastResponse: Decodable {
-    struct Slice: Decodable {
-        let label: String
-        let count: Int
-        let occupancyRate: Double?
+    struct ServerPoint: Decodable {
+        let time: String
+        let expectedOccupancy: Double
+
         enum CodingKeys: String, CodingKey {
-            case label
-            case count
-            case occupancyRate = "occupancy_rate"
+            case time
+            case expectedOccupancy = "expected_occupancy"
+        }
+
+        var displayLabel: String {
+            if let parsed = ISO8601DateFormatter().date(from: time) {
+                return DateFormatter.forecastHourMinute.string(from: parsed)
+            }
+            return time
         }
     }
 
-    let slices: [Slice]
+    let serverPoints: [ServerPoint]
 
     enum CodingKeys: String, CodingKey {
         case slices
@@ -96,39 +102,19 @@ struct ForecastResponse: Decodable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-
-        // Primary contract: slices is a dictionary keyed by "now", "15m", "30m", "60m".
+        if let curve = try? container.decode([ServerPoint].self, forKey: .curve), !curve.isEmpty {
+            serverPoints = curve
+            return
+        }
         if let dict = try? container.decode([String: BackendPoint].self, forKey: .slices), !dict.isEmpty {
             let orderedKeys = ["now", "15m", "30m", "60m"]
-            let ordered = orderedKeys.compactMap { key -> Slice? in
+            serverPoints = orderedKeys.compactMap { key -> ServerPoint? in
                 guard let point = dict[key] else { return nil }
-                return Slice(
-                    label: key,
-                    count: Int(point.expectedOccupancy.rounded()),
-                    occupancyRate: point.expectedOccupancy
-                )
-            }
-            if !ordered.isEmpty {
-                slices = ordered
-                return
-            }
-        }
-
-        // Fallback contract: curve is an array of points.
-        if let curve = try? container.decode([BackendPoint].self, forKey: .curve), !curve.isEmpty {
-            slices = curve.prefix(4).enumerated().map { index, point in
-                let labels = ["now", "15m", "30m", "60m"]
-                let label = index < labels.count ? labels[index] : point.time
-                return Slice(
-                    label: label,
-                    count: Int(point.expectedOccupancy.rounded()),
-                    occupancyRate: point.expectedOccupancy
-                )
+                return ServerPoint(time: key, expectedOccupancy: point.expectedOccupancy)
             }
             return
         }
-
-        slices = []
+        serverPoints = []
     }
 }
 
@@ -140,6 +126,15 @@ private struct BackendPoint: Decodable {
         case time
         case expectedOccupancy = "expected_occupancy"
     }
+}
+
+private extension DateFormatter {
+    static let forecastHourMinute: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = .current
+        formatter.dateFormat = "h:mm a"
+        return formatter
+    }()
 }
 
 struct FriendsListResponse: Codable {

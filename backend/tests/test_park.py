@@ -2,8 +2,11 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from uuid import UUID
 
-from app.models.parking import LotOccupancy, ParkingSession
+from app.models.parking import IdempotencyRecord, LotOccupancy, ParkingSession
+from app.models.user import Profile
+from app.routers.park import _get_friend_user_ids
 
 
 @pytest.mark.asyncio
@@ -85,3 +88,123 @@ async def test_second_start_ends_previous_session(
 async def test_requires_auth(client: AsyncClient):
     response = await client.get("/api/v1/park/session/active")
     assert response.status_code in (401, 403)
+
+
+@pytest.mark.asyncio
+async def test_start_session_idempotent_replay_after_side_effect_failure(
+    client: AsyncClient,
+    override_current_user: None,
+    noop_ws_publish: None,
+    monkeypatch: pytest.MonkeyPatch,
+    db_session: AsyncSession,
+):
+    _ = override_current_user, noop_ws_publish
+
+    async def _boom(*_args, **_kwargs):
+        raise RuntimeError("push fan-out failed")
+
+    monkeypatch.setattr("app.routers.park.send_silent_push_to_all", _boom)
+
+    key = "idem-start-after-commit"
+    first = await client.post(
+        "/api/v1/park/session",
+        json={"lotId": "10001"},
+        headers={"Idempotency-Key": key},
+    )
+    assert first.status_code == 500
+
+    sessions = (
+        await db_session.execute(
+            select(ParkingSession).where(
+                ParkingSession.user_id == "00000000-0000-0000-0000-000000000123",
+                ParkingSession.active.is_(True),
+            )
+        )
+    ).scalars().all()
+    assert len(sessions) == 1
+
+    idempotency = (
+        await db_session.execute(
+            select(IdempotencyRecord).where(
+                IdempotencyRecord.user_id == "00000000-0000-0000-0000-000000000123",
+                IdempotencyRecord.endpoint == "/park/session",
+                IdempotencyRecord.idempotency_key == key,
+            )
+        )
+    ).scalar_one_or_none()
+    assert idempotency is not None
+
+    second = await client.post(
+        "/api/v1/park/session",
+        json={"lotId": "10001"},
+        headers={"Idempotency-Key": key},
+    )
+    assert second.status_code == 200, second.text
+    assert second.json().get("_idempotentReplay") is True
+
+    sessions_after = (
+        await db_session.execute(
+            select(ParkingSession).where(
+                ParkingSession.user_id == "00000000-0000-0000-0000-000000000123",
+                ParkingSession.active.is_(True),
+            )
+        )
+    ).scalars().all()
+    assert len(sessions_after) == 1
+
+
+@pytest.mark.asyncio
+async def test_friend_targets_respect_viewer_owned_sharing_flags(db_session: AsyncSession):
+    me = UUID("00000000-0000-0000-0000-000000000123")
+    friend_a = UUID("00000000-0000-0000-0000-000000000456")
+    friend_b = UUID("00000000-0000-0000-0000-000000000789")
+    db_session.add_all(
+        [
+            Profile(id=me, email="me@rutgers.edu"),
+            Profile(id=friend_a, email="a@rutgers.edu"),
+            Profile(id=friend_b, email="b@rutgers.edu"),
+        ]
+    )
+    from app.models.friendship import Friendship
+
+    db_session.add_all(
+        [
+            Friendship(
+                user_id=me,
+                friend_id=friend_a,
+                status="accepted",
+                initiator_sharing_enabled=True,
+                recipient_sharing_enabled=False,
+            ),
+            Friendship(
+                user_id=friend_b,
+                friend_id=me,
+                status="accepted",
+                initiator_sharing_enabled=False,
+                recipient_sharing_enabled=True,
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    targets = await _get_friend_user_ids(db_session, str(me))
+    assert sorted(targets) == sorted([str(friend_a), str(friend_b)])
+
+
+@pytest.mark.asyncio
+async def test_feedback_accepts_quality_contract(
+    client: AsyncClient,
+    override_current_user: None,
+):
+    _ = override_current_user
+    response = await client.post(
+        "/api/v1/park/session/feedback",
+        json={
+            "session_id": None,
+            "lot_id": "10001",
+            "quality": "correct",
+            "notes": "looks right",
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["success"] is True

@@ -61,6 +61,7 @@ def _profile_to_response(profile: Profile, fallback_email: str | None = None) ->
         "full_name": profile.full_name,
         "avatar_url": profile.avatar_url,
         "permit_type": profile.permit_type,
+        "secondary_permit_type": profile.secondary_permit_type,
         "latitude": profile.latitude,
         "longitude": profile.longitude,
         "role": profile.role,
@@ -83,6 +84,7 @@ async def _upsert_profile(db: AsyncSession, payload: dict) -> Profile:
         "full_name",
         "avatar_url",
         "permit_type",
+        "secondary_permit_type",
         "latitude",
         "longitude",
         "role",
@@ -212,6 +214,11 @@ class PushTokenDeleteRequest(BaseModel):
 
 class AccountDeletionRequest(BaseModel):
     confirm: bool = False
+
+
+class AccountDeletionResponse(BaseModel):
+    success: bool
+    auth_deleted: bool
 
 
 @router.post("/password-reset")
@@ -372,7 +379,8 @@ async def export_user_data(
                 "user_id": str(row.user_id),
                 "friend_id": str(row.friend_id),
                 "status": row.status,
-                "sharing_enabled": row.sharing_enabled,
+                "initiator_sharing_enabled": row.initiator_sharing_enabled,
+                "recipient_sharing_enabled": row.recipient_sharing_enabled,
                 "created_at": row.created_at,
                 "updated_at": row.updated_at,
             }
@@ -408,7 +416,7 @@ async def delete_my_account(
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     admin_auth: Client = Depends(get_admin_auth_client),
-):
+) -> AccountDeletionResponse:
     """Delete current account and user-owned data."""
     user_id = _to_uuid_or_401(current_user)
 
@@ -430,6 +438,6 @@ async def delete_my_account(
     except Exception as exc:
         log.warning("Auth delete failed for %s after DB cleanup: %s", user_id, exc)
         # DB cleanup already committed; return explicit partial status for follow-up.
-        return {"success": True, "auth_deleted": False}
+        return AccountDeletionResponse(success=True, auth_deleted=False)
 
-    return {"success": True, "auth_deleted": True}
+    return AccountDeletionResponse(success=True, auth_deleted=True)

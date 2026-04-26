@@ -850,6 +850,7 @@ private struct FeedbackSheet: View {
     @State private var rating = 4
     @State private var notes = ""
     @State private var isSending = false
+    @State private var sendError: String?
 
     var body: some View {
         NavigationStack {
@@ -868,6 +869,13 @@ private struct FeedbackSheet: View {
                     TextEditor(text: $notes)
                         .frame(minHeight: 80)
                 }
+                if let sendError {
+                    Section {
+                        Text(sendError)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                    }
+                }
             }
             .navigationTitle("Session Feedback")
             .navigationBarTitleDisplayMode(.inline)
@@ -880,12 +888,17 @@ private struct FeedbackSheet: View {
                         Task {
                             isSending = true
                             defer { isSending = false }
-                            try? await ParkAPI.sendFeedback(
-                                sessionId: session.id,
-                                rating: rating,
-                                notes: notes.isEmpty ? nil : notes
-                            )
-                            dismiss()
+                            do {
+                                try await ParkAPI.sendFeedback(
+                                    sessionId: session.id,
+                                    lotId: session.lotId,
+                                    rating: rating,
+                                    notes: notes.isEmpty ? nil : notes
+                                )
+                                dismiss()
+                            } catch {
+                                sendError = error.localizedDescription
+                            }
                         }
                     }
                     .disabled(isSending)
