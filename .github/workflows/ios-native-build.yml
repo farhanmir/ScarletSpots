@@ -164,6 +164,77 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY=""
 
+      - name: Validate archived native API/Supabase settings
+        working-directory: ios-native/ScarletSpots
+        run: |
+          set -euo pipefail
+
+          APP_PLIST="build/ScarletSpots.xcarchive/Products/Applications/ScarletSpots.app/Info.plist"
+          if [ ! -f "$APP_PLIST" ]; then
+            echo "::error::Missing archived app Info.plist at $APP_PLIST"
+            exit 1
+          fi
+
+          read_plist_value() {
+            /usr/libexec/PlistBuddy -c "Print :$1" "$APP_PLIST" 2>/dev/null || true
+          }
+
+          API_VALUE="$(read_plist_value API_BASE_URL)"
+          SUPABASE_VALUE="$(read_plist_value SUPABASE_URL)"
+          ANON_VALUE="$(read_plist_value SUPABASE_ANON_KEY)"
+          # Keep in sync with placeholder checks in Sources/Core/Env.swift and
+          # placeholder defaults in Config/Debug.xcconfig + Config/Release.xcconfig.
+          ANON_PLACEHOLDERS=("release-anon-key" "debug-anon-key" "placeholder")
+
+          if [ -z "$API_VALUE" ] || [ -z "$SUPABASE_VALUE" ] || [ -z "$ANON_VALUE" ]; then
+            echo "::error::Archived app is missing one or more required Info.plist keys (API_BASE_URL, SUPABASE_URL, SUPABASE_ANON_KEY)."
+            exit 1
+          fi
+
+          if [[ "$API_VALUE" == *'$('* ]] || [[ "$SUPABASE_VALUE" == *'$('* ]]; then
+            echo "::error::Archived app still has unresolved xcconfig placeholders in API_BASE_URL or SUPABASE_URL."
+            exit 1
+          fi
+
+          if [[ "$API_VALUE" != http://* && "$API_VALUE" != https://* ]]; then
+            echo "::error::Archived API_BASE_URL is not an http(s) URL."
+            exit 1
+          fi
+
+          if ! python3 - "$SUPABASE_VALUE" <<'PY'
+          import sys
+          from urllib.parse import urlparse
+
+          value = sys.argv[1]
+          parsed = urlparse(value)
+          host = (parsed.hostname or "").lower()
+          scheme = (parsed.scheme or "").lower()
+          # Keep in sync with Sources/Core/Env.swift disallowed hosts.
+          disallowed = {"example.supabase.co", "placeholder.supabase.co"}
+          is_https = scheme == "https"
+          has_host = bool(host)
+          is_not_placeholder_host = host not in disallowed and not host.endswith(".example.com")
+          is_valid = is_https and has_host and is_not_placeholder_host
+          raise SystemExit(0 if is_valid else 1)
+          PY
+          then
+            echo "::error::Archived SUPABASE_URL is not a valid Supabase host."
+            exit 1
+          fi
+
+          IS_ANON_PLACEHOLDER=0
+          for placeholder in "${ANON_PLACEHOLDERS[@]}"; do
+            if [[ "$ANON_VALUE" == "$placeholder" ]]; then
+              IS_ANON_PLACEHOLDER=1
+              break
+            fi
+          done
+
+          if [[ "$ANON_VALUE" == *'$('* || "$IS_ANON_PLACEHOLDER" -eq 1 ]]; then
+            echo "::error::Archived SUPABASE_ANON_KEY is still a placeholder."
+            exit 1
+          fi
+
       - name: Package unsigned IPA
         working-directory: ios-native/ScarletSpots
         run: |
