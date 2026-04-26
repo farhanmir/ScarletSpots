@@ -58,7 +58,7 @@ jobs:
         working-directory: ios-native/ScarletSpots
         run: |
           set -o pipefail
-          xcodebuild clean build \
+          xcodebuild build \
             -project ScarletSpots.xcodeproj \
             -scheme ScarletSpots \
             -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
