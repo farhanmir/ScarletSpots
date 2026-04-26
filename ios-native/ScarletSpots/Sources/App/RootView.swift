@@ -56,44 +56,82 @@ private struct NativeConfigErrorView: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(
+            backgroundGradient
+                .ignoresSafeArea()
+
+            // Warm accent behind the icon so the top half of the screen
+            // isn't a pure-black void on OLED displays.
+            RadialGradient(
                 colors: isDark
-                    ? [Color(red: 0.27, green: 0.04, blue: 0.04), Color(red: 0.09, green: 0.09, blue: 0.11), .black]
-                    : [Color(red: 1, green: 0.96, blue: 0.96), Color(red: 1, green: 0.98, blue: 0.98), .white],
-                startPoint: .top,
-                endPoint: .bottom
+                    ? [Color(red: 0.55, green: 0.08, blue: 0.08).opacity(0.55), .clear]
+                    : [Color(red: 1, green: 0.85, blue: 0.85).opacity(0.9), .clear],
+                center: .init(x: 0.5, y: 0.28),
+                startRadius: 10,
+                endRadius: 360
             )
             .ignoresSafeArea()
+            .allowsHitTesting(false)
 
-            VStack(spacing: 18) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 56, weight: .semibold))
-                    .foregroundStyle(Color(red: 0.86, green: 0.15, blue: 0.15))
+            ScrollView {
+                VStack(spacing: 18) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 56, weight: .semibold))
+                        .foregroundStyle(Color(red: 0.86, green: 0.15, blue: 0.15))
+                        .padding(.top, 8)
 
-                Text("Configuration Missing")
-                    .font(.title.bold())
-                    .multilineTextAlignment(.center)
+                    Text("Configuration Missing")
+                        .font(.title.bold())
+                        .multilineTextAlignment(.center)
 
-                Text("This IPA is missing the native iOS API/Supabase settings, so sign in cannot reach the right host.")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(3)
+                    Text("This build is missing the native iOS API/Supabase settings, so sign in cannot reach the right host.")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(3)
+                        .fixedSize(horizontal: false, vertical: true)
 
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(issues, id: \.self) { issue in
-                        Label(issue, systemImage: "xmark.circle.fill")
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(issues, id: \.self) { issue in
+                            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(Color(red: 0.86, green: 0.15, blue: 0.15).opacity(0.85))
+                                Text(issue)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
                             .font(.footnote)
+                        }
                     }
+                    .foregroundStyle(.primary.opacity(0.85))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+
+                    Text("Fix: set `IOS_API_BASE_URL`, `IOS_SUPABASE_URL` (repo Variables) and `IOS_SUPABASE_ANON_KEY` (repo Secret), then re-run the iOS Native Build workflow.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 4)
                 }
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(16)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .padding(.horizontal, 28)
+                .padding(.top, 40)
+                .padding(.bottom, 32)
+                .frame(maxWidth: 480)
+                .frame(maxWidth: .infinity)
             }
-            .padding(28)
-            .frame(maxWidth: 420)
+            .scrollBounceBehavior(.basedOnSize)
         }
+    }
+
+    private var backgroundGradient: LinearGradient {
+        LinearGradient(
+            colors: isDark
+                ? [Color(red: 0.32, green: 0.06, blue: 0.06), Color(red: 0.12, green: 0.04, blue: 0.05), .black]
+                : [Color(red: 1, green: 0.96, blue: 0.96), Color(red: 1, green: 0.98, blue: 0.98), .white],
+            startPoint: .top,
+            endPoint: .bottom
+        )
     }
 
     private var isDark: Bool { colorScheme != .light }
