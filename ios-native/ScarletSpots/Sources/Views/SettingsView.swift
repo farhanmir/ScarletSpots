@@ -278,7 +278,11 @@ struct ProfileView: View {
             DisclosureGroup(
                 isExpanded: Binding(
                     get: { expandedCampuses },
-                    set: { withAnimation(.spring(response: 0.38, dampingFraction: 0.84)) { expandedCampuses = $0 } }
+                    set: { newValue in
+                        withAnimation(.spring(response: 0.38, dampingFraction: 0.84)) {
+                            expandedCampuses = newValue
+                        }
+                    }
                 )
             ) {
                 VStack(spacing: 0) {
@@ -315,7 +319,11 @@ struct ProfileView: View {
             DisclosureGroup(
                 isExpanded: Binding(
                     get: { expandedTheme },
-                    set: { withAnimation(.spring(response: 0.38, dampingFraction: 0.84)) { expandedTheme = $0 } }
+                    set: { newValue in
+                        withAnimation(.spring(response: 0.38, dampingFraction: 0.84)) {
+                            expandedTheme = newValue
+                        }
+                    }
                 )
             ) {
                 Picker("Theme", selection: $themePreference.mode) {
