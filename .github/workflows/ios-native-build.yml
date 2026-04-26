@@ -182,6 +182,7 @@ jobs:
           API_VALUE="$(read_plist_value API_BASE_URL)"
           SUPABASE_VALUE="$(read_plist_value SUPABASE_URL)"
           ANON_VALUE="$(read_plist_value SUPABASE_ANON_KEY)"
+          ANON_PLACEHOLDERS=("release-anon-key" "debug-anon-key" "placeholder")
 
           if [ -z "$API_VALUE" ] || [ -z "$SUPABASE_VALUE" ] || [ -z "$ANON_VALUE" ]; then
             echo "::error::Archived app is missing one or more required Info.plist keys (API_BASE_URL, SUPABASE_URL, SUPABASE_ANON_KEY)."
@@ -207,7 +208,10 @@ jobs:
           host = (parsed.hostname or "").lower()
           scheme = (parsed.scheme or "").lower()
           disallowed = {"example.supabase.co", "placeholder.supabase.co"}
-          is_valid = scheme == "https" and bool(host) and host not in disallowed and not host.endswith(".example.com")
+          is_https = scheme == "https"
+          has_host = bool(host)
+          is_not_placeholder_host = host not in disallowed and not host.endswith(".example.com")
+          is_valid = is_https and has_host and is_not_placeholder_host
           raise SystemExit(0 if is_valid else 1)
           PY
           then
@@ -215,7 +219,15 @@ jobs:
             exit 1
           fi
 
-          if [[ "$ANON_VALUE" == "release-anon-key" || "$ANON_VALUE" == "debug-anon-key" || "$ANON_VALUE" == "placeholder" || "$ANON_VALUE" == *'$('* ]]; then
+          IS_ANON_PLACEHOLDER=0
+          for placeholder in "${ANON_PLACEHOLDERS[@]}"; do
+            if [[ "$ANON_VALUE" == "$placeholder" ]]; then
+              IS_ANON_PLACEHOLDER=1
+              break
+            fi
+          done
+
+          if [[ "$ANON_VALUE" == *'$('* || "$IS_ANON_PLACEHOLDER" -eq 1 ]]; then
             echo "::error::Archived SUPABASE_ANON_KEY is still a placeholder."
             exit 1
           fi
