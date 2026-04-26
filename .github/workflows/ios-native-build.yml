@@ -101,8 +101,8 @@ jobs:
       # escapes the `//` sequence as `/$()/`.
       - name: Generate runtime xcconfig from secrets
         env:
-          API_BASE_URL: ${{ secrets.IOS_API_BASE_URL }}
-          SUPABASE_URL: ${{ secrets.IOS_SUPABASE_URL }}
+          API_BASE_URL: ${{ vars.IOS_API_BASE_URL }}
+          SUPABASE_URL: ${{ vars.IOS_SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.IOS_SUPABASE_ANON_KEY }}
           TLS_CERT_SHA256: ${{ secrets.IOS_TLS_CERT_SHA256 }}
         run: |

@@ -148,3 +148,6 @@ package-lock.json
 !.cursor/rules/
 postgres_data/
 backups/
+
+# iOS Secrets
+*Secrets.xcconfig
