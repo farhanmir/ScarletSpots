@@ -60,7 +60,7 @@ final class AuthManager: ObservableObject, AuthTokenProvider {
     func refreshSession() async -> Bool {
         do {
             let refreshed = try await client.auth.refreshSession()
-            await handleSessionChange(refreshed.session)
+            await handleSessionChange(refreshed)
             return true
         } catch {
             Logger.log("Auth refresh failed: \(error.localizedDescription)")
