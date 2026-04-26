@@ -46,7 +46,11 @@ struct ActiveSessionChip: View {
                 .buttonStyle(.plain)
             }
 
-            Spacer(minLength: 0)
+            // Size the chip to its content instead of expanding to fill space.
+            // Removing the Spacer avoids the large gap bug; the view will
+            // naturally size to its contents and the End button stays close.
+            // We keep a tiny gap to separate the content from the End button.
+            HStack { EmptyView() }.frame(width: 6)
             Button {
                 guard !ending else { return }
                 HapticManager.shared.softImpact()
@@ -65,6 +69,9 @@ struct ActiveSessionChip: View {
         .padding(.horizontal, 16)
         .activeSessionGlass()
         .shadow(color: Color.red.opacity(0.22), radius: 12, y: 4)
+        // Make the chip fit its content, but cap the maximum width so very
+        // long lot names still get truncated/scaled rather than overflowing.
+        .fixedSize(horizontal: true, vertical: false)
         .frame(maxWidth: 320)
         .padding(.horizontal, 14)
         .accessibilityElement(children: .combine)
