@@ -145,23 +145,6 @@ struct MapView: View {
 
     // MARK: - Computed subviews
 
-    private var permitModePicker: some View {
-        Menu {
-            Button("Just my permits") { noPermitMode = nil }
-            Button("All commuter lots") { noPermitMode = PermitRepository.noPermitCommuter }
-            Button("Every lot (ignore permits)") { noPermitMode = PermitRepository.noPermitAll }
-        } label: {
-            Image(systemName: "line.3.horizontal.decrease.circle.fill")
-                .font(.title2)
-                .foregroundStyle(.red)
-                .padding(10)
-                .background(.ultraThinMaterial, in: Circle())
-        }
-        .padding(.trailing, 12)
-        .padding(.top, 12)
-        .accessibilityLabel("Permit filter")
-        .accessibilityHint("Choose which lots appear on the map.")
-    }
 
     @ViewBuilder
     private func lotBadge(for lot: Lot) -> some View {
