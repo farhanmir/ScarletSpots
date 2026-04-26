@@ -48,14 +48,7 @@ struct LotDetailsSheet: View {
             .rotationEffect(.degrees(-wobble * 5))
             .offset(y: abs(wobble) * 2)
         }
-        .background(
-            ZStack {
-                Color.black.opacity(0.86).ignoresSafeArea()
-                Rectangle()
-                    .fill(.ultraThinMaterial.opacity(0.46))
-                    .ignoresSafeArea()
-            }
-        )
+        .lotDetailsBackground()
         .task {
             await loadForecast()
             await triggerLot67WobbleIfNeeded()
@@ -74,8 +67,7 @@ struct LotDetailsSheet: View {
                         .foregroundStyle(Color(hex: 0xF87171))
                         .padding(.horizontal, 9)
                         .padding(.vertical, 3)
-                        .background(Color(hex: 0xCC0033).opacity(0.16), in: Capsule())
-                        .overlay(Capsule().stroke(Color(hex: 0xF87171).opacity(0.30), lineWidth: 1))
+                        .campusBadgeGlass(tint: Color(hex: 0xCC0033))
                 }
                 Text(lot.shortName)
                     .font(.system(size: 24, weight: .bold))
@@ -93,8 +85,7 @@ struct LotDetailsSheet: View {
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(favoriteIds.contains(lot.mapId) ? Color(hex: 0xF59E0B) : .white.opacity(0.7))
                     .frame(width: 34, height: 34)
-                    .background(Color.white.opacity(0.08), in: Circle())
-                    .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
+                    .favoriteButtonGlass()
             }
             .buttonStyle(.plain)
         }
@@ -123,8 +114,7 @@ struct LotDetailsSheet: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 12)
         .padding(.horizontal, 6)
-        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.white.opacity(0.10), lineWidth: 1))
+        .statCardGlass()
     }
 
     private var featurePills: some View {
@@ -159,7 +149,7 @@ struct LotDetailsSheet: View {
                     .foregroundStyle(lotAvailable ? Color(hex: 0x4ADE80) : Color(hex: 0xEF4444))
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background((lotAvailable ? Color(hex: 0x4ADE80) : Color(hex: 0xEF4444)).opacity(0.12), in: Capsule())
+                    .availabilityBadgeGlass(available: lotAvailable)
             }
 
             if let primaryRule = primaryAccessRule {
@@ -188,8 +178,7 @@ struct LotDetailsSheet: View {
             }
         }
         .padding(14)
-        .background(Color.black.opacity(0.20), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.white.opacity(0.08), lineWidth: 1))
+        .infoCardGlass()
     }
 
     private func accessRow(icon: String, title: String, detail: String, accent: Color) -> some View {
@@ -219,8 +208,7 @@ struct LotDetailsSheet: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
         .foregroundStyle(color)
-        .background(color.opacity(0.15), in: Capsule())
-        .overlay(Capsule().stroke(color.opacity(0.30), lineWidth: 1))
+        .featurePillGlass(tint: color)
     }
 
     private var notesCard: some View {
@@ -242,8 +230,7 @@ struct LotDetailsSheet: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.black.opacity(0.20), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.white.opacity(0.08), lineWidth: 1))
+        .infoCardGlass()
     }
 
     private var forecastSection: some View {
@@ -254,13 +241,25 @@ struct LotDetailsSheet: View {
                 .tracking(0.7)
             ForecastChart(points: displayForecastPoints, capacity: displayCapacity)
                 .padding(12)
-                .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.white.opacity(0.10), lineWidth: 1))
+                .forecastCardGlass()
         }
         .padding(.top, 10)
     }
 
     private var actionButtons: some View {
+        Group {
+            if #available(iOS 26.0, *) {
+                GlassEffectContainer(spacing: 12) {
+                    actionButtonsContent
+                }
+            } else {
+                actionButtonsContent
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var actionButtonsContent: some View {
         HStack(spacing: 10) {
             if !hasActiveSession {
                 Button {
@@ -276,7 +275,7 @@ struct LotDetailsSheet: View {
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .frame(height: 54)
-                    .background(Color(hex: 0xCC0033), in: RoundedRectangle(cornerRadius: 16))
+                    .parkButtonGlass()
                     .shadow(color: Color(hex: 0xCC0033).opacity(0.3), radius: 8, y: 4)
                 }
                 .disabled(parking)
@@ -293,15 +292,11 @@ struct LotDetailsSheet: View {
                         Text("Navigate")
                     }
                 }
-                    .font(.headline)
-                    .foregroundStyle(Color(hex: 0x60A5FA))
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 54)
-                    .background(Color(hex: 0x60A5FA).opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .stroke(Color(hex: 0x60A5FA).opacity(0.25), lineWidth: 1)
-                    )
+                .font(.headline)
+                .foregroundStyle(Color(hex: 0x60A5FA))
+                .frame(maxWidth: .infinity)
+                .frame(height: 54)
+                .navigateButtonGlass()
             }
             .buttonStyle(.plain)
         }
@@ -504,5 +499,161 @@ struct LotDetailsSheet: View {
         if delta == 0 { return "Now" }
         if delta < 0 { return "-\(-delta) hr" }
         return "+\(delta) hr"
+    }
+}
+
+// MARK: - Liquid Glass view modifiers
+
+private extension View {
+
+    // MARK: Sheet background
+
+    /// Replaces the old `Color.black + ultraThinMaterial` stack.
+    /// On iOS 26+ the sheet presenter naturally applies glass behind the detent,
+    /// so we just pass through; on older OS we restore the dark fallback.
+    @ViewBuilder
+    func lotDetailsBackground() -> some View {
+        if #available(iOS 26.0, *) {
+            self
+                .background(.clear)
+        } else {
+            self
+                .background(
+                    ZStack {
+                        Color.black.opacity(0.86).ignoresSafeArea()
+                        Rectangle()
+                            .fill(.ultraThinMaterial.opacity(0.46))
+                            .ignoresSafeArea()
+                    }
+                )
+        }
+    }
+
+    // MARK: Campus badge
+
+    @ViewBuilder
+    func campusBadgeGlass(tint: Color) -> some View {
+        if #available(iOS 26.0, *) {
+            self
+                .glassEffect(.regular.tint(tint).interactive(), in: Capsule())
+        } else {
+            self
+                .background(tint.opacity(0.16), in: Capsule())
+                .overlay(Capsule().stroke(tint.opacity(0.30), lineWidth: 1))
+        }
+    }
+
+    // MARK: Favourite button
+
+    @ViewBuilder
+    func favoriteButtonGlass() -> some View {
+        if #available(iOS 26.0, *) {
+            self
+                .glassEffect(.regular.interactive(), in: Circle())
+        } else {
+            self
+                .background(Color.white.opacity(0.08), in: Circle())
+                .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
+        }
+    }
+
+    // MARK: Stat cards
+
+    @ViewBuilder
+    func statCardGlass() -> some View {
+        if #available(iOS 26.0, *) {
+            self
+                .glassEffect(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        } else {
+            self
+                .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.white.opacity(0.10), lineWidth: 1))
+        }
+    }
+
+    // MARK: Feature pills
+
+    @ViewBuilder
+    func featurePillGlass(tint: Color) -> some View {
+        if #available(iOS 26.0, *) {
+            self
+                .glassEffect(.regular.tint(tint), in: Capsule())
+        } else {
+            self
+                .background(tint.opacity(0.15), in: Capsule())
+                .overlay(Capsule().stroke(tint.opacity(0.30), lineWidth: 1))
+        }
+    }
+
+    // MARK: Info cards (permitInfo + notes)
+
+    @ViewBuilder
+    func infoCardGlass() -> some View {
+        if #available(iOS 26.0, *) {
+            self
+                .glassEffect(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        } else {
+            self
+                .background(Color.black.opacity(0.20), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.white.opacity(0.08), lineWidth: 1))
+        }
+    }
+
+    // MARK: Availability badge (OPEN / CLOSED capsule inside permit card)
+
+    @ViewBuilder
+    func availabilityBadgeGlass(available: Bool) -> some View {
+        let color = available ? Color(hex: 0x4ADE80) : Color(hex: 0xEF4444)
+        if #available(iOS 26.0, *) {
+            self
+                .glassEffect(.regular.tint(color), in: Capsule())
+        } else {
+            self
+                .background(color.opacity(0.12), in: Capsule())
+        }
+    }
+
+    // MARK: Forecast chart container
+
+    @ViewBuilder
+    func forecastCardGlass() -> some View {
+        if #available(iOS 26.0, *) {
+            self
+                .glassEffect(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        } else {
+            self
+                .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.white.opacity(0.10), lineWidth: 1))
+        }
+    }
+
+    // MARK: Park Here button
+
+    @ViewBuilder
+    func parkButtonGlass() -> some View {
+        if #available(iOS 26.0, *) {
+            self
+                .glassEffect(.regular.tint(Color(hex: 0xCC0033)).interactive(), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        } else {
+            self
+                .background(Color(hex: 0xCC0033), in: RoundedRectangle(cornerRadius: 16))
+        }
+    }
+
+    // MARK: Navigate button
+
+    @ViewBuilder
+    func navigateButtonGlass() -> some View {
+        if #available(iOS 26.0, *) {
+            self
+                .glassEffect(.regular.tint(Color(hex: 0x60A5FA)).interactive(), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        } else {
+            self
+                .background(Color(hex: 0x60A5FA).opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color(hex: 0x60A5FA).opacity(0.25), lineWidth: 1)
+                )
+        }
     }
 }

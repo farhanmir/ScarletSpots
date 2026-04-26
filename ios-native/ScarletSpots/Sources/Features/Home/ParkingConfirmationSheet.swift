@@ -36,7 +36,7 @@ struct ParkingConfirmationSheet: View {
                         Text("Not parking")
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.bordered)
+                    .confirmButtonStyle()
                     .padding(.top, 4)
                 }
                 .padding(20)
@@ -93,12 +93,40 @@ struct ParkingConfirmationSheet: View {
                 }
             }
             .padding(14)
-            .background(.background.secondary, in: RoundedRectangle(cornerRadius: 14))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14)
-                    .stroke(Color.red.opacity(0.12), lineWidth: 1)
-            )
+            .candidateCardGlass()
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Liquid Glass modifiers
+
+private extension View {
+
+    /// Candidate lot card glass — blurs and tints with a red accent on iOS 26+.
+    @ViewBuilder
+    func candidateCardGlass() -> some View {
+        if #available(iOS 26.0, *) {
+            self
+                .glassEffect(.regular.tint(Color.red.opacity(0.08)).interactive(),
+                             in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        } else {
+            self
+                .background(.background.secondary, in: RoundedRectangle(cornerRadius: 14))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(Color.red.opacity(0.12), lineWidth: 1)
+                )
+        }
+    }
+
+    /// "Not parking" dismiss button — glass style on iOS 26+, bordered fallback.
+    @ViewBuilder
+    func confirmButtonStyle() -> some View {
+        if #available(iOS 26.0, *) {
+            self.buttonStyle(.glass)
+        } else {
+            self.buttonStyle(.bordered)
+        }
     }
 }

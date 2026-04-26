@@ -26,15 +26,30 @@ struct OccupancyPill: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(
-            color.opacity(0.10),
-            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(color.opacity(0.25), lineWidth: 1)
-        )
+        .pillGlass(color: color)
         .accessibilityLabel("\(percent) percent occupied")
+    }
+}
+
+// MARK: - Liquid Glass modifier
+
+private extension View {
+    @ViewBuilder
+    func pillGlass(color: Color) -> some View {
+        if #available(iOS 26.0, *) {
+            self
+                .glassEffect(.regular.tint(color), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        } else {
+            self
+                .background(
+                    color.opacity(0.10),
+                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(color.opacity(0.25), lineWidth: 1)
+                )
+        }
     }
 }
 
