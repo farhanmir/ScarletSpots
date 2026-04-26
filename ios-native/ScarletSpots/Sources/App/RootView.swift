@@ -32,8 +32,8 @@ struct RootView: View {
         .onChange(of: auth.isAuthenticated) { _, isAuthed in
             if !isAuthed { bootTimeoutElapsed = false }
         }
-        .onChange(of: auth.currentUser) { _, user in
-            if user != nil { bootTimeoutElapsed = false }
+        .onChange(of: auth.currentUser?.id) { _, userId in
+            if userId != nil { bootTimeoutElapsed = false }
         }
         .task {
             if !didBoot {
