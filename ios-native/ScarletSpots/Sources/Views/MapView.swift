@@ -54,6 +54,11 @@ struct MapView: View {
                         Annotation("", coordinate: lot.location.clLocationCoordinate2D) {
                             Button { selectedLot = lot } label: {
                                 lotBadge(for: lot)
+                                    // CI-safe fallback for polygon tap parity:
+                                    // increase hit area so near-miss taps around the pin
+                                    // still open lot details.
+                                    .padding(20)
+                                    .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel(accessibilityText(for: lot))

@@ -5,6 +5,7 @@ struct RootView: View {
     @EnvironmentObject private var auth: AuthManager
     @StateObject private var locationEngine = LocationEngine.shared
     @State private var didBoot = false
+    @State private var bootTimeoutElapsed = false
 
     var body: some View {
         Group {
@@ -14,7 +15,7 @@ struct RootView: View {
                 AuthChoiceView()
             } else if !hasForegroundLocation {
                 PermissionsOnboardingView(onFinished: {})
-            } else if auth.currentUser == nil {
+            } else if auth.currentUser == nil && !bootTimeoutElapsed {
                 bootLoadingView
             } else if auth.permitType == nil {
                 PermitOnboardingView(fromProfile: false)
@@ -28,10 +29,25 @@ struct RootView: View {
         .onChange(of: locationEngine.authorization) { _, _ in
             Task { await applyAutoParkGate(isAuthed: auth.isAuthenticated) }
         }
+        .onChange(of: auth.isAuthenticated) { _, isAuthed in
+            if !isAuthed { bootTimeoutElapsed = false }
+        }
+        .onChange(of: auth.currentUser) { _, user in
+            if user != nil { bootTimeoutElapsed = false }
+        }
         .task {
             if !didBoot {
                 didBoot = true
                 await applyAutoParkGate(isAuthed: auth.isAuthenticated)
+            }
+        }
+        .task(id: auth.isAuthenticated) {
+            guard auth.isAuthenticated else { return }
+            guard auth.currentUser == nil else { return }
+            bootTimeoutElapsed = false
+            try? await Task.sleep(nanoseconds: 4_000_000_000)
+            if auth.isAuthenticated && auth.currentUser == nil {
+                bootTimeoutElapsed = true
             }
         }
     }
