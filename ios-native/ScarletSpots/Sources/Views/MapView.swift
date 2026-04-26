@@ -421,7 +421,7 @@ struct MapView: View {
         distanceFormatter.string(from: Measurement(value: meters, unit: UnitLength.meters))
     }
 
-    @ViewBuilder
+    @MapContentBuilder
     private func polygonShape(for item: PolygonItem) -> some MapContent {
         let fill = item.color.opacity(0.60)
         let stroke = item.color.opacity(0.9)
