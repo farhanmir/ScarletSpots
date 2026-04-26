@@ -428,14 +428,6 @@ struct MapView: View {
         MapPolygon(coordinates: item.coordinates)
             .foregroundStyle(fill)
             .stroke(stroke, lineWidth: 2.0)
-            .onTapGesture {
-                selectPolygonLot(item.lotId)
-            }
-    }
-
-    private func selectPolygonLot(_ lotId: String) {
-        guard let lot = lotRepository.byId(lotId) else { return }
-        selectedLot = lot
     }
 
     private func focus(on lot: Lot) {
