@@ -26,26 +26,47 @@ struct LotDetailsSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    header
-                    occupancyPanel
-                    permitPanel
+                VStack(alignment: .leading, spacing: 24) {
+                    headerSection
+                    featurePills
+                    occupancyCard
+                    accessCard
+                    
                     if !forecast.isEmpty || displayCapacity > 0 {
-                        ForecastChart(points: forecast, capacity: displayCapacity)
-                            .padding(14)
-                            .background(.background.secondary, in: RoundedRectangle(cornerRadius: 14))
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Forecast")
+                                .font(.headline)
+                                .padding(.leading, 4)
+                            ForecastChart(points: forecast, capacity: displayCapacity)
+                                .padding(16)
+                                .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+                        }
                     }
+                    
                     actionButtons
+                    
                     if let toastText {
                         Text(toastText)
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .center)
                     }
                 }
                 .padding(20)
             }
+            .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle(lot.shortName)
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        Task { await toggleFavorite() }
+                    } label: {
+                        Image(systemName: favoriteIds.contains(lot.mapId) ? "star.fill" : "star")
+                            .foregroundStyle(favoriteIds.contains(lot.mapId) ? .yellow : .primary)
+                    }
+                }
+            }
         }
         .task {
             await loadForecast()
@@ -54,38 +75,91 @@ struct LotDetailsSheet: View {
 
     // MARK: - Sections
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
+    private var headerSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
             Text(lot.propertyName)
-                .font(.title3.weight(.semibold))
+                .font(.title2.bold())
                 .textSelection(.enabled)
-            Text([lot.address.campus, lot.address.cityCode]
-                .compactMap { $0 }
-                .joined(separator: " · "))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .textSelection(.enabled)
+            
+            HStack(spacing: 4) {
+                Image(systemName: "mappin.and.ellipse")
+                    .font(.caption)
+                Text([lot.address.campus, lot.address.cityCode]
+                    .compactMap { $0 }
+                    .joined(separator: " · "))
+                    .font(.subheadline)
+                    .textSelection(.enabled)
+            }
+            .foregroundStyle(.secondary)
         }
     }
 
-    private var occupancyPanel: some View {
-        HStack(spacing: 14) {
-            occupancyRing
-            VStack(alignment: .leading, spacing: 6) {
-                Text("\(liveOccupancy) / \(displayCapacity)")
-                    .font(.title2.monospacedDigit().bold())
-                Text("\(max(0, displayCapacity - liveOccupancy)) spots free")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                HStack(spacing: 10) {
-                    metricChip(icon: "figure.roll", text: "\(lot.handicapped) ADA")
-                    metricChip(icon: "bolt.car", text: "\(lot.evCharging) EV")
+    private var featurePills: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                if lot.handicapped > 0 {
+                    featurePill(icon: "figure.roll", text: "\(lot.handicapped) ADA")
+                }
+                if lot.evCharging > 0 {
+                    featurePill(icon: "bolt.car.fill", text: "\(lot.evCharging) EV")
+                }
+                if lot.garage {
+                    featurePill(icon: "building.2.fill", text: "Garage")
+                }
+                if lot.solar {
+                    featurePill(icon: "sun.max.fill", text: "Solar")
+                }
+                if lot.smartGate {
+                    featurePill(icon: "sensor.tag.radiowaves.forward.fill", text: "Smart Gate")
+                }
+                if lot.foodTruck > 0 {
+                    featurePill(icon: "mouth.fill", text: "Food")
                 }
             }
-            Spacer()
+            .padding(.horizontal, 4)
         }
-        .padding(14)
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    private func featurePill(icon: String, text: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.caption2)
+            Text(text)
+                .font(.caption.bold())
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: Capsule())
+        .shadow(color: .black.opacity(0.05), radius: 2, y: 1)
+    }
+
+    private var occupancyCard: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Availability")
+                .font(.headline)
+            
+            HStack(spacing: 20) {
+                occupancyRing
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        Text("\(max(0, displayCapacity - liveOccupancy))")
+                            .font(.title.bold())
+                        Text("spots free")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    Text("out of \(displayCapacity) total")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+                
+                Spacer()
+            }
+        }
+        .padding(20)
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
     }
 
     private var occupancyRing: some View {
@@ -103,65 +177,83 @@ struct LotDetailsSheet: View {
         .frame(width: 60, height: 60)
     }
 
-    private var permitPanel: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Access")
+    private var accessCard: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Access Rules")
                 .font(.headline)
-            if let text = permit.scheduleText(permitType: auth.permitType, lotId: lot.mapId) {
-                bullet(icon: accessIcon, text: text.0, accent: accessColor)
-                if !text.1.isEmpty {
-                    bullet(icon: "clock", text: text.1, accent: .secondary)
+            
+            VStack(alignment: .leading, spacing: 12) {
+                if let text = permit.scheduleText(permitType: auth.permitType, lotId: lot.mapId) {
+                    accessRow(icon: accessIcon, title: "Primary: \(auth.permitType ?? "None")", detail: text.0, accent: accessColor)
+                    if !text.1.isEmpty {
+                        accessRow(icon: "clock", title: "Hours", detail: text.1, accent: .blue)
+                    }
+                } else if let permitType = auth.permitType {
+                    accessRow(icon: accessIcon, title: "Permit \(permitType)", detail: "No schedule available", accent: accessColor)
+                } else {
+                    accessRow(icon: "questionmark.circle", title: "No Permit", detail: "Select a permit in Profile to see rules", accent: .secondary)
                 }
-            } else if let permitType = auth.permitType {
-                bullet(icon: accessIcon, text: "Permit \(permitType) — no schedule on file", accent: accessColor)
-            } else {
-                bullet(icon: "questionmark.circle", text: "No permit selected yet", accent: .secondary)
-            }
-            if let secondary = auth.secondaryPermitType,
-               let text = permit.scheduleText(permitType: secondary, lotId: lot.mapId) {
-                bullet(icon: "person.crop.rectangle.badge.plus", text: "Secondary: \(text.0)", accent: .secondary)
+                
+                if let secondary = auth.secondaryPermitType,
+                   let text = permit.scheduleText(permitType: secondary, lotId: lot.mapId) {
+                    Divider().padding(.vertical, 4)
+                    accessRow(icon: "person.crop.rectangle.badge.plus", title: "Secondary: \(secondary)", detail: text.0, accent: .purple)
+                }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 14))
+        .padding(20)
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
+    }
+
+    private func accessRow(icon: String, title: String, detail: String, accent: Color) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundStyle(accent)
+                .frame(width: 24)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline.bold())
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 
     private var actionButtons: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 12) {
             Button {
                 Task { await park() }
             } label: {
-                HStack {
+                HStack(spacing: 10) {
                     if parking { ProgressView().tint(.white) }
+                    Image(systemName: "parkingsign.circle.fill")
                     Text(parking ? "Parking..." : "Park Here")
-                        .font(.headline)
                 }
+                .font(.headline)
+                .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
+                .padding()
+                .background(isCurrentlyParkedHere ? Color.gray : Color(hex: 0xCC0033), in: RoundedRectangle(cornerRadius: 16))
+                .shadow(color: (isCurrentlyParkedHere ? Color.clear : Color(hex: 0xCC0033)).opacity(0.3), radius: 8, y: 4)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.red)
             .disabled(parking || isCurrentlyParkedHere)
 
-            HStack(spacing: 10) {
-                Button {
-                    Task { await toggleFavorite() }
-                } label: {
-                    Label(
-                        favoriteIds.contains(lot.mapId) ? "Unfavorite" : "Favorite",
-                        systemImage: favoriteIds.contains(lot.mapId) ? "heart.fill" : "heart"
-                    )
-                    .frame(maxWidth: .infinity)
+            Button {
+                openDirections()
+            } label: {
+                HStack {
+                    Image(systemName: "arrow.triangle.turn.up.right.diamond.fill")
+                    Text("Get Directions")
                 }
-                .buttonStyle(.bordered)
-
-                Button {
-                    openDirections()
-                } label: {
-                    Label("Directions", systemImage: "car.fill")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
+                .font(.subheadline.bold())
+                .foregroundStyle(.primary)
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.1), lineWidth: 1))
             }
         }
     }
@@ -250,7 +342,9 @@ struct LotDetailsSheet: View {
             )
             await session.refresh()
             toastText = "Session started — good luck out there."
-        } catch {
+        } catch let apiError as APIError {
+            toastText = apiError.localizedDescription
+        } catch let urlError as URLError where urlError.code == .notConnectedToInternet || urlError.code == .timedOut || urlError.code == .networkConnectionLost {
             let payload = try? JSONSerialization.data(withJSONObject: [
                 "lotId": lot.mapId,
                 "latitude": lot.location.lat,
@@ -265,6 +359,8 @@ struct LotDetailsSheet: View {
                 idempotencyKey: idempotencyKey
             )
             toastText = "Offline — we'll start the session when you reconnect."
+        } catch {
+            toastText = "Error: \(error.localizedDescription)"
         }
     }
 

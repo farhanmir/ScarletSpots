@@ -5,15 +5,15 @@ struct MainTabView: View {
 
     var body: some View {
         TabView(selection: $tabBarState.selectedTab) {
-            MapView()
-                .tabItem {
-                    Label("Map", systemImage: "map")
-                }
-                .tag(0)
-
             SearchScreen()
                 .tabItem {
                     Label("Search", systemImage: "magnifyingglass")
+                }
+                .tag(0)
+
+            MapView()
+                .tabItem {
+                    Label("Map", systemImage: "map")
                 }
                 .tag(1)
 

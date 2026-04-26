@@ -13,6 +13,7 @@ final class AuthManager: ObservableObject, AuthTokenProvider {
     @Published private(set) var session: Session?
     @Published private(set) var permitType: String?
     @Published private(set) var secondaryPermitType: String?
+    @Published private(set) var noPermitMode: String?
 
     /// Raw set of enabled campus toggles as the user sees them. This is the
     /// same set the RN app uses in AsyncStorage ("Cook/Douglass" may be stored
@@ -32,11 +33,13 @@ final class AuthManager: ObservableObject, AuthTokenProvider {
         static let enabledCampuses = "enabled_campuses_v1"
         static let secondaryPermitPrefix = "secondary_permit_v1"
         static let permitTypePrefix = "permit_type_v1"
+        static let noPermitModePrefix = "no_permit_mode_v1"
     }
 
     private init() {
         client = SupabaseClient(supabaseURL: Env.supabaseURL, supabaseKey: Env.supabaseAnonKey)
         self.enabledCampuses = Self.loadEnabledCampuses()
+        self.noPermitMode = loadLocalNoPermitMode(ownerId: nil)
         APIClient.shared.authTokenProvider = self
 
         guard Env.isConfigurationValid else {
@@ -130,6 +133,7 @@ final class AuthManager: ObservableObject, AuthTokenProvider {
         currentUser = nil
         permitType = nil
         secondaryPermitType = nil
+        noPermitMode = nil
 
         OfflineCache.shared.setOwner(nil)
         await OfflineQueue.shared.setOwner(nil)
@@ -172,6 +176,11 @@ final class AuthManager: ObservableObject, AuthTokenProvider {
         }
     }
 
+    func setNoPermitMode(_ mode: String?) {
+        noPermitMode = mode
+        saveLocalNoPermitMode(mode, ownerId: ownerId)
+    }
+
     // MARK: - Campus toggles
 
     func toggleCampus(_ campus: String) {
@@ -201,11 +210,13 @@ final class AuthManager: ObservableObject, AuthTokenProvider {
         if isAuthenticated {
             permitType = loadLocalPermitType(ownerId: owner)
             secondaryPermitType = loadLocalSecondaryPermit(ownerId: owner)
+            noPermitMode = loadLocalNoPermitMode(ownerId: owner)
             await fetchProfile()
         } else {
             currentUser = nil
             permitType = nil
             secondaryPermitType = nil
+            noPermitMode = nil
         }
     }
 
@@ -248,5 +259,19 @@ final class AuthManager: ObservableObject, AuthTokenProvider {
 
     private func loadLocalPermitType(ownerId: String?) -> String? {
         UserDefaults.standard.string(forKey: permitTypeKey(ownerId: ownerId))
+    }
+
+    private func noPermitModeKey(ownerId: String?) -> String {
+        "\(Keys.noPermitModePrefix):\(ownerId ?? "anon")"
+    }
+
+    private func saveLocalNoPermitMode(_ mode: String?, ownerId: String?) {
+        let key = noPermitModeKey(ownerId: ownerId)
+        if let mode { UserDefaults.standard.set(mode, forKey: key) }
+        else { UserDefaults.standard.removeObject(forKey: key) }
+    }
+
+    private func loadLocalNoPermitMode(ownerId: String?) -> String? {
+        UserDefaults.standard.string(forKey: noPermitModeKey(ownerId: ownerId))
     }
 }

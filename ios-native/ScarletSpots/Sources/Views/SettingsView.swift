@@ -35,17 +35,28 @@ struct ProfileView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                profileSection
-                favoritesSection
-                campusesSection
-                appearanceSection
-                diagnosticsSection
-                feedbackSection
-                legalSection
-                accountActionsSection
+            ScrollView {
+                VStack(spacing: 24) {
+                    heroCard
+                    statsStrip
+                    mapFiltersSection
+                    
+                    VStack(spacing: 20) {
+                        favoritesSection
+                        campusesSection
+                        appearanceSection
+                        diagnosticsSection
+                        feedbackSection
+                        legalSection
+                        accountActionsSection
+                    }
+                    .padding(.horizontal, 16)
+                }
+                .padding(.bottom, 32)
             }
+            .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle("Profile")
+            .navigationBarTitleDisplayMode(.inline)
             .task {
                 favoritesLoading = true
                 favorites = (try? await FavoritesAPI.list())
@@ -97,160 +108,354 @@ struct ProfileView: View {
         }
     }
 
-    private var profileSection: some View {
-        Section("Account") {
-            if let user = authManager.currentUser {
-                LabeledContent("Name", value: [user.firstName, user.lastName].compactMap { $0 }.joined(separator: " "))
-                LabeledContent("Email", value: user.email)
+    private var heroCard: some View {
+        ZStack(alignment: .bottomLeading) {
+            // Background Gradient
+            LinearGradient(
+                colors: [Color(hex: 0xCC0033), Color(hex: 0x80001A)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .frame(height: 200)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                if let user = authManager.currentUser {
+                    Text([user.firstName, user.lastName].compactMap { $0 }.joined(separator: " "))
+                        .font(.title.bold())
+                        .foregroundStyle(.white)
+                    
+                    Text(user.email)
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.8))
+                }
+                
+                HStack(spacing: 12) {
+                    NavigationLink {
+                        PermitOnboardingView(fromProfile: true)
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "creditcard.fill")
+                            Text(Self.prettyPermit(authManager.permitType ?? "None"))
+                        }
+                        .font(.caption.bold())
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(.white.opacity(0.2), in: Capsule())
+                        .foregroundStyle(.white)
+                    }
+                    
+                    if let secondary = authManager.secondaryPermitType {
+                        HStack(spacing: 6) {
+                            Image(systemName: "plus.circle.fill")
+                            Text(secondary)
+                        }
+                        .font(.caption.bold())
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(.white.opacity(0.2), in: Capsule())
+                        .foregroundStyle(.white)
+                    }
+                }
+                .padding(.top, 8)
             }
-            NavigationLink("Update Permit") {
-                PermitOnboardingView(fromProfile: true)
-            }
-            if let permit = authManager.permitType {
-                LabeledContent("Permit", value: Self.prettyPermit(permit))
-            }
-            if let secondary = authManager.secondaryPermitType {
-                LabeledContent("Secondary", value: secondary)
-            }
+            .padding(20)
         }
+    }
+
+    private var statsStrip: some View {
+        HStack(spacing: 0) {
+            statItem(label: "Favorites", value: "\(favorites.count)", systemImage: "star.fill", color: .yellow)
+            divider
+            statItem(label: "Friends", value: "—", systemImage: "person.2.fill", color: .blue)
+            divider
+            statItem(label: "Parked", value: "—", systemImage: "parkingsign.circle.fill", color: .green)
+        }
+        .padding(.vertical, 16)
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+        .padding(.horizontal, 16)
+    }
+
+    private func statItem(label: String, value: String, systemImage: String, color: Color) -> some View {
+        VStack(spacing: 4) {
+            HStack(spacing: 4) {
+                Image(systemName: systemImage)
+                    .font(.caption2)
+                    .foregroundStyle(color)
+                Text(value)
+                    .font(.headline.bold())
+            }
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var divider: some View {
+        Divider()
+            .frame(height: 24)
+            .padding(.horizontal, 8)
+    }
+
+    private var mapFiltersSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Map Filters")
+                .font(.headline)
+                .padding(.leading, 4)
+            
+            HStack {
+                Label("Visibility Mode", systemImage: "line.3.horizontal.decrease.circle")
+                    .font(.body)
+                Spacer()
+                Menu {
+                    Button { authManager.setNoPermitMode(nil) } label: {
+                        Label("My Permit", systemImage: authManager.noPermitMode == nil ? "checkmark" : "")
+                    }
+                    Divider()
+                    Button { authManager.setNoPermitMode("all") } label: {
+                        Label("Show All", systemImage: authManager.noPermitMode == "all" ? "checkmark" : "")
+                    }
+                    Button { authManager.setNoPermitMode("commuter_all") } label: {
+                        Label("Commuter (All)", systemImage: authManager.noPermitMode == "commuter_all" ? "checkmark" : "")
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(authManager.noPermitMode == nil ? "My Permit" : (authManager.noPermitMode == "all" ? "Show All" : "Commuter"))
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.caption2)
+                    }
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.blue)
+                }
+            }
+            .padding()
+            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
+        }
+        .padding(.horizontal, 16)
     }
 
     private var favoritesSection: some View {
-        Section("Favorites") {
-            if favoritesLoading {
-                ForEach(0..<2, id: \.self) { _ in
-                    VStack(alignment: .leading) {
-                        Text("Loading lot")
-                        Text("Loading full name")
-                            .font(.caption)
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Favorites")
+                .font(.headline)
+                .padding(.leading, 4)
+            
+            VStack(spacing: 0) {
+                if favoritesLoading {
+                    ForEach(0..<2, id: \.self) { _ in
+                        favoriteRowPlaceholder
+                    }
+                } else if favorites.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "star")
+                            .font(.largeTitle)
+                            .foregroundStyle(.tertiary)
+                        Text("No favorite lots")
+                            .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
-                    .redacted(reason: .placeholder)
-                }
-            } else if favorites.isEmpty {
-                ContentUnavailableView(
-                    "No favorite lots",
-                    systemImage: "star",
-                    description: Text("Tap the star on a lot's details sheet to pin it here.")
-                )
-                .frame(maxWidth: .infinity)
-            } else {
-                ForEach(favorites, id: \.self) { id in
-                    let lot = lotRepository.byId(id)
-                    HStack {
-                        VStack(alignment: .leading) {
-                            Text(lot?.shortName ?? id)
-                                .textSelection(.enabled)
-                            if let name = lot?.propertyName {
-                                Text(name)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .textSelection(.enabled)
-                            }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 32)
+                } else {
+                    ForEach(favorites, id: \.self) { id in
+                        favoriteRow(id: id)
+                        if id != favorites.last {
+                            Divider().padding(.leading, 16)
                         }
-                        Spacer()
-                        Button {
-                            Task {
-                                try? await FavoritesAPI.remove(lotId: id)
-                                favorites.removeAll { $0 == id }
-                                OfflineCache.shared.cacheFavorites(favorites)
-                            }
-                        } label: {
-                            Image(systemName: "trash")
-                                .foregroundStyle(.red)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Remove \(lot?.shortName ?? id) from favorites")
                     }
                 }
             }
+            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
         }
     }
 
+    @ViewBuilder
+    private var favoriteRowPlaceholder: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Loading lot")
+            Text("Loading full name")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding()
+        .redacted(reason: .placeholder)
+    }
+
+    @ViewBuilder
+    private func favoriteRow(id: String) -> some View {
+        let lot = lotRepository.byId(id)
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(lot?.shortName ?? id)
+                    .font(.body.bold())
+                if let name = lot?.propertyName {
+                    Text(name)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer()
+            Button {
+                Task {
+                    try? await FavoritesAPI.remove(lotId: id)
+                    favorites.removeAll { $0 == id }
+                    OfflineCache.shared.cacheFavorites(favorites)
+                }
+            } label: {
+                Image(systemName: "star.fill")
+                    .foregroundStyle(.yellow)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding()
+    }
+
     private var campusesSection: some View {
-        Section("Campuses") {
-            campusToggle("Busch")
-            campusToggle("College Ave")
-            campusToggle("Livingston")
-            campusToggle("Cook/Douglass")
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Campuses")
+                .font(.headline)
+                .padding(.leading, 4)
+            
+            VStack(spacing: 0) {
+                campusToggle("Busch")
+                Divider().padding(.leading, 16)
+                campusToggle("College Ave")
+                Divider().padding(.leading, 16)
+                campusToggle("Livingston")
+                Divider().padding(.leading, 16)
+                campusToggle("Cook/Douglass")
+            }
+            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
         }
     }
 
     private var appearanceSection: some View {
-        Section("Appearance") {
-            Picker("Theme", selection: $themePreference.mode) {
-                Text("System").tag("system")
-                Text("Light").tag("light")
-                Text("Dark").tag("dark")
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Appearance")
+                .font(.headline)
+                .padding(.leading, 4)
+            
+            HStack {
+                Text("Theme")
+                Spacer()
+                Picker("Theme", selection: $themePreference.mode) {
+                    Text("System").tag("system")
+                    Text("Light").tag("light")
+                    Text("Dark").tag("dark")
+                }
+                .pickerStyle(.menu)
             }
+            .padding()
+            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
         }
     }
 
     private var diagnosticsSection: some View {
-        Section("Diagnostics") {
-            LabeledContent("Location", value: authorizationLabel(location.authorization))
-            LabeledContent("Auto-Park", value: autoPark.isRunning ? "Running" : "Idle")
-            LabeledContent("Pending Sync", value: "\(offlineQueue.pendingCount)")
-            if let last = autoPark.lastAutoCommitAt {
-                LabeledContent("Last Auto-Park", value: last.formatted(date: .abbreviated, time: .shortened))
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Diagnostics")
+                .font(.headline)
+                .padding(.leading, 4)
+            
+            VStack(spacing: 0) {
+                diagnosticRow(label: "Location", value: authorizationLabel(location.authorization))
+                Divider().padding(.leading, 16)
+                diagnosticRow(label: "Auto-Park", value: autoPark.isRunning ? "Running" : "Idle")
+                Divider().padding(.leading, 16)
+                diagnosticRow(label: "Pending Sync", value: "\(offlineQueue.pendingCount)")
+                if let last = autoPark.lastAutoCommitAt {
+                    Divider().padding(.leading, 16)
+                    diagnosticRow(label: "Last Auto-Park", value: last.formatted(date: .abbreviated, time: .shortened))
+                }
             }
+            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
         }
+    }
+
+    private func diagnosticRow(label: String, value: String) -> some View {
+        HStack {
+            Text(label)
+            Spacer()
+            Text(value)
+                .foregroundStyle(.secondary)
+        }
+        .padding()
     }
 
     private var feedbackSection: some View {
-        Section {
-            Button("Send feedback") { showFeedback = true }
-                .disabled(session.activeSession == nil)
-        } footer: {
-            Text(session.activeSession == nil
-                 ? "Start a parking session to leave feedback."
-                 : "Tell us how this session went.")
+        Button { showFeedback = true } label: {
+            HStack {
+                Text("Send Feedback")
+                    .foregroundStyle(.primary)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding()
+            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
         }
+        .disabled(session.activeSession == nil)
     }
 
     private var legalSection: some View {
-        Section("Legal & Support") {
-            Link(destination: privacyPolicyURL) {
-                Label("Privacy Policy", systemImage: "hand.raised")
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Legal & Support")
+                .font(.headline)
+                .padding(.leading, 4)
+            
+            VStack(spacing: 0) {
+                legalLink(label: "Privacy Policy", systemImage: "hand.raised", url: privacyPolicyURL)
+                Divider().padding(.leading, 16)
+                legalLink(label: "Terms of Service", systemImage: "doc.text", url: termsURL)
+                Divider().padding(.leading, 16)
+                legalLink(label: "Support", systemImage: "lifepreserver", url: supportURL)
+                Divider().padding(.leading, 16)
+                HStack {
+                    Text("Version")
+                    Spacer()
+                    Text(Self.versionString)
+                        .foregroundStyle(.secondary)
+                }
+                .padding()
             }
-            .accessibilityLabel("Open privacy policy in browser")
+            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
+        }
+    }
 
-            Link(destination: termsURL) {
-                Label("Terms of Service", systemImage: "doc.text")
+    private func legalLink(label: String, systemImage: String, url: URL) -> some View {
+        Link(destination: url) {
+            HStack {
+                Label(label, systemImage: systemImage)
+                    .foregroundStyle(.primary)
+                Spacer()
+                Image(systemName: "arrow.up.right")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
             }
-            .accessibilityLabel("Open terms of service in browser")
-
-            Link(destination: supportURL) {
-                Label("Support", systemImage: "lifepreserver")
-            }
-            .accessibilityLabel("Open support site in browser")
-
-            LabeledContent("Version", value: Self.versionString)
-                .textSelection(.enabled)
+            .padding()
         }
     }
 
     private var accountActionsSection: some View {
-        Section {
-            Button("Sign Out", role: .destructive) {
-                showSignOutConfirm = true
+        VStack(spacing: 12) {
+            Button { showSignOutConfirm = true } label: {
+                Text("Sign Out")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.red, in: RoundedRectangle(cornerRadius: 12))
             }
-            Button(role: .destructive) {
-                showDeleteConfirm = true
-            } label: {
-                if isDeleting {
-                    HStack {
-                        ProgressView().scaleEffect(0.8)
-                        Text("Deleting…")
-                    }
-                } else {
-                    Text("Delete Account")
-                }
+            
+            Button(role: .destructive) { showDeleteConfirm = true } label: {
+                Text("Delete Account")
+                    .font(.subheadline)
+                    .foregroundStyle(.red)
+                    .padding(.vertical, 8)
             }
-            .disabled(isDeleting)
-        } footer: {
-            Text("Deleting your account permanently removes all of your data from ScarletSpots. Required by Apple's account-deletion policy.")
         }
+        .padding(.top, 12)
     }
 
     // MARK: - Actions

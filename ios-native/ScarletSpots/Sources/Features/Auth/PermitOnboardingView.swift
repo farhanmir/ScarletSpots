@@ -47,15 +47,7 @@ struct PermitOnboardingView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
-            if fromProfile {
-                Button {
-                    dismiss()
-                } label: {
-                    Label("Back", systemImage: "chevron.left")
-                        .font(.footnote)
-                }
-                .buttonStyle(.plain)
-            }
+            // Removed redundant custom back button (SwiftUI provides one via NavigationStack)
             Text(step == .primary ? "Your Parking Permit" : "Secondary Permit")
                 .font(.title.bold())
             Text(step == .primary

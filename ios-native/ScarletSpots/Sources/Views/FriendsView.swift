@@ -39,7 +39,7 @@ struct FriendsView: View {
 
                 if isLoading && friends.isEmpty && requests.isEmpty {
                     Spacer()
-                    ProgressView().tint(.red)
+                    ProgressView().tint(Color(hex: 0xCC0033))
                     Spacer()
                 } else {
                     List {
@@ -211,10 +211,10 @@ struct FriendsView: View {
             .compactMap { $0.first.map(String.init) }
             .joined()
         return ZStack {
-            Circle().fill(Color.red.opacity(0.15))
+            Circle().fill(Color(hex: 0xCC0033).opacity(0.12))
             Text(initials)
                 .font(.callout.bold())
-                .foregroundStyle(.red)
+                .foregroundStyle(Color(hex: 0xCC0033))
         }
         .frame(width: 36, height: 36)
     }
@@ -242,7 +242,7 @@ struct FriendsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { showAddFriend = false; friendEmail = "" }
+                    Button("Cancel") { showAddFriend = false; friendEmail = ""; error = nil }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Send") {

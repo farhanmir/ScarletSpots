@@ -99,7 +99,7 @@ struct SearchScreen: View {
         case .lot:
             if let lotId = result.lotId {
                 tabBarState.focusLotId = lotId
-                tabBarState.selectedTab = 0
+                tabBarState.selectedTab = 1
             }
         case .building:
             if let coord = result.coordinate {
@@ -108,7 +108,7 @@ struct SearchScreen: View {
                     longitude: coord.longitude,
                     title: result.title
                 )
-                tabBarState.selectedTab = 0
+                tabBarState.selectedTab = 1
             }
         case .place:
             if let coord = result.coordinate {
@@ -117,7 +117,7 @@ struct SearchScreen: View {
                     longitude: coord.longitude,
                     title: result.title
                 )
-                tabBarState.selectedTab = 0
+                tabBarState.selectedTab = 1
             } else {
                 geocodeAndNavigate(result)
             }
@@ -136,7 +136,7 @@ struct SearchScreen: View {
                     longitude: location.coordinate.longitude,
                     title: result.title
                 )
-                tabBarState.selectedTab = 0
+                tabBarState.selectedTab = 1
             }
         }
     }

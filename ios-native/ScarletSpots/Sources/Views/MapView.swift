@@ -25,9 +25,9 @@ struct MapView: View {
 
     @State private var selectedLot: Lot?
     @State private var favoriteIds: Set<String> = []
-    @State private var noPermitMode: String? = nil
     @State private var showCandidateSheet = false
 
+    @State private var zoomDistance: Double = 9000
     @State private var position: MapCameraPosition = .camera(
         MapCamera(
             centerCoordinate: CLLocationCoordinate2D(latitude: 40.5014, longitude: -74.4474),
@@ -40,11 +40,11 @@ struct MapView: View {
             Map(position: $position) {
                 ForEach(polygonItems) { item in
                     MapPolygon(coordinates: item.coordinates)
-                        .foregroundStyle(item.color.opacity(0.35))
-                        .stroke(item.color.opacity(0.9), lineWidth: 1.25)
+                        .foregroundStyle(item.color.opacity(0.60))
+                        .stroke(item.color.opacity(0.9), lineWidth: 2.0)
                 }
                 ForEach(visibleLots) { lot in
-                    Annotation(lot.shortName, coordinate: lot.location.clLocationCoordinate2D) {
+                    Annotation(zoomDistance < 2500 ? lot.shortName : "", coordinate: lot.location.clLocationCoordinate2D) {
                         Button { selectedLot = lot } label: {
                             lotBadge(for: lot)
                         }
@@ -62,10 +62,13 @@ struct MapView: View {
                 UserAnnotation()
             }
             .mapStyle(.standard(elevation: .realistic))
+            .tint(.blue) // Native blue for user location dot
             .mapControls {
-                MapUserLocationButton()
                 MapCompass()
                 MapScaleView()
+            }
+            .onMapCameraChange(frequency: .continuous) { context in
+                zoomDistance = context.camera.distance
             }
 
             VStack(spacing: 12) {
@@ -80,8 +83,23 @@ struct MapView: View {
             .padding(.bottom, 22)
             .animation(.easeInOut(duration: 0.2), value: sessionStore.activeSession?.id)
         }
-        .overlay(alignment: .topTrailing) {
-            permitModePicker
+        .overlay(alignment: .bottomLeading) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.4)) {
+                    if let userLoc = location.latestLocation {
+                        position = .camera(MapCamera(centerCoordinate: userLoc.coordinate, distance: 1500))
+                    }
+                }
+            } label: {
+                Image(systemName: "location.fill")
+                    .font(.title3)
+                    .foregroundStyle(.primary)
+                    .padding(10)
+                    .background(.ultraThinMaterial, in: Circle())
+                    .shadow(radius: 2)
+            }
+            .padding(.leading, 12)
+            .padding(.bottom, 22)
         }
         .sheet(item: $selectedLot) { lot in
             LotDetailsSheet(lot: lot, favoriteIds: $favoriteIds)
@@ -149,9 +167,11 @@ struct MapView: View {
     private func lotBadge(for lot: Lot) -> some View {
         let occupancy = webSocket.lotOccupancies[lot.mapId] ?? 0
         let capacity = max(lot.totalSpaces, 1)
-        let freeSpots = max(capacity - occupancy, 0)
-        Text("\(freeSpots)")
-            .font(.caption2.bold())
+        let ratio = Double(occupancy) / Double(capacity)
+        let percent = Int((ratio * 100).rounded())
+        
+        Text("\(percent)%")
+            .font(.caption2.bold().monospacedDigit())
             .foregroundStyle(.white)
             .padding(.horizontal, 6)
             .padding(.vertical, 3)
@@ -213,7 +233,7 @@ struct MapView: View {
 
     private var visibleLots: [Lot] {
         let campusFiltered = lotRepository.byCampus(auth.enabledCampuses)
-        if let mode = noPermitMode {
+        if let mode = auth.noPermitMode {
             return permitRepository.filtered(
                 lots: campusFiltered,
                 primary: mode,

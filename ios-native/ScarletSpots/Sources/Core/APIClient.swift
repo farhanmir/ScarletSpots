@@ -132,7 +132,15 @@ final class APIClient {
 
         guard 200..<300 ~= http.statusCode else {
             if http.statusCode == 401 { throw APIError.unauthorized }
-            let message = String(data: data, encoding: .utf8) ?? "Unknown API error"
+            
+            var message = String(data: data, encoding: .utf8) ?? "Unknown API error"
+            
+            // Attempt to extract "detail" from FastAPI JSON response
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let detail = json["detail"] as? String {
+                message = detail
+            }
+            
             throw APIError.server(status: http.statusCode, message: message)
         }
 
