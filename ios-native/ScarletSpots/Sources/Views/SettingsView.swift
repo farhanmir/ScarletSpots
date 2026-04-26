@@ -244,9 +244,9 @@ struct ProfileView: View {
     private var favoritesSection: some View {
         profileCard(title: "Saved Lots", subtitle: "Quick access to your starred lots.") {
             if favoritesLoading {
-                ForEach(0..<2, id: \.self) { _ in
+                ForEach(0..<2, id: \.self) { index in
                     favoriteRowPlaceholder
-                    if $0 == 0 { Divider().overlay(Color.white.opacity(0.08)) }
+                    if index == 0 { Divider().overlay(Color.white.opacity(0.08)) }
                 }
             } else if favorites.isEmpty {
                 VStack(spacing: 12) {
