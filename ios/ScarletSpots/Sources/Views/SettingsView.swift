@@ -35,6 +35,8 @@ struct ProfileView: View {
     @State private var expandedTheme = false
     @State private var expandedLegal = false
     @State private var diagnosticsSamples: [Double] = []
+    @State private var notificationStatusLabel = "unknown"
+    @State private var notificationReady = false
 
     /// Canonical legal URLs — published copies live on the marketing site.
     private let privacyPolicyURL = URL(string: "https://scarletspots.com/privacy")!
@@ -57,6 +59,7 @@ struct ProfileView: View {
                     heroCard
                     statsStrip
                     favoritesSection
+                    backgroundReadinessSection
                     campusesSection
                     appearanceSection
                     diagnosticsSection
@@ -84,6 +87,7 @@ struct ProfileView: View {
             .refreshable { await refreshAll() }
             .onAppear {
                 seedDiagnosticsIfNeeded()
+                refreshNotificationReadiness()
             }
             .onReceive(diagnosticsTicker) { _ in
                 appendDiagnosticsSample()
@@ -252,6 +256,94 @@ struct ProfileView: View {
     }
 
     // MARK: - Content sections
+
+    private var backgroundReadinessSection: some View {
+        let authed = authManager.isAuthenticated
+        let alwaysLocation = location.hasBackgroundPermission
+        let armed = autoPark.isRunning
+        let readiness = authed && alwaysLocation && notificationReady && armed
+        let readinessText = readiness ? "Armed" : "Needs Attention"
+        let readinessColor = readiness ? NativeAuthColors.occupancyLow : NativeAuthColors.occupancyHigh
+        let wakeReason = autoPark.liveSnapshot.wakeReason.replacingOccurrences(of: "_", with: " ")
+        let wakeAt = autoPark.liveSnapshot.timestamp.formatted(date: .omitted, time: .shortened)
+
+        return profileCard(
+            title: "Background Readiness",
+            subtitle: "Whether auto-start/end can run when app is not open."
+        ) {
+            VStack(spacing: 10) {
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(readinessColor)
+                        .frame(width: 10, height: 10)
+                        .shadow(color: readinessColor.opacity(0.4), radius: 6)
+                    Text(readinessText.uppercased())
+                        .font(.caption.weight(.bold))
+                        .kerning(0.7)
+                        .foregroundStyle(primaryText)
+                    Spacer()
+                    Text("Last wake: \(wakeAt)")
+                        .font(.caption2)
+                        .foregroundStyle(tertiaryText)
+                }
+
+                readinessRow(
+                    title: "Signed in",
+                    value: authed ? "Ready" : "Required",
+                    isReady: authed
+                )
+                readinessRow(
+                    title: "Always Location",
+                    value: alwaysLocation ? "Ready" : "Required",
+                    isReady: alwaysLocation
+                )
+                readinessRow(
+                    title: "Notifications",
+                    value: notificationStatusLabel,
+                    isReady: notificationReady
+                )
+                readinessRow(
+                    title: "Auto-Park Engine",
+                    value: armed ? "Running" : "Not armed",
+                    isReady: armed
+                )
+                readinessRow(
+                    title: "Latest wake reason",
+                    value: wakeReason,
+                    isReady: true
+                )
+
+                Text("iOS may pause background relaunch after a force-quit. Users should open the app once after install/sign-in so auto-park can arm.")
+                    .font(.caption)
+                    .foregroundStyle(secondaryText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 2)
+            }
+            .task {
+                refreshNotificationReadiness()
+            }
+        }
+    }
+
+    private func readinessRow(title: String, value: String, isReady: Bool) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: isReady ? "checkmark.circle.fill" : "xmark.circle.fill")
+                .foregroundStyle(isReady ? NativeAuthColors.occupancyLow : NativeAuthColors.occupancyHigh)
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(primaryText)
+            Spacer()
+            Text(value)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(secondaryText)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            isDark ? Color.white.opacity(0.06) : Color.black.opacity(0.04),
+            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+        )
+    }
 
     private var favoritesSection: some View {
         profileCard(title: "Saved Lots", subtitle: "Quick access to your starred lots.") {
@@ -965,6 +1057,33 @@ struct ProfileView: View {
         diagnosticsSamples.append(sample)
         if diagnosticsSamples.count > 24 {
             diagnosticsSamples.removeFirst(diagnosticsSamples.count - 24)
+        }
+    }
+
+    private func refreshNotificationReadiness() {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            Task { @MainActor in
+                switch settings.authorizationStatus {
+                case .authorized:
+                    notificationReady = true
+                    notificationStatusLabel = "Authorized"
+                case .provisional:
+                    notificationReady = true
+                    notificationStatusLabel = "Provisional"
+                case .ephemeral:
+                    notificationReady = true
+                    notificationStatusLabel = "Ephemeral"
+                case .denied:
+                    notificationReady = false
+                    notificationStatusLabel = "Denied"
+                case .notDetermined:
+                    notificationReady = false
+                    notificationStatusLabel = "Not granted"
+                @unknown default:
+                    notificationReady = false
+                    notificationStatusLabel = "Unknown"
+                }
+            }
         }
     }
 
