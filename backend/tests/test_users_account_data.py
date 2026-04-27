@@ -21,7 +21,9 @@ async def test_read_user_me_returns_can_access_diagnostics_for_allowed_email(
     db_session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
 ):
-    monkeypatch.setattr(settings, "DIAGNOSTICS_ALLOWED_EMAILS", ["farhan@rutgers.edu"], raising=False)
+    monkeypatch.setattr(
+        settings, "DIAGNOSTICS_ALLOWED_EMAILS", ["farhan@rutgers.edu"], raising=False
+    )
     allowed_user = SimpleNamespace(
         id="00000000-0000-0000-0000-000000000123",
         email="  Farhan@Rutgers.edu ",
@@ -48,7 +50,9 @@ async def test_read_user_me_returns_can_access_diagnostics_false_for_other_rutge
 ):
     _ = db_session
     _ = override_current_user
-    monkeypatch.setattr(settings, "DIAGNOSTICS_ALLOWED_EMAILS", ["farhan@rutgers.edu"], raising=False)
+    monkeypatch.setattr(
+        settings, "DIAGNOSTICS_ALLOWED_EMAILS", ["farhan@rutgers.edu"], raising=False
+    )
 
     response = await client.get("/api/v1/users/me")
     assert response.status_code == 200, response.text
@@ -95,7 +99,9 @@ async def test_export_user_data_returns_profile_and_related_rows(
             notes="good detection",
         )
     )
-    db_session.add(DevicePushToken(user_id=user_id, token="ExponentPushToken[test]", platform="ios"))
+    db_session.add(
+        DevicePushToken(user_id=user_id, token="ExponentPushToken[test]", platform="ios")
+    )
     await db_session.commit()
 
     response = await client.get("/api/v1/users/me/export")
@@ -142,7 +148,9 @@ async def test_delete_my_account_removes_data_and_calls_auth_delete(
 
     db_session.add(Profile(id=user_id, email=auth_user.email, role="user"))
     db_session.add(UserFavorite(user_id=user_id, lot_id="10002"))
-    db_session.add(DevicePushToken(user_id=user_id, token="ExponentPushToken[delete]", platform="ios"))
+    db_session.add(
+        DevicePushToken(user_id=user_id, token="ExponentPushToken[delete]", platform="ios")
+    )
     await db_session.commit()
 
     admin_auth = MagicMock()

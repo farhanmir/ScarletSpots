@@ -116,13 +116,17 @@ async def test_start_session_idempotent_replay_after_side_effect_failure(
     assert first.status_code == 500
 
     sessions = (
-        await db_session.execute(
-            select(ParkingSession).where(
-                ParkingSession.user_id == "00000000-0000-0000-0000-000000000123",
-                ParkingSession.active.is_(True),
+        (
+            await db_session.execute(
+                select(ParkingSession).where(
+                    ParkingSession.user_id == "00000000-0000-0000-0000-000000000123",
+                    ParkingSession.active.is_(True),
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(sessions) == 1
 
     idempotency = (
@@ -145,13 +149,17 @@ async def test_start_session_idempotent_replay_after_side_effect_failure(
     assert second.json().get("_idempotentReplay") is True
 
     sessions_after = (
-        await db_session.execute(
-            select(ParkingSession).where(
-                ParkingSession.user_id == "00000000-0000-0000-0000-000000000123",
-                ParkingSession.active.is_(True),
+        (
+            await db_session.execute(
+                select(ParkingSession).where(
+                    ParkingSession.user_id == "00000000-0000-0000-0000-000000000123",
+                    ParkingSession.active.is_(True),
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(sessions_after) == 1
 
 
@@ -230,13 +238,17 @@ async def test_start_session_persists_circling_metrics(
     )
     assert response.status_code == 200, response.text
     session = (
-        await db_session.execute(
-            select(ParkingSession).where(
-                ParkingSession.user_id == "00000000-0000-0000-0000-000000000123",
-                ParkingSession.active.is_(True),
+        (
+            await db_session.execute(
+                select(ParkingSession).where(
+                    ParkingSession.user_id == "00000000-0000-0000-0000-000000000123",
+                    ParkingSession.active.is_(True),
+                )
             )
         )
-    ).scalars().first()
+        .scalars()
+        .first()
+    )
     assert session is not None
     assert session.circling_duration_seconds == 245
     assert session.circling_started_at is not None

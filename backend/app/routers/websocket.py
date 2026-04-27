@@ -106,9 +106,7 @@ def _check_ws_attestation(auth_data: dict, user_id: str) -> None:
 
 async def _receive_auth_message(websocket: WebSocket) -> dict:
     try:
-        raw = await asyncio.wait_for(
-            websocket.receive_text(), timeout=AUTH_MESSAGE_TIMEOUT_SECONDS
-        )
+        raw = await asyncio.wait_for(websocket.receive_text(), timeout=AUTH_MESSAGE_TIMEOUT_SECONDS)
     except asyncio.TimeoutError as exc:
         raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION) from exc
     except Exception as exc:
@@ -129,11 +127,7 @@ async def _receive_auth_message(websocket: WebSocket) -> dict:
 
 @router.websocket("/ws/occupancy")
 async def occupancy_socket(websocket: WebSocket) -> None:
-    client = (
-        f"{websocket.client.host}:{websocket.client.port}"
-        if websocket.client
-        else "unknown"
-    )
+    client = f"{websocket.client.host}:{websocket.client.port}" if websocket.client else "unknown"
     await websocket.accept()
     log.info("WS occupancy connected: client=%s", client)
 
@@ -208,11 +202,7 @@ async def occupancy_socket(websocket: WebSocket) -> None:
 
 @router.websocket("/ws/notifications")
 async def notifications_socket(websocket: WebSocket) -> None:
-    client = (
-        f"{websocket.client.host}:{websocket.client.port}"
-        if websocket.client
-        else "unknown"
-    )
+    client = f"{websocket.client.host}:{websocket.client.port}" if websocket.client else "unknown"
     await websocket.accept()
     log.info("WS notifications connected: client=%s", client)
 

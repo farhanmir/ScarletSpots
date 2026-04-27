@@ -29,7 +29,9 @@ def parse_soc_payload(payload: list[dict[str, Any]]) -> list[SOCClassEvent]:
             building_name = str(row.get("building_name") or "").strip()
             starts_at = dt.datetime.fromisoformat(str(row.get("starts_at")).replace("Z", "+00:00"))
             ends_at = dt.datetime.fromisoformat(str(row.get("ends_at")).replace("Z", "+00:00"))
-            expected_attendance = float(row.get("expected_attendance") or row.get("max_capacity") or 0)
+            expected_attendance = float(
+                row.get("expected_attendance") or row.get("max_capacity") or 0
+            )
         except Exception:
             continue
         if not building_name or expected_attendance <= 0 or ends_at <= starts_at:
@@ -130,11 +132,15 @@ def build_lot_pressure_buckets(
                     continue
                 weighted = event.expected_attendance * weight
                 pressure_by_lot.setdefault(lot_id, {})
-                pressure_by_lot[lot_id][bucket] = pressure_by_lot[lot_id].get(bucket, 0.0) + weighted
+                pressure_by_lot[lot_id][bucket] = (
+                    pressure_by_lot[lot_id].get(bucket, 0.0) + weighted
+                )
             bucket += bucket_minutes
 
     normalized: dict[str, dict[int, float]] = {}
-    global_peak = max((value for buckets in pressure_by_lot.values() for value in buckets.values()), default=0.0)
+    global_peak = max(
+        (value for buckets in pressure_by_lot.values() for value in buckets.values()), default=0.0
+    )
     if global_peak <= 0:
         return normalized
     for lot_id, buckets in pressure_by_lot.items():
@@ -159,7 +165,10 @@ def write_pressure_cache(
     serializable = {
         "captured_at": captured_at.isoformat().replace("+00:00", "Z"),
         "source_hash": source_hash,
-        "buckets": {lot_id: {str(k): v for k, v in bucket.items()} for lot_id, bucket in lot_pressure.items()},
+        "buckets": {
+            lot_id: {str(k): v for k, v in bucket.items()}
+            for lot_id, bucket in lot_pressure.items()
+        },
     }
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(serializable, indent=2), encoding="utf-8")

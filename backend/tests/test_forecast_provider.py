@@ -90,7 +90,10 @@ def test_forecast_is_stable_for_same_input():
     provider = HeuristicForecastProvider()
     first = provider.get_lot_forecast("10001", current_occupancy=0, capacity=250)
     second = provider.get_lot_forecast("10001", current_occupancy=0, capacity=250)
-    assert first["slices"]["now"]["expected_occupancy"] == second["slices"]["now"]["expected_occupancy"]
+    assert (
+        first["slices"]["now"]["expected_occupancy"]
+        == second["slices"]["now"]["expected_occupancy"]
+    )
 
 
 def test_soc_multiplier_is_bounded():

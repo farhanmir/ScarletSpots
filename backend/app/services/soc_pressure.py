@@ -31,11 +31,16 @@ class SOCPressureService:
         if not self._buckets:
             return SOCPressureSignal(1.0, 0.0, "missing", self._snapshot_iso(), stale=True)
 
-        minute_of_week = (target_time.weekday() * 24 * 60) + (target_time.hour * 60) + target_time.minute
+        minute_of_week = (
+            (target_time.weekday() * 24 * 60) + (target_time.hour * 60) + target_time.minute
+        )
         minute_of_week -= minute_of_week % 5
         index = float(self._buckets.get(lot_id, {}).get(minute_of_week, 0.0))
         multiplier = 1.0 + (index * 0.25)
-        multiplier = max(settings.SOC_PRESSURE_MIN_MULTIPLIER, min(settings.SOC_PRESSURE_MAX_MULTIPLIER, multiplier))
+        multiplier = max(
+            settings.SOC_PRESSURE_MIN_MULTIPLIER,
+            min(settings.SOC_PRESSURE_MAX_MULTIPLIER, multiplier),
+        )
         stale = self._is_stale()
         source = "soc_cache" if index > 0 else "soc_cache_empty"
         return SOCPressureSignal(multiplier, index, source, self._snapshot_iso(), stale)

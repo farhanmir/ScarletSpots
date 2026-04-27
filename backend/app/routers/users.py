@@ -350,26 +350,48 @@ async def export_user_data(
     profile = await db.get(Profile, user_id)
 
     sessions = (
-        await db.execute(
-            select(ParkingSession).where(ParkingSession.user_id == user_id).order_by(ParkingSession.start_time.desc())
+        (
+            await db.execute(
+                select(ParkingSession)
+                .where(ParkingSession.user_id == user_id)
+                .order_by(ParkingSession.start_time.desc())
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     favorites = (
-        await db.execute(select(UserFavorite).where(UserFavorite.user_id == user_id))
-    ).scalars().all()
+        (await db.execute(select(UserFavorite).where(UserFavorite.user_id == user_id)))
+        .scalars()
+        .all()
+    )
     friendships = (
-        await db.execute(
-            select(Friendship).where(or_(Friendship.user_id == user_id, Friendship.friend_id == user_id))
+        (
+            await db.execute(
+                select(Friendship).where(
+                    or_(Friendship.user_id == user_id, Friendship.friend_id == user_id)
+                )
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     feedback = (
-        await db.execute(
-            select(SessionFeedback).where(SessionFeedback.user_id == user_id).order_by(SessionFeedback.created_at.desc())
+        (
+            await db.execute(
+                select(SessionFeedback)
+                .where(SessionFeedback.user_id == user_id)
+                .order_by(SessionFeedback.created_at.desc())
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     push_tokens = (
-        await db.execute(select(DevicePushToken).where(DevicePushToken.user_id == user_id))
-    ).scalars().all()
+        (await db.execute(select(DevicePushToken).where(DevicePushToken.user_id == user_id)))
+        .scalars()
+        .all()
+    )
 
     return {
         "user_id": str(user_id),
@@ -445,7 +467,11 @@ async def delete_my_account(
     await db.execute(delete(IdempotencyRecord).where(IdempotencyRecord.user_id == user_id))
     await db.execute(delete(DevicePushToken).where(DevicePushToken.user_id == user_id))
     await db.execute(delete(UserFavorite).where(UserFavorite.user_id == user_id))
-    await db.execute(delete(Friendship).where(or_(Friendship.user_id == user_id, Friendship.friend_id == user_id)))
+    await db.execute(
+        delete(Friendship).where(
+            or_(Friendship.user_id == user_id, Friendship.friend_id == user_id)
+        )
+    )
     await db.execute(delete(ParkingSession).where(ParkingSession.user_id == user_id))
     await db.execute(delete(Profile).where(Profile.id == user_id))
     await db.commit()

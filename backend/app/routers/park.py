@@ -169,10 +169,14 @@ async def _save_idempotent_response(
 
 
 async def _get_active_sessions(db: AsyncSession, user_id: str) -> list[ParkingSession]:
-    stmt = select(ParkingSession).where(
-        ParkingSession.user_id == user_id,
-        ParkingSession.active.is_(True),
-    ).limit(1)
+    stmt = (
+        select(ParkingSession)
+        .where(
+            ParkingSession.user_id == user_id,
+            ParkingSession.active.is_(True),
+        )
+        .limit(1)
+    )
     return list((await db.execute(stmt)).scalars().all())
 
 
@@ -339,7 +343,9 @@ async def start_parking_session(
                 db,
                 data={
                     "type": "lot_occupancy_update",
-                    "updates": [{"lotId": lid, "count": cnt} for lid, cnt in changed_lot_counts.items()],
+                    "updates": [
+                        {"lotId": lid, "count": cnt} for lid, cnt in changed_lot_counts.items()
+                    ],
                 },
             )
 

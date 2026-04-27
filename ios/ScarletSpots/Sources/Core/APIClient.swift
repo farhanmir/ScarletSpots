@@ -66,8 +66,9 @@ final class APIClient {
             requiresAuth: requiresAuth,
             idempotencyKey: idempotencyKey
         )
-        if T.self == EmptyResponse.self, data.isEmpty {
-            return EmptyResponse() as! T
+        if T.self == EmptyResponse.self, data.isEmpty,
+           let emptyResponse = EmptyResponse() as? T {
+            return emptyResponse
         }
         return try JSONDecoder.iso8601.decode(T.self, from: data)
     }

@@ -66,9 +66,7 @@ def _verify_signed_payload(token: str) -> dict:
         raw = base64.urlsafe_b64decode(padded_data.encode("utf-8"))
         sent_sig = base64.urlsafe_b64decode(padded_sig.encode("utf-8"))
     except Exception as exc:
-        raise HTTPException(
-            status_code=401, detail="Malformed attestation token"
-        ) from exc
+        raise HTTPException(status_code=401, detail="Malformed attestation token") from exc
 
     secret = _signing_secret().encode("utf-8")
     expected_sig = hmac.new(secret, raw, hashlib.sha256).digest()
@@ -78,9 +76,7 @@ def _verify_signed_payload(token: str) -> dict:
     try:
         payload = json.loads(raw.decode("utf-8"))
     except Exception as exc:
-        raise HTTPException(
-            status_code=401, detail="Invalid attestation payload"
-        ) from exc
+        raise HTTPException(status_code=401, detail="Invalid attestation payload") from exc
     return payload
 
 
@@ -132,9 +128,7 @@ def get_abuse_metrics() -> dict:
         if _abuse_events[key]:
             active[key] = len(_abuse_events[key])
     blocked = {
-        key: max(0, int(until - now_ts))
-        for key, until in _abuse_blocks.items()
-        if until > now_ts
+        key: max(0, int(until - now_ts)) for key, until in _abuse_blocks.items() if until > now_ts
     }
     return {
         "window_seconds": _ABUSE_WINDOW_SECONDS,
@@ -162,17 +156,13 @@ def _validate_attestation_token(
     integrity = str(claims.get("integrity") or "unknown")
 
     if token_user != user_id:
-        return AttestationResult(
-            trusted=False, reason="subject_mismatch", claims=claims
-        )
+        return AttestationResult(trusted=False, reason="subject_mismatch", claims=claims)
     if exp < now_ts:
         return AttestationResult(trusted=False, reason="expired", claims=claims)
     if issued > now_ts + 5 or now_ts - issued > _TOKEN_MAX_AGE_SECONDS:
         return AttestationResult(trusted=False, reason="stale", claims=claims)
     if integrity in {"failed", "compromised"}:
-        return AttestationResult(
-            trusted=False, reason="integrity_failed", claims=claims
-        )
+        return AttestationResult(trusted=False, reason="integrity_failed", claims=claims)
 
     binding_reason = _validate_device_binding(
         claims=claims,
@@ -193,11 +183,7 @@ def _validate_device_binding(
 ) -> str | None:
     expected_platform_value = str(expected_platform or "").strip().lower()
     token_platform = str(claims.get("platform") or "").strip().lower()
-    if (
-        expected_platform_value
-        and token_platform
-        and expected_platform_value != token_platform
-    ):
+    if expected_platform_value and token_platform and expected_platform_value != token_platform:
         return "platform_mismatch"
 
     expected_device_value = str(expected_device_id or "").strip()
@@ -230,10 +216,7 @@ def require_high_value_access(
     if not settings.REQUIRE_ATTESTATION_ON_AVAILABILITY:
         return {"allowed": True, "reason": "attestation_not_required"}
 
-    if (
-        not (x_attestation_platform or "").strip()
-        or not (x_attestation_device_id or "").strip()
-    ):
+    if not (x_attestation_platform or "").strip() or not (x_attestation_device_id or "").strip():
         if settings.ATTESTATION_ENFORCE:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

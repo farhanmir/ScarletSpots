@@ -70,9 +70,7 @@ async def create_attestation_session(
     platform = (body.platform or "unknown").strip().lower()
     device_id = (body.device_id or "").strip()
     if not device_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="device_id is required"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="device_id is required")
 
     integrity, _assertion_payload = _extract_integrity(body.assertion)
 

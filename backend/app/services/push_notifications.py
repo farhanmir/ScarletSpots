@@ -162,6 +162,8 @@ async def send_push_to_users(
         for row in rows:
             row.active = False  # type: ignore[assignment]
         await db.commit()
+
+
 async def send_silent_push_to_all(
     db: AsyncSession,
     *,
@@ -189,9 +191,7 @@ async def send_silent_push_to_all(
     headers = _build_expo_headers()
     batches = [payload[i : i + BATCH_SIZE] for i in range(0, len(payload), BATCH_SIZE)]
 
-    async def _send_batch(
-        client: httpx.AsyncClient, batch_payload: list[dict[str, Any]]
-    ) -> None:
+    async def _send_batch(client: httpx.AsyncClient, batch_payload: list[dict[str, Any]]) -> None:
         try:
             await client.post(EXPO_PUSH_URL, json=batch_payload, headers=headers)
         except Exception as exc:

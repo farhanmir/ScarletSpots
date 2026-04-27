@@ -50,10 +50,7 @@ class TomTomTrafficProvider(TrafficProvider):
     def get_multiplier(self, latitude: float, longitude: float) -> Optional[float]:
         if not self._api_key:
             return None
-        url = (
-            "https://api.tomtom.com/traffic/services/4/flowSegmentData/"
-            "relative0/10/json"
-        )
+        url = "https://api.tomtom.com/traffic/services/4/flowSegmentData/relative0/10/json"
         params = {
             "point": f"{latitude},{longitude}",
             "unit": "KMPH",
@@ -103,9 +100,7 @@ class TrafficSignalService:
                 fetched_at_epoch_ms=int(cached[1] * 1000),
             )
 
-        latitude, longitude = DEFAULT_CAMPUS_POINTS.get(
-            key, DEFAULT_CAMPUS_POINTS["default"]
-        )
+        latitude, longitude = DEFAULT_CAMPUS_POINTS.get(key, DEFAULT_CAMPUS_POINTS["default"])
         multiplier = self._provider.get_multiplier(latitude, longitude)
         if multiplier is None:
             multiplier = 1.0
