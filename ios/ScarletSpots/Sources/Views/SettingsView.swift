@@ -475,17 +475,17 @@ struct ProfileView: View {
             VStack(spacing: 12) {
                 HStack(spacing: 8) {
                     diagnosticsStatusLight(
-                        title: snapshot.monitoringMode,
+                        title: formattedDiagnosticsBadgeTitle(snapshot.monitoringMode),
                         isOn: autoPark.isRunning,
                         onColor: NativeAuthColors.occupancyLow
                     )
                     diagnosticsStatusLight(
-                        title: snapshot.wakeReason,
+                        title: formattedDiagnosticsBadgeTitle(snapshot.wakeReason),
                         isOn: hasRecentTrigger,
                         onColor: .blue
                     )
                     diagnosticsStatusLight(
-                        title: snapshot.sessionTruthSource,
+                        title: formattedDiagnosticsBadgeTitle(snapshot.sessionTruthSource),
                         isOn: snapshot.sessionTruthSource != NativeSessionStore.TruthSource.none.rawValue,
                         onColor: NativeAuthColors.occupancyMedium
                     )
@@ -692,6 +692,21 @@ struct ProfileView: View {
             isDark ? Color.white.opacity(0.06) : Color.black.opacity(0.04),
             in: RoundedRectangle(cornerRadius: 10, style: .continuous)
         )
+    }
+
+    private func formattedDiagnosticsBadgeTitle(_ rawValue: String) -> String {
+        switch rawValue.lowercased() {
+        case "auth_signed_in":
+            return "Auth In"
+        case "auth_signed_out":
+            return "Auth Out"
+        case "trigger_received":
+            return "Triggered"
+        case "manual_open":
+            return "Manual"
+        default:
+            return rawValue.replacingOccurrences(of: "_", with: " ")
+        }
     }
 
     private var diagnosticsSparkline: some View {
