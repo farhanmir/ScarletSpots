@@ -21,7 +21,7 @@ from app.core.limiter import limiter
 from app.core.logger import logger
 from app.core.security import decode_supabase_jwt_token
 from app.core.websocket import manager as websocket_manager
-from app.routers import favorites, friends, lots, park, users, system
+from app.routers import favorites, friends, lots, park, system, users
 from app.routers.websocket import router as websocket_router
 
 

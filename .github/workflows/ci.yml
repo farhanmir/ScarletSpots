@@ -56,20 +56,24 @@ jobs:
           import pathlib
           import sys
 
-          migration_dir = pathlib.Path("supabase/migrations")
-          files = sorted(migration_dir.glob("*.sql"))
+          migration_dir = pathlib.Path("migrations/versions")
+          files = sorted(migration_dir.glob("*.py"))
           if not files:
               print("No migration files found.")
               sys.exit(1)
 
           invalid = []
           for file_path in files:
-              text = file_path.read_text(encoding="utf-8").strip()
-              if not text:
+              text = file_path.read_text(encoding="utf-8")
+              if not text.strip():
                   invalid.append(f"{file_path}: empty file")
                   continue
-              if not any(token in text.upper() for token in ("CREATE ", "ALTER ", "DROP ", "INSERT ", "UPDATE ", "DELETE ")):
-                  invalid.append(f"{file_path}: no SQL DDL/DML keywords detected")
+              try:
+                  compile(text, str(file_path), "exec")
+              except SyntaxError as exc:
+                  invalid.append(
+                      f"{file_path}: syntax error on line {exc.lineno}: {exc.msg}"
+                  )
 
           if invalid:
               for issue in invalid:
@@ -139,9 +143,7 @@ jobs:
 
       - name: Run SwiftLint on iOS source tree
         run: |
-          swiftlint lint --path ios/ScarletSpots/Sources \
-            --config .swiftlint.yml 2>/dev/null || \
-          swiftlint lint --path ios/ScarletSpots/Sources
+          swiftlint lint ios/ScarletSpots/Sources
 
       - name: Swift build check (syntax only)
         run: |

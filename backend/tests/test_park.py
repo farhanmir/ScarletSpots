@@ -1,8 +1,9 @@
+from uuid import UUID
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from uuid import UUID
 
 from app.models.parking import IdempotencyRecord, LotOccupancy, ParkingSession
 from app.models.user import Profile

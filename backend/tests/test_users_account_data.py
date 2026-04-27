@@ -6,8 +6,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.security import get_admin_auth_client
-from app.core.security import get_current_user
+from app.core.security import get_admin_auth_client, get_current_user
 from app.main import app
 from app.models.favorite import UserFavorite
 from app.models.friendship import Friendship

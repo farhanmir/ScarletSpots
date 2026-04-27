@@ -1,7 +1,6 @@
 from pathlib import Path
 
-from pydantic import Field
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.

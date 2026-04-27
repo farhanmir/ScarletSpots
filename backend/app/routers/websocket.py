@@ -3,11 +3,6 @@ import json
 import time
 from urllib.parse import parse_qs
 
-from app.core.attestation import _validate_attestation_token
-from app.core.config import settings
-from app.core.logger import get_logger
-from app.core.security import decode_supabase_jwt_token
-from app.core.websocket import manager
 from fastapi import (
     APIRouter,
     WebSocket,
@@ -16,6 +11,12 @@ from fastapi import (
     status,
 )
 from jose.exceptions import JWTError
+
+from app.core.attestation import _validate_attestation_token
+from app.core.config import settings
+from app.core.logger import get_logger
+from app.core.security import decode_supabase_jwt_token
+from app.core.websocket import manager
 
 router = APIRouter(tags=["websocket"])
 log = get_logger(__name__)
