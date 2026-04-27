@@ -74,7 +74,7 @@ struct LotDetailsSheet: View {
                         .foregroundStyle(isDark ? Color(hex: 0xF87171) : Color(hex: 0xBE123C))
                         .padding(.horizontal, 9)
                         .padding(.vertical, 3)
-                        .campusBadgeGlass(tint: Color(hex: 0xCC0033))
+                        .campusBadgeGlass(tint: Color(hex: 0xCC0033), isDark: isDark)
                 }
                 Text(lot.shortName)
                     .font(.system(size: 24, weight: .bold))
@@ -222,7 +222,7 @@ struct LotDetailsSheet: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
         .foregroundStyle(color)
-        .featurePillGlass(tint: color)
+        .featurePillGlass(tint: color, isDark: isDark)
     }
 
     private var notesCard: some View {
@@ -620,7 +620,7 @@ private extension View {
     // MARK: Campus badge
 
     @ViewBuilder
-    func campusBadgeGlass(tint: Color) -> some View {
+    func campusBadgeGlass(tint: Color, isDark: Bool) -> some View {
         self
             .background(tint.opacity(isDark ? 0.14 : 0.16), in: Capsule())
             .overlay(Capsule().stroke(Color(hex: 0xF87171).opacity(isDark ? 0.24 : 0.30), lineWidth: 1))
@@ -661,7 +661,7 @@ private extension View {
     // MARK: Feature pills
 
     @ViewBuilder
-    func featurePillGlass(tint: Color) -> some View {
+    func featurePillGlass(tint: Color, isDark: Bool) -> some View {
         self
             .background(tint.opacity(isDark ? 0.10 : 0.15), in: Capsule())
             .overlay(Capsule().stroke(tint.opacity(isDark ? 0.22 : 0.30), lineWidth: 1))
