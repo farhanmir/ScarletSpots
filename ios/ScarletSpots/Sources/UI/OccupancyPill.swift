@@ -8,7 +8,7 @@ import SwiftUI
 struct OccupancyPill: View {
     private enum Content {
         case rate(Double)
-        case status(String, Double, String)
+        case estimate(Double, String)
     }
 
     private let content: Content
@@ -18,8 +18,8 @@ struct OccupancyPill: View {
         self.content = .rate(rate)
     }
 
-    init(status: String, emphasisRate: Double, accessibilityLabel: String) {
-        self.content = .status(status, emphasisRate, accessibilityLabel)
+    init(estimatedRate: Double, sourceLabel: String) {
+        self.content = .estimate(estimatedRate, sourceLabel)
     }
 
     var body: some View {
@@ -32,7 +32,7 @@ struct OccupancyPill: View {
                 .frame(width: 6, height: 6)
             Text(resolved.label)
                 .font(.system(size: 12, weight: .bold).monospacedDigit())
-                .foregroundStyle(color)
+                .foregroundStyle(.white)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
@@ -45,8 +45,9 @@ struct OccupancyPill: View {
         case .rate(let rate):
             let percent = Int(rate.rounded())
             return ("\(percent)%", rate, "\(percent) percent occupied")
-        case .status(let text, let rate, let accessibilityLabel):
-            return (text, rate, accessibilityLabel)
+        case .estimate(let rate, let sourceLabel):
+            let percent = Int(rate.rounded())
+            return ("~\(percent)%", rate, "Estimated \(percent) percent occupied, \(sourceLabel.lowercased())")
         }
     }
 }

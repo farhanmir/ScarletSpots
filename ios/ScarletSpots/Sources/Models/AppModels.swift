@@ -187,6 +187,10 @@ extension OccupancyRow {
         occupancyRate ?? typicalOccupancyRate ?? observedOccupancyRate ?? 0
     }
 
+    var roundedDisplayPercent: Int {
+        Int(min(100, max(0, displayRate)).rounded())
+    }
+
     var isLivePrimary: Bool {
         displayMode == "live" || source == "observed"
     }
@@ -204,6 +208,46 @@ extension OccupancyRow {
         if isLivePrimary { return "Live now" }
         if signalStrength == "sparse" { return "Sparse live signal" }
         return "Typical now"
+    }
+
+    var occupancyHeadline: String {
+        if isLivePrimary {
+            return "\(roundedDisplayPercent)% occupied"
+        }
+        return "~\(roundedDisplayPercent)% occupied"
+    }
+
+    var occupancyDetail: String {
+        if isLivePrimary {
+            return "Live now"
+        }
+        if signalStrength == "sparse" {
+            return "Estimated from sparse live signal"
+        }
+        return "Estimated from typical pattern"
+    }
+
+    var shortPercentLabel: String {
+        isLivePrimary ? "\(roundedDisplayPercent)%" : "~\(roundedDisplayPercent)%"
+    }
+
+    var compactSourceLabel: String {
+        if isLivePrimary { return "Live" }
+        if signalStrength == "sparse" { return "Sparse live" }
+        return "Typical"
+    }
+
+    var compactStatusLabel: String {
+        switch statusLabel {
+        case "Likely busy":
+            return "Busy"
+        case "Likely open":
+            return "Open"
+        case "No live signal":
+            return "No live"
+        default:
+            return "Moderate"
+        }
     }
 }
 

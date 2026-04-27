@@ -881,10 +881,17 @@ struct ProfileView: View {
             .buttonStyle(.plain)
 
             if let lot {
-                let capacity = max(lot.totalSpaces, 1)
-                let occupancy = webSocket.lotOccupancies[lot.mapId] ?? 0
-                let rate = Double(occupancy) / Double(capacity) * 100
-                OccupancyPill(rate: min(rate, 100))
+                if let row = webSocket.lotOccupancyRows[lot.mapId], !row.isLivePrimary {
+                    OccupancyPill(
+                        estimatedRate: min(100, row.displayRate),
+                        sourceLabel: row.sourceSummary
+                    )
+                } else {
+                    let capacity = max(lot.totalSpaces, 1)
+                    let occupancy = webSocket.lotOccupancies[lot.mapId] ?? 0
+                    let rate = Double(occupancy) / Double(capacity) * 100
+                    OccupancyPill(rate: min(rate, 100))
+                }
             }
 
             Button {

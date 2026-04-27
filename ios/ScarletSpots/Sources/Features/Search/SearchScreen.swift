@@ -145,11 +145,7 @@ struct SearchScreen: View {
 
     private func rowAccessibilityLabel(for result: SearchResult) -> String {
         if let lot = result.lot, let row = webSocket.lotOccupancyRows[lot.mapId] {
-            if row.isLivePrimary {
-                let percent = Int(row.displayRate.rounded())
-                return "\(result.title), \(result.subtitle), \(percent) percent occupied live."
-            }
-            return "\(result.title), \(result.subtitle), \(row.statusLabel), \(row.sourceSummary.lowercased())."
+            return "\(result.title), \(result.subtitle), \(row.occupancyHeadline), \(row.occupancyDetail.lowercased())."
         }
         return "\(result.title). \(result.subtitle)"
     }
@@ -381,9 +377,8 @@ private struct SearchRow: View {
             let rate = occupancyRow?.displayRate ?? 0
             if let row = occupancyRow, !row.isLivePrimary {
                 OccupancyPill(
-                    status: row.statusLabel,
-                    emphasisRate: rate,
-                    accessibilityLabel: "\(row.statusLabel), \(row.sourceSummary.lowercased())"
+                    estimatedRate: min(100, rate),
+                    sourceLabel: row.sourceSummary
                 )
             } else {
                 OccupancyPill(rate: min(100, rate))

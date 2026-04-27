@@ -74,8 +74,8 @@ struct LotDetailsSheet: View {
                     .foregroundStyle(.white)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
-                if let occupancyRow, !occupancyRow.isLivePrimary {
-                    Text("\(occupancyRow.statusLabel) • \(occupancyRow.sourceSummary)")
+                if let occupancyRow {
+                    Text("\(occupancyRow.occupancyHeadline) • \(occupancyRow.sourceSummary)")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.68))
                 }
@@ -99,9 +99,9 @@ struct LotDetailsSheet: View {
 
     private var statsRow: some View {
         HStack(spacing: 10) {
-            if let occupancyRow, !occupancyRow.isLivePrimary {
-                statCard(value: patternStatusValue, label: "Typical now", color: ringColor)
-                statCard(value: occupancyRow.signalStrength == "sparse" ? "Sparse" : "Typical", label: "Signal", color: .white)
+            if let occupancyRow {
+                statCard(value: occupancyRow.shortPercentLabel, label: occupancyRow.isLivePrimary ? "Occupied" : "Estimated", color: ringColor)
+                statCard(value: occupancyRow.compactStatusLabel, label: occupancyRow.compactSourceLabel, color: .white)
             } else {
                 statCard(value: "\(Int((occupancyRatio * 100).rounded()))%", label: "Full", color: ringColor)
                 statCard(value: "\(liveOccupancy)", label: "Occupied", color: .white)
@@ -339,20 +339,6 @@ struct LotDetailsSheet: View {
         OccupancyPalette.color(forRatio: occupancyRatio)
     }
 
-    private var patternStatusValue: String {
-        guard let occupancyRow else { return "Open" }
-        switch occupancyRow.statusLabel {
-        case "Likely busy":
-            return "Busy"
-        case "Likely open":
-            return "Open"
-        case "No live signal":
-            return "No live"
-        default:
-            return "Moderate"
-        }
-    }
-
     private var displayForecastPoints: [ForecastPoint] {
         guard !forecast.isEmpty else { return [] }
         return forecast.enumerated().map { index, point in
@@ -568,14 +554,9 @@ private extension View {
 
     @ViewBuilder
     func campusBadgeGlass(tint: Color) -> some View {
-        if #available(iOS 26.0, *) {
-            self
-                .glassEffect(.regular.tint(tint).interactive(), in: Capsule())
-        } else {
-            self
-                .background(tint.opacity(0.16), in: Capsule())
-                .overlay(Capsule().stroke(tint.opacity(0.30), lineWidth: 1))
-        }
+        self
+            .background(tint.opacity(0.16), in: Capsule())
+            .overlay(Capsule().stroke(Color(hex: 0xF87171).opacity(0.30), lineWidth: 1))
     }
 
     // MARK: Favourite button
@@ -610,14 +591,9 @@ private extension View {
 
     @ViewBuilder
     func featurePillGlass(tint: Color) -> some View {
-        if #available(iOS 26.0, *) {
-            self
-                .glassEffect(.regular.tint(tint), in: Capsule())
-        } else {
-            self
-                .background(tint.opacity(0.15), in: Capsule())
-                .overlay(Capsule().stroke(tint.opacity(0.30), lineWidth: 1))
-        }
+        self
+            .background(tint.opacity(0.15), in: Capsule())
+            .overlay(Capsule().stroke(tint.opacity(0.30), lineWidth: 1))
     }
 
     // MARK: Info cards (permitInfo + notes)
@@ -679,16 +655,11 @@ private extension View {
 
     @ViewBuilder
     func navigateButtonGlass() -> some View {
-        if #available(iOS 26.0, *) {
-            self
-                .glassEffect(.regular.tint(Color(hex: 0x60A5FA)).interactive(), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        } else {
-            self
-                .background(Color(hex: 0x60A5FA).opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(Color(hex: 0x60A5FA).opacity(0.25), lineWidth: 1)
-                )
-        }
+        self
+            .background(Color(hex: 0x60A5FA).opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(Color(hex: 0x60A5FA).opacity(0.25), lineWidth: 1)
+            )
     }
 }
