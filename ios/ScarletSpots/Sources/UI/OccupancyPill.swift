@@ -32,7 +32,7 @@ struct OccupancyPill: View {
                 .frame(width: 6, height: 6)
             Text(resolved.label)
                 .font(.system(size: 12, weight: .bold).monospacedDigit())
-                .foregroundStyle(.white)
+                .foregroundStyle(color)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
@@ -52,25 +52,20 @@ struct OccupancyPill: View {
     }
 }
 
-// MARK: - Liquid Glass modifier
+// MARK: - Chip styling
 
 private extension View {
     @ViewBuilder
     func pillGlass(color: Color) -> some View {
-        if #available(iOS 26.0, *) {
-            self
-                .glassEffect(.regular.tint(color), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        } else {
-            self
-                .background(
-                    color.opacity(0.10),
-                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(color.opacity(0.25), lineWidth: 1)
-                )
-        }
+        self
+            .background(
+                color.opacity(0.10),
+                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(color.opacity(0.25), lineWidth: 1)
+            )
     }
 }
 

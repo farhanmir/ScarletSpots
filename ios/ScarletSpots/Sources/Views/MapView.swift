@@ -63,6 +63,22 @@ struct MapView: View {
         .sheet(item: $selectedLot) { lot in
             LotDetailsSheet(lot: lot, favoriteIds: $favoriteIds)
                 .presentationDetents([.large])
+                .presentationCornerRadius(30)
+                .presentationBackground {
+                    if #available(iOS 26.0, *) {
+                        Rectangle()
+                            .fill(.clear)
+                            .glassEffect(
+                                .regular,
+                                in: RoundedRectangle(cornerRadius: 30, style: .continuous)
+                            )
+                            .ignoresSafeArea()
+                    } else {
+                        Rectangle()
+                            .fill(.ultraThinMaterial)
+                            .ignoresSafeArea()
+                    }
+                }
         }
         .sheet(isPresented: $showCandidateSheet) {
             ParkingConfirmationSheet(
@@ -229,7 +245,7 @@ struct MapView: View {
     private func lotBadge(for lot: Lot) -> some View {
         let row = webSocket.lotOccupancyRows[lot.mapId]
         let rate = row?.displayRate ?? occupancyRate(for: lot)
-        let label = row?.isLivePrimary == false ? "~\(Int(rate.rounded()))%" : "\(Int(rate.rounded()))%"
+        let label = "\(Int(rate.rounded()))%"
         MapPin(label: label, color: colorForLot(lot), fontSize: 12)
     }
 

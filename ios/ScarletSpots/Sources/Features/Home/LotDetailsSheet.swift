@@ -9,6 +9,7 @@ import MapKit
 /// recomputed on the fly so changing the user's permit in Settings updates
 /// the sheet immediately.
 struct LotDetailsSheet: View {
+    @Environment(\.colorScheme) private var colorScheme
     let lot: Lot
     @Binding var favoriteIds: Set<String>
 
@@ -24,6 +25,11 @@ struct LotDetailsSheet: View {
     @State private var wobble = 0.0
     @State private var didWobble = false
 
+    private var isDark: Bool { colorScheme == .dark }
+    private var primaryText: Color { isDark ? .white : Color(hex: 0x111827) }
+    private var secondaryText: Color { isDark ? .white.opacity(0.64) : Color(hex: 0x6B7280) }
+    private var tertiaryText: Color { isDark ? .white.opacity(0.50) : Color(hex: 0x9CA3AF) }
+
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 14) {
@@ -38,7 +44,7 @@ struct LotDetailsSheet: View {
                 if let toastText {
                     Text(toastText)
                         .font(.caption)
-                        .foregroundStyle(.white.opacity(0.65))
+                        .foregroundStyle(secondaryText)
                         .frame(maxWidth: .infinity, alignment: .center)
                 }
             }
@@ -48,7 +54,7 @@ struct LotDetailsSheet: View {
             .rotationEffect(.degrees(-wobble * 5))
             .offset(y: abs(wobble) * 2)
         }
-        .lotDetailsBackground()
+        .lotDetailsBackground(isDark: isDark)
         .task {
             await loadForecast()
             await triggerLot67WobbleIfNeeded()
@@ -64,20 +70,20 @@ struct LotDetailsSheet: View {
                     Text("\(campus) Campus")
                         .font(.system(size: 11, weight: .bold))
                         .tracking(0.4)
-                        .foregroundStyle(Color(hex: 0xF87171))
+                        .foregroundStyle(isDark ? Color(hex: 0xF87171) : Color(hex: 0xBE123C))
                         .padding(.horizontal, 9)
                         .padding(.vertical, 3)
                         .campusBadgeGlass(tint: Color(hex: 0xCC0033))
                 }
                 Text(lot.shortName)
                     .font(.system(size: 24, weight: .bold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(primaryText)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                 if let occupancyRow {
                     Text("\(occupancyRow.occupancyHeadline) • \(occupancyRow.sourceSummary)")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.68))
+                        .foregroundStyle(secondaryText)
                 }
             }
 
@@ -88,9 +94,9 @@ struct LotDetailsSheet: View {
             } label: {
                 Image(systemName: favoriteIds.contains(lot.mapId) ? "star.fill" : "star")
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(favoriteIds.contains(lot.mapId) ? Color(hex: 0xF59E0B) : .white.opacity(0.7))
+                    .foregroundStyle(favoriteIds.contains(lot.mapId) ? Color(hex: 0xF59E0B) : tertiaryText)
                     .frame(width: 34, height: 34)
-                    .favoriteButtonGlass()
+                    .favoriteButtonGlass(isDark: isDark)
             }
             .buttonStyle(.plain)
         }
@@ -101,12 +107,12 @@ struct LotDetailsSheet: View {
         HStack(spacing: 10) {
             if let occupancyRow {
                 statCard(value: occupancyRow.shortPercentLabel, label: occupancyRow.isLivePrimary ? "Occupied" : "Estimated", color: ringColor)
-                statCard(value: occupancyRow.compactStatusLabel, label: occupancyRow.compactSourceLabel, color: .white)
+                statCard(value: occupancyRow.compactStatusLabel, label: occupancyRow.compactSourceLabel, color: primaryText)
             } else {
                 statCard(value: "\(Int((occupancyRatio * 100).rounded()))%", label: "Full", color: ringColor)
-                statCard(value: "\(liveOccupancy)", label: "Occupied", color: .white)
+                statCard(value: "\(liveOccupancy)", label: "Occupied", color: primaryText)
             }
-            statCard(value: "\(displayCapacity)", label: "Capacity", color: .white)
+            statCard(value: "\(displayCapacity)", label: "Capacity", color: primaryText)
         }
     }
 
@@ -119,12 +125,12 @@ struct LotDetailsSheet: View {
                 .minimumScaleFactor(0.7)
             Text(label)
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.white.opacity(0.55))
+                .foregroundStyle(tertiaryText)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 12)
         .padding(.horizontal, 6)
-        .statCardGlass()
+        .statCardGlass(isDark: isDark)
     }
 
     private var featurePills: some View {
@@ -151,15 +157,12 @@ struct LotDetailsSheet: View {
             HStack {
                 Label("Access Rules", systemImage: "checkmark.shield")
                     .font(.headline)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(primaryText)
                 Spacer()
                 Text(lotAvailable ? "OPEN" : "CLOSED")
                     .font(.caption2.bold())
                     .tracking(0.5)
                     .foregroundStyle(lotAvailable ? Color(hex: 0x4ADE80) : Color(hex: 0xEF4444))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .availabilityBadgeGlass(available: lotAvailable)
             }
 
             if let primaryRule = primaryAccessRule {
@@ -174,7 +177,7 @@ struct LotDetailsSheet: View {
                     icon: "questionmark.circle.fill",
                     title: "No Permit Set",
                     detail: "Set a permit in Profile.",
-                    accent: .white.opacity(0.7)
+                    accent: tertiaryText
                 )
             }
 
@@ -188,7 +191,7 @@ struct LotDetailsSheet: View {
             }
         }
         .padding(14)
-        .infoCardGlass()
+        .infoCardGlass(isDark: isDark)
     }
 
     private func accessRow(icon: String, title: String, detail: String, accent: Color) -> some View {
@@ -200,10 +203,10 @@ struct LotDetailsSheet: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.subheadline.bold())
-                    .foregroundStyle(.white)
+                    .foregroundStyle(primaryText)
                 Text(detail)
                     .font(.caption)
-                    .foregroundStyle(.white.opacity(0.70))
+                    .foregroundStyle(secondaryText)
             }
         }
     }
@@ -226,21 +229,21 @@ struct LotDetailsSheet: View {
             HStack(spacing: 6) {
                 Image(systemName: "info.circle.fill")
                     .font(.caption)
-                    .foregroundStyle(.white.opacity(0.55))
+                    .foregroundStyle(tertiaryText)
                 Text("NOTES")
                     .font(.caption2.bold())
                     .tracking(1)
-                    .foregroundStyle(.white.opacity(0.52))
+                    .foregroundStyle(tertiaryText)
             }
             Text(lot.note.isEmpty ? "No notes provided for this lot." : lot.note)
                 .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.white.opacity(0.90))
+                .foregroundStyle(primaryText)
                 .lineSpacing(3)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .infoCardGlass()
+        .infoCardGlass(isDark: isDark)
     }
 
     private var forecastSection: some View {
@@ -248,32 +251,22 @@ struct LotDetailsSheet: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text("Forecast")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.58))
+                    .foregroundStyle(tertiaryText)
                     .tracking(0.7)
                 if let occupancyRow, !occupancyRow.isLivePrimary {
                     Text("Expected pattern from now")
                         .font(.caption2)
-                        .foregroundStyle(.white.opacity(0.48))
+                        .foregroundStyle(tertiaryText)
                 }
             }
             ForecastChart(points: displayForecastPoints, capacity: displayCapacity)
                 .padding(12)
-                .forecastCardGlass()
+                .forecastCardGlass(isDark: isDark)
         }
         .padding(.top, 10)
     }
 
-    private var actionButtons: some View {
-        Group {
-            if #available(iOS 26.0, *) {
-                GlassEffectContainer(spacing: 12) {
-                    actionButtonsContent
-                }
-            } else {
-                actionButtonsContent
-            }
-        }
-    }
+    private var actionButtons: some View { actionButtonsContent }
 
     @ViewBuilder
     private var actionButtonsContent: some View {
@@ -313,7 +306,7 @@ struct LotDetailsSheet: View {
                 .foregroundStyle(Color(hex: 0x60A5FA))
                 .frame(maxWidth: .infinity)
                 .frame(height: 54)
-                .navigateButtonGlass()
+                .navigateButtonGlass(isDark: isDark)
             }
             .buttonStyle(.plain)
         }
@@ -529,22 +522,33 @@ private extension View {
 
     // MARK: Sheet background
 
-    /// Replaces the old `Color.black + ultraThinMaterial` stack.
-    /// On iOS 26+ the sheet presenter naturally applies glass behind the detent,
-    /// so we just pass through; on older OS we restore the dark fallback.
+    /// Keeps the sheet content transparent on iOS 26+ so the presentation-level
+    /// Liquid Glass can show through. Older OS versions keep the local fallback.
     @ViewBuilder
-    func lotDetailsBackground() -> some View {
+    func lotDetailsBackground(isDark: Bool) -> some View {
         if #available(iOS 26.0, *) {
-            self
-                .background(.clear)
+            self.background(Color.clear)
         } else {
             self
                 .background(
                     ZStack {
-                        Color.black.opacity(0.86).ignoresSafeArea()
-                        Rectangle()
-                            .fill(.ultraThinMaterial.opacity(0.46))
+                        if isDark {
+                            Color.black.opacity(0.86).ignoresSafeArea()
+                            Rectangle()
+                                .fill(.ultraThinMaterial.opacity(0.46))
+                                .ignoresSafeArea()
+                        } else {
+                            LinearGradient(
+                                colors: [
+                                    Color(hex: 0xFFF8FA),
+                                    Color(hex: 0xF8FAFC),
+                                    Color(hex: 0xF3F4F6)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
                             .ignoresSafeArea()
+                        }
                     }
                 )
         }
@@ -555,36 +559,40 @@ private extension View {
     @ViewBuilder
     func campusBadgeGlass(tint: Color) -> some View {
         self
-            .background(tint.opacity(0.16), in: Capsule())
-            .overlay(Capsule().stroke(Color(hex: 0xF87171).opacity(0.30), lineWidth: 1))
+            .background(tint.opacity(isDark ? 0.14 : 0.16), in: Capsule())
+            .overlay(Capsule().stroke(Color(hex: 0xF87171).opacity(isDark ? 0.24 : 0.30), lineWidth: 1))
     }
 
     // MARK: Favourite button
 
     @ViewBuilder
-    func favoriteButtonGlass() -> some View {
-        if #available(iOS 26.0, *) {
-            self
-                .glassEffect(.regular.interactive(), in: Circle())
-        } else {
-            self
-                .background(Color.white.opacity(0.08), in: Circle())
-                .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
-        }
+    func favoriteButtonGlass(isDark: Bool) -> some View {
+        self
+            .background(
+                isDark ? Color.black.opacity(0.22) : Color.black.opacity(0.04),
+                in: Circle()
+            )
+            .overlay(
+                Circle().stroke(
+                    isDark ? Color.white.opacity(0.10) : Color.black.opacity(0.10),
+                    lineWidth: 1
+                )
+            )
     }
 
     // MARK: Stat cards
 
     @ViewBuilder
-    func statCardGlass() -> some View {
-        if #available(iOS 26.0, *) {
-            self
-                .glassEffect(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        } else {
-            self
-                .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.white.opacity(0.10), lineWidth: 1))
-        }
+    func statCardGlass(isDark: Bool) -> some View {
+        self
+            .background(
+                isDark ? Color.black.opacity(0.20) : Color.white.opacity(0.92),
+                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.08), lineWidth: 1)
+            )
     }
 
     // MARK: Feature pills
@@ -592,74 +600,60 @@ private extension View {
     @ViewBuilder
     func featurePillGlass(tint: Color) -> some View {
         self
-            .background(tint.opacity(0.15), in: Capsule())
-            .overlay(Capsule().stroke(tint.opacity(0.30), lineWidth: 1))
+            .background(tint.opacity(isDark ? 0.10 : 0.15), in: Capsule())
+            .overlay(Capsule().stroke(tint.opacity(isDark ? 0.22 : 0.30), lineWidth: 1))
     }
 
     // MARK: Info cards (permitInfo + notes)
 
     @ViewBuilder
-    func infoCardGlass() -> some View {
-        if #available(iOS 26.0, *) {
-            self
-                .glassEffect(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        } else {
-            self
-                .background(Color.black.opacity(0.20), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.white.opacity(0.08), lineWidth: 1))
-        }
-    }
-
-    // MARK: Availability badge (OPEN / CLOSED capsule inside permit card)
-
-    @ViewBuilder
-    func availabilityBadgeGlass(available: Bool) -> some View {
-        let color = available ? Color(hex: 0x4ADE80) : Color(hex: 0xEF4444)
-        if #available(iOS 26.0, *) {
-            self
-                .glassEffect(.regular.tint(color), in: Capsule())
-        } else {
-            self
-                .background(color.opacity(0.12), in: Capsule())
-        }
+    func infoCardGlass(isDark: Bool) -> some View {
+        self
+            .background(
+                isDark ? Color.black.opacity(0.20) : Color.white.opacity(0.94),
+                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.08), lineWidth: 1)
+            )
     }
 
     // MARK: Forecast chart container
 
     @ViewBuilder
-    func forecastCardGlass() -> some View {
-        if #available(iOS 26.0, *) {
-            self
-                .glassEffect(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        } else {
-            self
-                .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.white.opacity(0.10), lineWidth: 1))
-        }
+    func forecastCardGlass(isDark: Bool) -> some View {
+        self
+            .background(
+                isDark ? Color.black.opacity(0.20) : Color.white.opacity(0.96),
+                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.08), lineWidth: 1)
+            )
     }
 
     // MARK: Park Here button
 
     @ViewBuilder
     func parkButtonGlass() -> some View {
-        if #available(iOS 26.0, *) {
-            self
-                .glassEffect(.regular.tint(Color(hex: 0xCC0033)).interactive(), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        } else {
-            self
-                .background(Color(hex: 0xCC0033), in: RoundedRectangle(cornerRadius: 16))
-        }
+        self
+            .background(Color(hex: 0xCC0033), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     // MARK: Navigate button
 
     @ViewBuilder
-    func navigateButtonGlass() -> some View {
+    func navigateButtonGlass(isDark: Bool) -> some View {
         self
-            .background(Color(hex: 0x60A5FA).opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .background(
+                Color(hex: 0x60A5FA).opacity(isDark ? 0.08 : 0.12),
+                in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+            )
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(Color(hex: 0x60A5FA).opacity(0.25), lineWidth: 1)
+                    .stroke(Color(hex: 0x60A5FA).opacity(isDark ? 0.22 : 0.30), lineWidth: 1)
             )
     }
 }
