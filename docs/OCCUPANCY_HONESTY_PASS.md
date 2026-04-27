@@ -106,12 +106,12 @@ ScarletSpots is still pre-launch, so raw parking-session counts are not a believ
 
 ### iOS
 
-- `ios-native/ScarletSpots/Sources/Models/AppModels.swift`
-- `ios-native/ScarletSpots/Sources/Services/WebSocketManager.swift`
-- `ios-native/ScarletSpots/Sources/UI/OccupancyPill.swift`
-- `ios-native/ScarletSpots/Sources/Views/MapView.swift`
-- `ios-native/ScarletSpots/Sources/Features/Search/SearchScreen.swift`
-- `ios-native/ScarletSpots/Sources/Features/Home/LotDetailsSheet.swift`
+- `ios/ScarletSpots/Sources/Models/AppModels.swift`
+- `ios/ScarletSpots/Sources/Services/WebSocketManager.swift`
+- `ios/ScarletSpots/Sources/UI/OccupancyPill.swift`
+- `ios/ScarletSpots/Sources/Views/MapView.swift`
+- `ios/ScarletSpots/Sources/Features/Search/SearchScreen.swift`
+- `ios/ScarletSpots/Sources/Features/Home/LotDetailsSheet.swift`
 
 ## Validation Completed
 

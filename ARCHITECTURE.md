@@ -10,7 +10,7 @@ That split keeps the app fast, offline-friendly, and cheap to operate.
 
 ### 1. Native iOS app
 
-Location: `ios-native/ScarletSpots`
+Location: `ios/ScarletSpots`
 
 Responsibilities:
 - render bundled lot polygons and search data
@@ -21,7 +21,7 @@ Responsibilities:
 - drive background/foreground sensing inputs
 
 Key local data source:
-- `ios-native/ScarletSpots/Resources/scarletspots.sqlite`
+- `ios/ScarletSpots/Resources/scarletspots.sqlite`
 
 ### 2. Backend
 
@@ -45,15 +45,6 @@ Responsibilities:
 - landing page
 - privacy / terms / support surfaces
 - launch-facing product messaging
-
-### 4. Legacy React Native app
-
-Location: `mobile/`
-
-Status:
-- kept for reference only
-- useful when matching prior UX behavior
-- not the active implementation target
 
 ## Data model split
 
@@ -104,11 +95,11 @@ Lot selected
 
 ## Cleanup note
 
-The repo still contains some historical docs and reference code because the project pivoted from React Native to Swift. Current truth should be derived from:
+ScarletSpots is now fully ios. Current implementation truth should be derived from:
 
-1. `ios-native/`
+1. `ios/`
 2. `backend/`
 3. `website/`
-4. the non-`mobile/` docs in this repo
+4. `docs/`
 
 Last reviewed: 2026-04-26

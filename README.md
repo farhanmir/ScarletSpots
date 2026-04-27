@@ -4,14 +4,12 @@ Real-time Rutgers parking, built around a native iOS client, a FastAPI backend, 
 
 ## What lives here
 
-- `ios-native/`
+- `ios/`
   The active SwiftUI iOS app. This is the main product client.
 - `backend/`
   FastAPI API, occupancy/session logic, forecasting, friendships, favorites, and push fan-out.
 - `website/`
   Public landing page and legal/support pages.
-- `mobile/`
-  Legacy React Native app kept for reference only. Do not treat it as the current implementation target.
 - `docs/`
   Release, product, field-testing, and operational notes.
 
@@ -39,10 +37,9 @@ Dynamic data:
 
 ```text
 ScarletSpots/
-├── ios-native/                 active Swift app
+├── ios/                 active Swift app
 ├── backend/                    FastAPI service + tests + migrations
 ├── website/                    marketing site + privacy/terms/support pages
-├── mobile/                     legacy React Native app (reference only)
 ├── docs/                       launch and architecture notes
 ├── README.md
 ├── ARCHITECTURE.md
@@ -55,7 +52,7 @@ ScarletSpots/
 ### Native iOS
 
 ```bash
-cd ios-native/ScarletSpots
+cd ios/ScarletSpots
 xcodegen generate
 ```
 

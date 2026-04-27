@@ -15,7 +15,7 @@ on:
           - "false"
 
 concurrency:
-  group: ios-native-${{ github.ref }}
+  group: ios-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -30,9 +30,9 @@ jobs:
       - name: Verify bundled SQLite matches JSON sources
         run: |
           set -euo pipefail
-          python3 ios-native/scripts/build_sqlite.py --output /tmp/scarletspots.verify.sqlite
-          python3 ios-native/scripts/compare_sqlite.py \
-            ios-native/ScarletSpots/Resources/scarletspots.sqlite \
+          python3 ios/scripts/build_sqlite.py --output /tmp/scarletspots.verify.sqlite
+          python3 ios/scripts/compare_sqlite.py \
+            ios/ScarletSpots/Resources/scarletspots.sqlite \
             /tmp/scarletspots.verify.sqlite
 
       - name: Set up Xcode
@@ -47,13 +47,13 @@ jobs:
         uses: actions/cache@v5
         with:
           path: |
-            ios-native/ScarletSpots/build/DerivedData/SourcePackages
+            ios/ScarletSpots/build/DerivedData/SourcePackages
             ~/Library/Caches/org.swift.swiftpm
-          key: ${{ runner.os }}-spm-${{ hashFiles('ios-native/ScarletSpots/project.yml') }}
+          key: ${{ runner.os }}-spm-${{ hashFiles('ios/ScarletSpots/project.yml') }}
           restore-keys: ${{ runner.os }}-spm-
 
       - name: Generate Xcode project
-        working-directory: ios-native/ScarletSpots
+        working-directory: ios/ScarletSpots
         run: xcodegen generate
 
       # If the runner image is mid-rotation the iOS simulator runtime can be
@@ -63,7 +63,7 @@ jobs:
         run: xcodebuild -downloadPlatform iOS || true
 
       - name: Build for iOS Simulator (unsigned)
-        working-directory: ios-native/ScarletSpots
+        working-directory: ios/ScarletSpots
         run: |
           set -o pipefail
           xcodebuild build \
@@ -90,9 +90,9 @@ jobs:
       - name: Verify bundled SQLite matches JSON sources
         run: |
           set -euo pipefail
-          python3 ios-native/scripts/build_sqlite.py --output /tmp/scarletspots.verify.sqlite
-          python3 ios-native/scripts/compare_sqlite.py \
-            ios-native/ScarletSpots/Resources/scarletspots.sqlite \
+          python3 ios/scripts/build_sqlite.py --output /tmp/scarletspots.verify.sqlite
+          python3 ios/scripts/compare_sqlite.py \
+            ios/ScarletSpots/Resources/scarletspots.sqlite \
             /tmp/scarletspots.verify.sqlite
 
       - name: Set up Xcode
@@ -107,9 +107,9 @@ jobs:
         uses: actions/cache@v5
         with:
           path: |
-            ios-native/ScarletSpots/build/DerivedData/SourcePackages
+            ios/ScarletSpots/build/DerivedData/SourcePackages
             ~/Library/Caches/org.swift.swiftpm
-          key: ${{ runner.os }}-spm-${{ hashFiles('ios-native/ScarletSpots/project.yml') }}
+          key: ${{ runner.os }}-spm-${{ hashFiles('ios/ScarletSpots/project.yml') }}
           restore-keys: ${{ runner.os }}-spm-
 
       # xcconfig files interpret `//` as the start of a line comment which
@@ -144,14 +144,14 @@ jobs:
             echo "SUPABASE_URL = $(escape_url "${SUPABASE_URL:-}")"
             echo "SUPABASE_ANON_KEY = ${SUPABASE_ANON_KEY:-}"
             echo "TLS_CERT_SHA256 = ${TLS_CERT_SHA256:-}"
-          } > ios-native/ScarletSpots/Config/ReleaseSecrets.xcconfig
+          } > ios/ScarletSpots/Config/ReleaseSecrets.xcconfig
 
       - name: Generate Xcode project
-        working-directory: ios-native/ScarletSpots
+        working-directory: ios/ScarletSpots
         run: xcodegen generate
 
       - name: Archive (unsigned)
-        working-directory: ios-native/ScarletSpots
+        working-directory: ios/ScarletSpots
         run: |
           set -o pipefail
           xcodebuild archive \
@@ -165,7 +165,7 @@ jobs:
             CODE_SIGN_IDENTITY=""
 
       - name: Validate archived native API/Supabase settings
-        working-directory: ios-native/ScarletSpots
+        working-directory: ios/ScarletSpots
         run: |
           set -euo pipefail
 
@@ -236,7 +236,7 @@ jobs:
           fi
 
       - name: Package unsigned IPA
-        working-directory: ios-native/ScarletSpots
+        working-directory: ios/ScarletSpots
         run: |
           APP_PATH=$(find build/ScarletSpots.xcarchive/Products/Applications -maxdepth 1 -name "*.app" -print -quit)
           if [ -z "$APP_PATH" ]; then
@@ -262,8 +262,8 @@ jobs:
       - name: Upload unsigned archive
         uses: actions/upload-artifact@v7
         with:
-          name: ios-native-archive-unsigned
-          path: ios-native/ScarletSpots/build/ScarletSpots.xcarchive
+          name: ios-archive-unsigned
+          path: ios/ScarletSpots/build/ScarletSpots.xcarchive
           if-no-files-found: error
           retention-days: 7
           include-hidden-files: true
@@ -271,15 +271,15 @@ jobs:
       - name: Upload unsigned IPA
         uses: actions/upload-artifact@v7
         with:
-          name: ios-native-ipa-unsigned
-          path: ios-native/ScarletSpots/ScarletSpots.ipa
+          name: ios-ipa-unsigned
+          path: ios/ScarletSpots/ScarletSpots.ipa
           if-no-files-found: error
           retention-days: 30
 
       - name: Prepare release metadata
         id: release_info
         run: |
-          TAG="ios-native-build-${{ github.run_number }}"
+          TAG="ios-build-${{ github.run_number }}"
           NAME="iOS Native Sideloading Build ${{ github.run_number }}"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
@@ -288,7 +288,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${{ steps.release_info.outputs.tag }}" ios-native/ScarletSpots/ScarletSpots.ipa \
+          gh release create "${{ steps.release_info.outputs.tag }}" ios/ScarletSpots/ScarletSpots.ipa \
             --title "${{ steps.release_info.outputs.name }}" \
             --generate-notes \
             --prerelease

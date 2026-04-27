@@ -1,16 +1,14 @@
-name: iOS Build (Sideloading)
+name: iOS Build (Native)
 
 on:
   workflow_dispatch:
 
 jobs:
   ios-build:
-    name: iOS Build (Sideloading)
+    name: iOS Build (Native)
     runs-on: macos-15
     permissions:
-      contents: write
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      contents: read
 
     steps:
       - name: Checkout repository
@@ -28,7 +26,6 @@ jobs:
             exit 1
           fi
 
-          # Prefer stable 26.x over beta/RC images when available.
           XCODE_APP=""
           for APP in "${XCODE_APPS[@]}"; do
             BASENAME=$(basename "$APP")
@@ -37,7 +34,6 @@ jobs:
             fi
           done
 
-          # Fallback to latest Xcode if only prerelease builds are installed.
           if [ -z "$XCODE_APP" ]; then
             LAST_INDEX=$((${#XCODE_APPS[@]} - 1))
             XCODE_APP="${XCODE_APPS[$LAST_INDEX]}"
@@ -51,261 +47,23 @@ jobs:
           xcodebuild -version
           swift --version
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: mobile/package-lock.json
+      - name: Install XcodeGen
+        run: brew install xcodegen
 
-      - name: Install Node dependencies
-        working-directory: mobile
-        env:
-          HUSKY: 0
-        run: npm ci
-
-      - name: Remove Expo dev client for sideload Release build
-        working-directory: mobile
-        run: |
-          # expo-dev-client pulls expo-dev-menu/launcher pods, which fail on
-          # hosted Xcode beta images missing matching simulator runtimes.
-          npm uninstall expo-dev-client --no-save
-
-      - name: Validate required Expo environment variables
-        env:
-          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
-          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
-          EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
-        run: |
-          MISSING=0
-          for VAR_NAME in EXPO_PUBLIC_SUPABASE_URL EXPO_PUBLIC_SUPABASE_ANON_KEY EXPO_PUBLIC_API_URL; do
-            if [ -z "${!VAR_NAME}" ]; then
-              echo "::error::Missing required GitHub secret: ${VAR_NAME}"
-              MISSING=1
-            fi
-          done
-
-          if [ "$MISSING" -ne 0 ]; then
-            echo "One or more required EXPO_PUBLIC variables are missing."
-            exit 1
-          fi
-
-      # ── Validate parking-magic native module is fully intact before building ──
-      - name: Validate native module structure
-        working-directory: mobile
-        run: |
-          echo "Verifying parking-magic native module..."
-          files=(
-            "modules/parking-magic/ios/ParkingMagicModule.swift"
-            "modules/parking-magic/ios/DatabaseManager.swift"
-            "modules/parking-magic/ios/NetworkManager.swift"
-            "modules/parking-magic/ios/TicketShield.swift"
-            "modules/parking-magic/ios/HapticManager.swift"
-            "modules/parking-magic/ios/VultureManager.swift"
-            "modules/parking-magic/ios/LiveActivityManager.swift"
-            "modules/parking-magic/ios/OfflineQueueManager.swift"
-            "modules/parking-magic/ios/ScarletMapView.swift"
-            "modules/parking-magic/ios/Resources/rutgers_parking_data.json"
-            "modules/parking-magic/ios/Resources/permit_mapping.json"
-            "modules/parking-magic/expo-module.config.json"
-            "modules/parking-magic/package.json"
-            "modules/parking-magic/ParkingMagic.podspec"
-          )
-          MISSING=0
-          for f in "${files[@]}"; do
-            if [ ! -f "$f" ]; then
-              echo "::error::Native module file missing: $f"
-              MISSING=1
-            else
-              echo "✓ $f"
-            fi
-          done
-          if [ "$MISSING" -ne 0 ]; then
-            echo "::error::Native module is incomplete. Build will fail at link time."
-            exit 1
-          fi
-          echo "✅ All native module files verified."
-
-      - name: Restore generated iOS project cache
-        id: ios_project_cache
-        uses: actions/cache/restore@v5
-        with:
-          path: mobile/ios
-          key: ${{ runner.os }}-ios-prebuild-${{ hashFiles('mobile/package-lock.json', 'mobile/package.json', 'mobile/app.json', 'mobile/app.config.js', 'mobile/app.config.ts', 'mobile/modules/parking-magic/**') }}-${{ github.run_id }}
-          restore-keys: |
-            ${{ runner.os }}-ios-prebuild-${{ hashFiles('mobile/package-lock.json', 'mobile/package.json', 'mobile/app.json', 'mobile/app.config.js', 'mobile/app.config.ts', 'mobile/modules/parking-magic/**') }}-
-
-      - name: Expo prebuild (generate native iOS project)
-        if: steps.ios_project_cache.outputs.cache-matched-key == ''
-        working-directory: mobile
-        env:
-          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
-          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
-          EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
-          EXPO_PUBLIC_PARKING_CONFIDENCE_THRESHOLD: ${{ vars.EXPO_PUBLIC_PARKING_CONFIDENCE_THRESHOLD }}
-          EXPO_PUBLIC_HEADING_SIGNAL_ENABLED: ${{ vars.EXPO_PUBLIC_HEADING_SIGNAL_ENABLED }}
-          EXPO_PUBLIC_OFFLINE_QUEUE_ENABLED: ${{ vars.EXPO_PUBLIC_OFFLINE_QUEUE_ENABLED }}
-          EXPO_PUBLIC_ENABLE_ALL_CAMPUSES: ${{ vars.EXPO_PUBLIC_ENABLE_ALL_CAMPUSES }}
-        run: npx expo prebuild --platform ios --clean
-
-      - name: Save generated iOS project cache
-        if: always() && steps.ios_project_cache.outputs.cache-matched-key == ''
-        uses: actions/cache/save@v5
-        with:
-          path: mobile/ios
-          key: ${{ steps.ios_project_cache.outputs.cache-primary-key }}
-
-      - name: 'Debug: List generated ios directory'
-        continue-on-error: true
-        run: |
-          echo "Listing mobile/ios content..."
-          ls -R mobile/ios 2>/dev/null || echo "mobile/ios directory not found"
-
-
-      # ── Verify Expo autolinking picked up the parking-magic module ─────────────
-      - name: Verify autolinking resolved parking-magic
-        working-directory: mobile
-        run: |
-          echo "Checking autolinked modules..."
-          if [ -d "ios/Pods" ]; then
-            echo "Pods directory found — checking for ParkingMagic..."
-            if grep -r "ParkingMagic" ios/Pods/ --include="*.rb" --include="*.xcconfig" -l 2>/dev/null | head -5; then
-              echo "✅ ParkingMagic found in Pods"
-            else
-              echo "ℹ️  ParkingMagic may use direct file references (local module) — checking ios dir..."
-            fi
-          fi
-          AUTOLINK_FILE="ios/build/generated/autolinking/autolinking.json"
-          if [ -f "$AUTOLINK_FILE" ] && grep -q "parking-magic" "$AUTOLINK_FILE"; then
-            echo "✅ parking-magic found in $AUTOLINK_FILE"
-          else
-            echo "::error::parking-magic not found in autolinking.json. Check expo-module.config.json and package.json."
-            echo "Checking content of $AUTOLINK_FILE:"
-            cat "$AUTOLINK_FILE" || echo "File not found"
-            exit 1
-          fi
-
-      - name: Identify workspace and scheme
-        id: xcode_info
-        run: |
-          WORKSPACE=$(find mobile/ios -maxdepth 1 -name "*.xcworkspace" | head -1)
-          PROJECT=$(find mobile/ios -maxdepth 1 -name "*.xcodeproj" | head -1)
-
-          if [ -n "$WORKSPACE" ]; then
-            SCHEME=$(basename "$WORKSPACE" .xcworkspace)
-            TARGET_TYPE="workspace"
-            echo "workspace=$WORKSPACE" >> "$GITHUB_OUTPUT"
-          elif [ -n "$PROJECT" ]; then
-            SCHEME=$(basename "$PROJECT" .xcodeproj)
-            TARGET_TYPE="project"
-            echo "project=$PROJECT" >> "$GITHUB_OUTPUT"
-          else
-            echo "::error::No .xcworkspace or .xcodeproj found in mobile/ios. Check prebuild logs."
-            ls -la mobile/ios || echo "mobile/ios directory is missing"
-            exit 1
-          fi
-
-          echo "target_type=$TARGET_TYPE" >> "$GITHUB_OUTPUT"
-          echo "scheme=$SCHEME" >> "$GITHUB_OUTPUT"
-
-          echo "✅ Build target type: $TARGET_TYPE"
-          echo "✅ Detected Workspace: $WORKSPACE"
-          echo "✅ Detected Project:   $PROJECT"
-          echo "✅ Detected Scheme:    $SCHEME"
-
-      - name: Auto-increment build number
-        run: |
-          INFO_PLIST="mobile/ios/${{ steps.xcode_info.outputs.scheme }}/Info.plist"
-          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ github.run_number }}" "$INFO_PLIST"
-          echo "Build number set to ${{ github.run_number }}"
-
-      - name: Restore DerivedData cache
-        id: derived_data_cache
-        uses: actions/cache/restore@v5
-        with:
-          path: build
-          key: ${{ runner.os }}-deriveddata-${{ hashFiles('mobile/package-lock.json', 'mobile/package.json', 'mobile/modules/parking-magic/**', 'mobile/ios/Podfile.lock', 'mobile/ios/Podfile', 'mobile/ios/**/*.pbxproj') }}-${{ github.run_id }}
-          restore-keys: |
-            ${{ runner.os }}-deriveddata-${{ hashFiles('mobile/package-lock.json', 'mobile/package.json', 'mobile/modules/parking-magic/**', 'mobile/ios/Podfile.lock', 'mobile/ios/Podfile', 'mobile/ios/**/*.pbxproj') }}-
+      - name: Generate Xcode project
+        working-directory: ios/ScarletSpots
+        run: xcodegen generate
 
       - name: Build with xcodebuild (Release, no code signing)
-        env:
-          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
-          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
-          EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
-          EXPO_PUBLIC_PARKING_CONFIDENCE_THRESHOLD: ${{ vars.EXPO_PUBLIC_PARKING_CONFIDENCE_THRESHOLD }}
-          EXPO_PUBLIC_HEADING_SIGNAL_ENABLED: ${{ vars.EXPO_PUBLIC_HEADING_SIGNAL_ENABLED }}
-          EXPO_PUBLIC_OFFLINE_QUEUE_ENABLED: ${{ vars.EXPO_PUBLIC_OFFLINE_QUEUE_ENABLED }}
-          EXPO_PUBLIC_ENABLE_ALL_CAMPUSES: ${{ vars.EXPO_PUBLIC_ENABLE_ALL_CAMPUSES }}
+        working-directory: ios/ScarletSpots
         run: |
-          XCODE_TARGET_ARGS=()
-          if [ "${{ steps.xcode_info.outputs.target_type }}" = "workspace" ]; then
-            XCODE_TARGET_ARGS=(-workspace "${{ steps.xcode_info.outputs.workspace }}")
-          else
-            XCODE_TARGET_ARGS=(-project "${{ steps.xcode_info.outputs.project }}")
-          fi
-
           xcodebuild \
-            -resolvePackageDependencies \
-            "${XCODE_TARGET_ARGS[@]}" \
-            -scheme "${{ steps.xcode_info.outputs.scheme }}"
-
-          xcodebuild \
-            "${XCODE_TARGET_ARGS[@]}" \
-            -scheme "${{ steps.xcode_info.outputs.scheme }}" \
+            -project ScarletSpots.xcodeproj \
+            -scheme ScarletSpots \
             -configuration Release \
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
-            -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             PROVISIONING_PROFILE_SPECIFIER=""
-
-      - name: Save DerivedData cache
-        if: always() && steps.derived_data_cache.outputs.cache-matched-key == ''
-        uses: actions/cache/save@v5
-        with:
-          path: build
-          key: ${{ steps.derived_data_cache.outputs.cache-primary-key }}
-
-      - name: Package app as IPA
-        run: |
-          SCHEME="${{ steps.xcode_info.outputs.scheme }}"
-          APP_PATH=$(find build/Build/Products/Release-iphoneos -maxdepth 1 -name "*.app" | head -1)
-          if [ -z "$APP_PATH" ]; then
-            APP_PATH=$(find build -name "*.app" | head -1)
-          fi
-          if [ -z "$APP_PATH" ]; then
-            echo "Error: No .app bundle found in DerivedData output" >&2
-            find build -maxdepth 5 -type d || true
-            exit 1
-          fi
-          mkdir -p Payload
-          cp -r "$APP_PATH" Payload/
-          zip -r "${SCHEME}.ipa" Payload/
-          echo "Created ${SCHEME}.ipa"
-
-      - name: Prepare release metadata
-        id: release_info
-        run: |
-          TAG="ios-build-${{ github.run_number }}"
-          NAME="iOS Sideloading Build ${{ github.run_number }}"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "name=$NAME" >> "$GITHUB_OUTPUT"
-
-      - name: Upload IPA artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: ${{ steps.xcode_info.outputs.scheme }}-${{ github.run_number }}
-          path: ${{ steps.xcode_info.outputs.scheme }}.ipa
-          retention-days: 30
-
-      - name: Create GitHub Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release create "${{ steps.release_info.outputs.tag }}" "${{ steps.xcode_info.outputs.scheme }}.ipa" \
-            --title "${{ steps.release_info.outputs.name }}" \
-            --generate-notes \
-            --prerelease

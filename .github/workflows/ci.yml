@@ -110,70 +110,9 @@ jobs:
             echo "✓ $f"
           done
 
-  # ── Mobile: TypeScript + Expo prebuild check ──────────────────────────────────
-  mobile:
-    name: Mobile (Expo / TypeScript)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: mobile
-
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: mobile/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Validate native module structure
-        run: |
-          echo "Verifying parking-magic native module..."
-          dirs=(
-            "modules/parking-magic/ios"
-            "modules/parking-magic/src"
-          )
-          files=(
-            "modules/parking-magic/ios/ParkingMagicModule.swift"
-            "modules/parking-magic/ios/DatabaseManager.swift"
-            "modules/parking-magic/ios/NetworkManager.swift"
-            "modules/parking-magic/ios/TicketShield.swift"
-            "modules/parking-magic/ios/HapticManager.swift"
-            "modules/parking-magic/ios/VultureManager.swift"
-            "modules/parking-magic/ios/LiveActivityManager.swift"
-            "modules/parking-magic/ios/OfflineQueueManager.swift"
-            "modules/parking-magic/ios/ScarletMapView.swift"
-            "modules/parking-magic/ios/Resources/rutgers_parking_data.json"
-            "modules/parking-magic/ios/Resources/permit_mapping.json"
-            "modules/parking-magic/expo-module.config.json"
-            "modules/parking-magic/src/index.ts"
-          )
-          MISSING=0
-          for d in "${dirs[@]}"; do
-            if [ ! -d "$d" ]; then echo "::error::Missing directory: $d"; MISSING=1; fi
-          done
-          for f in "${files[@]}"; do
-            if [ ! -f "$f" ]; then echo "::error::Missing file: $f"; MISSING=1; fi
-          done
-          if [ "$MISSING" -ne 0 ]; then exit 1; fi
-          echo "✅ All native module files present."
-
-      - name: TypeScript type check
-        run: npx tsc --noEmit
-
-      - name: Lint (ESLint)
-        run: npx eslint . --ext .ts,.tsx --max-warnings 0
-
-      - name: Run mobile tests
-        run: npm run test
-
   # ── Swift: Basic syntax lint ───────────────────────────────────────────────────
   swift-lint:
-    name: Swift Lint (Native Module)
+    name: Swift Lint (iOS Native)
     runs-on: macos-26
 
     steps:
@@ -198,17 +137,18 @@ jobs:
       - name: Install SwiftLint
         run: brew install swiftlint
 
-      - name: Run SwiftLint on parking-magic module
+      - name: Run SwiftLint on iOS source tree
         run: |
-          swiftlint lint --path mobile/modules/parking-magic/ios \
+          swiftlint lint --path ios/ScarletSpots/Sources \
             --config .swiftlint.yml 2>/dev/null || \
-          swiftlint lint --path mobile/modules/parking-magic/ios
+          swiftlint lint --path ios/ScarletSpots/Sources
 
       - name: Swift build check (syntax only)
         run: |
           echo "Checking Swift files compile individually..."
           FAILED=0
-          for f in mobile/modules/parking-magic/ios/*.swift; do
+          mapfile -t SWIFT_FILES < <(git ls-files "ios/ScarletSpots/Sources/*.swift" "ios/ScarletSpots/Sources/**/*.swift")
+          for f in "${SWIFT_FILES[@]}"; do
             if swiftc -parse "$f" >/dev/null 2>&1; then
               echo "✓ $f"
             else

@@ -39,7 +39,7 @@ When the iOS app detects a park or end via native sensing:
 
 Some older docs and comments still describe a JS-first background pipeline. Those are historical. The active implementation center is:
 
-- `ios-native/ScarletSpots/Sources/AutoPark`
+- `ios/ScarletSpots/Sources/AutoPark`
 - `backend/app/routers/park.py`
 - `backend/app/core/websocket.py`
 - `backend/app/services/push_notifications.py`

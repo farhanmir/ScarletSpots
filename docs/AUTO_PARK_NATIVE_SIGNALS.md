@@ -15,10 +15,10 @@ No single weak signal should force a confident parking action. Signals should co
 
 ## Current implementation center
 
-- `ios-native/ScarletSpots/Sources/AutoPark/LocationEngine.swift`
-- `ios-native/ScarletSpots/Sources/AutoPark/AutoParkCoordinator.swift`
-- `ios-native/ScarletSpots/Sources/AutoPark/AudioRouteEngine.swift`
-- `ios-native/ScarletSpots/Sources/AutoPark/MotionEngine.swift`
+- `ios/ScarletSpots/Sources/AutoPark/LocationEngine.swift`
+- `ios/ScarletSpots/Sources/AutoPark/AutoParkCoordinator.swift`
+- `ios/ScarletSpots/Sources/AutoPark/AudioRouteEngine.swift`
+- `ios/ScarletSpots/Sources/AutoPark/MotionEngine.swift`
 
 ## Near-term engineering direction
 

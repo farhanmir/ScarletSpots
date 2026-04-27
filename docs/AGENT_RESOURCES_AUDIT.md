@@ -15,7 +15,7 @@ Historical helper resources may still exist locally or in prior branches, but th
 ## Practical rule
 
 When docs disagree, trust:
-- `ios-native/`
+- `ios/`
 - `backend/`
 - `website/`
 - refreshed non-`mobile/` markdown in this repo

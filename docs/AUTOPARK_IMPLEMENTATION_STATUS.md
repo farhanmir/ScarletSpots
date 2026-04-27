@@ -12,10 +12,10 @@ This is a code-status document, not a promise that the feature is production-rea
 
 The native iOS app now has a much larger AutoPark / AutoEnd foundation in code across:
 
-- `ios-native/ScarletSpots/Sources/AutoPark/`
-- `ios-native/ScarletSpots/Sources/App/`
-- `ios-native/ScarletSpots/Sources/Services/`
-- `ios-native/ScarletSpots/Sources/Views/`
+- `ios/ScarletSpots/Sources/AutoPark/`
+- `ios/ScarletSpots/Sources/App/`
+- `ios/ScarletSpots/Sources/Services/`
+- `ios/ScarletSpots/Sources/Views/`
 - `backend/app/routers/park.py`
 - `backend/app/models/parking.py`
 
@@ -36,9 +36,9 @@ Implemented:
 
 Files:
 
-- `ios-native/ScarletSpots/Sources/App/AppDelegate.swift`
-- `ios-native/ScarletSpots/Sources/App/RootView.swift`
-- `ios-native/ScarletSpots/Sources/App/ScarletSpotsApp.swift`
+- `ios/ScarletSpots/Sources/App/AppDelegate.swift`
+- `ios/ScarletSpots/Sources/App/RootView.swift`
+- `ios/ScarletSpots/Sources/App/ScarletSpotsApp.swift`
 
 ### 2. Low-power location architecture
 
@@ -53,7 +53,7 @@ Implemented:
 
 Files:
 
-- `ios-native/ScarletSpots/Sources/AutoPark/LocationEngine.swift`
+- `ios/ScarletSpots/Sources/AutoPark/LocationEngine.swift`
 
 ### 3. AutoPark trigger engine
 
@@ -71,9 +71,9 @@ Implemented:
 
 Files:
 
-- `ios-native/ScarletSpots/Sources/AutoPark/AutoParkCoordinator.swift`
-- `ios-native/ScarletSpots/Sources/AutoPark/MotionEngine.swift`
-- `ios-native/ScarletSpots/Sources/AutoPark/AudioRouteEngine.swift`
+- `ios/ScarletSpots/Sources/AutoPark/AutoParkCoordinator.swift`
+- `ios/ScarletSpots/Sources/AutoPark/MotionEngine.swift`
+- `ios/ScarletSpots/Sources/AutoPark/AudioRouteEngine.swift`
 
 ### 4. AutoEnd trigger engine
 
@@ -87,9 +87,9 @@ Implemented:
 
 Files:
 
-- `ios-native/ScarletSpots/Sources/AutoPark/AutoParkCoordinator.swift`
-- `ios-native/ScarletSpots/Sources/AutoPark/MotionEngine.swift`
-- `ios-native/ScarletSpots/Sources/AutoPark/AudioRouteEngine.swift`
+- `ios/ScarletSpots/Sources/AutoPark/AutoParkCoordinator.swift`
+- `ios/ScarletSpots/Sources/AutoPark/MotionEngine.swift`
+- `ios/ScarletSpots/Sources/AutoPark/AudioRouteEngine.swift`
 
 ### 5. Session truth and persistence
 
@@ -102,9 +102,9 @@ Implemented:
 
 Files:
 
-- `ios-native/ScarletSpots/Sources/Services/NativeSessionStore.swift`
-- `ios-native/ScarletSpots/Sources/Core/OfflineQueue.swift`
-- `ios-native/ScarletSpots/Sources/AutoPark/AutoParkCoordinator.swift`
+- `ios/ScarletSpots/Sources/Services/NativeSessionStore.swift`
+- `ios/ScarletSpots/Sources/Core/OfflineQueue.swift`
+- `ios/ScarletSpots/Sources/AutoPark/AutoParkCoordinator.swift`
 
 ### 6. Backend source metadata contract
 
@@ -139,13 +139,13 @@ Implemented:
 
 Files:
 
-- `ios-native/ScarletSpots/Sources/Views/SettingsView.swift`
-- `ios-native/ScarletSpots/Sources/Views/AutoParkInsightsView.swift`
-- `ios-native/ScarletSpots/Sources/AutoPark/AutoParkCoordinator.swift`
+- `ios/ScarletSpots/Sources/Views/SettingsView.swift`
+- `ios/ScarletSpots/Sources/Views/AutoParkInsightsView.swift`
+- `ios/ScarletSpots/Sources/AutoPark/AutoParkCoordinator.swift`
 
-### 8. Reference features captured from older docs / React Native
+### 8. Reference features captured from older docs
 
-Desired/reference feature set found in older docs and `mobile/modules/parking-magic`:
+Desired/reference feature set found in older implementation notes:
 
 - explicit Bluetooth disconnect arrival signal
 - explicit CarPlay disconnect arrival signal

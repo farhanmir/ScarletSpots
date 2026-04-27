@@ -54,7 +54,6 @@
 
 ## Keep in mind
 
-- `mobile/` stays in the repo as a historical/reference implementation
-- new product work should target `ios-native/`, `backend/`, `website/`, and `docs/`
+- new product work should target `ios/`, `backend/`, `website/`, and `docs/`
 
 Last reviewed: 2026-04-26
