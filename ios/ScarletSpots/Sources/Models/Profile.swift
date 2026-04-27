@@ -3,6 +3,7 @@ import Foundation
 struct Profile: Codable, Identifiable {
     let id: UUID
     let email: String
+    let canAccessDiagnostics: Bool
     let firstName: String?
     let lastName: String?
     let avatarUrl: String?
@@ -13,6 +14,7 @@ struct Profile: Codable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case id
         case email
+        case canAccessDiagnostics = "can_access_diagnostics"
         case firstName = "first_name"
         case lastName = "last_name"
         case avatarUrl = "avatar_url"

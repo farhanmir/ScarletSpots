@@ -155,7 +155,7 @@ final class AuthManager: ObservableObject, AuthTokenProvider {
             noPermitMode = PermitRepository.noPermitMode(for: permitType) ?? loadLocalNoPermitMode(ownerId: ownerId)
         } catch {
             Logger.log("Failed to fetch /users/me: \(error.localizedDescription)")
-            if currentUser == nil, let fallback = fallbackProfile() {
+            if let fallback = fallbackProfile(existingProfile: currentUser) {
                 currentUser = fallback
             }
             permitType = loadLocalPermitType(ownerId: ownerId)
@@ -312,14 +312,15 @@ final class AuthManager: ObservableObject, AuthTokenProvider {
         UserDefaults.standard.string(forKey: noPermitModeKey(ownerId: ownerId))
     }
 
-    private func fallbackProfile() -> Profile? {
+    private func fallbackProfile(existingProfile: Profile? = nil) -> Profile? {
         guard let user = session?.user else { return nil }
         return Profile(
             id: user.id,
             email: user.email ?? "unknown@email.com",
-            firstName: nil,
-            lastName: nil,
-            avatarUrl: nil,
+            canAccessDiagnostics: false,
+            firstName: existingProfile?.firstName,
+            lastName: existingProfile?.lastName,
+            avatarUrl: existingProfile?.avatarUrl,
             permitType: permitType,
             secondaryPermitType: secondaryPermitType,
             createdAt: Date()

@@ -29,6 +29,7 @@ class ProfileUpdate(ProfileBase):
 class Profile(ProfileBase):
     id: str  # maps to auth.users.id (uuid)
     email: str | None = None
+    can_access_diagnostics: bool = False
     username: str | None = None
     latitude: float | None = None
     longitude: float | None = None

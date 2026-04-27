@@ -11,7 +11,8 @@ enum Logger {
     }
 
     private static let maxEntries = 500
-    private static var entries: [LogEntry] = []
+    private static let persistenceKey = "logger_entries_v1"
+    private static var entries: [LogEntry] = loadPersistedEntries()
     private static let lockQueue = DispatchQueue(label: "com.scarletspots.logger.lock")
 
     static func log(_ message: String) {
@@ -43,6 +44,7 @@ enum Logger {
     static func clear() {
         lockQueue.sync {
             entries.removeAll()
+            persistEntriesLocked()
         }
     }
 
@@ -85,6 +87,30 @@ enum Logger {
             if entries.count > maxEntries {
                 entries.removeFirst(entries.count - maxEntries)
             }
+            persistEntriesLocked()
+        }
+    }
+
+    private static func loadPersistedEntries() -> [LogEntry] {
+        guard let data = UserDefaults.standard.data(forKey: persistenceKey) else {
+            return []
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        guard let decoded = try? decoder.decode([LogEntry].self, from: data) else {
+            return []
+        }
+        if decoded.count > maxEntries {
+            return Array(decoded.suffix(maxEntries))
+        }
+        return decoded
+    }
+
+    private static func persistEntriesLocked() {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        if let data = try? encoder.encode(entries) {
+            UserDefaults.standard.set(data, forKey: persistenceKey)
         }
     }
 }

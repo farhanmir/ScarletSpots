@@ -5,13 +5,56 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.security import get_admin_auth_client
+from app.core.security import get_current_user
 from app.main import app
 from app.models.favorite import UserFavorite
 from app.models.friendship import Friendship
 from app.models.parking import SessionFeedback
 from app.models.push import DevicePushToken
 from app.models.user import Profile
+
+
+@pytest.mark.asyncio
+async def test_read_user_me_returns_can_access_diagnostics_for_allowed_email(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(settings, "DIAGNOSTICS_ALLOWED_EMAILS", ["farhan@rutgers.edu"], raising=False)
+    allowed_user = SimpleNamespace(
+        id="00000000-0000-0000-0000-000000000123",
+        email="  Farhan@Rutgers.edu ",
+        user_metadata={"name": "Farhan Mir"},
+    )
+    app.dependency_overrides[get_current_user] = lambda: allowed_user
+    try:
+        response = await client.get("/api/v1/users/me")
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["can_access_diagnostics"] is True
+
+
+@pytest.mark.asyncio
+async def test_read_user_me_returns_can_access_diagnostics_false_for_other_rutgers_emails(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    auth_user: SimpleNamespace,
+    override_current_user,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    _ = db_session
+    _ = override_current_user
+    monkeypatch.setattr(settings, "DIAGNOSTICS_ALLOWED_EMAILS", ["farhan@rutgers.edu"], raising=False)
+
+    response = await client.get("/api/v1/users/me")
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["can_access_diagnostics"] is False
 
 
 @pytest.mark.asyncio

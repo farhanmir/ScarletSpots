@@ -1,11 +1,13 @@
 import SwiftUI
-import UIKit
+import UniformTypeIdentifiers
 
 /// Live explainability panel for Auto-Park and Auto-End decisions.
 struct AutoParkInsightsView: View {
     @StateObject private var autoPark = AutoParkCoordinator.shared
     @State private var exportToast: String?
     @State private var showClearLogConfirm = false
+    @State private var showExporter = false
+    @State private var exportDocument = AutoParkExportDocument(text: "")
 
     var body: some View {
         ScrollView {
@@ -32,22 +34,21 @@ struct AutoParkInsightsView: View {
         )
         .navigationTitle("Auto-Park Live Insights")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Clear") {
-                    autoPark.clearDiagnostics()
-                }
-                .foregroundStyle(.white)
-            }
-            ToolbarItem(placement: .topBarLeading) {
-                Button("Export") {
-                    copyDebugReport()
-                }
-                .foregroundStyle(.white)
-            }
-        }
         .task {
             autoPark.refreshLiveSnapshot()
+        }
+        .fileExporter(
+            isPresented: $showExporter,
+            document: exportDocument,
+            contentType: .json,
+            defaultFilename: exportFilename
+        ) { result in
+            switch result {
+            case .success:
+                showToast("Debug file exported")
+            case .failure:
+                showToast("Couldn't export debug file")
+            }
         }
         .overlay(alignment: .bottom) {
             if let exportToast {
@@ -80,17 +81,20 @@ struct AutoParkInsightsView: View {
             Text("Debug Export")
                 .font(.headline)
                 .foregroundStyle(.white)
-            Text("Copies a machine-readable Auto-Park report (snapshot + decisions + structured logs) to your clipboard. Paste it into an LLM for root-cause analysis.")
+            Text("Exports a machine-readable Auto-Park report as a JSON file, including the latest snapshot, persisted decision trace, and structured logs.")
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.72))
             HStack(spacing: 10) {
-                actionButton("Copy Debug Report", systemName: "doc.on.doc") {
-                    copyDebugReport()
+                actionButton("Export Debug File", systemName: "square.and.arrow.up") {
+                    exportDebugReport()
                 }
-                actionButton("Clear Logs", systemName: "trash") {
+                actionButton("Clear Structured Logs", systemName: "trash") {
                     showClearLogConfirm = true
                 }
             }
+            Text("Decision trace is stored separately and can be cleared from the Profile diagnostics card.")
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.52))
         }
         .padding(16)
         .background(Color.black.opacity(0.28), in: RoundedRectangle(cornerRadius: 18))
@@ -337,10 +341,9 @@ struct AutoParkInsightsView: View {
         .buttonStyle(.plain)
     }
 
-    private func copyDebugReport() {
-        let report = buildDebugReportJSON()
-        UIPasteboard.general.string = report
-        showToast("Debug report copied")
+    private func exportDebugReport() {
+        exportDocument = AutoParkExportDocument(text: buildDebugReportJSON())
+        showExporter = true
     }
 
     private func showToast(_ message: String) {
@@ -366,6 +369,8 @@ struct AutoParkInsightsView: View {
             let appVersion: String
             let latestSnapshot: AutoParkLiveSnapshot
             let recentDecisionHistory: [AutoParkLiveSnapshot]
+            let lastStartSnapshot: AutoParkLiveSnapshot?
+            let lastEndSnapshot: AutoParkLiveSnapshot?
             let failedChecks: [AutoParkGateStatus]
             let structuredLogs: [Logger.LogEntry]
             let plainLogExport: String
@@ -376,6 +381,8 @@ struct AutoParkInsightsView: View {
             appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",
             latestSnapshot: snapshot,
             recentDecisionHistory: history,
+            lastStartSnapshot: autoPark.lastStartSnapshot,
+            lastEndSnapshot: autoPark.lastEndSnapshot,
             failedChecks: failedChecks,
             structuredLogs: Logger.recentEntries(limit: 300),
             plainLogExport: Logger.exportJSONString(limit: 300)
@@ -386,5 +393,35 @@ struct AutoParkInsightsView: View {
             return text
         }
         return "{\"error\":\"failed_to_build_autopark_debug_report\"}"
+    }
+
+    private var exportFilename: String {
+        let timestamp = ISO8601DateFormatter()
+            .string(from: Date())
+            .replacingOccurrences(of: ":", with: "-")
+        return "scarletspots-autopark-debug-\(timestamp)"
+    }
+}
+
+private struct AutoParkExportDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.json] }
+
+    var text: String
+
+    init(text: String) {
+        self.text = text
+    }
+
+    init(configuration: ReadConfiguration) throws {
+        if let data = configuration.file.regularFileContents,
+           let text = String(data: data, encoding: .utf8) {
+            self.text = text
+        } else {
+            self.text = ""
+        }
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: Data(text.utf8))
     }
 }

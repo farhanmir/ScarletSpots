@@ -37,6 +37,7 @@ struct ProfileView: View {
     @State private var diagnosticsSamples: [Double] = []
     @State private var notificationStatusLabel = "unknown"
     @State private var notificationReady = false
+    @State private var showDiagnosticsDashboard = false
 
     /// Canonical legal URLs — published copies live on the marketing site.
     private let privacyPolicyURL = URL(string: "https://scarletspots.com/privacy")!
@@ -62,7 +63,9 @@ struct ProfileView: View {
                     backgroundReadinessSection
                     campusesSection
                     appearanceSection
-                    diagnosticsSection
+                    if authManager.currentUser?.canAccessDiagnostics == true {
+                        diagnosticsSection
+                    }
                     feedbackSection
                     legalSection
                     accountActionsSection
@@ -83,6 +86,9 @@ struct ProfileView: View {
             )
             .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(isPresented: $showDiagnosticsDashboard) {
+                AutoParkInsightsView()
+            }
             .task { await refreshAll() }
             .refreshable { await refreshAll() }
             .onAppear {
@@ -497,7 +503,7 @@ struct ProfileView: View {
                         normalized: min(Double(endedCount) / 8.0, 1.0)
                     )
                     diagnosticGauge(
-                        title: "Blocked",
+                        title: "Blocked Decisions",
                         value: "\(blockedCount)",
                         normalized: min(Double(blockedCount) / 8.0, 1.0)
                     )
@@ -565,9 +571,9 @@ struct ProfileView: View {
                     )
 
                     Button {
-                        autoPark.clearDiagnostics()
+                        autoPark.clearDecisionHistory()
                     } label: {
-                        Label("Clear History", systemImage: "trash")
+                        Label("Clear Decision Trace", systemImage: "trash")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(primaryText)
                             .frame(maxWidth: .infinity)
@@ -580,8 +586,8 @@ struct ProfileView: View {
                     )
                 }
 
-                NavigationLink {
-                    AutoParkInsightsView()
+                Button {
+                    showDiagnosticsDashboard = true
                 } label: {
                     HStack {
                         Text("Open Live Sensor Dashboard")
@@ -603,6 +609,11 @@ struct ProfileView: View {
                     )
                 }
                 .buttonStyle(.plain)
+
+                Text("Decision trace survives app restarts. Structured logs are managed inside the live dashboard.")
+                    .font(.caption2)
+                    .foregroundStyle(secondaryText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             .task {
                 autoPark.refreshLiveSnapshot()

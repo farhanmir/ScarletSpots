@@ -10,6 +10,7 @@ from supabase import Client
 from app.core.database import get_db
 from app.core.limiter import limiter
 from app.core.logger import get_logger
+from app.core.config import settings
 from app.core.security import get_admin_auth_client, get_current_user, get_supabase
 from app.models.favorite import UserFavorite
 from app.models.friendship import Friendship
@@ -25,6 +26,20 @@ from app.services.push_notifications import (
 log = get_logger(__name__)
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+
+def _normalize_email(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip().lower()
+    return normalized or None
+
+
+def _can_access_diagnostics(email: str | None) -> bool:
+    normalized = _normalize_email(email)
+    if normalized is None or not settings.DIAGNOSTICS_ALLOWED_EMAILS:
+        return False
+    return normalized in settings.DIAGNOSTICS_ALLOWED_EMAILS
 
 
 def _build_profile_payload(user_id: str, email: str | None, name: str | None) -> dict:
@@ -53,9 +68,11 @@ def _to_uuid_or_401(user: SimpleNamespace) -> UUID:
 
 
 def _profile_to_response(profile: Profile, fallback_email: str | None = None) -> dict:
+    effective_email = profile.email or fallback_email
     return {
         "id": str(profile.id),
-        "email": profile.email or fallback_email,
+        "email": effective_email,
+        "can_access_diagnostics": _can_access_diagnostics(effective_email),
         "first_name": profile.first_name,
         "last_name": profile.last_name,
         "full_name": profile.full_name,
@@ -154,10 +171,10 @@ async def read_user_me(
     user_id = _to_uuid_or_401(current_user)
     try:
         profile = await db.get(Profile, user_id)
-        if profile is not None:
-            return _profile_to_response(profile)
-
         email = getattr(current_user, "email", None)
+        if profile is not None:
+            return _profile_to_response(profile, fallback_email=email)
+
         meta = getattr(current_user, "user_metadata", {}) or {}
         name = meta.get("name", "")
         profile = await _upsert_profile(db, _build_profile_payload(str(user_id), email, name))
@@ -191,7 +208,7 @@ async def update_user_me(
 
         await db.commit()
         await db.refresh(profile)
-        return _profile_to_response(profile)
+        return _profile_to_response(profile, fallback_email=getattr(current_user, "email", None))
     except HTTPException:
         raise
     except Exception as exc:

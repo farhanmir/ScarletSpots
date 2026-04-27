@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = Field(default="")
     EXPO_PUSH_ACCESS_TOKEN: str = Field(default="")
     DEBUG: bool = Field(default=False)
+    DIAGNOSTICS_ALLOWED_EMAILS: list[str] = Field(default_factory=lambda: ["farhan@rutgers.edu"])
 
     # Redis (local, no auth by default)
     REDIS_URL: str = Field(default="redis://localhost:6379/0")
@@ -76,6 +77,27 @@ class Settings(BaseSettings):
             if normalized in {"0", "false", "no", "off", "release", ""}:
                 return False
         return value
+
+    @field_validator("DIAGNOSTICS_ALLOWED_EMAILS", mode="before")
+    @classmethod
+    def normalize_diagnostics_allowed_emails(cls, value):
+        if value is None:
+            return []
+        if isinstance(value, str):
+            raw_values = value.split(",")
+        elif isinstance(value, (list, tuple, set)):
+            raw_values = list(value)
+        else:
+            return value
+
+        normalized: list[str] = []
+        for raw in raw_values:
+            if raw is None:
+                continue
+            email = str(raw).strip().lower()
+            if email and email not in normalized:
+                normalized.append(email)
+        return normalized
 
 
 settings = Settings()

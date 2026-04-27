@@ -119,6 +119,13 @@ final class AutoParkCoordinator: ObservableObject {
         var lastFailure: String?
     }
 
+    private struct PersistedDiagnostics: Codable {
+        var liveSnapshot: AutoParkLiveSnapshot?
+        var decisionHistory: [AutoParkLiveSnapshot]
+        var lastStartSnapshot: AutoParkLiveSnapshot?
+        var lastEndSnapshot: AutoParkLiveSnapshot?
+    }
+
     private struct StartEvaluation {
         let location: CLLocation?
         let lot: Lot?
@@ -139,6 +146,7 @@ final class AutoParkCoordinator: ObservableObject {
     }
 
     private let stateKey = "autopark_state_v2"
+    private let diagnosticsKey = "autopark_diagnostics_v1"
     private let cooldown: TimeInterval = 15
     private let autoCommitThreshold: Double = 0.80
     private let candidateThreshold: Double = 0.62
@@ -147,9 +155,13 @@ final class AutoParkCoordinator: ObservableObject {
     private let driveAwayDistanceMeters: CLLocationDistance = 320
     private let driveAwaySpeedMps: Double = 6.5
     private let driveAwayDuration: TimeInterval = 85
+    private let driveAwayMaxAccuracyMeters: CLLocationDistance = 65
+    private let driveAwayLogThrottle: TimeInterval = 60
     private let audioReconnectMaxDisconnectAge: TimeInterval = 30 * 60
     private let locationThrottle: TimeInterval = 10
     private let maxCirclingAgeSeconds: TimeInterval = 30 * 60
+    private let blockedHistoryDedupWindow: TimeInterval = 90
+    private let triggerHistoryDedupWindow: TimeInterval = 20
 
     private var didBootstrap = false
     private var pendingTriggerSource: String?
@@ -157,6 +169,8 @@ final class AutoParkCoordinator: ObservableObject {
     private var pendingDecisionKind: String = "start"
     private var lastDecisionAt: Date?
     private var driveAwayStartAt: Date?
+    private var lastDriveAwayCheckLogAt: Date?
+    private var lastDriveAwaySkipLogAt: Date?
     private var currentWakeReason = "manual_open"
     private var persistedState = PersistedState(lastWakeReason: "manual_open")
     private var isInFlight = false
@@ -165,6 +179,7 @@ final class AutoParkCoordinator: ObservableObject {
 
     private init() {
         restoreState()
+        restoreDiagnostics()
     }
 
     // MARK: - Lifecycle
@@ -214,11 +229,16 @@ final class AutoParkCoordinator: ObservableObject {
         refreshLiveSnapshot()
     }
 
-    func clearDiagnostics() {
+    func clearDecisionHistory() {
         decisionHistory.removeAll()
         lastStartSnapshot = nil
         lastEndSnapshot = nil
+        persistDiagnostics()
         refreshLiveSnapshot()
+    }
+
+    func clearDiagnostics() {
+        clearDecisionHistory()
     }
 
     func refreshSessionTruth() async {
@@ -948,25 +968,48 @@ final class AutoParkCoordinator: ObservableObject {
     private func evaluateDriveAway(_ location: CLLocation) {
         guard NativeSessionStore.shared.activeSession != nil else {
             driveAwayStartAt = nil
+            lastDriveAwayCheckLogAt = nil
+            lastDriveAwaySkipLogAt = nil
             return
         }
         guard let parked = parkedLocation() else {
             driveAwayStartAt = nil
+            lastDriveAwayCheckLogAt = nil
+            lastDriveAwaySkipLogAt = nil
+            return
+        }
+
+        let speed = location.speed
+        let isDriving = MotionEngine.shared.isDriving
+        let accuracy = location.horizontalAccuracy
+        if accuracy > driveAwayMaxAccuracyMeters {
+            driveAwayStartAt = nil
+            logDriveAwaySkipIfNeeded(
+                reason: "driveaway_check_skipped_unreliable_signal",
+                metadata: [
+                    "accuracyM": String(format: "%.1f", accuracy),
+                    "speedMps": speed >= 0 ? String(format: "%.2f", speed) : "n/a",
+                    "isDriving": isDriving ? "true" : "false"
+                ]
+            )
+            return
+        }
+        if speed < 0 && !isDriving {
+            driveAwayStartAt = nil
+            logDriveAwaySkipIfNeeded(
+                reason: "driveaway_check_skipped_unreliable_signal",
+                metadata: [
+                    "accuracyM": String(format: "%.1f", accuracy),
+                    "speedMps": "n/a",
+                    "isDriving": "false"
+                ]
+            )
             return
         }
 
         let distance = location.distance(from: parked)
-        let movingAway = distance >= driveAwayDistanceMeters && (location.speed >= driveAwaySpeedMps || MotionEngine.shared.isDriving)
-        Logger.event(
-            "autopark.end",
-            "driveaway_check",
-            metadata: [
-                "distanceM": String(format: "%.1f", distance),
-                "speedMps": location.speed >= 0 ? String(format: "%.2f", location.speed) : "n/a",
-                "isDriving": MotionEngine.shared.isDriving ? "true" : "false",
-                "movingAway": movingAway ? "true" : "false"
-            ]
-        )
+        let movingAway = distance >= driveAwayDistanceMeters && (speed >= driveAwaySpeedMps || isDriving)
+        logDriveAwayCheckIfNeeded(distance: distance, speed: speed, isDriving: isDriving, movingAway: movingAway)
         if movingAway {
             if driveAwayStartAt == nil {
                 driveAwayStartAt = Date()
@@ -979,6 +1022,32 @@ final class AutoParkCoordinator: ObservableObject {
         } else {
             driveAwayStartAt = nil
         }
+    }
+
+    private func logDriveAwaySkipIfNeeded(reason: String, metadata: [String: String]) {
+        let now = Date()
+        guard now.timeIntervalSince(lastDriveAwaySkipLogAt ?? .distantPast) >= driveAwayLogThrottle else {
+            return
+        }
+        lastDriveAwaySkipLogAt = now
+        Logger.event("autopark.end", reason, metadata: metadata)
+    }
+
+    private func logDriveAwayCheckIfNeeded(distance: CLLocationDistance, speed: Double, isDriving: Bool, movingAway: Bool) {
+        let now = Date()
+        let shouldLog = movingAway || now.timeIntervalSince(lastDriveAwayCheckLogAt ?? .distantPast) >= driveAwayLogThrottle
+        guard shouldLog else { return }
+        lastDriveAwayCheckLogAt = now
+        Logger.event(
+            "autopark.end",
+            "driveaway_check",
+            metadata: [
+                "distanceM": String(format: "%.1f", distance),
+                "speedMps": speed >= 0 ? String(format: "%.2f", speed) : "n/a",
+                "isDriving": isDriving ? "true" : "false",
+                "movingAway": movingAway ? "true" : "false"
+            ]
+        )
     }
 
     private func clearPendingTrigger() {
@@ -1123,26 +1192,32 @@ final class AutoParkCoordinator: ObservableObject {
         )
         liveSnapshot = snapshot
         if kind == "start" {
-            lastStartSnapshot = snapshot
-        } else {
+            if appendToHistory {
+                lastStartSnapshot = snapshot
+            }
+        } else if appendToHistory {
             lastEndSnapshot = snapshot
         }
         if appendToHistory {
-            decisionHistory.insert(snapshot, at: 0)
-            Logger.event(
-                "autopark.snapshot",
-                "snapshot_recorded",
-                metadata: [
-                    "phase": phase,
-                    "decision": decision,
-                    "reason": reason,
-                    "kind": kind
-                ]
-            )
-            if decisionHistory.count > maxHistory {
-                decisionHistory = Array(decisionHistory.prefix(maxHistory))
+            let latest = decisionHistory.first
+            if !shouldSuppressHistoryEntry(snapshot, comparedTo: latest) {
+                decisionHistory.insert(snapshot, at: 0)
+                Logger.event(
+                    "autopark.snapshot",
+                    "snapshot_recorded",
+                    metadata: [
+                        "phase": phase,
+                        "decision": decision,
+                        "reason": reason,
+                        "kind": kind
+                    ]
+                )
+                if decisionHistory.count > maxHistory {
+                    decisionHistory = Array(decisionHistory.prefix(maxHistory))
+                }
             }
         }
+        persistDiagnostics()
     }
 
     private func currentMonitoringMode() -> String {
@@ -1178,6 +1253,8 @@ final class AutoParkCoordinator: ObservableObject {
         persistedState.parkedLongitude = longitude
         persistedState.lastFailure = nil
         driveAwayStartAt = nil
+        lastDriveAwayCheckLogAt = nil
+        lastDriveAwaySkipLogAt = nil
         persistState()
     }
 
@@ -1188,6 +1265,8 @@ final class AutoParkCoordinator: ObservableObject {
         clearCirclingState()
         persistedState.lastFailure = nil
         driveAwayStartAt = nil
+        lastDriveAwayCheckLogAt = nil
+        lastDriveAwaySkipLogAt = nil
         persistState()
     }
 
@@ -1257,6 +1336,76 @@ final class AutoParkCoordinator: ObservableObject {
         if let data = try? encoder.encode(persistedState) {
             UserDefaults.standard.set(data, forKey: stateKey)
         }
+    }
+
+    private func restoreDiagnostics() {
+        guard let data = UserDefaults.standard.data(forKey: diagnosticsKey) else {
+            return
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        guard let decoded = try? decoder.decode(PersistedDiagnostics.self, from: data) else {
+            return
+        }
+        if let liveSnapshot = decoded.liveSnapshot {
+            self.liveSnapshot = liveSnapshot
+        }
+        decisionHistory = normalizedHistory(decoded.decisionHistory)
+        lastStartSnapshot = decoded.lastStartSnapshot
+        lastEndSnapshot = decoded.lastEndSnapshot
+    }
+
+    private func persistDiagnostics() {
+        let payload = PersistedDiagnostics(
+            liveSnapshot: liveSnapshot,
+            decisionHistory: Array(decisionHistory.prefix(maxHistory)),
+            lastStartSnapshot: lastStartSnapshot,
+            lastEndSnapshot: lastEndSnapshot
+        )
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        if let data = try? encoder.encode(payload) {
+            UserDefaults.standard.set(data, forKey: diagnosticsKey)
+        }
+    }
+
+    private func normalizedHistory(_ history: [AutoParkLiveSnapshot]) -> [AutoParkLiveSnapshot] {
+        var normalized: [AutoParkLiveSnapshot] = []
+        for snapshot in history.prefix(maxHistory) {
+            if shouldSuppressHistoryEntry(snapshot, comparedTo: normalized.last) {
+                continue
+            }
+            normalized.append(snapshot)
+        }
+        return normalized
+    }
+
+    private func shouldSuppressHistoryEntry(
+        _ snapshot: AutoParkLiveSnapshot,
+        comparedTo latest: AutoParkLiveSnapshot?
+    ) -> Bool {
+        guard let latest else { return false }
+        let delta = abs(snapshot.timestamp.timeIntervalSince(latest.timestamp))
+
+        if snapshot.decision == "blocked",
+           latest.decision == "blocked",
+           snapshot.decisionKind == latest.decisionKind,
+           snapshot.reason == latest.reason,
+           snapshot.triggerSource == latest.triggerSource,
+           snapshot.lotId == latest.lotId,
+           delta <= blockedHistoryDedupWindow {
+            return true
+        }
+
+        if snapshot.decision == "trigger_received",
+           latest.decision == "trigger_received",
+           snapshot.decisionKind == latest.decisionKind,
+           snapshot.triggerSource == latest.triggerSource,
+           delta <= triggerHistoryDedupWindow {
+            return true
+        }
+
+        return false
     }
 
     private func authorizationLabel(_ status: CLAuthorizationStatus) -> String {
