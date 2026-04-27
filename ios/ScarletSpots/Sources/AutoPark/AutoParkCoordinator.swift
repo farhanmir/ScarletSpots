@@ -160,6 +160,7 @@ final class AutoParkCoordinator: ObservableObject {
     private var currentWakeReason = "manual_open"
     private var persistedState = PersistedState(lastWakeReason: "manual_open")
     private var isInFlight = false
+    private var vultureObserver: NSObjectProtocol?
     private let maxCirclingDurationSeconds = 4 * 60 * 60
 
     private init() {
@@ -285,6 +286,7 @@ final class AutoParkCoordinator: ObservableObject {
             }
         }
         AudioRouteEngine.shared.start()
+        subscribeVultureEventsIfNeeded()
     }
 
     private func stopSensing() {
@@ -299,6 +301,10 @@ final class AutoParkCoordinator: ObservableObject {
         AudioRouteEngine.shared.stop()
         LocationEngine.shared.stopPassiveMonitoring()
         LocationEngine.shared.stopTransientHighAccuracy(reason: "sensing_stopped")
+        if let observer = vultureObserver {
+            NotificationCenter.default.removeObserver(observer)
+            vultureObserver = nil
+        }
     }
 
     // MARK: - User confirmations
@@ -360,6 +366,7 @@ final class AutoParkCoordinator: ObservableObject {
     // MARK: - Trigger handling
 
     private func handleLocationUpdate(_ location: CLLocation) async {
+        VultureDetector.shared.report(location: location, lotId: resolvedLot(for: location)?.mapId)
         Logger.event(
             "autopark.location",
             "location_update",
@@ -978,6 +985,39 @@ final class AutoParkCoordinator: ObservableObject {
         pendingTriggerSource = nil
         pendingTriggerWakeReason = nil
         pendingDecisionKind = "start"
+    }
+
+    private func subscribeVultureEventsIfNeeded() {
+        guard vultureObserver == nil else { return }
+        vultureObserver = NotificationCenter.default.addObserver(
+            forName: .vultureDetected,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let lotId = notification.userInfo?["lotId"] as? String,
+                  !lotId.isEmpty else { return }
+            Task { @MainActor [weak self] in
+                await self?.sendVultureEvent(lotId: lotId)
+            }
+        }
+    }
+
+    private func sendVultureEvent(lotId: String) async {
+        guard AuthManager.shared.isAuthenticated else { return }
+        do {
+            try await NetworkBridge.reportVulture(lotId: lotId)
+            Logger.event("autopark.vulture", "report_sent", metadata: ["lotId": lotId])
+        } catch {
+            Logger.event(
+                "autopark.vulture",
+                "report_failed",
+                metadata: [
+                    "lotId": lotId,
+                    "error": error.localizedDescription
+                ],
+                level: "warn"
+            )
+        }
     }
 
     private func logEvaluationSummary(

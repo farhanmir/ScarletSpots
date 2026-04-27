@@ -29,4 +29,8 @@ enum NetworkBridge {
     ) async throws {
         try await ParkAPI.endSession(source: source, idempotencyKey: idempotencyKey)
     }
+
+    static func reportVulture(lotId: String) async throws {
+        try await LotsAPI.reportVulture(lotId: lotId)
+    }
 }

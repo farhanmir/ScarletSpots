@@ -100,3 +100,10 @@ def test_get_all_occupancy_returns_pattern_rows_when_no_realtime_data():
         row.get("source") == "typical_pattern" and row.get("display_mode") == "pattern"
         for row in rows
     )
+
+
+def test_report_vulture_event():
+    response = client.post("/api/v1/lots/10001/vulture")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"

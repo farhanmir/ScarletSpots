@@ -247,15 +247,17 @@ async def get_lot_forecast(
 @router.post("/{lot_id}/vulture")
 async def report_vulture_event(
     lot_id: str,
-    _: str = Depends(get_current_user),
+    current_user=Depends(get_current_user),
 ):
     """
     Report a 'vulture' event (searching/circling behavior detected natively).
     Requires authentication to prevent log-noise spam.
-    Future: Store in a 'parking_observations' table for the inference model.
+    This telemetry complements session-level circling metrics captured on park
+    start requests.
     """
     try:
-        log.info("Vulture event detected for lot %s", lot_id)
+        user_id = getattr(current_user, "id", "unknown")
+        log.info("Vulture event detected for lot %s user %s", lot_id, user_id)
         return {"status": "ok", "message": "Observation recorded"}
     except Exception as exc:
         log.error("Failed to record vulture event for lot %s: %s", lot_id, exc)

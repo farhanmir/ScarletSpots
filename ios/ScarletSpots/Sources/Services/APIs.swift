@@ -40,6 +40,10 @@ enum LotsAPI {
             )
         }
     }
+
+    static func reportVulture(lotId: String) async throws {
+        _ = try await APIClient.shared.rawRequest("lots/\(lotId)/vulture", method: "POST")
+    }
 }
 
 enum ParkAPI {
