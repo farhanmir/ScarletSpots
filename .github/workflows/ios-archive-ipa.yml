@@ -1,4 +1,4 @@
-name: iOS Native Build
+name: iOS Archive + IPA (Unsigned)
 
 # Manual-only trigger. Kick this off from the Actions tab when you're ready
 # to burn minutes; it will not auto-run on push or pull_request.
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       run_archive:
-        description: "Also produce an unsigned .xcarchive and .ipa release"
+        description: "Produce unsigned .xcarchive + .ipa artifacts/release"
         required: false
         default: "true"
         type: choice
@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   smoke-build:
-    name: Simulator Smoke Build
+    name: Build Check (Simulator)
     runs-on: macos-26
     timeout-minutes: 30
 
@@ -76,7 +76,7 @@ jobs:
             CODE_SIGN_IDENTITY=""
 
   archive:
-    name: Unsigned Release Archive
+    name: Archive + IPA (Unsigned)
     if: inputs.run_archive == 'true'
     runs-on: macos-26
     timeout-minutes: 45

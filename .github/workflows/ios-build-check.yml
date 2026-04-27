@@ -1,11 +1,11 @@
-name: iOS Build (Native)
+name: iOS Build Check (No IPA)
 
 on:
   workflow_dispatch:
 
 jobs:
   ios-build:
-    name: iOS Build (Native)
+    name: Build Check (unsigned, no archive)
     runs-on: macos-15
     permissions:
       contents: read
