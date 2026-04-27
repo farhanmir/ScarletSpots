@@ -168,6 +168,7 @@ What is already reflected in current native code:
 - significant-location support
 - motion gating
 - deferred decision flow while waiting for better location context
+- native vulture detection and backend report dispatch path
 - Live Activity update path through `NativeSessionStore`
 
 What is not yet fully carried over:
@@ -176,7 +177,7 @@ What is not yet fully carried over:
 - startup/system-health diagnostic snapshots equivalent to the older native module
 - capability-status reporting equivalent to the older native module
 - native smoke-test helper for auto-start then auto-end
-- vulture detection / reporting integration
+- vulture detection/reporting verification and tuning on real devices
 - full parity for native "in flight" state reporting that clearly distinguishes:
   - sensing active
   - start evaluation in progress
@@ -276,7 +277,7 @@ Still recommended:
 - verify the Profile diagnostics view stays current in foreground, background return, queued replay completion, and silent relaunch paths
 - verify diagnostics snapshots refresh immediately after every trigger, gate evaluation, queue mutation, session mutation, and failure
 - decide whether CarPlay should stay generalized under audio-route handling or become an explicit surfaced signal everywhere
-- decide whether vulture/searching-behavior reporting is still desired product scope for the native app
+- tune whether vulture/searching-behavior reporting is useful enough to keep as active product scope
 - decide whether a dedicated native smoke-test helper should be restored for faster field validation
 
 ### 6. Acceptance tests still need to be written or run
@@ -322,7 +323,7 @@ Still not implemented or not clearly restored:
   - disconnect-style auto-start
   - reconnect-style auto-end
   - final session idle state
-- vulture detection/reporting hooks from the older reference implementation
+- parity beyond the current minimal vulture detection/reporting hook set
 
 Why this matters:
 
@@ -437,7 +438,7 @@ Legend:
 - `[~]` diagnostics summary counters for top blocked reasons and failed checks
 - `[~]` Profile diagnostics proven to refresh immediately after every native event path
 - `[ ]` native smoke-test helper parity
-- `[ ]` vulture/searching hook parity, if still desired product scope
+- `[~]` vulture/searching hook baseline exists, but parity/tuning is incomplete
 
 ### Testing and rollout
 

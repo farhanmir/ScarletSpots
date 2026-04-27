@@ -2,26 +2,28 @@
 
 ## Current implementation
 
-The live landing page is a small React/Vite app, not the older vanilla HTML/CSS/JS concept that some historical docs referenced.
+The live site is the React/Vite app in `website/`, not an older static prototype.
 
 ## Editing flow
 
-- structure and content: `src/App.jsx`
-- global tokens/reset: `src/index.css`
-- static pages and crawler assets: `public/`
+- content and structure: `src/App.jsx`
+- global styles and tokens: `src/index.css`
+- metadata and social tags: `index.html`
+- legal pages and crawler assets: `public/`
 
-## Product messaging priorities
+## Messaging guardrails
 
-- native iOS app is the current flagship client
-- real-time Rutgers parking is the core value prop
-- emphasize offline-ready bundled map data and live occupancy updates
+- the native iOS app is the flagship client
+- sign-in is Rutgers-email-only
+- static lot data is bundled on-device
+- dynamic occupancy and notifications come from the backend
+- occupancy messaging should stay honest about weak vs strong live signal
 
-## Keep aligned with the app
+## Pre-launch checklist for copy
 
-When product behavior changes, re-check:
-- hero copy
-- feature bullets
-- privacy/support links
-- FAQ claims
+- replace the App Store placeholder URL
+- make sure screenshots match the current SwiftUI app
+- keep privacy/support wording aligned with actual data collection
+- avoid any React Native-first or JS-first framing
 
 Last reviewed: 2026-04-26

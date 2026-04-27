@@ -1,26 +1,62 @@
 # ScarletSpots Backend
 
-FastAPI service for dynamic parking state, social data, forecast APIs, websocket fan-out, and push-related flows.
+FastAPI service for dynamic parking state, forecasts, social data, websocket fan-out, push delivery, and attestation/session support.
 
-## Run locally
+## Local run
 
 ```bash
 cd backend
 python -m venv .venv
-.venv\Scripts\activate   # Windows PowerShell
+.venv\Scripts\activate
 pip install -r requirements.txt
+pip install -r requirements-dev.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-## Key responsibilities
+Useful URLs:
 
-- profile/account data
-- parking sessions
-- lot occupancy counts
-- favorites
-- friendships
-- forecast responses
-- websocket and notification plumbing
+- `http://localhost:8000/health`
+- `http://localhost:8000/docs`
+
+## Required environment
+
+At minimum, configure:
+
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_JWT_SECRET`
+- `DATABASE_URL`
+
+Common optional local settings:
+
+- `REDIS_URL`
+- `REQUIRE_ATTESTATION_ON_AVAILABILITY`
+- `ATTESTATION_ENFORCE`
+- `ENABLE_HEURISTIC_SEEDED_OCCUPANCY`
+- `CIRCLING_METRIC_ENABLED`
+
+## Main responsibilities
+
+- profiles and account lifecycle
+- parking session start/end and active-session restore
+- lot occupancy payloads and forecast responses
+- circling and feedback collection
+- favorites and friendships
+- occupancy and notifications websockets
+- push token registration and dispatch
+- attestation/session token issuance
+
+## Main router groups
+
+- `/api/v1/users`
+- `/api/v1/lots`
+- `/api/v1/park/session`
+- `/api/v1/friends`
+- `/api/v1/favorites`
+- `/api/v1/system`
+- `/ws/occupancy`
+- `/ws/notifications`
 
 ## Quality commands
 
@@ -36,8 +72,10 @@ make fix
 alembic upgrade head
 ```
 
-## Important note
+## Notes
 
-This backend serves the native iOS app first. The old React Native client remains in the repo, but backend evolution should align with current native behavior.
+- this backend serves the native iOS client first
+- lot metadata lives in bundled JSON/SQLite on the client side, not in a backend lots table
+- occupancy responses intentionally include pre-launch honesty metadata so clients can distinguish live signal from pattern guidance
 
 Last reviewed: 2026-04-26

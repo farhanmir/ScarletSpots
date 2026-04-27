@@ -2,12 +2,12 @@
 
 ## Purpose
 
-Document the fallback plan for replacing third-party auth with Rutgers CAS if product or cost constraints make that necessary.
+Document the fallback path for replacing Supabase-backed auth with Rutgers CAS if cost, policy, or product constraints ever require it.
 
 ## Current status
 
-- this is not the active auth path today
-- keep it as a documented option, not as assumed current architecture
+- not active today
+- current production direction remains Supabase-backed auth with Rutgers email-domain enforcement in the native client
 
 ## Target shape
 
@@ -15,22 +15,22 @@ Document the fallback plan for replacing third-party auth with Rutgers CAS if pr
 iOS app / website
   -> CAS login redirect
   -> backend validates CAS ticket
-  -> backend maps user identity to local profile
-  -> backend issues app session / token
+  -> backend maps identity to local profile
+  -> backend issues app session/token
 ```
 
-## Why keep this doc
+## Why keep this around
 
-- auth costs and policy may change
-- Rutgers-only identity still fits the product
-- backend ownership of the session layer would reduce dependence on an external auth product
+- auth costs can change
+- Rutgers-only identity still fits the product cleanly
+- owning the session layer would reduce third-party coupling
 
-## If revived, revisit
+## If revived, re-check
 
 - callback URLs
-- backend token issuance model
-- profile/user-ID mapping strategy
+- token issuance and refresh model
+- account linking and profile migration
 - mobile login UX
-- operational secrets and rotation
+- secret storage and rotation
 
 Last reviewed: 2026-04-26

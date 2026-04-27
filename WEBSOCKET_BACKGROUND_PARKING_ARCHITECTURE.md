@@ -2,53 +2,53 @@
 
 ## Purpose
 
-Explain how occupancy changes propagate when sessions start/end, especially when the triggering app is not actively sitting on a live websocket screen.
+Explain how occupancy changes propagate when a session starts or ends, including cases where the triggering app is not sitting on a foreground map screen.
 
-## Current state
+## Current stack
 
-The active product direction is native Swift sensing plus backend websocket fan-out.
-
-High-level path:
+The shipping direction is native iOS sensing plus backend websocket fan-out.
 
 ```text
-Native or foreground action
-  -> POST session start/end
-  -> backend updates occupancy
-  -> backend publishes websocket event
-  -> open clients update immediately
+Manual park/end or AutoPark event
+  -> POST /api/v1/park/session or /api/v1/park/session/end
+  -> backend mutates parking_sessions + lot_occupancy
+  -> backend publishes websocket update
+  -> open clients refresh immediately
 ```
 
 ## Open-app realtime path
 
-- occupancy websocket endpoint is owned by the backend
-- clients subscribe while the app is open
-- lot counts update without polling
-
-This is the main low-latency path for users currently on the app.
+- `/ws/occupancy` handles authenticated lot subscriptions
+- `/ws/notifications` handles authenticated notification events
+- occupancy writes publish immediately to subscribed open clients
+- the client can keep pattern-first display semantics even while receiving live updates
 
 ## Background / closed-app path
 
-When the iOS app detects a park or end via native sensing:
+When the native app detects a likely park or departure:
 
-1. the native layer resolves the lot and posts the session event
-2. the backend commits the session/occupancy write
-3. open websocket clients receive the new count
-4. local app state, push fan-out, and later foreground refreshes keep other devices aligned
+1. AutoPark resolves the event and posts a session write
+2. the backend commits the occupancy mutation
+3. websocket-connected clients receive the changed count
+4. silent push, local persistence, and later foreground refreshes help other devices converge
 
-## Important repo note
+## Important code centers
 
-Some older docs and comments still describe a JS-first background pipeline. Those are historical. The active implementation center is:
-
-- `ios/ScarletSpots/Sources/AutoPark`
+- `ios/ScarletSpots/Sources/AutoPark/`
+- `ios/ScarletSpots/Sources/Services/NativeSessionStore.swift`
 - `backend/app/routers/park.py`
+- `backend/app/routers/websocket.py`
 - `backend/app/core/websocket.py`
 - `backend/app/services/push_notifications.py`
 
-## What this doc is not
+## Non-goals of this document
 
-This is not a promise that every closed-app device sees an instant full UI update without reopening. It is the architecture note for:
-- authoritative writes
-- websocket fan-out to active clients
-- the native sensing handoff into the backend
+This is not a promise that every closed app redraws its UI instantly.
+
+It documents:
+
+- authoritative session writes
+- occupancy fan-out to open clients
+- the handoff between native sensing, backend truth, and later resync paths
 
 Last reviewed: 2026-04-26

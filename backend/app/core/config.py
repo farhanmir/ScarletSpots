@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from pydantic import Field
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -62,6 +63,19 @@ class Settings(BaseSettings):
         "http://localhost:5173",
         "http://localhost:19006",
     ]
+
+    @field_validator("DEBUG", mode="before")
+    @classmethod
+    def normalize_debug_flag(cls, value):
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"1", "true", "yes", "on", "debug"}:
+                return True
+            if normalized in {"0", "false", "no", "off", "release", ""}:
+                return False
+        return value
 
 
 settings = Settings()

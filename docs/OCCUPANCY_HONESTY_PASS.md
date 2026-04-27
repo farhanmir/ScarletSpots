@@ -146,7 +146,7 @@ ScarletSpots is still pre-launch, so raw parking-session counts are not a believ
   - real parking-session starts/ends
   - optional user feedback on lot fullness
   - admin/manual sample counts
-  - vulture/searching behavior observations
+  - circling duration and vulture/searching behavior observations
 - Measure how often lots fall into each bucket:
   - `typical_pattern`
   - `mixed`

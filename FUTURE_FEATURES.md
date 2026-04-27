@@ -1,40 +1,39 @@
 # ScarletSpots Future Features
 
-This file tracks deliberately deferred work. These are real ideas, but they are not release blockers for the current native iOS + backend product.
+This file tracks intentionally deferred work for the current native iOS + backend product.
 
-## Native iOS surfaces
+## Native surfaces
 
-- Live Activity expansion for active parking sessions
-- lock-screen / Dynamic Island quick actions
-- widgets for active session, favorites, and best nearby lots
-- stronger parked-car return guidance
+- deeper Live Activity actions for active sessions
+- lock-screen and widget shortcuts for favorites and parked-car return
+- stronger parked-car guidance after an auto-started session
+- richer in-app session history
 
 ## Product intelligence
 
 - true popular-lots ranking from session history
-- occupancy inference with stronger confidence calibration
-- event-aware forecast boosts
-- verification loops for uncertain lot states
+- better occupancy calibration from observed usage
+- event-aware forecast adjustments
+- admin or user feedback loops for uncertain lot states
+
+## Signal expansion
+
+- clearer vulture / circling feedback loops if they prove useful
+- lot-exit-aware AutoEnd confidence
+- habit-aware ranking that stays transparent and easy to override
 
 ## Platform expansion
 
 - App Intents / Siri
 - CarPlay
 - App Clip
-- additional Rutgers campuses once data quality is ready
-
-## Social / utility ideas
-
-- better friend presence surfacing
-- favorite-lot alerts
-- parking enforcement intelligence
-- richer session history and habits
+- broader Rutgers campus coverage only after data quality is ready
 
 ## Explicitly not current-priority
 
 - paywalls
-- subscription tiers
-- referral systems
-- growth loops unrelated to core parking utility
+- subscriptions
+- referral loops
+- growth work that does not improve parking utility
 
 Last reviewed: 2026-04-26

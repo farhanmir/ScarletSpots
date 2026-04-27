@@ -302,7 +302,7 @@ const FAQS = [
   },
   {
     q: 'Is my location data private?',
-    a: 'We never store raw GPS coordinates. The app detects which lot you entered and records only that lot ID. Friend location sharing shows lot-level info only, and is always opt-in.',
+    a: 'Friend visibility is lot-level only and always opt-in. ScarletSpots stores the lot you parked in and may store session coordinates needed for parked-car return and parking-session features.',
   },
   {
     q: 'Is ScarletSpots free?',

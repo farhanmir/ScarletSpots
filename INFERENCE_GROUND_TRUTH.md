@@ -2,60 +2,71 @@
 
 ## Problem
 
-App-observed sessions are not the same thing as true lot occupancy. We only directly observe users who run ScarletSpots, so raw session-driven counts are a biased sample.
+Observed ScarletSpots sessions are not the same thing as true campus-wide occupancy. Session counts are a biased sample.
 
 ## Goal
 
-Estimate real occupancy more accurately while exposing confidence, not fake certainty.
+Estimate lot state more honestly while keeping the product understandable. Confidence should be visible whenever certainty is weak.
 
-## Inputs we already have
+## Inputs already present in the repo
 
 - live session-derived occupancy counts
-- lot capacity and metadata
-- forecast provider infrastructure
-- native sensing context from the iOS app
-- feedback / calibration hooks
+- lot capacities and metadata
+- pattern-first forecast infrastructure
+- circling metrics
+- native sensing context from AutoPark
+- user feedback hooks for bad detections
 
-## Planned model direction
+## Current pre-launch rule
+
+When observed signal is weak, the product should default to pattern guidance rather than pretending it has realtime campus truth.
+
+Important client-facing metadata:
+
+- `source`
+- `confidence`
+- `signal_strength`
+- `display_mode`
+- `confidence_interval`
+
+## Model direction
 
 ### Prior layer
+
 - time-of-day and day-of-week demand priors
-- lot-type and campus-based shrinkage
+- lot-type and campus shrinkage
+- authored lot profiles as a temporary baseline
 
 ### Observation layer
-- active session starts/ends
-- searching / vulture-like behavior
-- departure/opening evidence
-- manual verification or audit samples
+
+- active session starts and ends
+- circling duration
+- vulture-like search behavior if retained
+- manual feedback and audit samples
 
 ### Output layer
-- expected occupancy
-- confidence interval
-- reason metadata suitable for UI/debugging
 
-## Product rule
+- estimated occupancy
+- uncertainty range
+- source and explanation metadata suitable for UI
 
-If confidence is weak, the UI should say so. A useful range is better than a precise lie.
+## Engineering direction
 
-## Pre-launch rule
-
-Before launch, occupancy should default to pattern-first messaging. `observed` app sessions are raw signal, not campus-wide truth, so clients should distinguish `observed`, `mixed`, and `typical_pattern` output explicitly.
-
-## Implementation direction
-
-- keep current forecast providers as fallback/prior infrastructure
-- add an inference-oriented provider instead of rewriting the entire forecast stack blindly
-- decide explicitly whether posterior occupancy reaches clients by websocket, REST, or both
+- keep the current forecast provider scaffolding
+- improve current-state estimation incrementally instead of rewriting everything at once
+- decide explicitly whether richer posterior occupancy should flow through REST, websocket, or both
 
 ## Practical evaluation
 
 Track at least:
+
 - MAE on occupancy rate
-- MAPE where demand is non-trivial
-- segmented accuracy by campus, lot size, and demand window
+- MAPE when demand is non-trivial
+- segmented performance by campus, lot size, and time window
+- bucket distribution across `typical_pattern`, `mixed`, and `observed`
 
-## This is still future-facing
+## Scope note
 
-The repository has forecast scaffolding now, but the full bias-correction engine is not the current launch baseline.
+The repository already contains honest pre-launch metadata and forecast scaffolding. A fully calibrated inference engine is still future work.
 
 Last reviewed: 2026-04-26
