@@ -257,26 +257,16 @@ extension LocationEngine: CLLocationManagerDelegate {
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didEnterRegion region: CLRegion) {
-        guard let coordinate = latestLocation else {
-            Task { @MainActor [weak self] in
-                self?.onRegionEvent?("enter", region.identifier, nil)
-            }
-            return
-        }
         Task { @MainActor [weak self] in
-            self?.onRegionEvent?("enter", region.identifier, coordinate)
+            guard let self else { return }
+            self.onRegionEvent?("enter", region.identifier, self.latestLocation)
         }
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didExitRegion region: CLRegion) {
-        guard let coordinate = latestLocation else {
-            Task { @MainActor [weak self] in
-                self?.onRegionEvent?("exit", region.identifier, nil)
-            }
-            return
-        }
         Task { @MainActor [weak self] in
-            self?.onRegionEvent?("exit", region.identifier, coordinate)
+            guard let self else { return }
+            self.onRegionEvent?("exit", region.identifier, self.latestLocation)
         }
     }
 
