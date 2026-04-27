@@ -24,6 +24,7 @@ struct LotDetailsSheet: View {
     @State private var toastText: String?
     @State private var wobble = 0.0
     @State private var didWobble = false
+    @State private var forecastAnchorHour = LotDetailsSheet.currentForecastAnchorHour()
 
     private var isDark: Bool { colorScheme == .dark }
     private var primaryText: Color { isDark ? .white : Color(hex: 0x111827) }
@@ -159,10 +160,10 @@ struct LotDetailsSheet: View {
                     .font(.headline)
                     .foregroundStyle(primaryText)
                 Spacer()
-                Text(lotAvailable ? "OPEN" : "CLOSED")
+                Text(accessStatusLabel)
                     .font(.caption2.bold())
                     .tracking(0.5)
-                    .foregroundStyle(lotAvailable ? Color(hex: 0x4ADE80) : Color(hex: 0xEF4444))
+                    .foregroundStyle(accessColor)
             }
 
             if let primaryRule = primaryAccessRule {
@@ -336,7 +337,7 @@ struct LotDetailsSheet: View {
         guard !forecast.isEmpty else { return [] }
         return forecast.enumerated().map { index, point in
             ForecastPoint(
-                label: relativeForecastLabel(for: index, total: forecast.count),
+                label: forecastHourLabel(for: index, total: forecast.count),
                 count: point.count,
                 occupancyRate: point.occupancyRate
             )
@@ -344,16 +345,48 @@ struct LotDetailsSheet: View {
     }
 
     private var lotAvailable: Bool {
-        (permit.isLotAvailableNow(permitType: auth.permitType, lotId: lot.mapId) ?? false)
-            || (permit.isLotAvailableNow(permitType: auth.secondaryPermitType, lotId: lot.mapId) ?? false)
+        accessState == .openNow
+    }
+
+    private var accessState: PermitRepository.LotAccessState {
+        permit.accessState(
+            lotId: lot.mapId,
+            primary: auth.permitType,
+            secondary: auth.secondaryPermitType
+        )
+    }
+
+    private var accessStatusLabel: String {
+        switch accessState {
+        case .openNow:
+            return "OPEN"
+        case .restrictedNow:
+            return "NOT RIGHT NOW"
+        case .unavailable:
+            return "CLOSED"
+        }
     }
 
     private var accessIcon: String {
-        lotAvailable ? "checkmark.shield.fill" : "xmark.shield.fill"
+        switch accessState {
+        case .openNow:
+            return "checkmark.shield.fill"
+        case .restrictedNow:
+            return "clock.badge.exclamationmark.fill"
+        case .unavailable:
+            return "xmark.shield.fill"
+        }
     }
 
     private var accessColor: Color {
-        lotAvailable ? Color(hex: 0x4ADE80) : Color(hex: 0xEF4444)
+        switch accessState {
+        case .openNow:
+            return Color(hex: 0x4ADE80)
+        case .restrictedNow:
+            return Color(hex: 0xF59E0B)
+        case .unavailable:
+            return Color(hex: 0xEF4444)
+        }
     }
 
     private var primaryAccessRule: String? {
@@ -488,6 +521,9 @@ struct LotDetailsSheet: View {
 
     private func conciseAccessRule(for permitType: String?) -> String? {
         guard let permitType else { return nil }
+        if let specialRule = noPermitAccessRule(for: permitType) {
+            return specialRule
+        }
         guard let text = permit.scheduleText(permitType: permitType, lotId: lot.mapId) else {
             return shortenedPermitName(permitType)
         }
@@ -502,18 +538,45 @@ struct LotDetailsSheet: View {
     }
 
     private func shortenedPermitName(_ permitType: String) -> String {
-        permitType
+        PermitRepository.displayName(for: permitType)
             .replacingOccurrences(of: " Permit", with: "")
             .replacingOccurrences(of: " permit", with: "")
     }
 
-    private func relativeForecastLabel(for index: Int, total: Int) -> String {
+    private func noPermitAccessRule(for permitType: String) -> String? {
+        switch permitType {
+        case PermitRepository.noPermitAll:
+            return "Showing all lots. Permit filtering is off."
+        case PermitRepository.noPermitCommuter:
+            return permit.allCommuterLotIds.contains(lot.mapId)
+                ? "Showing commuter-accessible lots only."
+                : "This lot is outside the commuter-only filter."
+        default:
+            return nil
+        }
+    }
+
+    private func forecastHourLabel(for index: Int, total: Int) -> String {
         let nowIndex = min(2, max(total - 1, 0))
         let delta = index - nowIndex
-        if delta == 0 { return "Now" }
-        if delta < 0 { return "-\(-delta) hr" }
-        return "+\(delta) hr"
+        if delta == 0 { return "NOW" }
+
+        guard let target = Calendar.current.date(byAdding: .hour, value: delta, to: forecastAnchorHour) else {
+            return "NOW"
+        }
+        return Self.forecastHourFormatter.string(from: target)
     }
+
+    private static func currentForecastAnchorHour(now: Date = Date()) -> Date {
+        Calendar.current.dateInterval(of: .hour, for: now)?.start ?? now
+    }
+
+    private static let forecastHourFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = .current
+        formatter.dateFormat = "h a"
+        return formatter
+    }()
 }
 
 // MARK: - Liquid Glass view modifiers

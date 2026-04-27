@@ -25,7 +25,13 @@ struct MainTabView: View {
 
             ProfileView()
                 .tabItem {
-                    Label("Profile", systemImage: "person.fill")
+                    Label {
+                        Text("Profile")
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
+                    } icon: {
+                        Image(systemName: "person.fill")
+                    }
                 }
                 .tag(3)
         }

@@ -152,6 +152,7 @@ final class AuthManager: ObservableObject, AuthTokenProvider {
             permitType = profile.permitType ?? loadLocalPermitType(ownerId: ownerId)
             secondaryPermitType = profile.secondaryPermitType
                 ?? loadLocalSecondaryPermit(ownerId: ownerId)
+            noPermitMode = PermitRepository.noPermitMode(for: permitType) ?? loadLocalNoPermitMode(ownerId: ownerId)
         } catch {
             Logger.log("Failed to fetch /users/me: \(error.localizedDescription)")
             if currentUser == nil, let fallback = fallbackProfile() {
@@ -159,16 +160,19 @@ final class AuthManager: ObservableObject, AuthTokenProvider {
             }
             permitType = loadLocalPermitType(ownerId: ownerId)
             secondaryPermitType = loadLocalSecondaryPermit(ownerId: ownerId)
+            noPermitMode = PermitRepository.noPermitMode(for: permitType) ?? loadLocalNoPermitMode(ownerId: ownerId)
         }
     }
 
     func setPermitPreference(primary: String?, secondary: String?) async {
         permitType = primary
         secondaryPermitType = secondary
+        noPermitMode = PermitRepository.noPermitMode(for: primary)
 
         let ownerId = session?.user.id.uuidString
         saveLocalPermitType(primary, ownerId: ownerId)
         saveLocalSecondaryPermit(secondary, ownerId: ownerId)
+        saveLocalNoPermitMode(noPermitMode, ownerId: ownerId)
 
         // Guard against nil first/last names — JSONSerialization fails if `Any`
         // is `nil`. Only include keys with concrete values.
@@ -223,7 +227,7 @@ final class AuthManager: ObservableObject, AuthTokenProvider {
         if isAuthenticated {
             permitType = loadLocalPermitType(ownerId: owner)
             secondaryPermitType = loadLocalSecondaryPermit(ownerId: owner)
-            noPermitMode = loadLocalNoPermitMode(ownerId: owner)
+            noPermitMode = PermitRepository.noPermitMode(for: permitType) ?? loadLocalNoPermitMode(ownerId: owner)
             await fetchProfile()
         } else {
             currentUser = nil

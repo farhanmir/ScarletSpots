@@ -50,6 +50,8 @@ struct SearchResult: Identifiable, Hashable {
 
 struct SearchScreen: View {
     @EnvironmentObject private var tabBarState: TabBarState
+    @StateObject private var auth = AuthManager.shared
+    @StateObject private var permitRepository = PermitRepository.shared
     @StateObject private var webSocket = WebSocketManager.shared
     @StateObject private var lotRepository = LotRepository.shared
     @State private var query = ""
@@ -130,6 +132,7 @@ struct SearchScreen: View {
             SearchRow(
                 result: result,
                 occupancyRow: result.lot.flatMap { webSocket.lotOccupancyRows[$0.mapId] },
+                accessState: result.lot.map(permitAccessState(for:)),
                 isGeocoding: geocodingId == result.id
             )
         }
@@ -144,10 +147,31 @@ struct SearchScreen: View {
     }
 
     private func rowAccessibilityLabel(for result: SearchResult) -> String {
-        if let lot = result.lot, let row = webSocket.lotOccupancyRows[lot.mapId] {
-            return "\(result.title), \(result.subtitle), \(row.occupancyHeadline), \(row.occupancyDetail.lowercased())."
+        let accessSuffix: String
+        if let lot = result.lot {
+            switch permitAccessState(for: lot) {
+            case .openNow:
+                accessSuffix = " Permit access available now."
+            case .restrictedNow:
+                accessSuffix = " Permit access unavailable right now."
+            case .unavailable:
+                accessSuffix = " Permit access unavailable."
+            }
+        } else {
+            accessSuffix = ""
         }
-        return "\(result.title). \(result.subtitle)"
+        if let lot = result.lot, let row = webSocket.lotOccupancyRows[lot.mapId] {
+            return "\(result.title), \(result.subtitle), \(row.occupancyHeadline), \(row.occupancyDetail.lowercased()).\(accessSuffix)"
+        }
+        return "\(result.title). \(result.subtitle)\(accessSuffix)"
+    }
+
+    private func permitAccessState(for lot: Lot) -> PermitRepository.LotAccessState {
+        permitRepository.accessState(
+            lotId: lot.mapId,
+            primary: auth.permitType,
+            secondary: auth.secondaryPermitType
+        )
     }
 
     // MARK: - Actions
@@ -323,6 +347,7 @@ private final class PlaceCompleter: NSObject, ObservableObject, MKLocalSearchCom
 private struct SearchRow: View {
     let result: SearchResult
     let occupancyRow: OccupancyRow?
+    let accessState: PermitRepository.LotAccessState?
     let isGeocoding: Bool
 
     var body: some View {
@@ -338,6 +363,12 @@ private struct SearchRow: View {
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                if let accessState, accessState == .restrictedNow {
+                    Label("Permit timing restricted now", systemImage: "clock.badge.exclamationmark.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color(hex: 0xF59E0B))
+                        .lineLimit(1)
+                }
             }
 
             Spacer(minLength: 8)
@@ -355,10 +386,21 @@ private struct SearchRow: View {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill(Color.primary.opacity(0.055))
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color.primary.opacity(0.12), lineWidth: 0.7)
+                    .stroke(
+                        accessState == .restrictedNow
+                            ? Color(hex: 0xF59E0B).opacity(0.55)
+                            : Color.primary.opacity(0.12),
+                        lineWidth: accessState == .restrictedNow ? 1.2 : 0.7
+                    )
                 Image(systemName: "car.fill")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(.secondary)
+                if accessState == .restrictedNow {
+                    Image(systemName: "clock.badge.exclamationmark.fill")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Color(hex: 0xF59E0B), .white)
+                        .offset(x: 14, y: -14)
+                }
             }
             .frame(width: 48, height: 48)
         } else {
