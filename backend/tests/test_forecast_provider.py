@@ -12,6 +12,8 @@ def test_heuristic_forecast_provider():
     assert "slices" in forecast
     assert "curve" in forecast
     assert "metadata" in forecast
+    assert "soc_enabled" in forecast["metadata"]
+    assert "soc_multiplier" in forecast["metadata"]
 
     # Check slices
     slices = forecast["slices"]
@@ -89,3 +91,10 @@ def test_forecast_is_stable_for_same_input():
     first = provider.get_lot_forecast("10001", current_occupancy=0, capacity=250)
     second = provider.get_lot_forecast("10001", current_occupancy=0, capacity=250)
     assert first["slices"]["now"]["expected_occupancy"] == second["slices"]["now"]["expected_occupancy"]
+
+
+def test_soc_multiplier_is_bounded():
+    provider = HeuristicForecastProvider()
+    forecast = provider.get_lot_forecast("10001", current_occupancy=10, capacity=250)
+    multiplier = float(forecast["metadata"]["soc_multiplier"])
+    assert 0.8 <= multiplier <= 1.25

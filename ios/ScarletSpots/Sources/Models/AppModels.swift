@@ -249,6 +249,8 @@ struct ParkingCandidate: Codable, Identifiable {
     let longitude: Double
     let confidence: Double
     let source: String
+    let circlingStartedAt: Date?
+    let circlingDurationSeconds: Int?
 }
 
 struct Building: Codable, Identifiable {

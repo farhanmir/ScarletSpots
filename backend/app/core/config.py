@@ -39,6 +39,12 @@ class Settings(BaseSettings):
     TRAFFIC_PROVIDER: str = Field(default="none")
     TOMTOM_API_KEY: str = Field(default="")
     TRAFFIC_CACHE_TTL_SECONDS: int = Field(default=300)
+    CIRCLING_METRIC_ENABLED: bool = Field(default=True)
+    CIRCLING_METRIC_WINDOW_MINUTES: int = Field(default=60)
+    SOC_FORECAST_ENABLED: bool = Field(default=False)
+    SOC_PRESSURE_STALE_MINUTES: int = Field(default=240)
+    SOC_PRESSURE_MIN_MULTIPLIER: float = Field(default=0.80)
+    SOC_PRESSURE_MAX_MULTIPLIER: float = Field(default=1.25)
 
     # High-value endpoint controls
     REQUIRE_AUTH_ON_AVAILABILITY: bool = Field(default=True)

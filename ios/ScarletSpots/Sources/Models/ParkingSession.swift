@@ -11,6 +11,8 @@ struct ParkingSession: Codable, Identifiable {
     let autoStarted: Bool
     let startSource: String?
     let endSource: String?
+    let circlingStartedAt: Date?
+    let circlingDurationSeconds: Int?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -28,6 +30,10 @@ struct ParkingSession: Codable, Identifiable {
         case startSourceCamel = "startSource"
         case endSource = "end_source"
         case endSourceCamel = "endSource"
+        case circlingStartedAt = "circling_started_at"
+        case circlingStartedAtCamel = "circlingStartedAt"
+        case circlingDurationSeconds = "circling_duration_seconds"
+        case circlingDurationSecondsCamel = "circlingDurationSeconds"
     }
 
     init(from decoder: Decoder) throws {
@@ -50,6 +56,10 @@ struct ParkingSession: Codable, Identifiable {
             ?? c.decodeIfPresent(String.self, forKey: .startSource)
         endSource = try c.decodeIfPresent(String.self, forKey: .endSourceCamel)
             ?? c.decodeIfPresent(String.self, forKey: .endSource)
+        circlingStartedAt = try c.decodeIfPresent(Date.self, forKey: .circlingStartedAtCamel)
+            ?? c.decodeIfPresent(Date.self, forKey: .circlingStartedAt)
+        circlingDurationSeconds = try c.decodeIfPresent(Int.self, forKey: .circlingDurationSecondsCamel)
+            ?? c.decodeIfPresent(Int.self, forKey: .circlingDurationSeconds)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -64,5 +74,7 @@ struct ParkingSession: Codable, Identifiable {
         try c.encode(autoStarted, forKey: .autoStarted)
         try c.encodeIfPresent(startSource, forKey: .startSource)
         try c.encodeIfPresent(endSource, forKey: .endSource)
+        try c.encodeIfPresent(circlingStartedAt, forKey: .circlingStartedAt)
+        try c.encodeIfPresent(circlingDurationSeconds, forKey: .circlingDurationSeconds)
     }
 }

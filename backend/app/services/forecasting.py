@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 from app.services.forecast_provider import ForecastProvider
+from app.services.soc_pressure import SOCPressureService
 from app.services.traffic_signal_service import TrafficSignalService
 
 LOT_DATA_PATH = Path(__file__).parent / "rutgers_parking_data.json"
@@ -75,6 +76,7 @@ class HeuristicForecastProvider(ForecastProvider):
     def __init__(self, traffic_service: TrafficSignalService | None = None):
         self._traffic_service = traffic_service or TrafficSignalService()
         self._profiles = _load_lot_profiles()
+        self._soc_service = SOCPressureService()
 
     def get_lot_forecast(
         self, lot_id: str, current_occupancy: int, capacity: int
@@ -98,6 +100,7 @@ class HeuristicForecastProvider(ForecastProvider):
         )
         traffic_signal = self._traffic_service.get_signal_for_campus(profile.campus)
         traffic_multiplier = self._traffic_adjustment(traffic_signal.multiplier)
+        soc_signal_now = self._soc_service.get_signal(lot_id, current_minute)
         base_rate = float(current_state["occupancy_rate"])
         signal_strength = str(current_state["signal_strength"])
         mode = "observed_informed" if signal_strength == "strong" else "pattern_based"
@@ -116,6 +119,7 @@ class HeuristicForecastProvider(ForecastProvider):
                 capacity=capacity,
                 profile=profile,
                 traffic_multiplier=traffic_multiplier,
+                lot_id=lot_id,
             )
             expected = (base_rate * momentum_weight) + (
                 typical_rate * (1.0 - momentum_weight)
@@ -160,6 +164,12 @@ class HeuristicForecastProvider(ForecastProvider):
                 "profile_type": profile.profile_type,
                 "traffic_multiplier": round(traffic_multiplier, 3),
                 "traffic_source": traffic_signal.source,
+                "soc_enabled": soc_signal_now.source != "disabled",
+                "soc_pressure_index": round(soc_signal_now.pressure_index, 4),
+                "soc_multiplier": round(soc_signal_now.multiplier, 3),
+                "soc_source": soc_signal_now.source,
+                "soc_snapshot_at": soc_signal_now.snapshot_at,
+                "soc_stale": soc_signal_now.stale,
             },
         }
 
@@ -191,6 +201,7 @@ class HeuristicForecastProvider(ForecastProvider):
             capacity=capacity,
             profile=profile,
             traffic_multiplier=traffic_multiplier,
+            lot_id=lot_id,
         )
         typical_count = int(min(capacity, max(0, round(capacity * (typical_rate / 100.0)))))
         sparse_limit = max(3, round(capacity * 0.02))
@@ -262,6 +273,7 @@ class HeuristicForecastProvider(ForecastProvider):
         capacity: int,
         profile: LotProfile,
         traffic_multiplier: float,
+        lot_id: str,
     ) -> float:
         curve = PROFILE_CURVES.get(profile.profile_type) or PROFILE_CURVES["commuter_peak"]
         day_key = "weekend" if target_time.weekday() >= 5 else "weekday"
@@ -275,7 +287,8 @@ class HeuristicForecastProvider(ForecastProvider):
             capacity_bias += 0.03
         elif "cook" in profile.campus.lower() or "douglass" in profile.campus.lower():
             capacity_bias -= 0.03
-        return _clamp(base_rate * capacity_bias * traffic_multiplier, 1.0, 99.0)
+        soc_multiplier = self._soc_service.get_signal(lot_id, target_time).multiplier
+        return _clamp(base_rate * capacity_bias * traffic_multiplier * soc_multiplier, 1.0, 99.0)
 
     @staticmethod
     def _traffic_adjustment(multiplier: float) -> float:

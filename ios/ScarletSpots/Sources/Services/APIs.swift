@@ -74,6 +74,8 @@ enum ParkAPI {
         longitude: Double,
         autoStarted: Bool = false,
         source: String? = nil,
+        circlingStartedAt: Date? = nil,
+        circlingDurationSeconds: Int? = nil,
         idempotencyKey: String? = nil
     ) async throws {
         var payload: [String: Any] = [
@@ -84,6 +86,12 @@ enum ParkAPI {
             "autoStarted": autoStarted
         ]
         if let source { payload["source"] = source }
+        if let circlingStartedAt {
+            payload["circling_started_at"] = ISO8601DateFormatter().string(from: circlingStartedAt)
+        }
+        if let circlingDurationSeconds {
+            payload["circling_duration_seconds"] = circlingDurationSeconds
+        }
         let body = try JSONSerialization.data(withJSONObject: payload)
         _ = try await APIClient.shared.rawRequest(
             "park/session",

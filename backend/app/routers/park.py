@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 from contextlib import asynccontextmanager
 from enum import Enum
 from pathlib import Path
@@ -61,6 +62,8 @@ class ParkSessionCreate(BaseModel):
     confirmed: bool = True
     autoStarted: bool = False
     source: Optional[str] = None
+    circling_started_at: Optional[datetime] = None
+    circling_duration_seconds: Optional[int] = None
 
 
 class ParkSessionEndRequest(BaseModel):
@@ -100,6 +103,8 @@ def _session_response(session: ParkingSession) -> dict:
         "autoStarted": bool(session.auto_started),
         "startSource": session.start_source,
         "endSource": session.end_source,
+        "circlingStartedAt": session.circling_started_at,
+        "circlingDurationSeconds": session.circling_duration_seconds,
     }
 
 
@@ -297,6 +302,12 @@ async def start_parking_session(
                 active=True,
                 auto_started=body.autoStarted,
                 start_source=(body.source or "").strip() or None,
+                circling_started_at=body.circling_started_at,
+                circling_duration_seconds=(
+                    max(0, min(14400, int(body.circling_duration_seconds)))
+                    if body.circling_duration_seconds is not None
+                    else None
+                ),
             )
             db.add(new_session)
             await db.flush()

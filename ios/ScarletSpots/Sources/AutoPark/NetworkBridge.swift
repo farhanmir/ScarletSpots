@@ -7,6 +7,8 @@ enum NetworkBridge {
         longitude: Double,
         autoStarted: Bool,
         source: String?,
+        circlingStartedAt: Date? = nil,
+        circlingDurationSeconds: Int? = nil,
         idempotencyKey: String? = nil
     ) async throws {
         try await ParkAPI.startSession(
@@ -15,6 +17,8 @@ enum NetworkBridge {
             longitude: longitude,
             autoStarted: autoStarted,
             source: source,
+            circlingStartedAt: circlingStartedAt,
+            circlingDurationSeconds: circlingDurationSeconds,
             idempotencyKey: idempotencyKey
         )
     }

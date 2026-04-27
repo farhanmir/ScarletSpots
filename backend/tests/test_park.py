@@ -24,6 +24,7 @@ async def test_parking_session_lifecycle(
     body = start_resp.json()
     assert body["success"] is True
     assert body["session"]["lotId"] == lot_id
+    assert body["session"]["circlingDurationSeconds"] is None
 
     active_resp = await client.get("/api/v1/park/session/active")
     assert active_resp.status_code == 200, active_resp.text
@@ -208,3 +209,33 @@ async def test_feedback_accepts_quality_contract(
     )
     assert response.status_code == 200, response.text
     assert response.json()["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_start_session_persists_circling_metrics(
+    client: AsyncClient,
+    override_current_user: None,
+    noop_ws_publish: None,
+    db_session: AsyncSession,
+):
+    _ = override_current_user, noop_ws_publish
+    response = await client.post(
+        "/api/v1/park/session",
+        json={
+            "lotId": "10001",
+            "circling_started_at": "2026-04-26T22:00:00Z",
+            "circling_duration_seconds": 245,
+        },
+    )
+    assert response.status_code == 200, response.text
+    session = (
+        await db_session.execute(
+            select(ParkingSession).where(
+                ParkingSession.user_id == "00000000-0000-0000-0000-000000000123",
+                ParkingSession.active.is_(True),
+            )
+        )
+    ).scalars().first()
+    assert session is not None
+    assert session.circling_duration_seconds == 245
+    assert session.circling_started_at is not None

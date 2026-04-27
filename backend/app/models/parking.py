@@ -45,6 +45,8 @@ class ParkingSession(Base):
     )
     start_source = Column(String, nullable=True)
     end_source = Column(String, nullable=True)
+    circling_started_at = Column(DateTime(timezone=True), nullable=True)
+    circling_duration_seconds = Column(Integer, nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -107,3 +109,39 @@ class IdempotencyRecord(Base):
     response_body = Column(String, nullable=False)
     status_code = Column(Integer, nullable=False, server_default=text("200"))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class SOCSnapshot(Base):
+    __tablename__ = "soc_snapshots"
+
+    id = Column(
+        UUID_SQL,
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+        server_default=func.gen_random_uuid(),
+    )
+    term_code = Column(String, nullable=True)
+    source_hash = Column(String, nullable=True)
+    captured_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class SOCLotPressure(Base):
+    __tablename__ = "soc_lot_pressure"
+
+    id = Column(
+        UUID_SQL,
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+        server_default=func.gen_random_uuid(),
+    )
+    snapshot_id = Column(
+        UUID_SQL,
+        ForeignKey("soc_snapshots.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    lot_id = Column(String, nullable=False)
+    start_minute_of_week = Column(Integer, nullable=False)
+    end_minute_of_week = Column(Integer, nullable=False)
+    pressure_index = Column(Float, nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())

@@ -10,6 +10,7 @@ This router only handles:
 """
 
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -23,7 +24,7 @@ from app.core.limiter import limiter
 from app.core.logger import get_logger
 from app.core.attestation import require_high_value_access
 from app.core.security import get_current_user
-from app.models.parking import LotOccupancy
+from app.models.parking import LotOccupancy, ParkingSession
 from app.services.forecast_provider import ForecastProvider
 from app.services.forecasting import HeuristicForecastProvider
 from app.services.ml_forecast_provider import MLForecastProvider
@@ -68,6 +69,48 @@ def _get_forecast_provider() -> ForecastProvider:
     return _ml_provider
 
 
+def _percentile(sorted_values: list[int], q: float) -> float | None:
+    if not sorted_values:
+        return None
+    if len(sorted_values) == 1:
+        return float(sorted_values[0])
+    position = (len(sorted_values) - 1) * q
+    lower = int(position)
+    upper = min(lower + 1, len(sorted_values) - 1)
+    weight = position - lower
+    return (sorted_values[lower] * (1.0 - weight)) + (sorted_values[upper] * weight)
+
+
+async def _load_recent_circling_metrics(db: AsyncSession) -> dict[str, dict[str, float | int]]:
+    if not settings.CIRCLING_METRIC_ENABLED:
+        return {}
+    since = datetime.now(timezone.utc) - timedelta(minutes=settings.CIRCLING_METRIC_WINDOW_MINUTES)
+    rows = (
+        await db.execute(
+            select(ParkingSession.lot_id, ParkingSession.circling_duration_seconds).where(
+                ParkingSession.circling_duration_seconds.is_not(None),
+                ParkingSession.start_time >= since,
+            )
+        )
+    ).all()
+    by_lot: dict[str, list[int]] = {}
+    for lot_id, duration in rows:
+        if lot_id is None or duration is None:
+            continue
+        by_lot.setdefault(str(lot_id), []).append(int(duration))
+    result: dict[str, dict[str, float | int]] = {}
+    for lot_id, values in by_lot.items():
+        values.sort()
+        p50 = _percentile(values, 0.50)
+        p75 = _percentile(values, 0.75)
+        result[lot_id] = {
+            "samples": len(values),
+            "p50_seconds": round(p50, 1) if p50 is not None else None,
+            "p75_seconds": round(p75, 1) if p75 is not None else None,
+        }
+    return result
+
+
 @router.get("/occupancy")
 @limiter.limit("60/minute")
 @fastapi_cache(expire=30)
@@ -80,6 +123,7 @@ async def get_all_occupancy(
     """Return current occupancy counts for all lots from the lot_occupancy table."""
     try:
         rows = (await db.execute(select(LotOccupancy))).scalars().all()
+        circling_by_lot = await _load_recent_circling_metrics(db)
         by_lot = {row.lot_id: row for row in rows}
         occupancy_payload = []
 
@@ -110,6 +154,7 @@ async def get_all_occupancy(
                     "signal_strength": current["signal_strength"],
                     "display_mode": current["display_mode"],
                     "confidence_interval": current["confidence_interval"],
+                    "circling": circling_by_lot.get(lot_id),
                     "updated_at": row.updated_at if row else None,
                 }
             )
@@ -133,6 +178,7 @@ async def get_all_occupancy(
                     "signal_strength": "strong",
                     "display_mode": "live",
                     "confidence_interval": 0.05,
+                    "circling": circling_by_lot.get(row.lot_id),
                     "updated_at": row.updated_at,
                 }
             )
@@ -145,12 +191,13 @@ async def get_all_occupancy(
 
 @router.get("/{lot_id}/forecast")
 @limiter.limit("45/minute")
-def get_lot_forecast(
+async def get_lot_forecast(
     request: Request,
     lot_id: str,
     capacity: int = Query(default=100, ge=0, description="Total lot capacity (from bundled JSON)"),
     current_occupancy: int = Query(default=0, ge=0, description="Current occupied count"),
     provider: ForecastProvider = Depends(_get_forecast_provider),
+    db: AsyncSession = Depends(get_db),
     _=Depends(get_current_user),
     __=Depends(require_high_value_access),
 ):
@@ -168,6 +215,7 @@ def get_lot_forecast(
         # than a 422 that shows up as a console error on the client.
         return {"slices": [], "curve": []}
     try:
+        circling_by_lot = await _load_recent_circling_metrics(db)
         current_state = _heuristic_provider.describe_current_state(
             lot_id=lot_id,
             current_occupancy=current_occupancy,
@@ -186,6 +234,7 @@ def get_lot_forecast(
                 "confidence": current_state["confidence"],
                 "signal_strength": current_state["signal_strength"],
                 "display_mode": current_state["display_mode"],
+                "circling": circling_by_lot.get(lot_id),
             },
             "forecast": forecast,
             **forecast,

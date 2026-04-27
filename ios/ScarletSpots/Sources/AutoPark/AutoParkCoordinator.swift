@@ -112,6 +112,8 @@ final class AutoParkCoordinator: ObservableObject {
         var lastTriggerSource: String?
         var lastTriggerAt: Date?
         var lastCommittedLotId: String?
+        var circlingLotId: String?
+        var circlingStartedAt: Date?
         var parkedLatitude: Double?
         var parkedLongitude: Double?
         var lastFailure: String?
@@ -147,6 +149,7 @@ final class AutoParkCoordinator: ObservableObject {
     private let driveAwayDuration: TimeInterval = 85
     private let audioReconnectMaxDisconnectAge: TimeInterval = 30 * 60
     private let locationThrottle: TimeInterval = 10
+    private let maxCirclingAgeSeconds: TimeInterval = 30 * 60
 
     private var didBootstrap = false
     private var pendingTriggerSource: String?
@@ -157,6 +160,7 @@ final class AutoParkCoordinator: ObservableObject {
     private var currentWakeReason = "manual_open"
     private var persistedState = PersistedState(lastWakeReason: "manual_open")
     private var isInFlight = false
+    private let maxCirclingDurationSeconds = 4 * 60 * 60
 
     private init() {
         restoreState()
@@ -301,6 +305,9 @@ final class AutoParkCoordinator: ObservableObject {
 
     func confirm(_ candidate: ParkingCandidate) async {
         pendingCandidates.removeAll()
+        let circling = currentCirclingMetrics(for: candidate.lotId)
+        let startedAt = candidate.circlingStartedAt ?? circling.startedAt
+        let durationSeconds = candidate.circlingDurationSeconds ?? circling.durationSeconds
         do {
             try await NetworkBridge.startSession(
                 lotId: candidate.lotId,
@@ -308,25 +315,36 @@ final class AutoParkCoordinator: ObservableObject {
                 longitude: candidate.longitude,
                 autoStarted: false,
                 source: candidate.source,
+                circlingStartedAt: startedAt,
+                circlingDurationSeconds: durationSeconds,
                 idempotencyKey: stableStartIdempotencyKey(lotId: candidate.lotId)
             )
+            clearCirclingIfMatches(lotId: candidate.lotId)
             await NativeSessionStore.shared.refresh()
             updateParkedState(from: candidate.latitude, longitude: candidate.longitude, lotId: candidate.lotId)
             publishManualResolution(source: candidate.source, decision: "session_started", reason: "manual_confirmation")
         } catch {
-            let payload = try? JSONSerialization.data(withJSONObject: [
+            var payloadObject: [String: Any] = [
                 "lotId": candidate.lotId,
                 "latitude": candidate.latitude,
                 "longitude": candidate.longitude,
                 "autoStarted": false,
                 "source": candidate.source
-            ])
+            ]
+            if let circlingStartedAt = startedAt {
+                payloadObject["circling_started_at"] = ISO8601DateFormatter().string(from: circlingStartedAt)
+                if let duration = durationSeconds {
+                    payloadObject["circling_duration_seconds"] = duration
+                }
+            }
+            let payload = try? JSONSerialization.data(withJSONObject: payloadObject)
             await OfflineQueue.shared.enqueue(
                 type: "PARK",
                 endpoint: "park/session",
                 payload: payload,
                 idempotencyKey: stableStartIdempotencyKey(lotId: candidate.lotId)
             )
+            clearCirclingIfMatches(lotId: candidate.lotId)
             await NativeSessionStore.shared.bootstrapRefresh()
             persistedState.lastFailure = error.localizedDescription
             persistState()
@@ -525,11 +543,23 @@ final class AutoParkCoordinator: ObservableObject {
         lastDecisionAt = Date()
 
         guard evaluation.hardPass, let candidate = evaluation.candidate else { return }
+        beginCirclingIfNeeded(for: candidate.lotId)
         if (evaluation.confidence ?? 0) >= autoCommitThreshold {
             await commitStart(candidate: candidate, wakeReason: wakeReason)
         } else if (evaluation.confidence ?? 0) >= candidateThreshold {
-            var updated = pendingCandidates.filter { $0.lotId != candidate.lotId }
-            updated.insert(candidate, at: 0)
+            let circling = currentCirclingMetrics(for: candidate.lotId)
+            let candidateForConfirmation = ParkingCandidate(
+                id: candidate.id,
+                lotId: candidate.lotId,
+                latitude: candidate.latitude,
+                longitude: candidate.longitude,
+                confidence: candidate.confidence,
+                source: candidate.source,
+                circlingStartedAt: circling.startedAt,
+                circlingDurationSeconds: circling.durationSeconds
+            )
+            var updated = pendingCandidates.filter { $0.lotId != candidateForConfirmation.lotId }
+            updated.insert(candidateForConfirmation, at: 0)
             pendingCandidates = Array(updated.prefix(3))
             refreshLiveSnapshot()
         }
@@ -555,6 +585,7 @@ final class AutoParkCoordinator: ObservableObject {
         }
 
         let key = stableStartIdempotencyKey(lotId: candidate.lotId)
+        let circling = currentCirclingMetrics(for: candidate.lotId)
         do {
             try await NetworkBridge.startSession(
                 lotId: candidate.lotId,
@@ -562,8 +593,11 @@ final class AutoParkCoordinator: ObservableObject {
                 longitude: candidate.longitude,
                 autoStarted: true,
                 source: candidate.source,
+                circlingStartedAt: circling.startedAt,
+                circlingDurationSeconds: circling.durationSeconds,
                 idempotencyKey: key
             )
+            clearCirclingIfMatches(lotId: candidate.lotId)
             await NativeSessionStore.shared.refresh()
             updateParkedState(from: candidate.latitude, longitude: candidate.longitude, lotId: candidate.lotId)
             HapticManager.shared.playGuidancePulse(distance: 0)
@@ -588,19 +622,27 @@ final class AutoParkCoordinator: ObservableObject {
                 appendToHistory: true
             )
         } catch {
-            let payload = try? JSONSerialization.data(withJSONObject: [
+            var payloadObject: [String: Any] = [
                 "lotId": candidate.lotId,
                 "latitude": candidate.latitude,
                 "longitude": candidate.longitude,
                 "autoStarted": true,
                 "source": candidate.source
-            ])
+            ]
+            if let circlingStartedAt = circling.startedAt {
+                payloadObject["circling_started_at"] = ISO8601DateFormatter().string(from: circlingStartedAt)
+                if let duration = circling.durationSeconds {
+                    payloadObject["circling_duration_seconds"] = duration
+                }
+            }
+            let payload = try? JSONSerialization.data(withJSONObject: payloadObject)
             await OfflineQueue.shared.enqueue(
                 type: "PARK",
                 endpoint: "park/session",
                 payload: payload,
                 idempotencyKey: key
             )
+            clearCirclingIfMatches(lotId: candidate.lotId)
             await NativeSessionStore.shared.bootstrapRefresh()
             updateParkedState(from: candidate.latitude, longitude: candidate.longitude, lotId: candidate.lotId)
             persistedState.lastFailure = error.localizedDescription
@@ -799,7 +841,9 @@ final class AutoParkCoordinator: ObservableObject {
             latitude: location.coordinate.latitude,
             longitude: location.coordinate.longitude,
             confidence: confidence,
-            source: source
+            source: source,
+            circlingStartedAt: nil,
+            circlingDurationSeconds: nil
         )
         let reason = confidence >= autoCommitThreshold ? "all_conditions_passed" : "confidence_below_auto_commit_threshold"
         let explanation = confidence >= autoCommitThreshold
@@ -1101,8 +1145,42 @@ final class AutoParkCoordinator: ObservableObject {
         persistedState.parkedLatitude = nil
         persistedState.parkedLongitude = nil
         persistedState.lastCommittedLotId = nil
+        clearCirclingState()
         persistedState.lastFailure = nil
         driveAwayStartAt = nil
+        persistState()
+    }
+
+    private func beginCirclingIfNeeded(for lotId: String) {
+        if let startedAt = persistedState.circlingStartedAt,
+           persistedState.circlingLotId == lotId,
+           startedAt <= Date(),
+           Date().timeIntervalSince(startedAt) <= maxCirclingAgeSeconds {
+            return
+        }
+        persistedState.circlingLotId = lotId
+        persistedState.circlingStartedAt = Date()
+        persistState()
+    }
+
+    private func clearCirclingState() {
+        persistedState.circlingLotId = nil
+        persistedState.circlingStartedAt = nil
+    }
+
+    private func currentCirclingMetrics(for lotId: String) -> (startedAt: Date?, durationSeconds: Int?) {
+        guard persistedState.circlingLotId == lotId,
+              let startedAt = persistedState.circlingStartedAt else {
+            return (nil, nil)
+        }
+        let duration = Int(Date().timeIntervalSince(startedAt).rounded())
+        let clamped = max(0, min(maxCirclingDurationSeconds, duration))
+        return (startedAt, clamped)
+    }
+
+    private func clearCirclingIfMatches(lotId: String) {
+        guard persistedState.circlingLotId == lotId else { return }
+        clearCirclingState()
         persistState()
     }
 
