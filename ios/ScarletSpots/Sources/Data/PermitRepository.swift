@@ -16,11 +16,43 @@ import Foundation
 final class PermitRepository: ObservableObject {
     static let shared = PermitRepository()
 
+    enum LotAccessState {
+        case openNow
+        case restrictedNow
+        case unavailable
+    }
+
     /// Sentinel used by the map filter to bypass permit logic entirely.
     static let noPermitAll = "__all"
     /// Sentinel used to show all commuter-accessible lots regardless of the
     /// user's permit.
     static let noPermitCommuter = "__commuter_all"
+
+    static func noPermitMode(for permitType: String?) -> String? {
+        switch permitType {
+        case noPermitAll, noPermitCommuter:
+            return permitType
+        default:
+            return nil
+        }
+    }
+
+    static func isNoPermitSentinel(_ permitType: String?) -> Bool {
+        noPermitMode(for: permitType) != nil
+    }
+
+    static func displayName(for permitType: String?) -> String {
+        switch permitType {
+        case noPermitAll:
+            return "All lots (no permit)"
+        case noPermitCommuter:
+            return "Commuter lots (no permit)"
+        case "None", nil:
+            return "No permit set"
+        case .some(let raw):
+            return raw
+        }
+    }
 
     private(set) var permitToLotIds: [String: Set<String>] = [:]
     private(set) var allPermitTypes: [String] = []
@@ -107,6 +139,51 @@ final class PermitRepository: ObservableObject {
             return lots.filter { ids.contains($0.mapId) }
         default:
             return []
+        }
+    }
+
+    func accessState(
+        lotId: String,
+        primary: String?,
+        secondary: String?
+    ) -> LotAccessState {
+        switch primary {
+        case Self.noPermitAll:
+            return .openNow
+        case Self.noPermitCommuter:
+            return allCommuterLotIds.contains(lotId) ? .openNow : .unavailable
+        default:
+            break
+        }
+
+        var hasMappedAccess = false
+
+        if allowsAccess(lotId: lotId, permitType: primary) {
+            hasMappedAccess = true
+            if isLotAvailableNow(permitType: primary, lotId: lotId) ?? true {
+                return .openNow
+            }
+        }
+
+        if allowsAccess(lotId: lotId, permitType: secondary) {
+            hasMappedAccess = true
+            if isSecondaryPermitAvailableNow(permitType: secondary, lotId: lotId) ?? true {
+                return .openNow
+            }
+        }
+
+        return hasMappedAccess ? .restrictedNow : .unavailable
+    }
+
+    func allowsAccess(lotId: String, permitType: String?) -> Bool {
+        guard let permitType else { return false }
+        switch permitType {
+        case Self.noPermitAll:
+            return true
+        case Self.noPermitCommuter:
+            return allCommuterLotIds.contains(lotId)
+        default:
+            return permitToLotIds[permitType]?.contains(lotId) ?? false
         }
     }
 

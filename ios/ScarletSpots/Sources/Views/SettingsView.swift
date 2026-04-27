@@ -140,7 +140,7 @@ struct ProfileView: View {
         let user = authManager.currentUser
         let displayName = fullName(for: user)
         let initial = displayName.first.map { String($0).uppercased() } ?? "?"
-        let permitText = Self.prettyPermit(authManager.permitType ?? "No permit set")
+        let permitText = Self.prettyPermit(authManager.permitType)
 
         return ZStack(alignment: .bottomLeading) {
             RoundedRectangle(cornerRadius: 26, style: .continuous)
@@ -1094,13 +1094,8 @@ struct ProfileView: View {
         }
     }
 
-    static func prettyPermit(_ raw: String) -> String {
-        switch raw {
-        case PermitRepository.noPermitAll: return "All lots (no permit)"
-        case PermitRepository.noPermitCommuter: return "Commuter lots (no permit)"
-        case "None": return "No permit set"
-        default: return raw
-        }
+    static func prettyPermit(_ raw: String?) -> String {
+        PermitRepository.displayName(for: raw)
     }
 }
 

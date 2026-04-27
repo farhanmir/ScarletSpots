@@ -246,7 +246,12 @@ struct MapView: View {
         let row = webSocket.lotOccupancyRows[lot.mapId]
         let rate = row?.displayRate ?? occupancyRate(for: lot)
         let label = "\(Int(rate.rounded()))%"
-        MapPin(label: label, color: colorForLot(lot), fontSize: 12)
+        MapPin(
+            label: label,
+            color: colorForLot(lot),
+            fontSize: 12,
+            showsRestrictionBadge: permitAccessState(for: lot) == .restrictedNow
+        )
     }
 
     @ViewBuilder
@@ -255,7 +260,8 @@ struct MapView: View {
         MapPin(
             label: "\(cluster.name): \(percent)%",
             color: OccupancyPalette.clusterColor(for: cluster.occupancyRate),
-            fontSize: 13
+            fontSize: 13,
+            showsRestrictionBadge: false
         )
     }
 
@@ -266,17 +272,20 @@ struct MapView: View {
         let lotId: String
         let coordinates: [CLLocationCoordinate2D]
         let color: Color
+        let accessState: PermitRepository.LotAccessState
     }
 
     private var polygonItems: [PolygonItem] {
         visibleLots.flatMap { lot in
             let color = colorForLot(lot)
+            let accessState = permitAccessState(for: lot)
             return lot.polygons.enumerated().map { index, ring in
                 PolygonItem(
                     id: "\(lot.mapId)#\(index)",
                     lotId: lot.mapId,
                     coordinates: cleanedPolygonCoordinates(ring.outer),
-                    color: color
+                    color: color,
+                    accessState: accessState
                 )
             }
         }
@@ -284,7 +293,7 @@ struct MapView: View {
 
     private var visibleLots: [Lot] {
         let campusFiltered = lotRepository.byCampus(auth.enabledCampuses)
-        if let mode = auth.noPermitMode {
+        if let mode = PermitRepository.noPermitMode(for: auth.permitType) ?? auth.noPermitMode {
             return permitRepository.filtered(
                 lots: campusFiltered,
                 primary: mode,
@@ -299,18 +308,35 @@ struct MapView: View {
     }
 
     private func accessibilityText(for lot: Lot) -> String {
+        let accessSuffix: String
+        switch permitAccessState(for: lot) {
+        case .openNow:
+            accessSuffix = "Permit access available now."
+        case .restrictedNow:
+            accessSuffix = "Permit access unavailable right now."
+        case .unavailable:
+            accessSuffix = "Permit access unavailable."
+        }
         if let row = webSocket.lotOccupancyRows[lot.mapId] {
-            return "\(lot.shortName), \(row.occupancyHeadline), \(row.occupancyDetail.lowercased())."
+            return "\(lot.shortName), \(row.occupancyHeadline), \(row.occupancyDetail.lowercased()). \(accessSuffix)"
         }
         let occupancy = webSocket.lotOccupancies[lot.mapId] ?? 0
         let capacity = max(lot.totalSpaces, 1)
         let freeSpots = max(capacity - occupancy, 0)
-        return "\(lot.shortName), \(freeSpots) spots free out of \(capacity), live now."
+        return "\(lot.shortName), \(freeSpots) spots free out of \(capacity), live now. \(accessSuffix)"
     }
 
     private func colorForLot(_ lot: Lot) -> Color {
         let rate = webSocket.lotOccupancyRows[lot.mapId]?.displayRate ?? occupancyRate(for: lot)
         return OccupancyPalette.color(for: rate)
+    }
+
+    private func permitAccessState(for lot: Lot) -> PermitRepository.LotAccessState {
+        permitRepository.accessState(
+            lotId: lot.mapId,
+            primary: auth.permitType,
+            secondary: auth.secondaryPermitType
+        )
     }
 
     // MARK: - Clustering
@@ -446,8 +472,10 @@ struct MapView: View {
 
     @MapContentBuilder
     private func polygonShape(for item: PolygonItem) -> some MapContent {
-        let fill = item.color.opacity(0.60)
-        let stroke = item.color.opacity(0.9)
+        let fill = item.color.opacity(item.accessState == .restrictedNow ? 0.32 : 0.60)
+        let stroke = item.accessState == .restrictedNow
+            ? Color.white.opacity(0.95)
+            : item.color.opacity(0.9)
         MapPolygon(coordinates: item.coordinates)
             .foregroundStyle(fill)
             .stroke(stroke, lineWidth: 2.0)
@@ -559,19 +587,31 @@ private struct MapPin: View {
     let label: String
     let color: Color
     let fontSize: CGFloat
+    let showsRestrictionBadge: Bool
 
     var body: some View {
         VStack(spacing: 0) {
-            Text(label)
-                .font(.system(size: fontSize, weight: .bold).monospacedDigit())
-                .foregroundStyle(.white)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .frame(minWidth: 32)
-                .background(
-                    color,
-                    in: RoundedRectangle(cornerRadius: 9, style: .continuous)
-                )
+            ZStack(alignment: .topTrailing) {
+                Text(label)
+                    .font(.system(size: fontSize, weight: .bold).monospacedDigit())
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .frame(minWidth: 32)
+                    .background(
+                        color,
+                        in: RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    )
+
+                if showsRestrictionBadge {
+                    Image(systemName: "clock.badge.exclamationmark.fill")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Color(hex: 0xF59E0B), .white)
+                        .padding(2)
+                        .background(.ultraThinMaterial, in: Circle())
+                        .offset(x: 7, y: -7)
+                }
+            }
 
             DownTriangle()
                 .fill(color)
