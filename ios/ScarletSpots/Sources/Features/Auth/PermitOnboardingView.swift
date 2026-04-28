@@ -251,22 +251,37 @@ struct PermitOnboardingView: View {
                     Text(primaryTitle).font(.headline)
                 }
                 .frame(maxWidth: .infinity)
+                .frame(height: 52)
+                .contentShape(Rectangle())
+                .background(Color(hex: 0xCC0033), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .foregroundStyle(.white)
+                .shadow(color: Color(hex: 0xCC0033).opacity(0.25), radius: 10, y: 5)
+                .accessibilityAddTraits(.isButton)
             }
             .buttonStyle(.plain)
             .disabled(!canConfirm || isSaving)
             .opacity(!canConfirm || isSaving ? 0.6 : 1)
-            .frame(height: 52)
-            .background(Color(hex: 0xCC0033), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .foregroundStyle(.white)
-            .shadow(color: Color(hex: 0xCC0033).opacity(0.25), radius: 10, y: 5)
 
             Button {
                 Task { await skip() }
             } label: {
                 Text(skipTitle)
-                    .font(.footnote)
+                    .font(.footnote.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+                    .contentShape(Rectangle())
+                    .background(
+                        Color(.secondarySystemBackground),
+                        in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                    )
                     .foregroundStyle(.secondary)
+                    .accessibilityAddTraits(.isButton)
             }
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, 20)
         .padding(.top, 12)

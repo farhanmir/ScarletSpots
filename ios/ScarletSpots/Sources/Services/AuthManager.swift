@@ -99,18 +99,31 @@ final class AuthManager: ObservableObject, AuthTokenProvider {
         _ = try await APIClient.shared.rawRequest("users/password-reset", method: "POST", body: payload, requiresAuth: false)
     }
 
-    /// Permanently deletes the current user's account. Server-side data is
-    /// removed by the backend; we then clear local caches and sign out. If
-    /// the server call fails we do NOT sign the user out — they should see
-    /// the error and retry rather than end up locally signed-out but still
-    /// registered on the server.
+    /// Permanently deletes the current user's account.
+    ///
+    /// Happy path: the backend removes app data + auth identity, then we clear
+    /// local caches and sign out.
+    ///
+    /// Partial-completion path: if the backend already removed app data but
+    /// reports that auth deletion failed, we still sign out locally so the
+    /// user is not left inside a broken half-deleted session.
+    ///
+    /// True failures (request rejected / network error / backend couldn't
+    /// delete anything) still throw and keep the user signed in so they can
+    /// retry.
     func deleteAccount() async throws {
         let response = try await UsersAPI.deleteAccount()
-        guard response.success, response.authDeleted else {
+
+        guard response.success else {
             throw APIError.server(status: 500, message: "Account deletion could not be completed. Please retry.")
         }
+
         await PushRegistration.shared.clearOnSignOut()
         await signOut()
+
+        if !response.authDeleted {
+            Logger.log("Account deletion completed with auth_deleted=false; user was signed out locally to avoid partial-session state.")
+        }
     }
 
     func signOut() async {

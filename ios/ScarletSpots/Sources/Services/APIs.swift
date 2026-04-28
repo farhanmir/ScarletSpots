@@ -162,6 +162,10 @@ enum FriendsAPI {
         let body = try JSONSerialization.data(withJSONObject: ["request_id": requestId.uuidString])
         _ = try await APIClient.shared.rawRequest("friends/decline", method: "POST", body: body)
     }
+    static func unfriend(_ friendshipId: UUID) async throws {
+        let body = try JSONSerialization.data(withJSONObject: ["request_id": friendshipId.uuidString])
+        _ = try await APIClient.shared.rawRequest("friends/unfriend", method: "POST", body: body)
+    }
     static func block(_ userId: UUID) async throws {
         let body = try JSONSerialization.data(withJSONObject: ["user_id": userId.uuidString])
         _ = try await APIClient.shared.rawRequest("friends/block", method: "POST", body: body)

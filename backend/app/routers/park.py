@@ -352,6 +352,17 @@ async def start_parking_session(
         if friend_targets:
             actor = display_name or "Your friend"
             lot_display = LOT_DISPLAY_NAME_BY_ID.get(lot_id, f"Lot {lot_id}")
+            for target_id in friend_targets:
+                await ws_manager.publish_notification(
+                    target_id,
+                    {
+                        "event": "friend_presence_changed",
+                        "friend_user_id": str(user_id),
+                        "lot_id": lot_id,
+                        "parked": True,
+                        "display_name": actor,
+                    },
+                )
             await send_push_to_users(
                 db,
                 [UUID(tid) for tid in friend_targets],
@@ -421,6 +432,7 @@ async def end_parking_session(
         replay["_idempotentReplay"] = True
         return replay
     changed_lot_counts: dict[str, int] = {}
+    friend_targets: list[str] = []
 
     try:
         async with _transaction_scope(db):
@@ -451,8 +463,19 @@ async def end_parking_session(
                 response_payload,
             )
 
+        friend_targets = list(dict.fromkeys(await _get_friend_user_ids(db, str(user_id))))
         for changed_lot_id, changed_count in changed_lot_counts.items():
             await ws_manager.publish_occupancy_update(changed_lot_id, changed_count)
+
+        for target_id in friend_targets:
+            await ws_manager.publish_notification(
+                target_id,
+                {
+                    "event": "friend_presence_changed",
+                    "friend_user_id": str(user_id),
+                    "parked": False,
+                },
+            )
 
         log.info("Ended %d active session(s) for user %s", len(ended_lot_ids), user_id)
         return response_payload

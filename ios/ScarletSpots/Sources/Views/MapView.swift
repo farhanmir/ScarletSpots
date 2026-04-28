@@ -26,6 +26,7 @@ struct MapView: View {
 
     @State private var selectedLot: Lot?
     @State private var selectedDestination: TabBarState.FocusDestination?
+    @State private var temporarilyPreviewedLot: Lot?
     @State private var favoriteIds: Set<String> = []
     @State private var showCandidateSheet = false
     @State private var centerAlert: String?
@@ -96,6 +97,11 @@ struct MapView: View {
         }
         .onChange(of: autoPark.pendingCandidates.count) { _, newValue in
             showCandidateSheet = newValue > 0
+        }
+        .onChange(of: selectedLot) { _, newValue in
+            if newValue == nil {
+                temporarilyPreviewedLot = nil
+            }
         }
         .onChange(of: tabBarState.focusLotId) { _, newValue in
             if let id = newValue, let lot = lotRepository.byId(id) {
@@ -268,15 +274,21 @@ struct MapView: View {
     // MARK: - Data
 
     private struct PolygonItem: Identifiable {
+        enum Style {
+            case regular
+            case restrictedPreview
+        }
+
         let id: String
         let lotId: String
         let coordinates: [CLLocationCoordinate2D]
         let color: Color
         let accessState: PermitRepository.LotAccessState
+        let style: Style
     }
 
     private var polygonItems: [PolygonItem] {
-        visibleLots.flatMap { lot in
+        let visibleItems = visibleLots.flatMap { lot in
             let color = colorForLot(lot)
             let accessState = permitAccessState(for: lot)
             return lot.polygons.enumerated().map { index, ring in
@@ -285,10 +297,29 @@ struct MapView: View {
                     lotId: lot.mapId,
                     coordinates: cleanedPolygonCoordinates(ring.outer),
                     color: color,
-                    accessState: accessState
+                    accessState: accessState,
+                    style: .regular
                 )
             }
         }
+
+        guard let previewLot = temporarilyPreviewedLot,
+              !visibleLots.contains(previewLot) else {
+            return visibleItems
+        }
+
+        let previewItems = previewLot.polygons.enumerated().map { index, ring in
+            PolygonItem(
+                id: "preview:\(previewLot.mapId)#\(index)",
+                lotId: previewLot.mapId,
+                coordinates: cleanedPolygonCoordinates(ring.outer),
+                color: .gray,
+                accessState: .unavailable,
+                style: .restrictedPreview
+            )
+        }
+
+        return visibleItems + previewItems
     }
 
     private var visibleLots: [Lot] {
@@ -472,10 +503,20 @@ struct MapView: View {
 
     @MapContentBuilder
     private func polygonShape(for item: PolygonItem) -> some MapContent {
-        let fill = item.color.opacity(item.accessState == .restrictedNow ? 0.32 : 0.60)
-        let stroke = item.accessState == .restrictedNow
-            ? Color.white.opacity(0.95)
-            : item.color.opacity(0.9)
+        let fill: Color
+        let stroke: Color
+
+        switch item.style {
+        case .regular:
+            fill = item.color.opacity(item.accessState == .restrictedNow ? 0.32 : 0.60)
+            stroke = item.accessState == .restrictedNow
+                ? Color.white.opacity(0.95)
+                : item.color.opacity(0.9)
+        case .restrictedPreview:
+            fill = Color.gray.opacity(0.22)
+            stroke = Color.gray.opacity(0.82)
+        }
+
         MapPolygon(coordinates: item.coordinates)
             .foregroundStyle(fill)
             .stroke(stroke, lineWidth: 2.0)
@@ -484,6 +525,7 @@ struct MapView: View {
     // MARK: - Actions
 
     private func focus(on lot: Lot) {
+        temporarilyPreviewedLot = visibleLots.contains(lot) ? nil : lot
         withAnimation(.easeInOut(duration: 0.4)) {
             position = .camera(
                 MapCamera(
@@ -496,6 +538,7 @@ struct MapView: View {
     }
 
     private func focus(on coordinate: CLLocationCoordinate2D) {
+        temporarilyPreviewedLot = nil
         withAnimation(.easeInOut(duration: 0.4)) {
             position = .camera(MapCamera(centerCoordinate: coordinate, distance: 1500))
         }
@@ -510,6 +553,7 @@ struct MapView: View {
         if zoomLevel == .lot {
             if let exactLot = lotRepository.lotContaining(coordinate), visibleLots.contains(exactLot) {
                 HapticManager.shared.selection()
+                temporarilyPreviewedLot = nil
                 selectedDestination = nil
                 selectedLot = exactLot
                 return
@@ -526,12 +570,14 @@ struct MapView: View {
 
             if let nearest, nearest.distance <= lotTapSnapRadiusMeters {
                 HapticManager.shared.selection()
+                temporarilyPreviewedLot = nil
                 selectedDestination = nil
                 selectedLot = nearest.lot
                 return
             }
         }
 
+        temporarilyPreviewedLot = nil
         selectedLot = nil
         selectedDestination = nil
     }

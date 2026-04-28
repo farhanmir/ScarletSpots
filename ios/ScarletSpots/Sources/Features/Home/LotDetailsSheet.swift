@@ -25,6 +25,7 @@ struct LotDetailsSheet: View {
     @State private var wobble = 0.0
     @State private var didWobble = false
     @State private var forecastAnchorHour = LotDetailsSheet.currentForecastAnchorHour()
+    @State private var showingPhotoGallery = false
 
     private var isDark: Bool { colorScheme == .dark }
     private var primaryText: Color { isDark ? .white : Color(hex: 0x111827) }
@@ -56,6 +57,12 @@ struct LotDetailsSheet: View {
             .offset(y: abs(wobble) * 2)
         }
         .lotDetailsBackground(isDark: isDark)
+        .sheet(isPresented: $showingPhotoGallery) {
+            LotPhotoGallerySheet(
+                lotName: lot.shortName,
+                photoURLs: lot.photos
+            )
+        }
         .task {
             await loadForecast()
             await triggerLot67WobbleIfNeeded()
@@ -81,6 +88,33 @@ struct LotDetailsSheet: View {
                     .foregroundStyle(primaryText)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
+                if !lot.photos.isEmpty {
+                    Button {
+                        showingPhotoGallery = true
+                    } label: {
+                        HStack(spacing: 7) {
+                            Image(systemName: "photo.on.rectangle.angled")
+                                .font(.system(size: 12, weight: .semibold))
+                            Text("View Photos")
+                                .font(.system(size: 12, weight: .semibold))
+                            Text("\(lot.photos.count)")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(primaryText.opacity(isDark ? 0.85 : 0.75))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(
+                                    Capsule()
+                                        .fill(Color.white.opacity(isDark ? 0.10 : 0.52))
+                                )
+                        }
+                        .padding(.horizontal, 11)
+                        .padding(.vertical, 7)
+                        .foregroundStyle(isDark ? Color.white.opacity(0.88) : Color(hex: 0x374151))
+                        .photoChipGlass(isDark: isDark)
+                        .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
                 if let occupancyRow {
                     Text("\(occupancyRow.occupancyHeadline) • \(occupancyRow.sourceSummary)")
                         .font(.system(size: 12, weight: .semibold))
@@ -579,6 +613,115 @@ struct LotDetailsSheet: View {
     }()
 }
 
+private struct LotPhotoGallerySheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedIndex = 0
+
+    let lotName: String
+    let photoURLs: [String]
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color.black.ignoresSafeArea()
+
+                if photoURLs.isEmpty {
+                    ContentUnavailableView(
+                        "No Photos",
+                        systemImage: "photo.slash",
+                        description: Text("This lot does not have any photos yet.")
+                    )
+                    .foregroundStyle(.white.opacity(0.85))
+                } else {
+                    TabView(selection: $selectedIndex) {
+                        ForEach(Array(photoURLs.enumerated()), id: \.offset) { index, photoURL in
+                            LotPhotoPage(urlString: photoURL)
+                                .tag(index)
+                                .padding(.horizontal, 12)
+                                .padding(.bottom, 24)
+                        }
+                    }
+                    .tabViewStyle(.page(indexDisplayMode: .automatic))
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .foregroundStyle(.white)
+                }
+
+                ToolbarItem(placement: .principal) {
+                    VStack(spacing: 2) {
+                        Text(lotName)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                        if !photoURLs.isEmpty {
+                            Text("\(selectedIndex + 1) of \(photoURLs.count)")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.72))
+                        }
+                    }
+                }
+            }
+            .toolbarBackground(.hidden, for: .navigationBar)
+        }
+    }
+}
+
+private struct LotPhotoPage: View {
+    let urlString: String
+
+    var body: some View {
+        GeometryReader { geometry in
+            let cornerRadius = min(28, geometry.size.width * 0.06)
+
+            ZStack {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(Color.white.opacity(0.06))
+
+                if let url = URL(string: urlString) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .empty:
+                            ProgressView()
+                                .tint(.white)
+                        case let .success(image):
+                            image
+                                .resizable()
+                                .scaledToFit()
+                        case .failure:
+                            ContentUnavailableView(
+                                "Photo Unavailable",
+                                systemImage: "exclamationmark.triangle",
+                                description: Text("We couldn't load this parking lot photo.")
+                            )
+                            .foregroundStyle(.white.opacity(0.82))
+                        @unknown default:
+                            EmptyView()
+                        }
+                    }
+                } else {
+                    ContentUnavailableView(
+                        "Photo Unavailable",
+                        systemImage: "photo",
+                        description: Text("This photo link is invalid.")
+                    )
+                    .foregroundStyle(.white.opacity(0.82))
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(Color.white.opacity(0.10), lineWidth: 1)
+            )
+            .frame(width: geometry.size.width, height: geometry.size.height)
+        }
+    }
+}
+
 // MARK: - Liquid Glass view modifiers
 
 private extension View {
@@ -638,6 +781,23 @@ private extension View {
             .overlay(
                 Circle().stroke(
                     isDark ? Color.white.opacity(0.10) : Color.black.opacity(0.10),
+                    lineWidth: 1
+                )
+            )
+    }
+
+    // MARK: Photo chip
+
+    @ViewBuilder
+    func photoChipGlass(isDark: Bool) -> some View {
+        self
+            .background(
+                isDark ? Color.white.opacity(0.07) : Color.white.opacity(0.78),
+                in: Capsule()
+            )
+            .overlay(
+                Capsule().stroke(
+                    isDark ? Color.white.opacity(0.11) : Color.black.opacity(0.08),
                     lineWidth: 1
                 )
             )

@@ -308,6 +308,31 @@ async def decline_friend_request(
         raise HTTPException(status_code=500, detail="Failed to decline friend request")
 
 
+@router.post("/unfriend")
+async def unfriend(
+    body: FriendAction,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Remove an accepted friendship for either participant."""
+    try:
+        user_id = _to_uuid_or_401(current_user.id)
+        friendship = await db.get(Friendship, body.request_id)
+        if friendship is None or friendship.status != "accepted":
+            raise HTTPException(status_code=404, detail="Friendship not found")
+        if friendship.user_id != user_id and friendship.friend_id != user_id:
+            raise HTTPException(status_code=404, detail="Friendship not found")
+
+        await db.delete(friendship)
+        await db.commit()
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.error("Failed to unfriend user: %s", exc)
+        raise HTTPException(status_code=500, detail="Failed to remove friend")
+
+
 @router.post("/block")
 async def block_user(
     body: BlockAction,

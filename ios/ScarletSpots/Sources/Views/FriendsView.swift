@@ -140,10 +140,15 @@ struct FriendsView: View {
                     Spacer()
                     Button("Unblock") {
                         Task {
-                            guard let id = b.userId ?? b.friendId else { return }
-                            try? await FriendsAPI.unblock(id)
-                            HapticManager.shared.success()
-                            await load()
+                            do {
+                                guard let id = b.userId ?? b.friendId else { return }
+                                try await FriendsAPI.unblock(id)
+                                HapticManager.shared.success()
+                                await load()
+                            } catch {
+                                HapticManager.shared.error()
+                                self.error = error.localizedDescription
+                            }
                         }
                     }
                     .buttonStyle(.bordered)
@@ -188,13 +193,30 @@ struct FriendsView: View {
                             }
                         }
                     ))
+                    Button("Unfriend", role: .destructive) {
+                        Task {
+                            do {
+                                try await FriendsAPI.unfriend(friend.id)
+                                HapticManager.shared.success()
+                                await load()
+                            } catch {
+                                HapticManager.shared.error()
+                                self.error = error.localizedDescription
+                            }
+                        }
+                    }
                     Button("Block", role: .destructive) {
                         Task {
-                            guard let userId = friend.userId ?? friend.friendId else { return }
-                            HapticManager.shared.warning()
-                            try? await FriendsAPI.block(userId)
-                            HapticManager.shared.success()
-                            await load()
+                            do {
+                                guard let userId = friend.userId ?? friend.friendId else { return }
+                                HapticManager.shared.warning()
+                                try await FriendsAPI.block(userId)
+                                HapticManager.shared.success()
+                                await load()
+                            } catch {
+                                HapticManager.shared.error()
+                                self.error = error.localizedDescription
+                            }
                         }
                     }
                 } label: {
@@ -326,13 +348,20 @@ struct FriendsView: View {
         let socket = AuthedWebSocket(endpoint: wsBase.appendingPathComponent("ws/notifications")) { payload in
             guard payload["type"] as? String == "notification",
                   let details = payload["payload"] as? [String: Any],
-                  details["event"] as? String == "friend_request"
+                  let event = details["event"] as? String
             else { return }
 
             Task { @MainActor in
-                selectedTab = 1
-                showFriendRequestAlert = true
-                await load(showSpinner: false)
+                switch event {
+                case "friend_request":
+                    selectedTab = 1
+                    showFriendRequestAlert = true
+                    await load(showSpinner: false)
+                case "friend_presence_changed":
+                    await load(showSpinner: false)
+                default:
+                    break
+                }
             }
         }
         notificationSocket = socket
