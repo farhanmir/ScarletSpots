@@ -503,23 +503,23 @@ struct MapView: View {
 
     @MapContentBuilder
     private func polygonShape(for item: PolygonItem) -> some MapContent {
-        let fill: Color
-        let stroke: Color
+        let style = polygonStyle(for: item)
+        MapPolygon(coordinates: item.coordinates)
+            .foregroundStyle(style.fill)
+            .stroke(style.stroke, lineWidth: 2.0)
+    }
 
+    private func polygonStyle(for item: PolygonItem) -> (fill: Color, stroke: Color) {
         switch item.style {
         case .regular:
-            fill = item.color.opacity(item.accessState == .restrictedNow ? 0.32 : 0.60)
-            stroke = item.accessState == .restrictedNow
+            let fill = item.color.opacity(item.accessState == .restrictedNow ? 0.32 : 0.60)
+            let stroke = item.accessState == .restrictedNow
                 ? Color.white.opacity(0.95)
                 : item.color.opacity(0.9)
+            return (fill, stroke)
         case .restrictedPreview:
-            fill = Color.gray.opacity(0.22)
-            stroke = Color.gray.opacity(0.82)
+            return (Color.gray.opacity(0.22), Color.gray.opacity(0.82))
         }
-
-        MapPolygon(coordinates: item.coordinates)
-            .foregroundStyle(fill)
-            .stroke(stroke, lineWidth: 2.0)
     }
 
     // MARK: - Actions
