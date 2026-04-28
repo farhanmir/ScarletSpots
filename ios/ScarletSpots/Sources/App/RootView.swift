@@ -1,11 +1,17 @@
 import SwiftUI
 import CoreLocation
+import CoreMotion
+import UserNotifications
 
 struct RootView: View {
     @EnvironmentObject private var auth: AuthManager
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var locationEngine = LocationEngine.shared
+    @StateObject private var motionEngine = MotionEngine.shared
+    @AppStorage("ss.permissionsOnboardingSkipped") private var permissionsOnboardingSkipped = false
     @State private var didBoot = false
     @State private var bootTimeoutElapsed = false
+    @State private var notificationStatus: UNAuthorizationStatus = .notDetermined
 
     var body: some View {
         Group {
@@ -13,8 +19,10 @@ struct RootView: View {
                 NativeConfigErrorView(issues: Env.configurationIssues)
             } else if !auth.isAuthenticated {
                 AuthChoiceView()
-            } else if !hasForegroundLocation {
-                PermissionsOnboardingView(onFinished: {})
+            } else if shouldShowPermissionsOnboarding {
+                PermissionsOnboardingView {
+                    permissionsOnboardingSkipped = true
+                }
             } else if auth.currentUser == nil && !bootTimeoutElapsed {
                 bootLoadingView
             } else if auth.permitType == nil {
@@ -35,12 +43,22 @@ struct RootView: View {
         .onChange(of: auth.currentUser?.id) { _, userId in
             if userId != nil { bootTimeoutElapsed = false }
         }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active else { return }
+            Task { await refreshNotificationStatus() }
+        }
+        .onChange(of: permissionGuidanceStillNeeded) { _, needed in
+            if !needed {
+                permissionsOnboardingSkipped = false
+            }
+        }
         .task {
             if !didBoot {
                 didBoot = true
                 AutoParkCoordinator.shared.noteManualOpen()
                 await AutoParkCoordinator.shared.handleEligibilityChange(wakeReason: "manual_open")
             }
+            await refreshNotificationStatus()
         }
         .task(id: auth.isAuthenticated) {
             guard auth.isAuthenticated else { return }
@@ -53,8 +71,35 @@ struct RootView: View {
         }
     }
 
-    private var hasForegroundLocation: Bool {
-        locationEngine.hasForegroundPermission
+    private var shouldShowPermissionsOnboarding: Bool {
+        permissionGuidanceStillNeeded && !permissionsOnboardingSkipped
+    }
+
+    private var permissionGuidanceStillNeeded: Bool {
+        !locationEngine.hasForegroundPermission
+        || locationEngine.accuracyAuthorization != .fullAccuracy
+        || !locationEngine.hasBackgroundPermission
+        || needsMotionPermission
+        || !hasNotificationPermission
+    }
+
+    private var needsMotionPermission: Bool {
+        guard motionEngine.isAvailable else { return false }
+        return motionEngine.authorizationStatus != .authorized
+    }
+
+    private var hasNotificationPermission: Bool {
+        switch notificationStatus {
+        case .authorized, .provisional, .ephemeral:
+            return true
+        default:
+            return false
+        }
+    }
+
+    @MainActor
+    private func refreshNotificationStatus() async {
+        notificationStatus = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
     }
 
     /// Avoid flashing onboarding/permit routes while the user profile is still
