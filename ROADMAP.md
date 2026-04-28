@@ -55,6 +55,7 @@
 - calibrate observed vs pattern blending from real usage
 - improve sparse-signal confidence ranges
 - decide how far circling and vulture signals should influence current-state estimates
+- implement occupancy snapshot logging and truth-sample calibration workflow
 - move popular-lots ranking off placeholder data
 
 ### 4. Native polish
