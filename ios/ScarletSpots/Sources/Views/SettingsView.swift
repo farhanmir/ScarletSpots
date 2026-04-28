@@ -2,6 +2,8 @@ import SwiftUI
 import CoreLocation
 import Combine
 import Charts
+import UIKit
+import UserNotifications
 
 /// Profile / Settings tab.
 ///
@@ -38,6 +40,7 @@ struct ProfileView: View {
     @State private var notificationStatusLabel = "unknown"
     @State private var notificationReady = false
     @State private var showDiagnosticsDashboard = false
+    @State private var notificationPreferenceError: String?
 
     /// Canonical legal URLs — published copies live on the marketing site.
     private let privacyPolicyURL = URL(string: "https://scarletspots.com/privacy")!
@@ -61,6 +64,7 @@ struct ProfileView: View {
                     statsStrip
                     favoritesSection
                     backgroundReadinessSection
+                    notificationPreferencesSection
                     campusesSection
                     appearanceSection
                     if authManager.currentUser?.canAccessDiagnostics == true {
@@ -136,6 +140,14 @@ struct ProfileView: View {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(deleteError ?? "")
+            }
+            .alert("Couldn't update notifications", isPresented: Binding(
+                get: { notificationPreferenceError != nil },
+                set: { if !$0 { notificationPreferenceError = nil } }
+            )) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(notificationPreferenceError ?? "")
             }
         }
     }
@@ -694,6 +706,101 @@ struct ProfileView: View {
         )
     }
 
+    private var notificationPreferencesSection: some View {
+        profileCard(
+            title: "Notifications",
+            subtitle: "Choose which alerts ScarletSpots should send you."
+        ) {
+            VStack(alignment: .leading, spacing: 10) {
+                readinessRow(
+                    title: "System permission",
+                    value: notificationStatusLabel,
+                    isReady: notificationReady
+                )
+
+                if !notificationReady {
+                    Button("Open iOS Notification Settings") {
+                        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+                        UIApplication.shared.open(url)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(Color(hex: 0xCC0033))
+                }
+
+                notificationToggleRow(
+                    title: "Permit reminders",
+                    detail: "Alert me if my permit no longer allows the lot where I am parked.",
+                    isOn: Binding(
+                        get: { authManager.currentUser?.notifyParkingRestrictions ?? true },
+                        set: { newValue in
+                            Task { await updateNotificationPreference(kind: "permit", value: newValue) }
+                        }
+                    )
+                )
+
+                notificationToggleRow(
+                    title: "Friend same-lot alerts",
+                    detail: "Tell me when a friend parks in the same lot as me.",
+                    isOn: Binding(
+                        get: { authManager.currentUser?.notifyFriendSameLot ?? false },
+                        set: { newValue in
+                            Task { await updateNotificationPreference(kind: "friend_same_lot", value: newValue) }
+                        }
+                    )
+                )
+
+                notificationToggleRow(
+                    title: "Auto-start confirmations",
+                    detail: "Confirm when ScarletSpots starts a parking session for me.",
+                    isOn: Binding(
+                        get: { authManager.currentUser?.notifyAutoParkStarted ?? true },
+                        set: { newValue in
+                            Task { await updateNotificationPreference(kind: "auto_start", value: newValue) }
+                        }
+                    )
+                )
+
+                notificationToggleRow(
+                    title: "Auto-end confirmations",
+                    detail: "Confirm when ScarletSpots ends a parking session for me.",
+                    isOn: Binding(
+                        get: { authManager.currentUser?.notifyAutoParkEnded ?? true },
+                        set: { newValue in
+                            Task { await updateNotificationPreference(kind: "auto_end", value: newValue) }
+                        }
+                    )
+                )
+
+                Text("Remote notifications can still arrive when the app is in the background. If you force-quit the app, iOS may pause sensor-based auto-park relaunches until you open it again.")
+                    .font(.caption)
+                    .foregroundStyle(secondaryText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 2)
+            }
+        }
+    }
+
+    private func notificationToggleRow(title: String, detail: String, isOn: Binding<Bool>) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Toggle(isOn: isOn) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(primaryText)
+            }
+            .tint(Color(hex: 0xCC0033))
+
+            Text(detail)
+                .font(.caption)
+                .foregroundStyle(secondaryText)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 10)
+        .background(
+            isDark ? Color.white.opacity(0.06) : Color.black.opacity(0.04),
+            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+        )
+    }
+
     private func formattedDiagnosticsBadgeTitle(_ rawValue: String) -> String {
         switch rawValue.lowercased() {
         case "auth_signed_in":
@@ -1117,6 +1224,26 @@ struct ProfileView: View {
                     notificationStatusLabel = "Unknown"
                 }
             }
+        }
+    }
+
+    private func updateNotificationPreference(kind: String, value: Bool) async {
+        do {
+            switch kind {
+            case "permit":
+                try await authManager.updateNotificationPreferences(notifyParkingRestrictions: value)
+            case "friend_same_lot":
+                try await authManager.updateNotificationPreferences(notifyFriendSameLot: value)
+            case "auto_start":
+                try await authManager.updateNotificationPreferences(notifyAutoParkStarted: value)
+            case "auto_end":
+                try await authManager.updateNotificationPreferences(notifyAutoParkEnded: value)
+            default:
+                return
+            }
+        } catch {
+            notificationPreferenceError = error.localizedDescription
+            await authManager.fetchProfile()
         }
     }
 

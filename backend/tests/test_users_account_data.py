@@ -110,6 +110,8 @@ async def test_export_user_data_returns_profile_and_related_rows(
 
     assert payload["user_id"] == user_id
     assert payload["profile"]["email"] == auth_user.email
+    assert payload["profile"]["notify_parking_restrictions"] is True
+    assert payload["profile"]["notify_friend_same_lot"] is False
     assert isinstance(payload["sessions"], list)
     assert payload["favorites"][0]["lot_id"] == "10002"
     assert len(payload["friendships"]) == 1
@@ -194,3 +196,33 @@ async def test_delete_my_account_returns_auth_deleted_false_when_auth_delete_fai
     payload = response.json()
     assert payload["success"] is True
     assert payload["auth_deleted"] is False
+
+
+@pytest.mark.asyncio
+async def test_update_user_me_persists_notification_preferences(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    auth_user: SimpleNamespace,
+    override_current_user,
+):
+    _ = override_current_user
+    user_id = auth_user.id
+
+    db_session.add(Profile(id=user_id, email=auth_user.email, role="user"))
+    await db_session.commit()
+
+    response = await client.patch(
+        "/api/v1/users/me",
+        json={
+            "notify_parking_restrictions": False,
+            "notify_friend_same_lot": True,
+            "notify_auto_park_started": False,
+            "notify_auto_park_ended": True,
+        },
+    )
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["notify_parking_restrictions"] is False
+    assert payload["notify_friend_same_lot"] is True
+    assert payload["notify_auto_park_started"] is False
+    assert payload["notify_auto_park_ended"] is True

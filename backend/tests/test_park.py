@@ -4,8 +4,10 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from unittest.mock import AsyncMock
 
 from app.models.parking import IdempotencyRecord, LotOccupancy, ParkingSession
+from app.models.friendship import Friendship
 from app.models.user import Profile
 from app.routers.park import _get_friend_user_ids
 
@@ -252,3 +254,85 @@ async def test_start_session_persists_circling_metrics(
     assert session is not None
     assert session.circling_duration_seconds == 245
     assert session.circling_started_at is not None
+
+
+@pytest.mark.asyncio
+async def test_friend_same_lot_push_only_targets_matching_active_friends(
+    client: AsyncClient,
+    override_current_user: None,
+    noop_ws_publish: None,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    _ = override_current_user, noop_ws_publish
+    me = UUID("00000000-0000-0000-0000-000000000123")
+    friend_same_lot = UUID("00000000-0000-0000-0000-000000000456")
+    friend_other_lot = UUID("00000000-0000-0000-0000-000000000789")
+
+    db_session.add_all(
+        [
+            Profile(id=me, email="me@rutgers.edu"),
+            Profile(id=friend_same_lot, email="same@rutgers.edu", notify_friend_same_lot=True),
+            Profile(id=friend_other_lot, email="other@rutgers.edu", notify_friend_same_lot=True),
+            Friendship(
+                user_id=me,
+                friend_id=friend_same_lot,
+                status="accepted",
+                initiator_sharing_enabled=True,
+                recipient_sharing_enabled=False,
+            ),
+            Friendship(
+                user_id=me,
+                friend_id=friend_other_lot,
+                status="accepted",
+                initiator_sharing_enabled=True,
+                recipient_sharing_enabled=False,
+            ),
+            ParkingSession(user_id=friend_same_lot, lot_id="10001", active=True),
+            ParkingSession(user_id=friend_other_lot, lot_id="10002", active=True),
+        ]
+    )
+    await db_session.commit()
+
+    push_mock = AsyncMock(return_value=None)
+    monkeypatch.setattr("app.routers.park.send_push_to_users", push_mock)
+
+    response = await client.post("/api/v1/park/session", json={"lotId": "10001"})
+    assert response.status_code == 200, response.text
+
+    assert push_mock.await_count >= 1
+    friend_push_call = None
+    for call in push_mock.await_args_list:
+        if call.kwargs.get("preference_field") == "notify_friend_same_lot":
+            friend_push_call = call
+            break
+    assert friend_push_call is not None
+    assert friend_push_call.args[1] == [friend_same_lot]
+
+
+@pytest.mark.asyncio
+async def test_auto_end_sends_confirmation_push(
+    client: AsyncClient,
+    override_current_user: None,
+    noop_ws_publish: None,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    _ = override_current_user, noop_ws_publish
+    user_id = UUID("00000000-0000-0000-0000-000000000123")
+    db_session.add(Profile(id=user_id, email="test@rutgers.edu", notify_auto_park_ended=True))
+    db_session.add(ParkingSession(user_id=user_id, lot_id="10001", active=True))
+    await db_session.commit()
+
+    push_mock = AsyncMock(return_value=None)
+    monkeypatch.setattr("app.routers.park.send_push_to_users", push_mock)
+
+    response = await client.post("/api/v1/park/session/end", json={"source": "drive_away"})
+    assert response.status_code == 200, response.text
+
+    matching = [
+        call for call in push_mock.await_args_list
+        if call.kwargs.get("preference_field") == "notify_auto_park_ended"
+    ]
+    assert len(matching) == 1
+    assert matching[0].args[1] == [user_id]

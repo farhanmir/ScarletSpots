@@ -233,6 +233,23 @@ async def _get_friend_user_ids(db: AsyncSession, user_id: str) -> list[str]:
     return friend_ids
 
 
+async def _get_same_lot_friend_user_ids(
+    db: AsyncSession,
+    *,
+    lot_id: str,
+    candidate_friend_ids: list[str],
+) -> list[UUID]:
+    if not candidate_friend_ids:
+        return []
+
+    stmt = select(ParkingSession.user_id).where(
+        ParkingSession.active.is_(True),
+        ParkingSession.lot_id == lot_id,
+        ParkingSession.user_id.in_([UUID(friend_id) for friend_id in candidate_friend_ids]),
+    )
+    return list(dict.fromkeys(row[0] for row in (await db.execute(stmt)).all()))
+
+
 @router.get("/active")
 async def get_active_session(
     current_user=Depends(get_current_user),
@@ -363,16 +380,23 @@ async def start_parking_session(
                         "display_name": actor,
                     },
                 )
+            same_lot_targets = await _get_same_lot_friend_user_ids(
+                db,
+                lot_id=lot_id,
+                candidate_friend_ids=friend_targets,
+            )
             await send_push_to_users(
                 db,
-                [UUID(tid) for tid in friend_targets],
+                same_lot_targets,
                 title="ScarletSpots",
-                body=f"{actor} parked at {lot_display}.",
+                body=f"{actor} parked in the same lot as you at {lot_display}.",
                 data={
-                    "type": "session_started",
+                    "type": "friend_same_lot",
                     "lotId": lot_id,
+                    "friendUserId": str(user_id),
                     "autoStarted": bool(body.autoStarted),
                 },
+                preference_field="notify_friend_same_lot",
             )
 
         if body.autoStarted:
@@ -386,6 +410,7 @@ async def start_parking_session(
                     "type": "auto_started",
                     "lotId": lot_id,
                 },
+                preference_field="notify_auto_park_started",
             )
         return response_payload
     except IntegrityError as exc:
@@ -475,6 +500,23 @@ async def end_parking_session(
                     "friend_user_id": str(user_id),
                     "parked": False,
                 },
+            )
+
+        end_source = ((body.source or "").strip() if body and body.source else None) or None
+        if ended_lot_ids and end_source and end_source != "manual":
+            ended_lot_id = ended_lot_ids[0]
+            lot_display = LOT_DISPLAY_NAME_BY_ID.get(ended_lot_id, f"Lot {ended_lot_id}")
+            await send_push_to_users(
+                db,
+                [user_id],
+                title="ScarletSpots",
+                body=f"We auto-ended your parking session at {lot_display}.",
+                data={
+                    "type": "auto_ended",
+                    "lotId": ended_lot_id,
+                    "source": end_source,
+                },
+                preference_field="notify_auto_park_ended",
             )
 
         log.info("Ended %d active session(s) for user %s", len(ended_lot_ids), user_id)

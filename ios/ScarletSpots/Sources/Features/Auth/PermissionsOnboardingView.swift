@@ -1,7 +1,6 @@
 import SwiftUI
 import CoreLocation
 import CoreMotion
-import CoreLocationUI
 import UserNotifications
 import UIKit
 
@@ -18,8 +17,9 @@ import UIKit
 /// 5. Notifications + APNS registration. Needed for Live Activities and for
 ///    friend notifications.
 ///
-/// The user can skip any step; the app degrades gracefully (auto-park is
-/// off without Always, etc.).
+/// After people review the guided flow once, the app can continue even if
+/// some optional permissions stay off. Features degrade gracefully (auto-park
+/// is off without Always, etc.).
 struct PermissionsOnboardingView: View {
     let onFinished: () -> Void
 
@@ -29,6 +29,7 @@ struct PermissionsOnboardingView: View {
     @State private var step: Step = .foreground
     @State private var notifStatus: UNAuthorizationStatusWrapper = .unknown
     @State private var motionStatusTick = 0
+    @State private var hasRequestedAlways = false
 
     private enum Step: Int, CaseIterable {
         case foreground, precise, background, motion, push
@@ -50,7 +51,6 @@ struct PermissionsOnboardingView: View {
             }
 
             primaryButton
-            skipButton
         }
         .padding(.vertical, 20)
         .task { await refreshNotifStatus() }
@@ -81,7 +81,7 @@ struct PermissionsOnboardingView: View {
             ProgressView(value: Double(step.rawValue + 1), total: Double(Step.allCases.count))
                 .tint(.red)
                 .padding(.horizontal, 20)
-            Text("Step \(step.rawValue + 1) of 4")
+            Text("Step \(step.rawValue + 1) of 5")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -122,60 +122,79 @@ struct PermissionsOnboardingView: View {
         }
     }
 
-    @ViewBuilder
-    private var primaryButton: some View {
-        if step == .foreground && !location.hasForegroundPermission {
-            LocationButton(.shareCurrentLocation) {
-                location.requestForegroundPermission()
+    private var supportText: String? {
+        switch step {
+        case .foreground:
+            switch location.authorization {
+            case .denied, .restricted:
+                return "You can continue without this, but the map cannot center on you until location access is turned on in Settings."
+            default:
+                return nil
             }
-            .labelStyle(.titleOnly)
-            .font(.headline)
-            .frame(maxWidth: .infinity)
-            .frame(height: 50)
-            .tint(.red)
-            .cornerRadius(12)
-            .padding(.horizontal, 20)
-        } else {
-            Button(action: primaryAction) {
-                Text(primaryButtonTitle)
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
+        case .precise:
+            return location.accuracyAuthorization == .fullAccuracy
+                ? nil
+                : "You can continue without Precise Location, but lot-level detection will be less accurate."
+        case .background:
+            return hasRequestedAlways && !location.hasBackgroundPermission
+                ? "You can continue without Always Allow, but auto-start and auto-end will not run reliably in the background."
+                : nil
+        case .motion:
+            switch motion.authorizationStatus {
+            case .denied, .restricted:
+                return "You can continue without Motion & Fitness, but the driving-to-walking signal will be unavailable."
+            default:
+                return nil
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.red)
-            .padding(.horizontal, 20)
+        case .push:
+            return notifStatus == .denied
+                ? "You can continue without notifications, but you will miss friend alerts, permit reminders, and auto-park confirmations."
+                : nil
         }
     }
 
     @ViewBuilder
-    private var skipButton: some View {
-        Button {
-            advance()
-        } label: {
-            Text("Skip for now")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+    private var primaryButton: some View {
+        Button(action: primaryAction) {
+            VStack(spacing: 4) {
+                Text(primaryButtonTitle)
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                if let supportText {
+                    Text(supportText)
+                        .font(.caption)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.white.opacity(0.85))
+                }
+            }
         }
+        .buttonStyle(.borderedProminent)
+        .tint(.red)
+        .padding(.horizontal, 20)
     }
 
     private var primaryButtonTitle: String {
         switch step {
-        case .foreground: return location.hasForegroundPermission ? "Next" : "Allow Location"
+        case .foreground:
+            switch location.authorization {
+            case .denied, .restricted: return "Continue"
+            default: return location.hasForegroundPermission ? "Next" : "Continue"
+            }
         case .precise:
-            return location.accuracyAuthorization == .fullAccuracy ? "Next" : "Open Settings for Precise"
+            return location.accuracyAuthorization == .fullAccuracy ? "Next" : "Open Settings"
         case .background:
-            return location.hasBackgroundPermission ? "Next" : "Allow Always"
+            return location.hasBackgroundPermission ? "Next" : "Continue"
         case .motion:
             switch motion.authorizationStatus {
             case .authorized: return "Next"
-            case .denied, .restricted: return "Open Settings for Motion"
-            default: return "Enable Motion"
+            case .denied, .restricted: return "Continue"
+            default: return "Continue"
             }
         case .push:
             switch notifStatus {
             case .authorized: return "Finish"
-            case .denied: return "Open Settings for Notifications"
-            default: return "Enable Notifications"
+            case .denied: return "Finish"
+            default: return "Continue"
             }
         }
     }
@@ -184,19 +203,28 @@ struct PermissionsOnboardingView: View {
         switch step {
         case .foreground:
             if location.hasForegroundPermission { advance() }
-            else { location.requestForegroundPermission() }
+            else if location.authorization == .denied || location.authorization == .restricted {
+                advance()
+            } else {
+                location.requestForegroundPermission()
+            }
         case .precise:
             if location.accuracyAuthorization == .fullAccuracy { advance() }
             else { openSettings() }
         case .background:
             if location.hasBackgroundPermission { advance() }
-            else { location.requestAlwaysPermission() }
+            else if hasRequestedAlways {
+                advance()
+            } else {
+                hasRequestedAlways = true
+                location.requestAlwaysPermission()
+            }
         case .motion:
             switch motion.authorizationStatus {
             case .authorized:
                 advance()
             case .denied, .restricted:
-                openSettings()
+                advance()
             default:
                 // Kicking off motion updates triggers the iOS prompt. We bump a
                 // tick so the UI refreshes when the prompt result lands.
@@ -209,11 +237,11 @@ struct PermissionsOnboardingView: View {
         case .push:
             Task {
                 if notifStatus == .denied {
-                    await MainActor.run { openSettings() }
+                    await refreshNotifStatus()
                 } else {
                     _ = await PushRegistration.shared.requestAuthorization()
+                    await refreshNotifStatus()
                 }
-                await refreshNotifStatus()
                 onFinished()
             }
         }

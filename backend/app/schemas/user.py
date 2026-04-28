@@ -12,6 +12,10 @@ class ProfileBase(BaseModel):
     avatar_url: str | None = None
     permit_type: str | None = None
     secondary_permit_type: str | None = None
+    notify_parking_restrictions: bool | None = None
+    notify_friend_same_lot: bool | None = None
+    notify_auto_park_started: bool | None = None
+    notify_auto_park_ended: bool | None = None
 
 
 class UserCreate(BaseModel):

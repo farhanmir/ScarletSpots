@@ -47,6 +47,7 @@ class ParkingSession(Base):
     end_source = Column(String, nullable=True)
     circling_started_at = Column(DateTime(timezone=True), nullable=True)
     circling_duration_seconds = Column(Integer, nullable=True)
+    last_restriction_notification_at = Column(DateTime(timezone=True), nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

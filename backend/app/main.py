@@ -32,6 +32,7 @@ async def lifespan(application: FastAPI):
     from app.core.cache import close_cache, init_cache
     from app.core.database import ensure_idempotency_table
     from app.core.security import close_supabase_clients, init_supabase_clients
+    from app.services.notification_scheduler import notification_scheduler
 
     clients = init_supabase_clients()
     application.state.supabase = clients["supabase"]
@@ -39,9 +40,11 @@ async def lifespan(application: FastAPI):
     await ensure_idempotency_table()
     await init_cache()
     await websocket_manager.startup()
+    await notification_scheduler.startup()
     print("!!! BACKEND STARTING UP !!!", flush=True)
     yield
     # Cleanup on shutdown
+    await notification_scheduler.shutdown()
     await websocket_manager.shutdown()
     await close_cache()
     await close_supabase_clients()

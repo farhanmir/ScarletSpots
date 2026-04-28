@@ -26,6 +26,13 @@ class Settings(BaseSettings):
     SUPABASE_JWT_AUDIENCE: str = Field(default="")
     DATABASE_URL: str = Field(default="")
     EXPO_PUSH_ACCESS_TOKEN: str = Field(default="")
+    APNS_KEY_ID: str = Field(default="")
+    APNS_TEAM_ID: str = Field(default="")
+    APNS_BUNDLE_ID: str = Field(default="")
+    APNS_PRIVATE_KEY: str = Field(default="")
+    APNS_PRIVATE_KEY_PATH: str = Field(default="")
+    APNS_USE_SANDBOX: bool = Field(default=False)
+    CAMPUS_TIMEZONE: str = Field(default="America/New_York")
     DEBUG: bool = Field(default=False)
     DIAGNOSTICS_ALLOWED_EMAILS: list[str] = Field(default_factory=lambda: ["farhan@rutgers.edu"])
 

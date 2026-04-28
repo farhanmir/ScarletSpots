@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, Float, String, func
+from sqlalchemy import Boolean, Column, DateTime, Float, String, func
 
 from app.core.database import Base
 from app.models.types import UUID_SQL
@@ -16,6 +16,10 @@ class Profile(Base):
     permit_type = Column(String, nullable=True)
     secondary_permit_type = Column(String, nullable=True)
     role = Column(String, default="user")
+    notify_parking_restrictions = Column(Boolean, nullable=False, default=True, server_default="true")
+    notify_friend_same_lot = Column(Boolean, nullable=False, default=False, server_default="false")
+    notify_auto_park_started = Column(Boolean, nullable=False, default=True, server_default="true")
+    notify_auto_park_ended = Column(Boolean, nullable=False, default=True, server_default="true")
 
     # Location tracking (added in recent migration)
     latitude = Column(Float, nullable=True)

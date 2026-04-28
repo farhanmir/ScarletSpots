@@ -209,6 +209,51 @@ final class AuthManager: ObservableObject, AuthTokenProvider {
         saveLocalNoPermitMode(mode, ownerId: ownerId)
     }
 
+    func updateNotificationPreferences(
+        notifyParkingRestrictions: Bool? = nil,
+        notifyFriendSameLot: Bool? = nil,
+        notifyAutoParkStarted: Bool? = nil,
+        notifyAutoParkEnded: Bool? = nil
+    ) async throws {
+        guard let existing = currentUser else { return }
+
+        let next = Profile(
+            id: existing.id,
+            email: existing.email,
+            canAccessDiagnostics: existing.canAccessDiagnostics,
+            firstName: existing.firstName,
+            lastName: existing.lastName,
+            avatarUrl: existing.avatarUrl,
+            permitType: existing.permitType,
+            secondaryPermitType: existing.secondaryPermitType,
+            notifyParkingRestrictions: notifyParkingRestrictions ?? existing.notifyParkingRestrictions,
+            notifyFriendSameLot: notifyFriendSameLot ?? existing.notifyFriendSameLot,
+            notifyAutoParkStarted: notifyAutoParkStarted ?? existing.notifyAutoParkStarted,
+            notifyAutoParkEnded: notifyAutoParkEnded ?? existing.notifyAutoParkEnded,
+            createdAt: existing.createdAt
+        )
+        currentUser = next
+
+        var payload: [String: Any] = [:]
+        if let notifyParkingRestrictions {
+            payload["notify_parking_restrictions"] = notifyParkingRestrictions
+        }
+        if let notifyFriendSameLot {
+            payload["notify_friend_same_lot"] = notifyFriendSameLot
+        }
+        if let notifyAutoParkStarted {
+            payload["notify_auto_park_started"] = notifyAutoParkStarted
+        }
+        if let notifyAutoParkEnded {
+            payload["notify_auto_park_ended"] = notifyAutoParkEnded
+        }
+
+        guard !payload.isEmpty else { return }
+        let body = try JSONSerialization.data(withJSONObject: payload)
+        let profile: Profile = try await APIClient.shared.request("users/me", method: "PATCH", body: body)
+        currentUser = profile
+    }
+
     // MARK: - Campus toggles
 
     func toggleCampus(_ campus: String) {
@@ -336,6 +381,10 @@ final class AuthManager: ObservableObject, AuthTokenProvider {
             avatarUrl: existingProfile?.avatarUrl,
             permitType: permitType,
             secondaryPermitType: secondaryPermitType,
+            notifyParkingRestrictions: existingProfile?.notifyParkingRestrictions ?? true,
+            notifyFriendSameLot: existingProfile?.notifyFriendSameLot ?? false,
+            notifyAutoParkStarted: existingProfile?.notifyAutoParkStarted ?? true,
+            notifyAutoParkEnded: existingProfile?.notifyAutoParkEnded ?? true,
             createdAt: Date()
         )
     }
