@@ -633,15 +633,25 @@ private struct LotPhotoGallerySheet: View {
                     )
                     .foregroundStyle(.white.opacity(0.85))
                 } else {
-                    TabView(selection: $selectedIndex) {
-                        ForEach(Array(photoURLs.enumerated()), id: \.offset) { index, photoURL in
-                            LotPhotoPage(urlString: photoURL)
-                                .tag(index)
-                                .padding(.horizontal, 12)
-                                .padding(.bottom, 24)
+                    VStack(spacing: 18) {
+                        TabView(selection: $selectedIndex) {
+                            ForEach(Array(photoURLs.enumerated()), id: \.offset) { index, photoURL in
+                                LotPhotoPage(urlString: photoURL)
+                                    .tag(index)
+                                    .padding(.horizontal, 12)
+                            }
                         }
+                        .tabViewStyle(.page(indexDisplayMode: .never))
+
+                        HStack(spacing: 8) {
+                            ForEach(Array(photoURLs.indices), id: \.self) { index in
+                                Circle()
+                                    .fill(index == selectedIndex ? Color.white : Color.white.opacity(0.28))
+                                    .frame(width: 7, height: 7)
+                            }
+                        }
+                        .padding(.bottom, 8)
                     }
-                    .tabViewStyle(.page(indexDisplayMode: .automatic))
                 }
             }
             .toolbar {
@@ -678,45 +688,57 @@ private struct LotPhotoPage: View {
         GeometryReader { geometry in
             let cornerRadius = min(28, geometry.size.width * 0.06)
 
-            ZStack {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Color.white.opacity(0.06))
+            VStack {
+                Spacer(minLength: 0)
 
                 if let url = URL(string: urlString) {
                     AsyncImage(url: url) { phase in
                         switch phase {
                         case .empty:
-                            ProgressView()
-                                .tint(.white)
+                            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                                .fill(Color.white.opacity(0.06))
+                                .overlay {
+                                    ProgressView()
+                                        .tint(.white)
+                                }
                         case let .success(image):
                             image
                                 .resizable()
                                 .scaledToFit()
+                                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                                        .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                                )
                         case .failure:
-                            ContentUnavailableView(
-                                "Photo Unavailable",
-                                systemImage: "exclamationmark.triangle",
-                                description: Text("We couldn't load this parking lot photo.")
-                            )
-                            .foregroundStyle(.white.opacity(0.82))
+                            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                                .fill(Color.white.opacity(0.06))
+                                .overlay {
+                                    ContentUnavailableView(
+                                        "Photo Unavailable",
+                                        systemImage: "exclamationmark.triangle",
+                                        description: Text("We couldn't load this parking lot photo.")
+                                    )
+                                    .foregroundStyle(.white.opacity(0.82))
+                                }
                         @unknown default:
                             EmptyView()
                         }
                     }
                 } else {
-                    ContentUnavailableView(
-                        "Photo Unavailable",
-                        systemImage: "photo",
-                        description: Text("This photo link is invalid.")
-                    )
-                    .foregroundStyle(.white.opacity(0.82))
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .fill(Color.white.opacity(0.06))
+                        .overlay {
+                            ContentUnavailableView(
+                                "Photo Unavailable",
+                                systemImage: "photo",
+                                description: Text("This photo link is invalid.")
+                            )
+                            .foregroundStyle(.white.opacity(0.82))
+                        }
                 }
+                Spacer(minLength: 0)
             }
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(Color.white.opacity(0.10), lineWidth: 1)
-            )
             .frame(width: geometry.size.width, height: geometry.size.height)
         }
     }
