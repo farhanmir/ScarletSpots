@@ -148,13 +148,10 @@ struct MapView: View {
             }
         }
         .onChange(of: location.latestLocationAt) { _, _ in
-            Task {
-                await loadSponsors()
-                await maybeSendSponsorNotification()
-            }
+            refreshSponsorContext()
         }
         .onChange(of: sessionStore.activeSession?.id) { _, _ in
-            Task { await maybeSendSponsorNotification() }
+            refreshSponsorNotificationOnly()
         }
         .task {
             WebSocketManager.shared.connect()
@@ -715,6 +712,19 @@ struct MapView: View {
             sponsors = result
         } catch {
             // Keep map resilient: sponsor loading should never block parking map.
+        }
+    }
+
+    private func refreshSponsorContext() {
+        Task {
+            await loadSponsors()
+            await maybeSendSponsorNotification()
+        }
+    }
+
+    private func refreshSponsorNotificationOnly() {
+        Task {
+            await maybeSendSponsorNotification()
         }
     }
 
