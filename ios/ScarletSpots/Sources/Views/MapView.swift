@@ -40,6 +40,7 @@ struct MapView: View {
     @AppStorage("sponsor_notifications_opt_in") private var sponsorNotificationsOptIn = false
 
     @State private var zoomDistance: Double = 9000
+    @State private var mapCenterCoordinate = CLLocationCoordinate2D(latitude: 40.5014, longitude: -74.4474)
     @State private var position: MapCameraPosition = .camera(
         MapCamera(
             centerCoordinate: CLLocationCoordinate2D(latitude: 40.5014, longitude: -74.4474),
@@ -270,6 +271,7 @@ struct MapView: View {
         }
         .onMapCameraChange(frequency: .onEnd) { context in
             zoomDistance = context.camera.distance
+            mapCenterCoordinate = context.camera.centerCoordinate
         }
         .gesture(
             SpatialTapGesture()
@@ -396,8 +398,7 @@ struct MapView: View {
         guard !showCandidateSheet else { return [] }
         guard selectedLot == nil else { return [] }
 
-        let focus = location.latestLocation?.coordinate
-            ?? CLLocationCoordinate2D(latitude: 40.5014, longitude: -74.4474)
+        let focus = mapCenterCoordinate
         return sponsors
             .filter(\.isActive)
             .filter {
