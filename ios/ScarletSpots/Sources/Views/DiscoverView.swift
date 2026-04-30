@@ -10,6 +10,7 @@ struct DiscoverView: View {
     @State private var trackedImpressions: Set<String> = []
     @State private var error: String?
     @State private var isLoading = false
+    @State private var searchText = ""
 
     var body: some View {
         NavigationStack {
@@ -29,7 +30,7 @@ struct DiscoverView: View {
                 } else if sponsors.isEmpty {
                     ContentUnavailableView("No sponsors yet", systemImage: "fork.knife")
                 } else {
-                    List(sponsors) { sponsor in
+                    List(filteredSponsors) { sponsor in
                         Button {
                             selectedSponsor = sponsor
                             Task {
@@ -56,6 +57,11 @@ struct DiscoverView: View {
                 }
             }
             .navigationTitle("Discover")
+            .searchable(
+                text: $searchText,
+                placement: .navigationBarDrawer(displayMode: .always),
+                prompt: "Search restaurants or offers"
+            )
             .task { await loadSponsors() }
             .sheet(item: $selectedSponsor) { sponsor in
                 SponsorDetailView(sponsor: sponsor)
@@ -81,6 +87,16 @@ struct DiscoverView: View {
             error = nil
         } catch {
             self.error = error.localizedDescription
+        }
+    }
+
+    private var filteredSponsors: [Sponsor] {
+        let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !q.isEmpty else { return sponsors }
+        return sponsors.filter {
+            $0.name.lowercased().contains(q)
+                || $0.category.lowercased().contains(q)
+                || $0.promoText.lowercased().contains(q)
         }
     }
 }
