@@ -16,10 +16,14 @@ struct DiscoverView: View {
                 if isLoading && sponsors.isEmpty {
                     ProgressView()
                 } else if let error {
-                    ContentUnavailableView("Couldn't load Discover", systemImage: "fork.knife") {
-                        Text(error).font(.footnote)
-                    } actions: {
+                    VStack(spacing: 10) {
+                        ContentUnavailableView("Couldn't load Discover", systemImage: "fork.knife")
+                        Text(error)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
                         Button("Try Again") { Task { await loadSponsors() } }
+                            .buttonStyle(.bordered)
                     }
                 } else if sponsors.isEmpty {
                     ContentUnavailableView("No sponsors yet", systemImage: "fork.knife")
