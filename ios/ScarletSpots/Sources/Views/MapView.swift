@@ -1,6 +1,7 @@
 import SwiftUI
 import MapKit
 import CoreLocation
+import UserNotifications
 
 /// Primary map screen.
 ///
@@ -25,11 +26,17 @@ struct MapView: View {
     @StateObject private var location = LocationEngine.shared
 
     @State private var selectedLot: Lot?
+    @State private var selectedSponsor: Sponsor?
     @State private var selectedDestination: TabBarState.FocusDestination?
     @State private var temporarilyPreviewedLot: Lot?
     @State private var favoriteIds: Set<String> = []
+    @State private var sponsors: [Sponsor] = []
+    @State private var trackedMapSponsorImpressions: Set<String> = []
+    @State private var lastSponsorNotifiedSessionId: UUID?
+    @State private var sponsorNotificationAlert: String?
     @State private var showCandidateSheet = false
     @State private var centerAlert: String?
+    @AppStorage("sponsor_notifications_opt_in") private var sponsorNotificationsOptIn = false
 
     @State private var zoomDistance: Double = 9000
     @State private var position: MapCameraPosition = .camera(
@@ -80,6 +87,10 @@ struct MapView: View {
                             .ignoresSafeArea()
                     }
                 }
+        }
+        .sheet(item: $selectedSponsor) { sponsor in
+            MapSponsorDetailSheet(sponsor: sponsor)
+                .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $showCandidateSheet) {
             ParkingConfirmationSheet(
@@ -136,6 +147,15 @@ struct MapView: View {
                 location.requestCurrentLocation()
             }
         }
+        .onChange(of: location.latestLocationAt) { _, _ in
+            Task {
+                await loadSponsors()
+                await maybeSendSponsorNotification()
+            }
+        }
+        .onChange(of: sessionStore.activeSession?.id) { _, _ in
+            Task { await maybeSendSponsorNotification() }
+        }
         .task {
             WebSocketManager.shared.connect()
             await sessionStore.refresh()
@@ -146,6 +166,8 @@ struct MapView: View {
                 location.start()
                 location.requestCurrentLocation()
             }
+            await loadSponsors()
+            await maybeSendSponsorNotification()
         }
         .alert("Location Unavailable", isPresented: Binding(
             get: { centerAlert != nil },
@@ -154,6 +176,14 @@ struct MapView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(centerAlert ?? "")
+        }
+        .alert("Nearby Sponsor", isPresented: Binding(
+            get: { sponsorNotificationAlert != nil },
+            set: { if !$0 { sponsorNotificationAlert = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(sponsorNotificationAlert ?? "")
         }
     }
 
@@ -206,6 +236,30 @@ struct MapView: View {
                 Annotation("", coordinate: CLLocationCoordinate2D(latitude: candidate.latitude, longitude: candidate.longitude)) {
                     CandidatePin(candidate: candidate)
                         .onTapGesture { showCandidateSheet = true }
+                }
+            }
+
+            ForEach(visibleSponsors) { sponsor in
+                Annotation("", coordinate: CLLocationCoordinate2D(latitude: sponsor.latitude, longitude: sponsor.longitude)) {
+                    Button {
+                        HapticManager.shared.selection()
+                        selectedSponsor = sponsor
+                        Task {
+                            try? await SponsorsAPI.trackEvent(sponsorId: sponsor.id, eventType: "tap_map_pin")
+                        }
+                    } label: {
+                        SponsorPin()
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Sponsored: \(sponsor.name)")
+                    .accessibilityHint("Opens sponsor details.")
+                    .onAppear {
+                        guard !trackedMapSponsorImpressions.contains(sponsor.id) else { return }
+                        trackedMapSponsorImpressions.insert(sponsor.id)
+                        Task {
+                            try? await SponsorsAPI.trackEvent(sponsorId: sponsor.id, eventType: "impression_map")
+                        }
+                    }
                 }
             }
 
@@ -336,6 +390,27 @@ struct MapView: View {
             primary: auth.permitType,
             secondary: auth.secondaryPermitType
         )
+    }
+
+    private var visibleSponsors: [Sponsor] {
+        guard zoomLevel == .lot else { return [] }
+        guard sessionStore.activeSession == nil else { return [] }
+        guard !showCandidateSheet else { return [] }
+        guard selectedLot == nil else { return [] }
+
+        let focus = location.latestLocation?.coordinate
+            ?? CLLocationCoordinate2D(latitude: 40.5014, longitude: -74.4474)
+        return sponsors
+            .filter(\.isActive)
+            .filter {
+                CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude).distance(to: focus) <= 1200
+            }
+            .sorted {
+                CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude).distance(to: focus)
+                    < CLLocationCoordinate2D(latitude: $1.latitude, longitude: $1.longitude).distance(to: focus)
+            }
+            .prefix(3)
+            .map { $0 }
     }
 
     private func accessibilityText(for lot: Lot) -> String {
@@ -625,6 +700,68 @@ struct MapView: View {
         }
         return nil
     }
+
+    private func loadSponsors() async {
+        do {
+            let result: [Sponsor]
+            if let current = location.latestLocation?.coordinate {
+                result = try await SponsorsAPI.list(
+                    latitude: current.latitude,
+                    longitude: current.longitude
+                )
+            } else {
+                result = try await SponsorsAPI.list()
+            }
+            sponsors = result
+        } catch {
+            // Keep map resilient: sponsor loading should never block parking map.
+        }
+    }
+
+    private func maybeSendSponsorNotification() async {
+        guard sponsorNotificationsOptIn else { return }
+        guard let session = sessionStore.activeSession else { return }
+        guard lastSponsorNotifiedSessionId != session.id else { return }
+        guard let current = location.latestLocation?.coordinate else { return }
+
+        do {
+            let candidate = try await SponsorsAPI.nearbyNotificationCandidate(
+                latitude: current.latitude,
+                longitude: current.longitude,
+                sessionId: session.id.uuidString,
+                radiusMeters: 400
+            )
+            guard let sponsor = candidate.sponsor, let text = candidate.notificationText else { return }
+            lastSponsorNotifiedSessionId = session.id
+            sponsorNotificationAlert = text
+            try? await SponsorsAPI.trackEvent(
+                sponsorId: sponsor.id,
+                eventType: "notification_open",
+                sessionId: session.id.uuidString
+            )
+            await sendLocalNotification(body: text)
+        } catch {
+            // Non-blocking.
+        }
+    }
+
+    private func sendLocalNotification(body: String) async {
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else {
+            return
+        }
+        let content = UNMutableNotificationContent()
+        content.title = "ScarletSpots Nearby Deal"
+        content.body = body
+        content.sound = .default
+        let request = UNNotificationRequest(
+            identifier: "sponsor-nearby-\(UUID().uuidString)",
+            content: content,
+            trigger: nil
+        )
+        try? await center.add(request)
+    }
 }
 
 // MARK: - Map pins
@@ -686,6 +823,62 @@ private struct DestinationPin: View {
                 .font(.system(size: 28, weight: .semibold))
                 .foregroundStyle(Color(hex: 0xCC0033), .white)
                 .shadow(color: .black.opacity(0.18), radius: 4, y: 2)
+        }
+    }
+}
+
+private struct SponsorPin: View {
+    var body: some View {
+        VStack(spacing: 0) {
+            Image(systemName: "fork.knife.circle.fill")
+                .font(.system(size: 26, weight: .semibold))
+                .foregroundStyle(Color(hex: 0xCC0033), .white)
+                .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
+            Text("Sponsored")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .padding(.top, 2)
+        }
+    }
+}
+
+private struct MapSponsorDetailSheet: View {
+    let sponsor: Sponsor
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Sponsored")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.red)
+                Text(sponsor.name)
+                    .font(.title3.weight(.bold))
+                Text(sponsor.category)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Text(sponsor.about)
+                    .font(.body)
+                Text(sponsor.promoText)
+                    .font(.subheadline)
+                Text("Use code: \(sponsor.promoCode)")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.red)
+                Text(sponsor.address)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+
+                HStack(spacing: 12) {
+                    if let website = URL(string: sponsor.websiteURL) {
+                        Link("Website", destination: website)
+                            .buttonStyle(.borderedProminent)
+                    }
+                    if let call = URL(string: "tel://\(sponsor.phone.filter(\.isNumber))") {
+                        Link("Call", destination: call)
+                            .buttonStyle(.bordered)
+                    }
+                }
+            }
+            .padding(16)
         }
     }
 }
