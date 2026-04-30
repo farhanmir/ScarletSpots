@@ -180,6 +180,52 @@ enum FriendsAPI {
     }
 }
 
+enum SponsorsAPI {
+    static func list(latitude: Double? = nil, longitude: Double? = nil) async throws -> [Sponsor] {
+        var path = "sponsors"
+        if let latitude, let longitude {
+            path = "sponsors?latitude=\(latitude)&longitude=\(longitude)"
+        }
+        let response: SponsorsResponse = try await APIClient.shared.request(path)
+        return response.sponsors
+    }
+
+    static func details(id: String) async throws -> Sponsor {
+        try await APIClient.shared.request("sponsors/\(id)")
+    }
+
+    static func trackEvent(
+        sponsorId: String,
+        eventType: String,
+        sessionId: String? = nil,
+        metadata: [String: Any] = [:]
+    ) async throws {
+        var payload: [String: Any] = [
+            "sponsor_id": sponsorId,
+            "event_type": eventType
+        ]
+        if let sessionId { payload["session_id"] = sessionId }
+        if !metadata.isEmpty { payload["metadata"] = metadata }
+        let body = try JSONSerialization.data(withJSONObject: payload)
+        _ = try await APIClient.shared.rawRequest("sponsors/events", method: "POST", body: body)
+    }
+
+    static func nearbyNotificationCandidate(
+        latitude: Double,
+        longitude: Double,
+        sessionId: String,
+        radiusMeters: Int = 400
+    ) async throws -> SponsorNotificationCandidateResponse {
+        let path = "sponsors/nearby-candidate?latitude=\(latitude)&longitude=\(longitude)&session_id=\(sessionId)&radius_meters=\(radiusMeters)"
+        return try await APIClient.shared.request(path)
+    }
+
+    static func report() async throws -> [SponsorReportEvent] {
+        let response: SponsorReportResponse = try await APIClient.shared.request("sponsors/report")
+        return response.events
+    }
+}
+
 struct AccountDeletionResponse: Codable {
     let success: Bool
     let authDeleted: Bool

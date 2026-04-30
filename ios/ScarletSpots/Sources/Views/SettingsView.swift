@@ -41,6 +41,7 @@ struct ProfileView: View {
     @State private var notificationReady = false
     @State private var showDiagnosticsDashboard = false
     @State private var notificationPreferenceError: String?
+    @AppStorage("sponsor_notifications_opt_in") private var sponsorNotificationsOptIn = false
 
     /// Canonical legal URLs — published copies live on the marketing site.
     private let privacyPolicyURL = URL(string: "https://scarletspots.com/privacy")!
@@ -766,6 +767,12 @@ struct ProfileView: View {
                             Task { await updateNotificationPreference(kind: "auto_start", value: newValue) }
                         }
                     )
+                )
+
+                notificationToggleRow(
+                    title: "Nearby sponsor deals",
+                    detail: "Opt in to at most one nearby deal alert per parking session (max two per day).",
+                    isOn: $sponsorNotificationsOptIn
                 )
 
                 notificationToggleRow(

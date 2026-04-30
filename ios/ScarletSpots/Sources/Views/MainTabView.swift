@@ -23,6 +23,12 @@ struct MainTabView: View {
                 }
                 .tag(2)
 
+            DiscoverView()
+                .tabItem {
+                    Label("Discover", systemImage: "fork.knife")
+                }
+                .tag(3)
+
             ProfileView()
                 .tabItem {
                     Label {
@@ -33,7 +39,7 @@ struct MainTabView: View {
                         Image(systemName: "person.fill")
                     }
                 }
-                .tag(3)
+                .tag(4)
         }
         .toolbar(tabBarState.isHidden ? .hidden : .visible, for: .tabBar)
         .tint(.red)

@@ -297,6 +297,95 @@ struct ParkingCandidate: Codable, Identifiable {
     let circlingDurationSeconds: Int?
 }
 
+struct SponsorHours: Codable {
+    let mon: [String]
+    let tue: [String]
+    let wed: [String]
+    let thu: [String]
+    let fri: [String]
+    let sat: [String]
+    let sun: [String]
+}
+
+struct Sponsor: Codable, Identifiable {
+    let id: String
+    let name: String
+    let category: String
+    let address: String
+    let latitude: Double
+    let longitude: Double
+    let phone: String
+    let websiteURL: String
+    let hoursJSON: SponsorHours
+    let promoCode: String
+    let promoText: String
+    let about: String
+    let heroPhotoURL: String
+    let isActive: Bool
+    let billingPlan: String
+    let billingStatus: String
+    let semesterStart: String
+    let semesterEnd: String
+    let priorityScore: Int
+    let distanceMeters: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case category
+        case address
+        case latitude
+        case longitude
+        case phone
+        case websiteURL = "website_url"
+        case hoursJSON = "hours_json"
+        case promoCode = "promo_code"
+        case promoText = "promo_text"
+        case about
+        case heroPhotoURL = "hero_photo_url"
+        case isActive = "is_active"
+        case billingPlan = "billing_plan"
+        case billingStatus = "billing_status"
+        case semesterStart = "semester_start"
+        case semesterEnd = "semester_end"
+        case priorityScore = "priority_score"
+        case distanceMeters = "distance_meters"
+    }
+}
+
+struct SponsorsResponse: Codable {
+    let sponsors: [Sponsor]
+}
+
+struct SponsorNotificationCandidateResponse: Codable {
+    let sponsor: Sponsor?
+    let notificationText: String?
+    let blockedReason: String?
+
+    enum CodingKeys: String, CodingKey {
+        case sponsor
+        case notificationText = "notification_text"
+        case blockedReason = "blocked_reason"
+    }
+}
+
+struct SponsorReportEvent: Codable, Identifiable {
+    let id = UUID()
+    let sponsorId: String
+    let eventType: String
+    let count: Int
+
+    enum CodingKeys: String, CodingKey {
+        case sponsorId = "sponsor_id"
+        case eventType = "event_type"
+        case count
+    }
+}
+
+struct SponsorReportResponse: Codable {
+    let events: [SponsorReportEvent]
+}
+
 struct Building: Codable, Identifiable {
     var id: String { name }
     let name: String
