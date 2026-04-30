@@ -2,6 +2,7 @@ import SwiftUI
 import MapKit
 import CoreLocation
 import UserNotifications
+import UIKit
 
 /// Primary map screen.
 ///
@@ -853,14 +854,34 @@ private struct SponsorPin: View {
 }
 
 private struct MapSponsorDetailSheet: View {
+    @Environment(\.openURL) private var openURL
     let sponsor: Sponsor
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Sponsored")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.red)
+            VStack(alignment: .leading, spacing: 16) {
+                AsyncImage(url: URL(string: sponsor.heroPhotoURL)) { image in
+                    image.resizable().scaledToFill()
+                } placeholder: {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(Color.secondary.opacity(0.12))
+                        Image(systemName: "fork.knife")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .frame(height: 190)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(alignment: .topLeading) {
+                    Text("Sponsored")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.red)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(.ultraThinMaterial, in: Capsule())
+                        .padding(10)
+                }
+
                 Text(sponsor.name)
                     .font(.title3.weight(.bold))
                 Text(sponsor.category)
@@ -868,28 +889,76 @@ private struct MapSponsorDetailSheet: View {
                     .foregroundStyle(.secondary)
                 Text(sponsor.about)
                     .font(.body)
-                Text(sponsor.promoText)
-                    .font(.subheadline)
-                Text("Use code: \(sponsor.promoCode)")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.red)
                 Text(sponsor.address)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
 
-                HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Offer")
+                        .font(.headline)
+                    Text(sponsor.promoText)
+                    HStack {
+                        Text("Use code")
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(sponsor.promoCode)
+                            .font(.headline.weight(.bold))
+                            .foregroundStyle(.red)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+
+                HStack(spacing: 10) {
                     if let website = URL(string: sponsor.websiteURL) {
-                        Link("Website", destination: website)
-                            .buttonStyle(.borderedProminent)
+                        Button {
+                            openURL(website)
+                        } label: {
+                            Label("Website", systemImage: "safari")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
                     }
                     if let call = URL(string: "tel://\(sponsor.phone.filter(\.isNumber))") {
-                        Link("Call", destination: call)
-                            .buttonStyle(.bordered)
+                        Button {
+                            openURL(call)
+                        } label: {
+                            Label("Call", systemImage: "phone.fill")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
                     }
+                }
+
+                HStack(spacing: 10) {
+                    Button {
+                        UIPasteboard.general.string = sponsor.promoCode
+                    } label: {
+                        Label("Copy Code", systemImage: "doc.on.doc")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button {
+                        openMaps()
+                    } label: {
+                        Label("Navigate", systemImage: "map.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
                 }
             }
             .padding(16)
         }
+    }
+
+    private func openMaps() {
+        let coordinate = CLLocationCoordinate2D(latitude: sponsor.latitude, longitude: sponsor.longitude)
+        let placemark = MKPlacemark(coordinate: coordinate)
+        let item = MKMapItem(placemark: placemark)
+        item.name = sponsor.name
+        item.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving])
     }
 }
 
