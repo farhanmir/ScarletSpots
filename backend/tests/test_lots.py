@@ -73,6 +73,20 @@ def test_forecast_curve_ordered():
     assert times == sorted(times), "Curve points should be chronologically ordered"
 
 
+def test_get_lot_forecast_uses_metadata_capacity_when_missing_param():
+    """Forecast should use bundled lot capacity when query param is omitted."""
+    response = client.get(
+        "/api/v1/lots/10015/forecast",
+        params={"current_occupancy": 111},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["current"]["count"] == 111
+    assert data["current"]["observed_count"] == 111
+    assert data["current"]["observed_occupancy_rate"] == pytest.approx(100.0)
+    assert data["current"]["source"] == "observed"
+
+
 def test_get_all_occupancy():
     """GET /lots/occupancy should return a dict (may be empty if no active sessions)."""
     response = client.get("/api/v1/lots/occupancy")

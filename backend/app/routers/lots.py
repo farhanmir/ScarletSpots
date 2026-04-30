@@ -69,6 +69,13 @@ def _get_forecast_provider() -> ForecastProvider:
     return _ml_provider
 
 
+def _resolve_capacity(lot_id: str, capacity: int | None) -> int:
+    """Prefer explicit query capacity; otherwise use bundled lot metadata."""
+    if capacity is not None and capacity >= 0:
+        return capacity
+    return int(_lot_capacities.get(lot_id, 0))
+
+
 def _percentile(sorted_values: list[int], q: float) -> float | None:
     if not sorted_values:
         return None
@@ -194,7 +201,9 @@ async def get_all_occupancy(
 async def get_lot_forecast(
     request: Request,
     lot_id: str,
-    capacity: int = Query(default=100, ge=0, description="Total lot capacity (from bundled JSON)"),
+    capacity: int | None = Query(
+        default=None, ge=0, description="Total lot capacity (from bundled JSON)"
+    ),
     current_occupancy: int = Query(default=0, ge=0, description="Current occupied count"),
     provider: ForecastProvider = Depends(_get_forecast_provider),
     db: AsyncSession = Depends(get_db),
@@ -210,7 +219,8 @@ async def get_lot_forecast(
 
     Returns time slices (now, +15m, +30m, +60m) and a 3-hour extended curve.
     """
-    if capacity == 0:
+    resolved_capacity = _resolve_capacity(lot_id=lot_id, capacity=capacity)
+    if resolved_capacity == 0:
         # Lot has no capacity data — return a neutral empty forecast rather
         # than a 422 that shows up as a console error on the client.
         return {"slices": [], "curve": []}
@@ -219,9 +229,9 @@ async def get_lot_forecast(
         current_state = _heuristic_provider.describe_current_state(
             lot_id=lot_id,
             current_occupancy=current_occupancy,
-            capacity=capacity,
+            capacity=resolved_capacity,
         )
-        forecast = provider.get_lot_forecast(lot_id, current_occupancy, capacity)
+        forecast = provider.get_lot_forecast(lot_id, current_occupancy, resolved_capacity)
         return {
             "current": {
                 "count": current_state["count"],
