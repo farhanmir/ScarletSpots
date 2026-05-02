@@ -6,6 +6,7 @@ import uuid
 # Add parent directory to path to allow running as script
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -17,6 +18,7 @@ from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.config import settings
+from app.core.config import GIT_SHA
 from app.core.limiter import limiter
 from app.core.logger import logger
 from app.core.security import decode_supabase_jwt_token
@@ -147,6 +149,7 @@ def health_check():
         "status": "ok",
         "project": settings.PROJECT_NAME,
         "version": settings.VERSION,
+        "git_sha": GIT_SHA,
     }
 
 

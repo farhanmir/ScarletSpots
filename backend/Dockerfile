@@ -2,6 +2,11 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
+# Git commit SHA injected at build time by the deploy script.
+# Usage: docker build --build-arg GIT_SHA=$(git rev-parse --short HEAD) .
+ARG GIT_SHA=unknown
+ENV GIT_SHA=${GIT_SHA}
+
 # Install system dependencies for Postgres and ARM architecture
 RUN apt-get update && apt-get install -y \
     gcc \

@@ -627,6 +627,14 @@ struct ProfileView: View {
                     .font(.caption2)
                     .foregroundStyle(secondaryText)
                     .frame(maxWidth: .infinity, alignment: .leading)
+
+                Divider().overlay(dividerColor)
+
+                // Version fingerprint — pinpoints exactly which build is running.
+                VStack(alignment: .leading, spacing: 6) {
+                    infoPill(label: "App Version", value: Env.fullVersion)
+                    infoPill(label: "API Host", value: Env.apiBaseURL.host ?? "unknown")
+                }
             }
             .task {
                 autoPark.refreshLiveSnapshot()

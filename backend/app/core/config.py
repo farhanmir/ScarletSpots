@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from pydantic import Field, field_validator
@@ -5,6 +6,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
+
+# Git SHA baked in by Docker at build time via --build-arg GIT_SHA=<hash>.
+# Falls back to "dev" when running locally without the Docker build arg.
+GIT_SHA: str = os.environ.get("GIT_SHA", "dev")
 
 
 class Settings(BaseSettings):
@@ -14,7 +19,8 @@ class Settings(BaseSettings):
 
     API_V1_STR: str = "/api/v1"
     PROJECT_NAME: str = "ScarletSpots API"
-    VERSION: str = "0.1.0"
+    # Read from backend/VERSION so bumping is a one-line file change, not a code change.
+    VERSION: str = (BASE_DIR / "VERSION").read_text(encoding="utf-8").strip()
 
     # Supabase
     SUPABASE_URL: str = Field(default="")
