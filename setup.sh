@@ -48,8 +48,9 @@ listen_addresses = '*'
 EOF
 fi
 
-# 4. Ignition
-sudo docker compose up -d --build
+# 4. Ignition (Passing Git SHA for version tracking)
+GIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown") sudo -E docker compose up -d --build
+
 
 # 5. Data Injection (First time only)
 echo "Waiting for DB to wake up..."
