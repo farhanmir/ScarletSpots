@@ -59,7 +59,12 @@ services:
 
   # 3. THE BRAIN: FastAPI Backend
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      args:
+        # Pass the git SHA so it's baked into the Docker image.
+        # On the server run:  GIT_SHA=$(git rev-parse --short HEAD) docker compose up --build
+        GIT_SHA: ${GIT_SHA:-unknown}
     container_name: scarletspots-backend
     restart: always
     ports:
@@ -73,6 +78,7 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://scarlet_admin:${DB_PASSWORD}@db:5432/scarletspots
       TZ: America/New_York
+
 
   # 4. THE NERVOUS SYSTEM: Redis
   redis:

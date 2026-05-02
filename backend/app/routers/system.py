@@ -1,17 +1,38 @@
 import json
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from pydantic import BaseModel
 
 from app.core.attestation import create_attestation_token, get_abuse_metrics
-from app.core.config import settings
+from app.core.config import GIT_SHA, settings
 from app.core.limiter import limiter
 from app.core.logger import get_logger
 from app.core.security import get_current_user
 
 log = get_logger(__name__)
 router = APIRouter(prefix="/system", tags=["system"])
+
+# Build timestamp is fixed at process start — same for all requests.
+_BUILD_TIMESTAMP: str = datetime.now(timezone.utc).isoformat()
+
+
+@router.get("/version")
+async def get_version():
+    """
+    Public — no auth required.
+    Returns the running backend version, git SHA, and a build timestamp.
+    iOS uses this on startup to determine which backend it's talking to.
+    """
+    return {
+        "component": "backend",
+        "version": settings.VERSION,
+        "git_sha": GIT_SHA,
+        "build_timestamp": _BUILD_TIMESTAMP,
+    }
+
+
 
 
 class CrashLogEntry(BaseModel):

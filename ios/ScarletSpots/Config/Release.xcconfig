@@ -14,5 +14,7 @@ TLS_CERT_SHA256 =
 // Unsigned sideload builds use development APNs. Change to `production`
 // when building with production distribution signing.
 APS_ENVIRONMENT = development
+// Git SHA — overwritten at build time by the inject_git_sha build phase script.
+GIT_SHA = unknown
 
 #include? "ReleaseSecrets.xcconfig"

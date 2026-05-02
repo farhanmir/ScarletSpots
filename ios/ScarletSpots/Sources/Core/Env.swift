@@ -1,6 +1,36 @@
 import Foundation
 
 enum Env {
+    // MARK: - Version information
+
+    /// Human-readable marketing version, e.g. "1.0.0".
+    /// Source: CFBundleShortVersionString (set via MARKETING_VERSION in project.yml).
+    static var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?.?.?"
+    }
+
+    /// Integer build number incremented by CI on every archive.
+    /// Locally this is "1"; in CI it equals the GitHub Actions run number.
+    /// Source: CFBundleVersion (set via CURRENT_PROJECT_VERSION / BUILD_NUMBER).
+    static var buildNumber: String {
+        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "0"
+    }
+
+    /// Short git commit SHA baked in by the Inject Git SHA build phase, e.g. "6d9aac08".
+    /// Falls back to "dev" for plain local builds or "unknown" for Release without the script.
+    static var gitSHA: String {
+        (Bundle.main.object(forInfoDictionaryKey: "GIT_SHA") as? String ?? "dev")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Full version string combining all three identifiers, e.g. "1.0.0 (42) · 6d9aac08".
+    /// Use this in diagnostics panels, crash reports, and support tickets.
+    static var fullVersion: String {
+        "\(appVersion) (\(buildNumber)) · \(gitSHA)"
+    }
+
+    // MARK: - API & Supabase endpoints
+
     static var apiBaseURL: URL {
         configuredURL(for: "API_BASE_URL", fallback: "http://localhost:8000")
     }

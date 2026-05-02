@@ -10,6 +10,8 @@ settings:
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.9"
     DEVELOPMENT_LANGUAGE: en
+    # Placeholder — overwritten at build time by the inject_git_sha pre-build script.
+    GIT_SHA: "dev"
 targets:
   ScarletSpots:
     type: application
@@ -57,6 +59,24 @@ targets:
       - target: ScarletSpotsWidget
         embed: true
         codeSign: true
+    preBuildScripts:
+      - name: Inject Git SHA
+        # Writes GIT_SHA into the active xcconfig so Info.plist picks it up.
+        # Requires ENABLE_USER_SCRIPT_SANDBOXING = NO (already set above).
+        script: |
+          set -euo pipefail
+          SHA=$(git -C "${SRCROOT}" rev-parse --short HEAD 2>/dev/null || echo "dev")
+          XCCONFIG="${SRCROOT}/Config/Debug.xcconfig"
+          if [ "${CONFIGURATION}" = "Release" ]; then
+            XCCONFIG="${SRCROOT}/Config/Release.xcconfig"
+          fi
+          # Update GIT_SHA line in place; add it if missing.
+          if grep -q "^GIT_SHA" "${XCCONFIG}"; then
+            sed -i '' "s/^GIT_SHA = .*/GIT_SHA = ${SHA}/" "${XCCONFIG}"
+          else
+            echo "GIT_SHA = ${SHA}" >> "${XCCONFIG}"
+          fi
+        basedOnDependencyAnalysis: false
 
   ScarletSpotsWidget:
     type: app-extension

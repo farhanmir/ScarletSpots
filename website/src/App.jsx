@@ -1029,6 +1029,39 @@ const styles = {
   },
 }
 
+/* ─── Hidden version badge (triggered by ?debug in the URL) ──────────────── */
+// Access: scarletspots.com?debug  — invisible to normal visitors.
+// Shows website version, git SHA, and build timestamp for diagnostics.
+function VersionBadge() {
+  const isDebug = typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).has('debug')
+  if (!isDebug) return null
+
+  return (
+    <div style={{
+      position: 'fixed',
+      bottom: 16,
+      right: 16,
+      zIndex: 9999,
+      background: 'rgba(10,10,10,0.92)',
+      border: '1px solid rgba(229,55,58,0.35)',
+      borderRadius: 10,
+      padding: '10px 14px',
+      fontFamily: 'monospace',
+      fontSize: '0.72rem',
+      color: '#aaa',
+      backdropFilter: 'blur(12px)',
+      lineHeight: 1.7,
+      maxWidth: 260,
+    }}>
+      <div style={{ color: '#e5373a', fontWeight: 700, marginBottom: 4 }}>⚙ Debug Info</div>
+      <div><span style={{ color: '#555' }}>website </span>{__APP_VERSION__}</div>
+      <div><span style={{ color: '#555' }}>sha     </span>{__GIT_SHA__}</div>
+      <div><span style={{ color: '#555' }}>built   </span>{new Date(__BUILD_TIME__).toLocaleString()}</div>
+    </div>
+  )
+}
+
 /* ─── App ─────────────────────────────────────────────────────────────── */
 export default function App() {
   return (
@@ -1042,6 +1075,7 @@ export default function App() {
         <CTABanner />
       </main>
       <Footer />
+      <VersionBadge />
     </>
   )
 }
