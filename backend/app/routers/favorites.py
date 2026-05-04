@@ -51,6 +51,10 @@ async def add_favorite(
     db: AsyncSession = Depends(get_db),
 ):
     """Add a lot to favorites."""
+    if not lot_id or not lot_id.strip():
+        raise HTTPException(status_code=400, detail="lot_id is required")
+    if len(lot_id) > 256:
+        raise HTTPException(status_code=400, detail="lot_id is too long")
     try:
         user_id = _to_uuid_or_401(current_user.id)
         existing = await db.execute(

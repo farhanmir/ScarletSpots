@@ -1,3 +1,6 @@
+// @ts-nocheck
+/* global __APP_VERSION__, __GIT_SHA__, __BUILD_TIME__ */
+
 import { useState, useRef } from 'react'
 import {
   motion,
@@ -36,7 +39,7 @@ function Navbar() {
       transition={{ duration: 0.5, ease: 'easeOut' }}
       style={styles.navbar}
     >
-      <div style={styles.navInner}>
+      <div style={styles.navInner} className="nav-inner">
         <div style={styles.logoWrapper}>
           <PinIcon size={20} />
           <span style={styles.logoText}>ScarletSpots</span>
@@ -95,7 +98,7 @@ function Hero() {
   const opacity = useTransform(scrollYProgress, [0, 0.6], [1, 0])
 
   return (
-    <section ref={ref} style={styles.hero}>
+    <section ref={ref} style={styles.hero} className="hero-grid">
       {/* Radial glow */}
       <div style={styles.heroGlow} aria-hidden="true" />
 
@@ -105,6 +108,7 @@ function Hero() {
           initial="hidden"
           animate="visible"
           style={styles.heroContent}
+          className="hero-content"
         >
           {/* Eyebrow */}
           <motion.div variants={fadeUp} custom={0} style={styles.eyebrow}>
@@ -120,19 +124,19 @@ function Hero() {
           </motion.h1>
 
           {/* Sub */}
-          <motion.p variants={fadeUp} custom={0.1} style={styles.heroSub}>
+          <motion.p variants={fadeUp} custom={0.1} style={styles.heroSub} className="hero-sub">
             See which lots have open spots right now. Find where your friends
             parked. Navigate back to your car — even offline.
           </motion.p>
 
           {/* CTA */}
-          <motion.div variants={fadeUp} custom={0.15} style={styles.heroCta}>
+          <motion.div variants={fadeUp} custom={0.15} style={styles.heroCta} className="hero-cta">
             <DownloadBtn />
             <span style={styles.ctaNote}>iOS · Free · No ads</span>
           </motion.div>
 
           {/* Stats */}
-          <motion.div variants={fadeUp} custom={0.2} style={styles.statsRow}>
+          <motion.div variants={fadeUp} custom={0.2} style={styles.statsRow} className="stats-row">
             {[
               { n: '245+', l: 'Lots mapped' },
               { n: 'Live', l: 'Occupancy data' },
@@ -210,7 +214,7 @@ function Features() {
   const inView = useInView(ref, { once: true, margin: '-80px' })
 
   return (
-    <section id="features" style={styles.section}>
+    <section id="features" style={styles.section} className="section">
       <motion.div
         ref={ref}
         initial={{ opacity: 0, y: 24 }}
@@ -273,7 +277,7 @@ function HowItWorks() {
   const inView = useInView(ref, { once: true, margin: '-80px' })
 
   return (
-    <section style={{ ...styles.section, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+    <section style={{ ...styles.section, borderTop: '1px solid rgba(255,255,255,0.05)' }} className="section">
       <motion.div
         ref={ref}
         initial={{ opacity: 0, y: 24 }}
@@ -324,6 +328,7 @@ function FAQItem({ q, a, i }) {
       style={styles.faqItem}
     >
       <button
+        type="button"
         onClick={() => setOpen(!open)}
         style={styles.faqQ}
         aria-expanded={open}
@@ -360,7 +365,7 @@ function FAQ() {
   const inView = useInView(ref, { once: true, margin: '-80px' })
 
   return (
-    <section id="faq" style={{ ...styles.section, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+    <section id="faq" style={{ ...styles.section, borderTop: '1px solid rgba(255,255,255,0.05)' }} className="section">
       <motion.div
         ref={ref}
         initial={{ opacity: 0, y: 24 }}
@@ -384,7 +389,7 @@ function CTABanner() {
   const inView = useInView(ref, { once: true, margin: '-80px' })
 
   return (
-    <section style={{ ...styles.section, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+    <section style={{ ...styles.section, borderTop: '1px solid rgba(255,255,255,0.05)' }} className="section">
       <motion.div
         ref={ref}
         initial={{ opacity: 0, scale: 0.97 }}
@@ -411,7 +416,7 @@ function CTABanner() {
 function Footer() {
   return (
     <footer style={styles.footer}>
-      <div style={styles.footerInner}>
+      <div style={styles.footerInner} className="footer-inner">
         <div style={styles.footerBrand}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem' }}>
             <PinIcon size={16} />
@@ -420,16 +425,16 @@ function Footer() {
           <p style={styles.footerTagline}>Real-time parking for Rutgers. Always free.</p>
         </div>
 
-        <div style={styles.footerCols}>
+        <div style={styles.footerCols} className="footer-cols">
           <div style={styles.footerCol}>
             <p style={styles.footerColHead}>App</p>
-            <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer" style={styles.footerLink}>Download for iOS</a>
-            <a href={`mailto:${SUPPORT_EMAIL}`} style={styles.footerLink}>App Support</a>
+            <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer" style={styles.footerLink} className="footer-link">Download for iOS</a>
+            <a href={`mailto:${SUPPORT_EMAIL}`} style={styles.footerLink} className="footer-link">App Support</a>
           </div>
           <div style={styles.footerCol}>
             <p style={styles.footerColHead}>Legal</p>
-            <a href="/privacy.html" style={styles.footerLink}>Privacy Policy</a>
-            <a href="/terms.html" style={styles.footerLink}>Terms of Service</a>
+            <a href="/privacy.html" style={styles.footerLink} className="footer-link">Privacy Policy</a>
+            <a href="/terms.html" style={styles.footerLink} className="footer-link">Terms of Service</a>
           </div>
         </div>
       </div>
@@ -491,7 +496,7 @@ function OfflineIcon() {
 /* ─── Phone mockup ────────────────────────────────────────────────────── */
 function PhoneMockup() {
   return (
-    <div style={styles.phone}>
+    <div style={styles.phone} aria-hidden="true" role="presentation">
       <div style={styles.phoneNotch} />
       {/* Simulated map screen */}
       <div style={styles.phoneScreen}>
@@ -633,14 +638,13 @@ const styles = {
     textTransform: 'uppercase',
     letterSpacing: '0.08em',
   },
-  eyebrowDot: {
+    eyebrowDot: {
     display: 'inline-block',
     width: 7,
     height: 7,
     borderRadius: '50%',
     background: '#e5373a',
     boxShadow: '0 0 8px #e5373a',
-    animation: undefined, // handled by CSS below
   },
   heroTitle: {
     fontSize: 'clamp(2.4rem, 5vw, 3.6rem)',

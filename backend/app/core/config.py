@@ -40,7 +40,10 @@ class Settings(BaseSettings):
     APNS_USE_SANDBOX: bool = Field(default=False)
     CAMPUS_TIMEZONE: str = Field(default="America/New_York")
     DEBUG: bool = Field(default=False)
-    DIAGNOSTICS_ALLOWED_EMAILS: list[str] = Field(default_factory=lambda: ["farhan@rutgers.edu"])
+    DIAGNOSTICS_ALLOWED_EMAILS: list[str] = Field(default_factory=list)
+
+    # Security dashboard key for abuse metrics endpoint
+    SECURITY_DASHBOARD_KEY: str = Field(default="")
 
     # Redis (local, no auth by default)
     REDIS_URL: str = Field(default="redis://localhost:6379/0")

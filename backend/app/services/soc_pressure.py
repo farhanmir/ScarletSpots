@@ -31,8 +31,12 @@ class SOCPressureService:
         if not self._buckets:
             return SOCPressureSignal(1.0, 0.0, "missing", self._snapshot_iso(), stale=True)
 
+        if target_time.tzinfo is None:
+            utc_time = target_time.replace(tzinfo=dt.timezone.utc)
+        else:
+            utc_time = target_time.astimezone(dt.timezone.utc)
         minute_of_week = (
-            (target_time.weekday() * 24 * 60) + (target_time.hour * 60) + target_time.minute
+            (utc_time.weekday() * 24 * 60) + (utc_time.hour * 60) + utc_time.minute
         )
         minute_of_week -= minute_of_week % 5
         index = float(self._buckets.get(lot_id, {}).get(minute_of_week, 0.0))

@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 from math import atan2, cos, radians, sin, sqrt
 from typing import Annotated
 
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
@@ -203,6 +204,7 @@ _SPONSOR_EVENTS: list[dict] = []
 _NOTIFICATION_SENT_PER_SESSION: set[tuple[str, str]] = set()
 _NOTIFICATION_SENT_PER_DAY: defaultdict[tuple[str, str], int] = defaultdict(int)
 _NOTIFICATION_LAST_PER_VENUE: dict[tuple[str, str], datetime] = {}
+_notification_lock = asyncio.Lock()
 
 
 @router.get("", response_model=SponsorListResponse)
@@ -271,50 +273,51 @@ async def nearby_notification_candidate(
     current_user=Depends(get_current_user),
 ):
     user_id = str(current_user.id)
-    today_key = (user_id, datetime.now(UTC).date().isoformat())
-    if _NOTIFICATION_SENT_PER_DAY[today_key] >= 2:
-        return {"sponsor": None, "notification_text": None, "blocked_reason": "daily_cap_reached"}
-    if (user_id, session_id) in _NOTIFICATION_SENT_PER_SESSION:
-        return {"sponsor": None, "notification_text": None, "blocked_reason": "session_cap_reached"}
+    async with _notification_lock:
+        today_key = (user_id, datetime.now(UTC).date().isoformat())
+        if _NOTIFICATION_SENT_PER_DAY[today_key] >= 2:
+            return {"sponsor": None, "notification_text": None, "blocked_reason": "daily_cap_reached"}
+        if (user_id, session_id) in _NOTIFICATION_SENT_PER_SESSION:
+            return {"sponsor": None, "notification_text": None, "blocked_reason": "session_cap_reached"}
 
-    now = datetime.now(UTC)
-    eligible: list[tuple[float, Sponsor]] = []
-    for sponsor in _SPONSORS:
-        if not sponsor.is_active:
-            continue
-        distance = _distance_meters(latitude, longitude, sponsor.latitude, sponsor.longitude)
-        if distance > radius_meters:
-            continue
-        venue_key = (user_id, sponsor.id)
-        last_seen = _NOTIFICATION_LAST_PER_VENUE.get(venue_key)
-        if last_seen and now - last_seen < timedelta(days=7):
-            continue
-        eligible.append((distance, sponsor))
+        now = datetime.now(UTC)
+        eligible: list[tuple[float, Sponsor]] = []
+        for sponsor in _SPONSORS:
+            if not sponsor.is_active:
+                continue
+            distance = _distance_meters(latitude, longitude, sponsor.latitude, sponsor.longitude)
+            if distance > radius_meters:
+                continue
+            venue_key = (user_id, sponsor.id)
+            last_seen = _NOTIFICATION_LAST_PER_VENUE.get(venue_key)
+            if last_seen and now - last_seen < timedelta(days=7):
+                continue
+            eligible.append((distance, sponsor))
 
-    if not eligible:
-        return {"sponsor": None, "notification_text": None, "blocked_reason": "no_eligible_sponsor"}
+        if not eligible:
+            return {"sponsor": None, "notification_text": None, "blocked_reason": "no_eligible_sponsor"}
 
-    eligible.sort(key=lambda item: (item[0], -item[1].priority_score))
-    distance, sponsor = eligible[0]
-    rounded_miles = distance / 1609.34
-    body = (
-        f"Nearby deal: {sponsor.name} is {rounded_miles:.1f} mi away. "
-        f"Use {sponsor.promo_code} - {sponsor.promo_text}"
-    )
+        eligible.sort(key=lambda item: (item[0], -item[1].priority_score))
+        distance, sponsor = eligible[0]
+        rounded_miles = distance / 1609.34
+        body = (
+            f"Nearby deal: {sponsor.name} is {rounded_miles:.1f} mi away. "
+            f"Use {sponsor.promo_code} - {sponsor.promo_text}"
+        )
 
-    _NOTIFICATION_SENT_PER_SESSION.add((user_id, session_id))
-    _NOTIFICATION_SENT_PER_DAY[today_key] += 1
-    _NOTIFICATION_LAST_PER_VENUE[(user_id, sponsor.id)] = now
-    _SPONSOR_EVENTS.append(
-        {
-            "user_id": user_id,
-            "sponsor_id": sponsor.id,
-            "event_type": "notification_sent",
-            "session_id": session_id,
-            "metadata": {"radius_meters": radius_meters},
-            "at": now,
-        }
-    )
+        _NOTIFICATION_SENT_PER_SESSION.add((user_id, session_id))
+        _NOTIFICATION_SENT_PER_DAY[today_key] += 1
+        _NOTIFICATION_LAST_PER_VENUE[(user_id, sponsor.id)] = now
+        _SPONSOR_EVENTS.append(
+            {
+                "user_id": user_id,
+                "sponsor_id": sponsor.id,
+                "event_type": "notification_sent",
+                "session_id": session_id,
+                "metadata": {"radius_meters": radius_meters},
+                "at": now,
+            }
+        )
     sponsor_copy = sponsor.model_copy()
     sponsor_copy.distance_meters = distance
     return {"sponsor": sponsor_copy, "notification_text": body, "blocked_reason": None}

@@ -18,8 +18,8 @@ class SOCClassEvent:
 def minute_of_week(when: dt.datetime) -> int:
     if when.tzinfo is None:
         when = when.replace(tzinfo=dt.timezone.utc)
-    local = when.astimezone(dt.timezone.utc)
-    return (local.weekday() * 24 * 60) + (local.hour * 60) + local.minute
+    utc = when.astimezone(dt.timezone.utc)
+    return (utc.weekday() * 24 * 60) + (utc.hour * 60) + utc.minute
 
 
 def parse_soc_payload(payload: list[dict[str, Any]]) -> list[SOCClassEvent]:

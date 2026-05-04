@@ -160,6 +160,8 @@ def _parse_hhmm_to_minutes(value: Any) -> int | None:
     except ValueError:
         return None
     if hour == 24:
+        if minute != 0:
+            return None
         return 24 * 60
     if hour < 0 or hour > 23 or minute < 0 or minute > 59:
         return None

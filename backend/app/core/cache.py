@@ -45,7 +45,6 @@ async def init_cache() -> None:
 async def close_cache() -> None:
     """Gracefully shut down the Redis connection pool."""
     if _redis_pool:
-        # Redis client API differs by version: prefer async close when present.
         async_close = getattr(_redis_pool, "aclose", None)
         if callable(async_close):
             await async_close()
@@ -56,3 +55,7 @@ async def close_cache() -> None:
             maybe_awaitable = close()
             if hasattr(maybe_awaitable, "__await__"):
                 await maybe_awaitable
+            else:
+                log.info("Redis connection pool closed (sync)")
+        else:
+            log.warning("Redis pool has no close/aclose method — skipping cleanup")

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
 # =============================================================================
 # deploy-backend.sh — Pull latest code and restart the backend container.
@@ -11,30 +11,42 @@ set -e
 echo "🚀 Updating ScarletSpots via Docker..."
 
 # 1. Navigate to the project root where docker-compose.yml lives
-PROJECT_ROOT="$HOME/ScarletSpots"
-if [ ! -d "$PROJECT_ROOT" ]; then
-    # Fallback to current directory if ~/ScarletSpots doesn't exist
-    PROJECT_ROOT="$(pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+if [ ! -f "$PROJECT_ROOT/docker-compose.yml" ]; then
+    echo "Error: docker-compose.yml not found in $PROJECT_ROOT" >&2
+    exit 1
 fi
+
 cd "$PROJECT_ROOT"
 
-# 2. Pull latest code
+# 2. Pre-flight checks
+if ! command -v docker >/dev/null 2>&1; then
+    echo "Error: docker is not installed or not in PATH." >&2
+    exit 1
+fi
+
+if ! command -v git >/dev/null 2>&1; then
+    echo "Error: git is not installed or not in PATH." >&2
+    exit 1
+fi
+
+# 3. Pull latest code
 echo "📦 Pulling latest code..."
 git fetch origin
-git pull origin main
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+git pull origin "$BRANCH"
 
-# 3. Rebuild and restart the container
+# 4. Rebuild and restart the container
 echo "🏗️  Rebuilding and restarting the backend container..."
 
 # Capture the exact commit hash we are about to deploy
 GIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
-# The --build flag forces Docker to run your Dockerfile again.
-# We use sudo -E to pass the GIT_SHA variable into the docker build environment.
-# Specifying 'backend' ensures we don't unnecessarily restart Postgres or Redis.
-GIT_SHA=$GIT_SHA sudo -E docker compose up -d --build backend
+sudo GIT_SHA="$GIT_SHA" docker compose up -d --build --build-arg GIT_SHA="$GIT_SHA" backend
 
-# 4. Housekeeping
+# 5. Housekeeping
 echo "🧹 Cleaning up dangling Docker images to save space..."
 sudo docker image prune -f
 
