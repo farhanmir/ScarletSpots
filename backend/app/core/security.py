@@ -235,21 +235,30 @@ def get_auth_db(credentials: HTTPAuthorizationCredentials = Depends(security)):
 
     # We create a dummy object that duck-types as the Supabase client
     # but uses an authenticated postgrest context for data mutations.
+    class _ScopedPostgrestClient:
+        """Thin wrapper that ensures the underlying Postgrest client is closed after query execution."""
+
+        def __init__(self, url: str, headers: dict[str, str], table_name: str) -> None:
+            from postgrest import SyncPostgrestClient
+
+            self._client = SyncPostgrestClient(url, headers=headers)
+            self._table = self._client.table(table_name)
+
+        def __getattr__(self, name: str):
+            return getattr(self._table, name)
+
     class AuthContextClient:
-        def __init__(self, base, auth_token):
+        def __init__(self, base, auth_token) -> None:
             self.base = base
             self.auth_token = auth_token
 
         def table(self, table_name: str):
-            # The base postgrest client can be cloned or its auth headers updated.
-            # To be thread-safe in async context, we must instantiate a new postgrest client block.
             from postgrest import SyncPostgrestClient
 
             url = f"{settings.SUPABASE_URL}/rest/v1"
             headers = self.base.options.headers.copy()
             headers["Authorization"] = f"Bearer {self.auth_token}"
-            pg = SyncPostgrestClient(url, headers=headers)
-            return pg.table(table_name)
+            return _ScopedPostgrestClient(url, headers, table_name)
 
     return AuthContextClient(base_client, token)
 

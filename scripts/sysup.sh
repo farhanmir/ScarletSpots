@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # =============================================================================
 # sysup.sh - Safe system upkeep for Ubuntu hosts with Docker
@@ -25,7 +25,6 @@ echo ">>> Removing unnecessary packages..."
 sudo apt autoremove -y
 
 echo ">>> Cleaning package cache..."
-sudo apt autoclean -y
 sudo apt clean -y
 
 # --- Docker cleanup (safe) ---

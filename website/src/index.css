@@ -52,3 +52,52 @@ button {
 img, svg {
   display: block;
 }
+
+:focus-visible {
+  outline: 2px solid var(--scarlet);
+  outline-offset: 2px;
+}
+
+.footer-link {
+  transition: color 0.15s;
+}
+.footer-link:hover {
+  color: var(--text-1);
+}
+
+/* ─── Responsive ────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .hero-grid {
+    grid-template-columns: 1fr !important;
+    gap: 2.5rem !important;
+  }
+  .hero-content {
+    text-align: center;
+    align-items: center;
+  }
+  .hero-sub {
+    max-width: 100% !important;
+  }
+  .hero-cta {
+    justify-content: center !important;
+  }
+  .stats-row {
+    justify-content: center !important;
+  }
+  .footer-inner {
+    flex-direction: column !important;
+    align-items: center !important;
+    text-align: center;
+  }
+  .footer-cols {
+    flex-direction: column !important;
+    gap: 2rem !important;
+    align-items: center;
+  }
+  .section {
+    padding: 4rem 1.25rem !important;
+  }
+  .nav-inner {
+    padding: 0 1rem !important;
+  }
+}

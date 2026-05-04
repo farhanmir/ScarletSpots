@@ -11,7 +11,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.limiter import limiter
 from app.core.logger import get_logger
-from app.core.security import get_admin_auth_client, get_current_user, get_supabase
+from app.core.security import get_admin_auth_client, get_current_user
 from app.models.favorite import UserFavorite
 from app.models.friendship import Friendship
 from app.models.parking import IdempotencyRecord, ParkingSession, SessionFeedback
@@ -124,7 +124,7 @@ async def _upsert_profile(db: AsyncSession, payload: dict) -> Profile:
 @router.post("/signup")
 @limiter.limit("5/hour")
 async def signup(
-    request: Request,
+    _request: Request,
     body: UserCreate,
     db: AsyncSession = Depends(get_db),
     admin_auth: Client = Depends(get_admin_auth_client),
@@ -249,7 +249,7 @@ class AccountDeletionResponse(BaseModel):
 @router.post("/password-reset")
 @limiter.limit("3/hour")
 async def request_password_reset(
-    request: Request,
+    _request: Request,
     body: PasswordResetRequest,
     supabase: Client = Depends(get_supabase),
 ):

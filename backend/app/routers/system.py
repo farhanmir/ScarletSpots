@@ -9,7 +9,7 @@ from app.core.attestation import create_attestation_token, get_abuse_metrics
 from app.core.config import GIT_SHA, settings
 from app.core.limiter import limiter
 from app.core.logger import get_logger
-from app.core.security import get_current_user
+from app.core.security import get_current_user, require_admin
 
 log = get_logger(__name__)
 router = APIRouter(prefix="/system", tags=["system"])
@@ -126,11 +126,10 @@ async def create_attestation_session(
 @limiter.limit("20/minute")
 async def security_abuse_metrics(
     request: Request,
-    _=Depends(get_current_user),
+    _=Depends(require_admin),
     x_security_dashboard_key: str | None = Header(default=None),
 ):
     _ = request
-    # Lightweight guard to avoid exposing telemetry to all authenticated users.
-    if not x_security_dashboard_key:
-        return {"detail": "Missing x-security-dashboard-key"}
+    if settings.SECURITY_DASHBOARD_KEY and x_security_dashboard_key != settings.SECURITY_DASHBOARD_KEY:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid security dashboard key")
     return get_abuse_metrics()

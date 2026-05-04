@@ -112,9 +112,10 @@ def _session_response(session: ParkingSession) -> dict:
 async def _transaction_scope(db: AsyncSession):
     """Run writes inside a fresh transaction boundary."""
     if db.in_transaction():
-        await db.rollback()
-    async with db.begin():
         yield
+    else:
+        async with db.begin():
+            yield
 
 
 async def _load_idempotent_response(
@@ -529,7 +530,7 @@ async def end_parking_session(
 @router.post("/feedback")
 @limiter.limit("20/hour")
 async def submit_session_feedback(
-    request: Request,
+    _request: Request,
     body: SessionFeedback,
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
