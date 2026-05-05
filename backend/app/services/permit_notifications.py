@@ -169,7 +169,7 @@ def _parse_hhmm_to_minutes(value: Any) -> int | None:
 
 
 def _sources_dir() -> Path:
-    return Path(__file__).resolve().parents[3] / "ios" / "data-sources"
+    return Path(__file__).resolve().parents[2] / "data-sources"
 
 
 @lru_cache(maxsize=1)
