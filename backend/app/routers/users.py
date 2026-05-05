@@ -11,7 +11,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.limiter import limiter
 from app.core.logger import get_logger
-from app.core.security import get_admin_auth_client, get_current_user
+from app.core.security import get_admin_auth_client, get_current_user, get_supabase
 from app.models.favorite import UserFavorite
 from app.models.friendship import Friendship
 from app.models.parking import IdempotencyRecord, ParkingSession, SessionFeedback
