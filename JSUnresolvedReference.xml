@@ -1,0 +1,74 @@
+<problems>
+<problem>
+  <file>file://$PROJECT_DIR$/backend/loadtests/occupancy_peak.js</file>
+  <line>23</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/backend/loadtests/occupancy_peak.js" />
+  <problem_class id="JSUnresolvedReference" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved reference</problem_class>
+  <description>Unresolved variable or type __ENV</description>
+  <highlighted_element>__ENV</highlighted_element>
+  <language>JavaScript</language>
+  <offset>16</offset>
+  <length>5</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/website/src/App.jsx</file>
+  <line>1058</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/website/src/App.jsx" />
+  <problem_class id="JSUnresolvedReference" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved reference</problem_class>
+  <description>Unresolved variable or type __APP_VERSION__</description>
+  <highlighted_element>__APP_VERSION__</highlighted_element>
+  <language>JavaScript</language>
+  <offset>59</offset>
+  <length>15</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/website/src/App.jsx</file>
+  <line>1059</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/website/src/App.jsx" />
+  <problem_class id="JSUnresolvedReference" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved reference</problem_class>
+  <description>Unresolved variable or type __GIT_SHA__</description>
+  <highlighted_element>__GIT_SHA__</highlighted_element>
+  <language>JavaScript</language>
+  <offset>59</offset>
+  <length>11</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/website/src/App.jsx</file>
+  <line>1060</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/website/src/App.jsx" />
+  <problem_class id="JSUnresolvedReference" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved reference</problem_class>
+  <description>Unresolved variable or type __BUILD_TIME__</description>
+  <highlighted_element>__BUILD_TIME__</highlighted_element>
+  <language>JavaScript</language>
+  <offset>68</offset>
+  <length>14</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/website/vite.config.js</file>
+  <line>8</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/website/vite.config.js" />
+  <problem_class id="JSUnresolvedReference" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved reference</problem_class>
+  <description>Unresolved variable or type __dirname</description>
+  <highlighted_element>__dirname</highlighted_element>
+  <language>JavaScript</language>
+  <offset>41</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/website/vite.config.js</file>
+  <line>12</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/website/vite.config.js" />
+  <problem_class id="JSUnresolvedReference" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved reference</problem_class>
+  <description>Unresolved variable or type process</description>
+  <highlighted_element>process</highlighted_element>
+  <language>JavaScript</language>
+  <offset>2</offset>
+  <length>7</length>
+</problem>
+</problems>

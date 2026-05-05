@@ -1,0 +1,122 @@
+<problems>
+<problem>
+  <file>file://$PROJECT_DIR$/backend/app/models/types.py</file>
+  <line>21</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/backend/app/models/types.py" />
+  <problem_class id="PyUnusedLocalInspection" severity="WEAK WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">Unused local symbols</problem_class>
+  <description>Parameter 'dialect' value is not used</description>
+  <highlighted_element>dialect</highlighted_element>
+  <language>Python</language>
+  <offset>40</offset>
+  <length>7</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/backend/app/models/types.py</file>
+  <line>31</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/backend/app/models/types.py" />
+  <problem_class id="PyUnusedLocalInspection" severity="WEAK WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">Unused local symbols</problem_class>
+  <description>Parameter 'dialect' value is not used</description>
+  <highlighted_element>dialect</highlighted_element>
+  <language>Python</language>
+  <offset>42</offset>
+  <length>7</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/backend/app/routers/friends.py</file>
+  <line>187</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/backend/app/routers/friends.py" />
+  <problem_class id="PyUnusedLocalInspection" severity="WEAK WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">Unused local symbols</problem_class>
+  <description>Parameter 'request' value is not used</description>
+  <highlighted_element>request: Request</highlighted_element>
+  <language>Python</language>
+  <offset>4</offset>
+  <length>16</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/backend/app/routers/lots.py</file>
+  <line>125</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/backend/app/routers/lots.py" />
+  <problem_class id="PyUnusedLocalInspection" severity="WEAK WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">Unused local symbols</problem_class>
+  <description>Parameter 'request' value is not used</description>
+  <highlighted_element>request: Request</highlighted_element>
+  <language>Python</language>
+  <offset>4</offset>
+  <length>16</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/backend/app/routers/lots.py</file>
+  <line>202</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/backend/app/routers/lots.py" />
+  <problem_class id="PyUnusedLocalInspection" severity="WEAK WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">Unused local symbols</problem_class>
+  <description>Parameter 'request' value is not used</description>
+  <highlighted_element>request: Request</highlighted_element>
+  <language>Python</language>
+  <offset>4</offset>
+  <length>16</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/backend/app/routers/park.py</file>
+  <line>298</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/backend/app/routers/park.py" />
+  <problem_class id="PyUnusedLocalInspection" severity="WEAK WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">Unused local symbols</problem_class>
+  <description>Local variable 'friend_targets' value is not used</description>
+  <highlighted_element>friend_targets</highlighted_element>
+  <language>Python</language>
+  <offset>4</offset>
+  <length>14</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/backend/app/routers/park.py</file>
+  <line>460</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/backend/app/routers/park.py" />
+  <problem_class id="PyUnusedLocalInspection" severity="WEAK WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">Unused local symbols</problem_class>
+  <description>Local variable 'friend_targets' value is not used</description>
+  <highlighted_element>friend_targets</highlighted_element>
+  <language>Python</language>
+  <offset>4</offset>
+  <length>14</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/backend/app/routers/park.py</file>
+  <line>532</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/backend/app/routers/park.py" />
+  <problem_class id="PyUnusedLocalInspection" severity="WEAK WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">Unused local symbols</problem_class>
+  <description>Parameter 'request' value is not used</description>
+  <highlighted_element>request: Request</highlighted_element>
+  <language>Python</language>
+  <offset>4</offset>
+  <length>16</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/backend/app/routers/users.py</file>
+  <line>127</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/backend/app/routers/users.py" />
+  <problem_class id="PyUnusedLocalInspection" severity="WEAK WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">Unused local symbols</problem_class>
+  <description>Parameter 'request' value is not used</description>
+  <highlighted_element>request: Request</highlighted_element>
+  <language>Python</language>
+  <offset>4</offset>
+  <length>16</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/backend/app/routers/users.py</file>
+  <line>252</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/backend/app/routers/users.py" />
+  <problem_class id="PyUnusedLocalInspection" severity="WEAK WARNING" attribute_key="NOT_USED_ELEMENT_ATTRIBUTES">Unused local symbols</problem_class>
+  <description>Parameter 'request' value is not used</description>
+  <highlighted_element>request: Request</highlighted_element>
+  <language>Python</language>
+  <offset>4</offset>
+  <length>16</length>
+</problem>
+</problems>

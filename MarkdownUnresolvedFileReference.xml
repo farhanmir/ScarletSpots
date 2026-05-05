@@ -1,0 +1,218 @@
+<problems>
+<problem>
+  <file>file://$PROJECT_DIR$/.cursor/plans/ios_dynamic_island_session_a4fd760d.plan.md</file>
+  <line>5</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/.cursor/plans/ios_dynamic_island_session_a4fd760d.plan.md" />
+  <problem_class id="MarkdownUnresolvedFileReference" severity="WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved file references</problem_class>
+  <description>Cannot resolve directory 'mobile'</description>
+  <highlighted_element>mobile</highlighted_element>
+  <language>Markdown</language>
+  <offset>83</offset>
+  <length>6</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/.cursor/plans/ios_dynamic_island_session_a4fd760d.plan.md</file>
+  <line>5</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/.cursor/plans/ios_dynamic_island_session_a4fd760d.plan.md" />
+  <problem_class id="MarkdownUnresolvedFileReference" severity="WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved file references</problem_class>
+  <description>Cannot resolve directory 'src'</description>
+  <highlighted_element>src</highlighted_element>
+  <language>Markdown</language>
+  <offset>90</offset>
+  <length>3</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/.cursor/plans/ios_dynamic_island_session_a4fd760d.plan.md</file>
+  <line>5</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/.cursor/plans/ios_dynamic_island_session_a4fd760d.plan.md" />
+  <problem_class id="MarkdownUnresolvedFileReference" severity="WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved file references</problem_class>
+  <description>Cannot resolve directory 'features'</description>
+  <highlighted_element>features</highlighted_element>
+  <language>Markdown</language>
+  <offset>94</offset>
+  <length>8</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/.cursor/plans/ios_dynamic_island_session_a4fd760d.plan.md</file>
+  <line>5</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/.cursor/plans/ios_dynamic_island_session_a4fd760d.plan.md" />
+  <problem_class id="MarkdownUnresolvedFileReference" severity="WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved file references</problem_class>
+  <description>Cannot resolve directory 'home'</description>
+  <highlighted_element>home</highlighted_element>
+  <language>Markdown</language>
+  <offset>103</offset>
+  <length>4</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/.cursor/plans/ios_dynamic_island_session_a4fd760d.plan.md</file>
+  <line>5</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/.cursor/plans/ios_dynamic_island_session_a4fd760d.plan.md" />
+  <problem_class id="MarkdownUnresolvedFileReference" severity="WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved file references</problem_class>
+  <description>Cannot resolve directory 'screens'</description>
+  <highlighted_element>screens</highlighted_element>
+  <language>Markdown</language>
+  <offset>108</offset>
+  <length>7</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/.cursor/plans/ios_dynamic_island_session_a4fd760d.plan.md</file>
+  <line>5</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/.cursor/plans/ios_dynamic_island_session_a4fd760d.plan.md" />
+  <problem_class id="MarkdownUnresolvedFileReference" severity="WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved file references</problem_class>
+  <description>Cannot resolve file 'HomeScreen.tsx'</description>
+  <highlighted_element>HomeScreen.tsx</highlighted_element>
+  <language>Markdown</language>
+  <offset>116</offset>
+  <length>14</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/.cursor/plans/ios_dynamic_island_session_a4fd760d.plan.md</file>
+  <line>7</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/.cursor/plans/ios_dynamic_island_session_a4fd760d.plan.md" />
+  <problem_class id="MarkdownUnresolvedFileReference" severity="WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved file references</problem_class>
+  <description>Cannot resolve directory 'mobile'</description>
+  <highlighted_element>mobile</highlighted_element>
+  <language>Markdown</language>
+  <offset>58</offset>
+  <length>6</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/.cursor/plans/ios_dynamic_island_session_a4fd760d.plan.md</file>
+  <line>7</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/.cursor/plans/ios_dynamic_island_session_a4fd760d.plan.md" />
+  <problem_class id="MarkdownUnresolvedFileReference" severity="WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved file references</problem_class>
+  <description>Cannot resolve file 'package.json'</description>
+  <highlighted_element>package.json</highlighted_element>
+  <language>Markdown</language>
+  <offset>65</offset>
+  <length>12</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/.cursor/plans/ios_dynamic_island_session_a4fd760d.plan.md</file>
+  <line>7</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/.cursor/plans/ios_dynamic_island_session_a4fd760d.plan.md" />
+  <problem_class id="MarkdownUnresolvedFileReference" severity="WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved file references</problem_class>
+  <description>Cannot resolve directory 'mobile'</description>
+  <highlighted_element>mobile</highlighted_element>
+  <language>Markdown</language>
+  <offset>193</offset>
+  <length>6</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/.cursor/plans/ios_dynamic_island_session_a4fd760d.plan.md</file>
+  <line>7</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/.cursor/plans/ios_dynamic_island_session_a4fd760d.plan.md" />
+  <problem_class id="MarkdownUnresolvedFileReference" severity="WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved file references</problem_class>
+  <description>Cannot resolve file 'app.json'</description>
+  <highlighted_element>app.json</highlighted_element>
+  <language>Markdown</language>
+  <offset>200</offset>
+  <length>8</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/.cursor/plans/ios_dynamic_island_session_a4fd760d.plan.md</file>
+  <line>40</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/.cursor/plans/ios_dynamic_island_session_a4fd760d.plan.md" />
+  <problem_class id="MarkdownUnresolvedFileReference" severity="WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved file references</problem_class>
+  <description>Cannot resolve directory 'mobile'</description>
+  <highlighted_element>mobile</highlighted_element>
+  <language>Markdown</language>
+  <offset>66</offset>
+  <length>6</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/.cursor/plans/ios_dynamic_island_session_a4fd760d.plan.md</file>
+  <line>40</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/.cursor/plans/ios_dynamic_island_session_a4fd760d.plan.md" />
+  <problem_class id="MarkdownUnresolvedFileReference" severity="WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved file references</problem_class>
+  <description>Cannot resolve file 'app.json'</description>
+  <highlighted_element>app.json</highlighted_element>
+  <language>Markdown</language>
+  <offset>73</offset>
+  <length>8</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/.cursor/plans/ios_dynamic_island_session_a4fd760d.plan.md</file>
+  <line>45</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/.cursor/plans/ios_dynamic_island_session_a4fd760d.plan.md" />
+  <problem_class id="MarkdownUnresolvedFileReference" severity="WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved file references</problem_class>
+  <description>Cannot resolve directory 'mobile'</description>
+  <highlighted_element>mobile</highlighted_element>
+  <language>Markdown</language>
+  <offset>89</offset>
+  <length>6</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/.cursor/plans/ios_dynamic_island_session_a4fd760d.plan.md</file>
+  <line>45</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/.cursor/plans/ios_dynamic_island_session_a4fd760d.plan.md" />
+  <problem_class id="MarkdownUnresolvedFileReference" severity="WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved file references</problem_class>
+  <description>Cannot resolve directory 'src'</description>
+  <highlighted_element>src</highlighted_element>
+  <language>Markdown</language>
+  <offset>96</offset>
+  <length>3</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/.cursor/plans/ios_dynamic_island_session_a4fd760d.plan.md</file>
+  <line>45</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/.cursor/plans/ios_dynamic_island_session_a4fd760d.plan.md" />
+  <problem_class id="MarkdownUnresolvedFileReference" severity="WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved file references</problem_class>
+  <description>Cannot resolve directory 'features'</description>
+  <highlighted_element>features</highlighted_element>
+  <language>Markdown</language>
+  <offset>100</offset>
+  <length>8</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/.cursor/plans/ios_dynamic_island_session_a4fd760d.plan.md</file>
+  <line>45</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/.cursor/plans/ios_dynamic_island_session_a4fd760d.plan.md" />
+  <problem_class id="MarkdownUnresolvedFileReference" severity="WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved file references</problem_class>
+  <description>Cannot resolve directory 'home'</description>
+  <highlighted_element>home</highlighted_element>
+  <language>Markdown</language>
+  <offset>109</offset>
+  <length>4</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/.cursor/plans/ios_dynamic_island_session_a4fd760d.plan.md</file>
+  <line>45</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/.cursor/plans/ios_dynamic_island_session_a4fd760d.plan.md" />
+  <problem_class id="MarkdownUnresolvedFileReference" severity="WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved file references</problem_class>
+  <description>Cannot resolve directory 'widgets'</description>
+  <highlighted_element>widgets</highlighted_element>
+  <language>Markdown</language>
+  <offset>114</offset>
+  <length>7</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/.cursor/plans/ios_dynamic_island_session_a4fd760d.plan.md</file>
+  <line>45</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/.cursor/plans/ios_dynamic_island_session_a4fd760d.plan.md" />
+  <problem_class id="MarkdownUnresolvedFileReference" severity="WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved file references</problem_class>
+  <description>Cannot resolve file 'ParkingSessionLiveActivity.tsx'</description>
+  <highlighted_element>ParkingSessionLiveActivity.tsx</highlighted_element>
+  <language>Markdown</language>
+  <offset>122</offset>
+  <length>30</length>
+</problem>
+</problems>

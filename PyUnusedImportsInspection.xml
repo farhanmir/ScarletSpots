@@ -1,0 +1,38 @@
+<problems>
+<problem>
+  <file>file://$PROJECT_DIR$/backend/app/services/train_forecast_model.py</file>
+  <line>66</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/backend/app/services/train_forecast_model.py" />
+  <problem_class id="PyUnusedImportsInspection" severity="WARNING" attribute_key="INFO_ATTRIBUTES">Unused imports</problem_class>
+  <description>'joblib' in the try block with 'except ImportError' should also be defined in the except block</description>
+  <highlighted_element>joblib</highlighted_element>
+  <language>Python</language>
+  <offset>15</offset>
+  <length>6</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/backend/app/services/train_forecast_model.py</file>
+  <line>67</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/backend/app/services/train_forecast_model.py" />
+  <problem_class id="PyUnusedImportsInspection" severity="WARNING" attribute_key="INFO_ATTRIBUTES">Unused imports</problem_class>
+  <description>'np' in the try block with 'except ImportError' should also be defined in the except block</description>
+  <highlighted_element>np</highlighted_element>
+  <language>Python</language>
+  <offset>24</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/backend/app/services/train_forecast_model.py</file>
+  <line>68</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/backend/app/services/train_forecast_model.py" />
+  <problem_class id="PyUnusedImportsInspection" severity="WARNING" attribute_key="INFO_ATTRIBUTES">Unused imports</problem_class>
+  <description>'GradientBoostingRegressor' in the try block with 'except ImportError' should also be defined in the except block</description>
+  <highlighted_element>GradientBoostingRegressor</highlighted_element>
+  <language>Python</language>
+  <offset>37</offset>
+  <length>25</length>
+</problem>
+</problems>

@@ -1,0 +1,26 @@
+<root>
+<duplicate cost="1" hash="0">
+  <fragment file="file://$PROJECT_DIR$/backend/app/routers/lots.py" line="48" start="1602" end="1936" />
+  <fragment file="file://$PROJECT_DIR$/backend/app/services/train_forecast_model.py" line="50" start="1449" end="1783" />
+</duplicate>
+<duplicate cost="1" hash="0">
+  <fragment file="file://$PROJECT_DIR$/backend/app/routers/park.py" line="33" start="1209" end="1823" />
+  <fragment file="file://$PROJECT_DIR$/backend/app/services/notification_scheduler.py" line="28" start="779" end="1388" />
+</duplicate>
+<duplicate cost="1" hash="0">
+  <fragment file="file://$PROJECT_DIR$/backend/app/routers/users.py" line="360" start="11908" end="12327" />
+  <fragment file="file://$PROJECT_DIR$/backend/app/routers/users.py" line="387" start="12604" end="13034" />
+</duplicate>
+<duplicate cost="1" hash="0">
+  <fragment file="file://$PROJECT_DIR$/backend/app/routers/websocket.py" line="166" start="5610" end="5913" />
+  <fragment file="file://$PROJECT_DIR$/backend/app/routers/websocket.py" line="223" start="8064" end="8367" />
+</duplicate>
+<duplicate cost="1" hash="0">
+  <fragment file="file://$PROJECT_DIR$/backend/tests/test_friends.py" line="68" start="2066" end="2617" />
+  <fragment file="file://$PROJECT_DIR$/backend/tests/test_friends.py" line="119" start="3840" end="4343" />
+</duplicate>
+<duplicate cost="1" hash="0">
+  <fragment file="file://$PROJECT_DIR$/backend/tests/test_push_notifications.py" line="28" start="859" end="1225" />
+  <fragment file="file://$PROJECT_DIR$/backend/tests/test_push_notifications.py" line="64" start="2199" end="2565" />
+</duplicate>
+</root>

@@ -1,0 +1,62 @@
+<problems>
+<problem>
+  <file>file://$PROJECT_DIR$/VERSIONING.md</file>
+  <line>11</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/VERSIONING.md" />
+  <problem_class id="MarkdownIncorrectTableFormatting" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Incorrect table formatting</problem_class>
+  <description>Table is not correctly formatted</description>
+  <highlighted_element>| Component | VERSION file | Format | Starting version | |-----------|-------------|--------|-------...</highlighted_element>
+  <language>Markdown</language>
+  <offset>0</offset>
+  <length>368</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/VERSIONING.md</file>
+  <line>25</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/VERSIONING.md" />
+  <problem_class id="MarkdownIncorrectTableFormatting" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Incorrect table formatting</problem_class>
+  <description>Table is not correctly formatted</description>
+  <highlighted_element>| Where | How it's injected | How to read it | |-------|------------------|----------------| | Backe...</highlighted_element>
+  <language>Markdown</language>
+  <offset>0</offset>
+  <length>470</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/VERSIONING.md</file>
+  <line>38</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/VERSIONING.md" />
+  <problem_class id="MarkdownIncorrectTableFormatting" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Incorrect table formatting</problem_class>
+  <description>Table is not correctly formatted</description>
+  <highlighted_element>| Bump | When | |------|------| | **patch** `0.1.0 → 0.1.1` | Bug fix, performance tweak, no schema ...</highlighted_element>
+  <language>Markdown</language>
+  <offset>0</offset>
+  <length>278</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/VERSIONING.md</file>
+  <line>47</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/VERSIONING.md" />
+  <problem_class id="MarkdownIncorrectTableFormatting" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Incorrect table formatting</problem_class>
+  <description>Table is not correctly formatted</description>
+  <highlighted_element>| Bump | When | |------|------| | **patch** `1.0.0 → 1.0.1` | Crash fix, minor UI polish, no new fea...</highlighted_element>
+  <language>Markdown</language>
+  <offset>0</offset>
+  <length>247</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/VERSIONING.md</file>
+  <line>56</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/VERSIONING.md" />
+  <problem_class id="MarkdownIncorrectTableFormatting" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Incorrect table formatting</problem_class>
+  <description>Table is not correctly formatted</description>
+  <highlighted_element>| Bump | When | |------|------| | **patch** `1.0.0 → 1.0.1` | Copy fix, bug fix | | **minor** `1.0.0...</highlighted_element>
+  <language>Markdown</language>
+  <offset>0</offset>
+  <length>198</length>
+</problem>
+</problems>

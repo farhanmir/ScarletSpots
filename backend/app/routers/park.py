@@ -530,7 +530,7 @@ async def end_parking_session(
 @router.post("/feedback")
 @limiter.limit("20/hour")
 async def submit_session_feedback(
-    _request: Request,
+    request: Request,
     body: SessionFeedback,
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

@@ -1,0 +1,26 @@
+<problems>
+<problem>
+  <file>file://$PROJECT_DIR$/backend/app/core/security.py</file>
+  <line>57</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/backend/app/core/security.py" />
+  <problem_class id="PyInconsistentReturnsInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Inconsistent return statements</problem_class>
+  <description>Missing return statement on some paths</description>
+  <highlighted_element>async with _jwks_cache_lock:</highlighted_element>
+  <language>Python</language>
+  <offset>4</offset>
+  <length>28</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/scripts/build_sqlite.py</file>
+  <line>191</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/scripts/build_sqlite.py" />
+  <problem_class id="PyInconsistentReturnsInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Inconsistent return statements</problem_class>
+  <description>Missing return statement on some paths</description>
+  <highlighted_element>with path.open(&quot;r&quot;, encoding=&quot;utf-8&quot;) as f:</highlighted_element>
+  <language>Python</language>
+  <offset>4</offset>
+  <length>43</length>
+</problem>
+</problems>

@@ -124,7 +124,7 @@ async def _upsert_profile(db: AsyncSession, payload: dict) -> Profile:
 @router.post("/signup")
 @limiter.limit("5/hour")
 async def signup(
-    _request: Request,
+    request: Request,
     body: UserCreate,
     db: AsyncSession = Depends(get_db),
     admin_auth: Client = Depends(get_admin_auth_client),
@@ -249,7 +249,7 @@ class AccountDeletionResponse(BaseModel):
 @router.post("/password-reset")
 @limiter.limit("3/hour")
 async def request_password_reset(
-    _request: Request,
+    request: Request,
     body: PasswordResetRequest,
     supabase: Client = Depends(get_supabase),
 ):

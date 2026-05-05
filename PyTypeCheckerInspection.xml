@@ -1,0 +1,38 @@
+<problems>
+<problem>
+  <file>file://$PROJECT_DIR$/backend/app/core/websocket.py</file>
+  <line>22</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/backend/app/core/websocket.py" />
+  <problem_class id="PyTypeCheckerInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Incorrect type</problem_class>
+  <description>__init__ should return None</description>
+  <highlighted_element>None</highlighted_element>
+  <language>Python</language>
+  <offset>26</offset>
+  <length>4</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/backend/app/services/notification_scheduler.py</file>
+  <line>54</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/backend/app/services/notification_scheduler.py" />
+  <problem_class id="PyTypeCheckerInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Incorrect type</problem_class>
+  <description>__init__ should return None</description>
+  <highlighted_element>None</highlighted_element>
+  <language>Python</language>
+  <offset>26</offset>
+  <length>4</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/backend/app/services/permit_notifications.py</file>
+  <line>25</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/backend/app/services/permit_notifications.py" />
+  <problem_class id="PyTypeCheckerInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Incorrect type</problem_class>
+  <description>__init__ should return None</description>
+  <highlighted_element>None</highlighted_element>
+  <language>Python</language>
+  <offset>94</offset>
+  <length>4</length>
+</problem>
+</problems>

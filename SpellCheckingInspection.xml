@@ -1,0 +1,650 @@
+<problems>
+<problem>
+  <file>file://$PROJECT_DIR$/.github/workflows/CODEOWNERS</file>
+  <line>1</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/.github/workflows/CODEOWNERS" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'farhanmir'</description>
+  <highlighted_element>farhanmir</highlighted_element>
+  <language>TEXT</language>
+  <offset>3</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/backend/alembic.ini</file>
+  <line>19</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/backend/alembic.ini" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'zoneinfo'</description>
+  <highlighted_element>zoneinfo</highlighted_element>
+  <language>Ini</language>
+  <offset>54</offset>
+  <length>8</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/backend/alembic.ini</file>
+  <line>45</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/backend/alembic.ini" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'pathsep'</description>
+  <highlighted_element>pathsep</highlighted_element>
+  <language>Ini</language>
+  <offset>85</offset>
+  <length>7</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/backend/alembic.ini</file>
+  <line>52</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/backend/alembic.ini" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'pathsep'</description>
+  <highlighted_element>pathsep</highlighted_element>
+  <language>Ini</language>
+  <offset>38</offset>
+  <length>7</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/backend/app/core/security.py</file>
+  <line>195</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/backend/app/core/security.py" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'supa'</description>
+  <highlighted_element>supa</highlighted_element>
+  <language>Python</language>
+  <offset>9</offset>
+  <length>4</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/backend/app/core/security.py</file>
+  <line>196</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/backend/app/core/security.py" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'supa'</description>
+  <highlighted_element>supa</highlighted_element>
+  <language>Python</language>
+  <offset>10</offset>
+  <length>4</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/backend/app/services/permit_notifications.py</file>
+  <line>110</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/backend/app/services/permit_notifications.py" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'todays'</description>
+  <highlighted_element>todays</highlighted_element>
+  <language>Python</language>
+  <offset>8</offset>
+  <length>6</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/backend/tests/test_friends.py</file>
+  <line>199</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/backend/tests/test_friends.py" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'excinfo'</description>
+  <highlighted_element>excinfo</highlighted_element>
+  <language>Python</language>
+  <offset>41</offset>
+  <length>7</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Config/Debug.xcconfig</file>
+  <line>3</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Config/Debug.xcconfig" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'Xcconfig'</description>
+  <highlighted_element>Xcconfig</highlighted_element>
+  <language>TEXT</language>
+  <offset>9</offset>
+  <length>8</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Config/Debug.xcconfig</file>
+  <line>17</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Config/Debug.xcconfig" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'xcconfig'</description>
+  <highlighted_element>xcconfig</highlighted_element>
+  <language>TEXT</language>
+  <offset>25</offset>
+  <length>8</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Config/DebugSecrets.xcconfig</file>
+  <line>4</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Config/DebugSecrets.xcconfig" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'dfkxffdplikdyhuvubnr'</description>
+  <highlighted_element>dfkxffdplikdyhuvubnr</highlighted_element>
+  <language>TEXT</language>
+  <offset>26</offset>
+  <length>20</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Config/Release.xcconfig</file>
+  <line>4</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Config/Release.xcconfig" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'xcconfig'</description>
+  <highlighted_element>xcconfig</highlighted_element>
+  <language>TEXT</language>
+  <offset>18</offset>
+  <length>8</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Resources/LaunchScreen.storyboard</file>
+  <line>17</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Resources/LaunchScreen.storyboard" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'autoresizing'</description>
+  <highlighted_element>autoresizing</highlighted_element>
+  <language>textmate</language>
+  <offset>25</offset>
+  <length>12</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/ScarletSpots.entitlements</file>
+  <line>7</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/ScarletSpots.entitlements" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'usernotifications'</description>
+  <highlighted_element>usernotifications</highlighted_element>
+  <language>TEXT</language>
+  <offset>26</offset>
+  <length>17</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Sources/App/RootView.swift</file>
+  <line>127</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Sources/App/RootView.swift" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'OLED'</description>
+  <highlighted_element>OLED</highlighted_element>
+  <language>textmate</language>
+  <offset>42</offset>
+  <length>4</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Sources/App/RootView.swift</file>
+  <line>141</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Sources/App/RootView.swift" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'exclamationmark'</description>
+  <highlighted_element>exclamationmark</highlighted_element>
+  <language>textmate</language>
+  <offset>39</offset>
+  <length>15</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Sources/AutoPark/AutoParkCoordinator.swift</file>
+  <line>148</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Sources/AutoPark/AutoParkCoordinator.swift" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'autopark'</description>
+  <highlighted_element>autopark</highlighted_element>
+  <language>textmate</language>
+  <offset>28</offset>
+  <length>8</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Sources/AutoPark/AutoParkCoordinator.swift</file>
+  <line>1247</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Sources/AutoPark/AutoParkCoordinator.swift" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'autoend'</description>
+  <highlighted_element>autoend</highlighted_element>
+  <language>textmate</language>
+  <offset>16</offset>
+  <length>7</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Core/FeatureFlags.swift</file>
+  <line>5</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Core/FeatureFlags.swift" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'AUTOPARK'</description>
+  <highlighted_element>AUTOPARK</highlighted_element>
+  <language>textmate</language>
+  <offset>81</offset>
+  <length>8</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Core/PinnedURLSessionDelegate.swift</file>
+  <line>10</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Core/PinnedURLSessionDelegate.swift" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'xcconfig'</description>
+  <highlighted_element>xcconfig</highlighted_element>
+  <language>textmate</language>
+  <offset>6</offset>
+  <length>8</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Core/PinnedURLSessionDelegate.swift</file>
+  <line>14</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Core/PinnedURLSessionDelegate.swift" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'noout'</description>
+  <highlighted_element>noout</highlighted_element>
+  <language>textmate</language>
+  <offset>43</offset>
+  <length>5</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Core/PinnedURLSessionDelegate.swift</file>
+  <line>15</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Core/PinnedURLSessionDelegate.swift" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'pubin'</description>
+  <highlighted_element>pubin</highlighted_element>
+  <language>textmate</language>
+  <offset>22</offset>
+  <length>5</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Core/PinnedURLSessionDelegate.swift</file>
+  <line>15</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Core/PinnedURLSessionDelegate.swift" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'outform'</description>
+  <highlighted_element>outform</highlighted_element>
+  <language>textmate</language>
+  <offset>29</offset>
+  <length>7</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Core/PinnedURLSessionDelegate.swift</file>
+  <line>16</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Core/PinnedURLSessionDelegate.swift" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'dgst'</description>
+  <highlighted_element>dgst</highlighted_element>
+  <language>textmate</language>
+  <offset>16</offset>
+  <length>4</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Data/Database.swift</file>
+  <line>11</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Data/Database.swift" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'FULLMUTEX'</description>
+  <highlighted_element>FULLMUTEX</highlighted_element>
+  <language>textmate</language>
+  <offset>29</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Data/Database.swift</file>
+  <line>24</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Data/Database.swift" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'deinit'</description>
+  <highlighted_element>deinit</highlighted_element>
+  <language>textmate</language>
+  <offset>4</offset>
+  <length>6</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Data/Database.swift</file>
+  <line>173</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Data/Database.swift" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'memcpy'</description>
+  <highlighted_element>memcpy</highlighted_element>
+  <language>textmate</language>
+  <offset>63</offset>
+  <length>6</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Features/Auth/PermitOnboardingView.swift</file>
+  <line>85</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Features/Auth/PermitOnboardingView.swift" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'magnifyingglass'</description>
+  <highlighted_element>magnifyingglass</highlighted_element>
+  <language>textmate</language>
+  <offset>31</offset>
+  <length>15</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Features/Home/CandidatePin.swift</file>
+  <line>27</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Features/Home/CandidatePin.swift" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'parkingsign'</description>
+  <highlighted_element>parkingsign</highlighted_element>
+  <language>textmate</language>
+  <offset>31</offset>
+  <length>11</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Features/Home/LotDetailsSheet.swift</file>
+  <line>181</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Features/Home/LotDetailsSheet.swift" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'graduationcap'</description>
+  <highlighted_element>graduationcap</highlighted_element>
+  <language>textmate</language>
+  <offset>39</offset>
+  <length>13</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Features/Home/LotDetailsSheet.swift</file>
+  <line>212</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Features/Home/LotDetailsSheet.swift" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'questionmark'</description>
+  <highlighted_element>questionmark</highlighted_element>
+  <language>textmate</language>
+  <offset>27</offset>
+  <length>12</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Features/Home/LotDetailsSheet.swift</file>
+  <line>409</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Features/Home/LotDetailsSheet.swift" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'exclamationmark'</description>
+  <highlighted_element>exclamationmark</highlighted_element>
+  <language>textmate</language>
+  <offset>32</offset>
+  <length>15</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Features/Home/LotDetailsSheet.swift</file>
+  <line>772</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Features/Home/LotDetailsSheet.swift" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'FAFC'</description>
+  <highlighted_element>FAFC</highlighted_element>
+  <language>textmate</language>
+  <offset>51</offset>
+  <length>4</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Features/Home/ParkingConfirmationSheet.swift</file>
+  <line>70</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Features/Home/ParkingConfirmationSheet.swift" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'parkingsign'</description>
+  <highlighted_element>parkingsign</highlighted_element>
+  <language>textmate</language>
+  <offset>39</offset>
+  <length>11</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Features/Search/SearchScreen.swift</file>
+  <line>122</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Features/Search/SearchScreen.swift" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'Werblin'</description>
+  <highlighted_element>Werblin</highlighted_element>
+  <language>textmate</language>
+  <offset>39</offset>
+  <length>7</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Features/Search/SearchScreen.swift</file>
+  <line>262</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Features/Search/SearchScreen.swift" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'mappin'</description>
+  <highlighted_element>mappin</highlighted_element>
+  <language>textmate</language>
+  <offset>30</offset>
+  <length>6</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Features/Search/SearchScreen.swift</file>
+  <line>367</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Features/Search/SearchScreen.swift" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'exclamationmark'</description>
+  <highlighted_element>exclamationmark</highlighted_element>
+  <language>textmate</language>
+  <offset>84</offset>
+  <length>15</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Services/APIs.swift</file>
+  <line>74</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Services/APIs.swift" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'backgrounded'</description>
+  <highlighted_element>backgrounded</highlighted_element>
+  <language>textmate</language>
+  <offset>26</offset>
+  <length>12</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Views/AutoParkInsightsView.swift</file>
+  <line>395</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Views/AutoParkInsightsView.swift" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'autopark'</description>
+  <highlighted_element>autopark</highlighted_element>
+  <language>textmate</language>
+  <offset>45</offset>
+  <length>8</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Views/FriendsView.swift</file>
+  <line>170</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Views/FriendsView.swift" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'parkingsign'</description>
+  <highlighted_element>parkingsign</highlighted_element>
+  <language>textmate</language>
+  <offset>80</offset>
+  <length>11</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Views/LoginView.swift</file>
+  <line>298</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Views/LoginView.swift" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'scarletmail'</description>
+  <highlighted_element>scarletmail</highlighted_element>
+  <language>textmate</language>
+  <offset>35</offset>
+  <length>11</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Views/MainTabView.swift</file>
+  <line>10</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Views/MainTabView.swift" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'magnifyingglass'</description>
+  <highlighted_element>magnifyingglass</highlighted_element>
+  <language>textmate</language>
+  <offset>50</offset>
+  <length>15</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Views/MapView.swift</file>
+  <line>802</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Views/MapView.swift" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'exclamationmark'</description>
+  <highlighted_element>exclamationmark</highlighted_element>
+  <language>textmate</language>
+  <offset>51</offset>
+  <length>15</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Views/MapView.swift</file>
+  <line>834</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Views/MapView.swift" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'mappin'</description>
+  <highlighted_element>mappin</highlighted_element>
+  <language>textmate</language>
+  <offset>31</offset>
+  <length>6</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Views/SettingsView.swift</file>
+  <line>86</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Views/SettingsView.swift" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'FAFC'</description>
+  <highlighted_element>FAFC</highlighted_element>
+  <language>textmate</language>
+  <offset>42</offset>
+  <length>4</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Views/SettingsView.swift</file>
+  <line>464</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Views/SettingsView.swift" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'lefthalf'</description>
+  <highlighted_element>lefthalf</highlighted_element>
+  <language>textmate</language>
+  <offset>56</offset>
+  <length>8</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Views/SettingsView.swift</file>
+  <line>902</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/Sources/Views/SettingsView.swift" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'lifepreserver'</description>
+  <highlighted_element>lifepreserver</highlighted_element>
+  <language>textmate</language>
+  <offset>58</offset>
+  <length>13</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/WidgetExtension/Info.plist</file>
+  <line>26</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/WidgetExtension/Info.plist" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'widgetkit'</description>
+  <highlighted_element>widgetkit</highlighted_element>
+  <language>TEXT</language>
+  <offset>20</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/ios/ScarletSpots/WidgetExtension/ParkingLiveActivity.swift</file>
+  <line>15</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/ios/ScarletSpots/WidgetExtension/ParkingLiveActivity.swift" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'parkingsign'</description>
+  <highlighted_element>parkingsign</highlighted_element>
+  <language>textmate</language>
+  <offset>43</offset>
+  <length>11</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/scripts/bump_version.sh</file>
+  <line>84</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/scripts/bump_version.sh" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'xcodegen'</description>
+  <highlighted_element>xcodegen</highlighted_element>
+  <language>Shell Script</language>
+  <offset>27</offset>
+  <length>8</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/scripts/bump_version.sh</file>
+  <line>84</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/scripts/bump_version.sh" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'xcconfig'</description>
+  <highlighted_element>xcconfig</highlighted_element>
+  <language>Shell Script</language>
+  <offset>56</offset>
+  <length>8</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/scripts/sysup.sh</file>
+  <line>4</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/scripts/sysup.sh" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'sysup'</description>
+  <highlighted_element>sysup</highlighted_element>
+  <language>Shell Script</language>
+  <offset>2</offset>
+  <length>5</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/website/public/favicon.svg</file>
+  <line>1</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/website/public/favicon.svg" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'bfff'</description>
+  <highlighted_element>bfff</highlighted_element>
+  <language>SVG</language>
+  <offset>3363</offset>
+  <length>4</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/website/public/favicon.svg</file>
+  <line>1</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/website/public/favicon.svg" />
+  <problem_class id="SpellCheckingInspection" severity="TYPO" attribute_key="TYPO">Spelling</problem_class>
+  <description>Typo: In word 'bfff'</description>
+  <highlighted_element>bfff</highlighted_element>
+  <language>SVG</language>
+  <offset>4197</offset>
+  <length>4</length>
+</problem>
+</problems>

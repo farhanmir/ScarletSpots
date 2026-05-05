@@ -1,0 +1,26 @@
+<problems>
+<problem>
+  <file>file://$PROJECT_DIR$/backend/app/services/permit_notifications.py</file>
+  <line>119</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/backend/app/services/permit_notifications.py" />
+  <problem_class id="PyChainedComparisonsInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Too complex chained comparisons</problem_class>
+  <description>Simplify chained comparison</description>
+  <highlighted_element>current_minutes &gt;= start and current_minutes &lt; end</highlighted_element>
+  <language>Python</language>
+  <offset>15</offset>
+  <length>50</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/backend/app/services/permit_notifications.py</file>
+  <line>149</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/backend/app/services/permit_notifications.py" />
+  <problem_class id="PyChainedComparisonsInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Too complex chained comparisons</problem_class>
+  <description>Simplify chained comparison</description>
+  <highlighted_element>minutes &gt;= 10 * 60 and minutes &lt; 24 * 60</highlighted_element>
+  <language>Python</language>
+  <offset>15</offset>
+  <length>40</length>
+</problem>
+</problems>

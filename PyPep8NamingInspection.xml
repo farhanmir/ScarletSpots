@@ -1,0 +1,26 @@
+<problems>
+<problem>
+  <file>file://$PROJECT_DIR$/backend/app/services/train_forecast_model.py</file>
+  <line>137</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/backend/app/services/train_forecast_model.py" />
+  <problem_class id="PyPep8NamingInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">PEP 8 naming convention violation</problem_class>
+  <description>Variable in function should be lowercase</description>
+  <highlighted_element>X</highlighted_element>
+  <language>Python</language>
+  <offset>8</offset>
+  <length>1</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/backend/app/services/train_forecast_model.py</file>
+  <line>159</line>
+  <module>ScarletSpots</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/backend/app/services/train_forecast_model.py" />
+  <problem_class id="PyPep8NamingInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">PEP 8 naming convention violation</problem_class>
+  <description>Variable in function should be lowercase</description>
+  <highlighted_element>X_arr</highlighted_element>
+  <language>Python</language>
+  <offset>8</offset>
+  <length>5</length>
+</problem>
+</problems>
