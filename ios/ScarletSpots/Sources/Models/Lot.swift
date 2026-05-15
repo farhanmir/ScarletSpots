@@ -206,5 +206,13 @@ struct Lot: Identifiable, Hashable {
     var primaryOuterRing: [CLLocationCoordinate2D] {
         polygons.first?.outer ?? []
     }
+
+    /// True only for structured parking (garage/deck) where a floor/level is meaningful.
+    /// Surface lots stay false so we never nag users for a "deck level" everywhere.
+    var shouldPromptForDeckLevel: Bool {
+        if garage { return true }
+        let haystack = (shortName + " " + propertyName).lowercased()
+        return haystack.contains("deck")
+    }
 }
 

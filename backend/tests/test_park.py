@@ -13,6 +13,62 @@ from app.routers.park import _get_friend_user_ids
 
 
 @pytest.mark.asyncio
+async def test_patch_active_session_deck_level(
+    client: AsyncClient,
+    override_current_user: None,
+    noop_ws_publish: None,
+):
+    _ = override_current_user, noop_ws_publish
+    start = await client.post("/api/v1/park/session", json={"lotId": "10001"})
+    assert start.status_code == 200, start.text
+    patch = await client.patch(
+        "/api/v1/park/session/active",
+        json={"deckLevelLabel": "P2", "deckLevelKey": "P2"},
+    )
+    assert patch.status_code == 200, patch.text
+    assert patch.json()["session"]["deckLevelLabel"] == "P2"
+    assert patch.json()["session"]["deckLevelKey"] == "P2"
+
+
+@pytest.mark.asyncio
+async def test_start_session_persists_deck_and_altitude(
+    client: AsyncClient,
+    override_current_user: None,
+    noop_ws_publish: None,
+    db_session: AsyncSession,
+):
+    _ = override_current_user, noop_ws_publish
+    response = await client.post(
+        "/api/v1/park/session",
+        json={
+            "lotId": "10001",
+            "deckLevelLabel": "P3",
+            "deckLevelKey": "P3",
+            "altitudeMeters": 42.5,
+            "altitudeAccuracyMeters": 12.0,
+        },
+    )
+    assert response.status_code == 200, response.text
+    session = (
+        (
+            await db_session.execute(
+                select(ParkingSession).where(
+                    ParkingSession.user_id == "00000000-0000-0000-0000-000000000123",
+                    ParkingSession.active.is_(True),
+                )
+            )
+        )
+        .scalars()
+        .first()
+    )
+    assert session is not None
+    assert session.deck_level_label == "P3"
+    assert session.deck_level_key == "P3"
+    assert session.altitude_meters == 42.5
+    assert session.altitude_accuracy_meters == 12.0
+
+
+@pytest.mark.asyncio
 async def test_parking_session_lifecycle(
     client: AsyncClient,
     override_current_user: None,

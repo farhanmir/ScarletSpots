@@ -26,6 +26,8 @@ struct LotDetailsSheet: View {
     @State private var didWobble = false
     @State private var forecastAnchorHour = LotDetailsSheet.currentForecastAnchorHour()
     @State private var showingPhotoGallery = false
+    @State private var manualDeckSelection: ManualDeckSelection = .skip
+    @State private var manualDeckOtherText = ""
 
     private var isDark: Bool { colorScheme == .dark }
     private var primaryText: Color { isDark ? .white : Color(hex: 0x111827) }
@@ -41,6 +43,9 @@ struct LotDetailsSheet: View {
                 permitInfoCard
                 notesCard
                 forecastSection
+                if lot.shouldPromptForDeckLevel {
+                    deckLevelSection
+                }
                 actionButtons
 
                 if let toastText {
@@ -301,6 +306,56 @@ struct LotDetailsSheet: View {
         .padding(.top, 10)
     }
 
+    private enum ManualDeckSelection: String, CaseIterable, Identifiable {
+        case skip, p1, p2, p3, p4, p5, ground, other
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .skip: return "Not set"
+            case .p1: return "P1"
+            case .p2: return "P2"
+            case .p3: return "P3"
+            case .p4: return "P4"
+            case .p5: return "P5"
+            case .ground: return "Ground / G"
+            case .other: return "Other…"
+            }
+        }
+    }
+
+    private var deckLevelSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 6) {
+                Image(systemName: "building.2.fill")
+                    .font(.caption)
+                    .foregroundStyle(tertiaryText)
+                Text("DECK OR GARAGE LEVEL")
+                    .font(.caption2.bold())
+                    .tracking(0.8)
+                    .foregroundStyle(tertiaryText)
+            }
+            Text("Surface lots never show this. For garages and decks, your level helps find your car later.")
+                .font(.caption)
+                .foregroundStyle(secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+            Picker("Level", selection: $manualDeckSelection) {
+                ForEach(ManualDeckSelection.allCases) { opt in
+                    Text(opt.label).tag(opt)
+                }
+            }
+            .pickerStyle(.menu)
+            .tint(primaryText)
+            if manualDeckSelection == .other {
+                TextField("Describe level (e.g. P6, Roof)", text: $manualDeckOtherText)
+                    .textFieldStyle(.roundedBorder)
+                    .textInputAutocapitalization(.characters)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .infoCardGlass(isDark: isDark)
+    }
+
     private var actionButtons: some View { actionButtonsContent }
 
     @ViewBuilder
@@ -445,11 +500,17 @@ struct LotDetailsSheet: View {
         defer { parking = false }
         let idempotencyKey = "manual_\(lot.mapId)_\(Int(Date().timeIntervalSince1970))"
         let coordinate = parkingStartCoordinate
+        let deck = manualDeckLabelAndKeyForSession()
+        let alt = DeckAltitudeGate.snapshot(from: location.latestLocation)
         do {
             try await ParkAPI.startSession(
                 lotId: lot.mapId,
                 latitude: coordinate.latitude,
                 longitude: coordinate.longitude,
+                deckLevelLabel: deck.0,
+                deckLevelKey: deck.1,
+                altitudeMeters: alt?.meters,
+                altitudeAccuracyMeters: alt?.accuracy,
                 autoStarted: false,
                 source: "manual",
                 idempotencyKey: idempotencyKey
@@ -457,17 +518,24 @@ struct LotDetailsSheet: View {
             await session.refresh()
             HapticManager.shared.success()
             toastText = "Session started."
+            manualDeckSelection = .skip
+            manualDeckOtherText = ""
         } catch let apiError as APIError {
             HapticManager.shared.error()
             toastText = apiError.localizedDescription
         } catch let urlError as URLError where urlError.code == .notConnectedToInternet || urlError.code == .timedOut || urlError.code == .networkConnectionLost {
-            let payload = try? JSONSerialization.data(withJSONObject: [
+            var payloadDict: [String: Any] = [
                 "lotId": lot.mapId,
                 "latitude": coordinate.latitude,
                 "longitude": coordinate.longitude,
                 "autoStarted": false,
                 "source": "manual"
-            ])
+            ]
+            if let l = deck.0 { payloadDict["deckLevelLabel"] = l }
+            if let k = deck.1 { payloadDict["deckLevelKey"] = k }
+            if let a = alt?.meters { payloadDict["altitudeMeters"] = a }
+            if let a = alt?.accuracy { payloadDict["altitudeAccuracyMeters"] = a }
+            let payload = try? JSONSerialization.data(withJSONObject: payloadDict)
             await OfflineQueue.shared.enqueue(
                 type: "PARK",
                 endpoint: "park/session",
@@ -479,6 +547,30 @@ struct LotDetailsSheet: View {
         } catch {
             HapticManager.shared.error()
             toastText = "Error: \(error.localizedDescription)"
+        }
+    }
+
+    private func manualDeckLabelAndKeyForSession() -> (String?, String?) {
+        guard lot.shouldPromptForDeckLevel else { return (nil, nil) }
+        switch manualDeckSelection {
+        case .skip:
+            return (nil, nil)
+        case .p1:
+            return ("P1", DeckLevelNormalizer.normalizedKey(from: "P1"))
+        case .p2:
+            return ("P2", DeckLevelNormalizer.normalizedKey(from: "P2"))
+        case .p3:
+            return ("P3", DeckLevelNormalizer.normalizedKey(from: "P3"))
+        case .p4:
+            return ("P4", DeckLevelNormalizer.normalizedKey(from: "P4"))
+        case .p5:
+            return ("P5", DeckLevelNormalizer.normalizedKey(from: "P5"))
+        case .ground:
+            return ("Ground", DeckLevelNormalizer.normalizedKey(from: "G"))
+        case .other:
+            let t = manualDeckOtherText.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !t.isEmpty else { return (nil, nil) }
+            return (t, DeckLevelNormalizer.normalizedKey(from: t))
         }
     }
 

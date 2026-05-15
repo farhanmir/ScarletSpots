@@ -66,6 +66,11 @@ final class NativeSessionStore: ObservableObject {
 
         let lotName = LotRepository.shared.byId(activeSession.lotId)?.shortName
             ?? "Lot \(activeSession.lotId)"
+        let deckSubtitle: String? = {
+            guard let raw = activeSession.deckLevelLabel?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !raw.isEmpty else { return nil }
+            return "Level \(raw)"
+        }()
         let distance: String
         if let currentLocation = LocationEngine.shared.latestLocation,
            let sessionLat = activeSession.latitude,
@@ -78,7 +83,8 @@ final class NativeSessionStore: ObservableObject {
         LiveActivityManager.shared.startParkingActivity(
             lotId: activeSession.lotId,
             lotName: lotName,
-            distance: distance
+            distance: distance,
+            deckLevelSubtitle: deckSubtitle
         )
     }
 

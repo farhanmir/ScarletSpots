@@ -106,6 +106,8 @@ final class AutoParkCoordinator: ObservableObject {
     @Published private(set) var decisionHistory: [AutoParkLiveSnapshot] = []
     @Published private(set) var lastStartSnapshot: AutoParkLiveSnapshot?
     @Published private(set) var lastEndSnapshot: AutoParkLiveSnapshot?
+    /// When set, Map shows a sheet to capture deck level (garage/deck lots only).
+    @Published private(set) var deckLevelPromptLotId: String?
 
     private struct PersistedState: Codable {
         var lastWakeReason: String
@@ -334,11 +336,16 @@ final class AutoParkCoordinator: ObservableObject {
         let circling = currentCirclingMetrics(for: candidate.lotId)
         let startedAt = candidate.circlingStartedAt ?? circling.startedAt
         let durationSeconds = candidate.circlingDurationSeconds ?? circling.durationSeconds
+        let alt = altitudePayload()
         do {
             try await NetworkBridge.startSession(
                 lotId: candidate.lotId,
                 latitude: candidate.latitude,
                 longitude: candidate.longitude,
+                deckLevelLabel: alt.deckLevelLabel,
+                deckLevelKey: alt.deckLevelKey,
+                altitudeMeters: alt.altitudeMeters,
+                altitudeAccuracyMeters: alt.altitudeAccuracyMeters,
                 autoStarted: false,
                 source: candidate.source,
                 circlingStartedAt: startedAt,
@@ -349,6 +356,7 @@ final class AutoParkCoordinator: ObservableObject {
             await NativeSessionStore.shared.refresh()
             updateParkedState(from: candidate.latitude, longitude: candidate.longitude, lotId: candidate.lotId)
             publishManualResolution(source: candidate.source, decision: "session_started", reason: "manual_confirmation")
+            await offerDeckLevelPromptIfNeeded(lotId: candidate.lotId)
         } catch {
             var payloadObject: [String: Any] = [
                 "lotId": candidate.lotId,
@@ -363,6 +371,8 @@ final class AutoParkCoordinator: ObservableObject {
                     payloadObject["circling_duration_seconds"] = duration
                 }
             }
+            if let a = alt.altitudeMeters { payloadObject["altitudeMeters"] = a }
+            if let a = alt.altitudeAccuracyMeters { payloadObject["altitudeAccuracyMeters"] = a }
             let payload = try? JSONSerialization.data(withJSONObject: payloadObject)
             await OfflineQueue.shared.enqueue(
                 type: "PARK",
@@ -381,6 +391,28 @@ final class AutoParkCoordinator: ObservableObject {
     func dismissCandidates() {
         pendingCandidates.removeAll()
         refreshLiveSnapshot()
+    }
+
+    func dismissDeckLevelPrompt() {
+        deckLevelPromptLotId = nil
+    }
+
+    private func altitudePayload()
+        -> (deckLevelLabel: String?, deckLevelKey: String?, altitudeMeters: Double?, altitudeAccuracyMeters: Double?) {
+        guard let snap = DeckAltitudeGate.snapshot(from: LocationEngine.shared.latestLocation) else {
+            return (nil, nil, nil, nil)
+        }
+        return (nil, nil, snap.meters, snap.accuracy)
+    }
+
+    private func offerDeckLevelPromptIfNeeded(lotId: String) async {
+        guard LotRepository.shared.byId(lotId)?.shouldPromptForDeckLevel == true else { return }
+        await NativeSessionStore.shared.refresh()
+        guard let session = NativeSessionStore.shared.activeSession,
+              session.lotId == lotId,
+              session.deckLevelLabel == nil || session.deckLevelLabel?.isEmpty == true
+        else { return }
+        deckLevelPromptLotId = lotId
     }
 
     // MARK: - Trigger handling
@@ -613,11 +645,16 @@ final class AutoParkCoordinator: ObservableObject {
 
         let key = stableStartIdempotencyKey(lotId: candidate.lotId)
         let circling = currentCirclingMetrics(for: candidate.lotId)
+        let alt = altitudePayload()
         do {
             try await NetworkBridge.startSession(
                 lotId: candidate.lotId,
                 latitude: candidate.latitude,
                 longitude: candidate.longitude,
+                deckLevelLabel: alt.deckLevelLabel,
+                deckLevelKey: alt.deckLevelKey,
+                altitudeMeters: alt.altitudeMeters,
+                altitudeAccuracyMeters: alt.altitudeAccuracyMeters,
                 autoStarted: true,
                 source: candidate.source,
                 circlingStartedAt: circling.startedAt,
@@ -628,6 +665,7 @@ final class AutoParkCoordinator: ObservableObject {
             await NativeSessionStore.shared.refresh()
             updateParkedState(from: candidate.latitude, longitude: candidate.longitude, lotId: candidate.lotId)
             HapticManager.shared.playGuidancePulse(distance: 0)
+            await offerDeckLevelPromptIfNeeded(lotId: candidate.lotId)
             Logger.event(
                 "autopark.mutation",
                 "start_success",
@@ -662,6 +700,8 @@ final class AutoParkCoordinator: ObservableObject {
                     payloadObject["circling_duration_seconds"] = duration
                 }
             }
+            if let a = alt.altitudeMeters { payloadObject["altitudeMeters"] = a }
+            if let a = alt.altitudeAccuracyMeters { payloadObject["altitudeAccuracyMeters"] = a }
             let payload = try? JSONSerialization.data(withJSONObject: payloadObject)
             await OfflineQueue.shared.enqueue(
                 type: "PARK",

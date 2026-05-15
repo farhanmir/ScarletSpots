@@ -76,6 +76,10 @@ enum ParkAPI {
         lotId: String,
         latitude: Double,
         longitude: Double,
+        deckLevelLabel: String? = nil,
+        deckLevelKey: String? = nil,
+        altitudeMeters: Double? = nil,
+        altitudeAccuracyMeters: Double? = nil,
         autoStarted: Bool = false,
         source: String? = nil,
         circlingStartedAt: Date? = nil,
@@ -90,6 +94,10 @@ enum ParkAPI {
             "autoStarted": autoStarted
         ]
         if let source { payload["source"] = source }
+        if let deckLevelLabel { payload["deckLevelLabel"] = deckLevelLabel }
+        if let deckLevelKey { payload["deckLevelKey"] = deckLevelKey }
+        if let altitudeMeters { payload["altitudeMeters"] = altitudeMeters }
+        if let altitudeAccuracyMeters { payload["altitudeAccuracyMeters"] = altitudeAccuracyMeters }
         if let circlingStartedAt {
             payload["circling_started_at"] = ISO8601DateFormatter().string(from: circlingStartedAt)
         }
@@ -102,6 +110,19 @@ enum ParkAPI {
             method: "POST",
             body: body,
             idempotencyKey: idempotencyKey
+        )
+    }
+
+    static func patchActiveSession(deckLevelLabel: String, deckLevelKey: String) async throws {
+        let payload: [String: Any] = [
+            "deckLevelLabel": deckLevelLabel,
+            "deckLevelKey": deckLevelKey
+        ]
+        let body = try JSONSerialization.data(withJSONObject: payload)
+        let _: PatchActiveSessionResponse = try await APIClient.shared.request(
+            "park/session/active",
+            method: "PATCH",
+            body: body
         )
     }
 

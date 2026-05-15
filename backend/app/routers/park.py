@@ -59,11 +59,20 @@ class ParkSessionCreate(BaseModel):
     lotId: str
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    deckLevelLabel: Optional[str] = None
+    deckLevelKey: Optional[str] = None
+    altitudeMeters: Optional[float] = None
+    altitudeAccuracyMeters: Optional[float] = None
     confirmed: bool = True
     autoStarted: bool = False
     source: Optional[str] = None
     circling_started_at: Optional[datetime] = None
     circling_duration_seconds: Optional[int] = None
+
+
+class ParkSessionActivePatch(BaseModel):
+    deckLevelLabel: Optional[str] = None
+    deckLevelKey: Optional[str] = None
 
 
 class ParkSessionEndRequest(BaseModel):
@@ -92,12 +101,23 @@ def _to_uuid_or_401(value: str) -> UUID:
         raise HTTPException(status_code=401, detail="Invalid authenticated user id") from exc
 
 
+def _clean_optional_str(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    stripped = value.strip()
+    return stripped or None
+
+
 def _session_response(session: ParkingSession) -> dict:
     return {
         "id": str(session.id),
         "lotId": str(session.lot_id),
         "latitude": session.latitude,
         "longitude": session.longitude,
+        "deckLevelLabel": session.deck_level_label,
+        "deckLevelKey": session.deck_level_key,
+        "altitudeMeters": session.altitude_meters,
+        "altitudeAccuracyMeters": session.altitude_accuracy_meters,
         "startTime": session.start_time or session.created_at,
         "active": bool(session.active),
         "autoStarted": bool(session.auto_started),
@@ -251,6 +271,47 @@ async def _get_same_lot_friend_user_ids(
     return list(dict.fromkeys(row[0] for row in (await db.execute(stmt)).all()))
 
 
+@router.patch("/active")
+@limiter.limit("60/hour")
+async def patch_active_parking_session(
+    body: ParkSessionActivePatch,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update metadata on the active session (e.g. deck level after parking)."""
+    user_id = _to_uuid_or_401(current_user.id)
+    patch_data = body.model_dump(exclude_unset=True)
+    if not patch_data:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    try:
+        result = await db.execute(
+            select(ParkingSession).where(
+                ParkingSession.user_id == user_id,
+                ParkingSession.active.is_(True),
+            )
+        )
+        session = result.scalars().first()
+        if session is None:
+            raise HTTPException(status_code=404, detail="No active parking session")
+
+        if "deckLevelLabel" in patch_data:
+            raw = patch_data["deckLevelLabel"]
+            session.deck_level_label = _clean_optional_str(raw) if isinstance(raw, str) else None
+        if "deckLevelKey" in patch_data:
+            raw = patch_data["deckLevelKey"]
+            session.deck_level_key = _clean_optional_str(raw) if isinstance(raw, str) else None
+
+        await db.commit()
+        await db.refresh(session)
+        return {"session": _session_response(session)}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.error("Failed to patch active session for user %s: %s", user_id, exc)
+        raise HTTPException(status_code=500, detail="Failed to update active session") from exc
+
+
 @router.get("/active")
 async def get_active_session(
     current_user=Depends(get_current_user),
@@ -321,6 +382,10 @@ async def start_parking_session(
                 lot_id=lot_id,
                 latitude=body.latitude,
                 longitude=body.longitude,
+                deck_level_label=_clean_optional_str(body.deckLevelLabel),
+                deck_level_key=_clean_optional_str(body.deckLevelKey),
+                altitude_meters=body.altitudeMeters,
+                altitude_accuracy_meters=body.altitudeAccuracyMeters,
                 active=True,
                 auto_started=body.autoStarted,
                 start_source=(body.source or "").strip() or None,
@@ -347,6 +412,14 @@ async def start_parking_session(
                 idempotency_key,
                 response_payload,
             )
+
+        log.info(
+            "Parking session started user=%s lot=%s session_id=%s auto_started=%s",
+            user_id,
+            lot_id,
+            new_session.id,
+            body.autoStarted,
+        )
 
         profile = await db.get(Profile, user_id)
         if profile is not None:

@@ -76,6 +76,10 @@ struct ActiveSessionResponse: Codable {
     let session: ParkingSession?
 }
 
+struct PatchActiveSessionResponse: Codable {
+    let session: ParkingSession
+}
+
 struct OccupancyResponse: Codable {
     let occupancy: [OccupancyRow]
 }

@@ -29,9 +29,16 @@ struct ParkingLiveActivity: Widget {
                     }
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    Text("Parked \(context.state.startedAt, style: .relative) ago")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        if let sub = context.state.deckLevelSubtitle, !sub.isEmpty {
+                            Text(sub)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                        Text("Parked \(context.state.startedAt, style: .relative) ago")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             } compactLeading: {
                 Image(systemName: "parkingsign.circle.fill")
@@ -63,6 +70,11 @@ struct ParkingLiveActivity: Widget {
                 Text(state.lotName)
                     .font(.headline)
                     .lineLimit(1)
+                if let sub = state.deckLevelSubtitle, !sub.isEmpty {
+                    Text(sub)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
                 Text("Parked \(state.startedAt, style: .relative) ago")
                     .font(.caption)
                     .foregroundStyle(.secondary)

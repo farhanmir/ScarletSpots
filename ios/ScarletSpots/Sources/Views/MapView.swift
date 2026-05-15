@@ -41,6 +41,13 @@ struct MapView: View {
 
     private let lotTapSnapRadiusMeters: CLLocationDistance = 110
 
+    private var deckPromptPresented: Binding<Bool> {
+        Binding(
+            get: { autoPark.deckLevelPromptLotId != nil },
+            set: { if !$0 { autoPark.dismissDeckLevelPrompt() } }
+        )
+    }
+
     var body: some View {
         MapReader { proxy in
             ZStack(alignment: .bottom) {
@@ -97,6 +104,19 @@ struct MapView: View {
         }
         .onChange(of: autoPark.pendingCandidates.count) { _, newValue in
             showCandidateSheet = newValue > 0
+        }
+        .sheet(isPresented: deckPromptPresented) {
+            if let lotId = autoPark.deckLevelPromptLotId {
+                DeckLevelPromptSheet(lotId: lotId, onFinished: {
+                    autoPark.dismissDeckLevelPrompt()
+                })
+                .presentationDetents([.medium])
+            }
+        }
+        .onChange(of: sessionStore.activeSession?.id) { _, _ in
+            if sessionStore.activeSession == nil {
+                autoPark.dismissDeckLevelPrompt()
+            }
         }
         .onChange(of: selectedLot) { _, newValue in
             if newValue == nil {

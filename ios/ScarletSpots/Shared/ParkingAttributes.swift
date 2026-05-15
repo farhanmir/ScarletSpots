@@ -15,11 +15,14 @@ public struct ParkingAttributes: ActivityAttributes {
         public var distance: String
         /// Unix time when the session started. Used for duration display.
         public var startedAt: Date
+        /// Deck or garage level when the user set one (garage/deck lots only).
+        public var deckLevelSubtitle: String?
 
-        public init(lotName: String, distance: String, startedAt: Date) {
+        public init(lotName: String, distance: String, startedAt: Date, deckLevelSubtitle: String? = nil) {
             self.lotName = lotName
             self.distance = distance
             self.startedAt = startedAt
+            self.deckLevelSubtitle = deckLevelSubtitle
         }
     }
 

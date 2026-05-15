@@ -34,6 +34,10 @@ class ParkingSession(Base):
     lot_id = Column(String, nullable=False)  # MapId string from rutgers_parking_data.json
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
+    deck_level_label = Column(String, nullable=True)
+    deck_level_key = Column(String, nullable=True)
+    altitude_meters = Column(Float, nullable=True)
+    altitude_accuracy_meters = Column(Float, nullable=True)
     start_time = Column(DateTime(timezone=True), server_default=func.now())
     end_time = Column(DateTime(timezone=True), nullable=True)
     active = Column(Boolean, default=True, server_default=text("true"), nullable=False)

@@ -14,63 +14,78 @@ struct ActiveSessionChip: View {
     @State private var showEndConfirm = false
 
     var body: some View {
-        HStack(spacing: 10) {
-            Circle()
-                .fill(Color.red)
-                .frame(width: 8, height: 8)
-            Text(lotTitle)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .layoutPriority(1)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 10) {
+                Circle()
+                    .fill(Color.red)
+                    .frame(width: 8, height: 8)
+                Text(lotTitle)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .layoutPriority(1)
 
-            if let findCarState {
-                Divider()
-                    .frame(height: 16)
-                    .overlay(Color.primary.opacity(0.20))
-                Button(action: openDirectionsToCar) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "location.north.fill")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Color.blue)
-                            .rotationEffect(.degrees(findCarState.arrowRotation))
-                            .frame(width: 20, height: 20)
-                        Text(findCarState.distanceText)
-                            .font(.system(size: 13, weight: .semibold).monospacedDigit())
-                            .foregroundStyle(Color.blue)
-                            .lineLimit(1)
-                            .fixedSize(horizontal: true, vertical: false)
+                if let findCarState {
+                    Divider()
+                        .frame(height: 16)
+                        .overlay(Color.primary.opacity(0.20))
+                    Button(action: openDirectionsToCar) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "location.north.fill")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(Color.blue)
+                                .rotationEffect(.degrees(findCarState.arrowRotation))
+                                .frame(width: 20, height: 20)
+                            Text(findCarState.distanceText)
+                                .font(.system(size: 13, weight: .semibold).monospacedDigit())
+                                .foregroundStyle(Color.blue)
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
+                        }
                     }
+                    .buttonStyle(.plain)
+                }
+
+                HStack { EmptyView() }.frame(width: 6)
+                Button {
+                    guard !ending else { return }
+                    HapticManager.shared.softImpact()
+                    showEndConfirm = true
+                } label: {
+                    Text(ending ? "Ending…" : "End")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(Color.red)
+                        .padding(.horizontal, 2)
                 }
                 .buttonStyle(.plain)
+                .disabled(ending)
+                .accessibilityLabel(ending ? "Ending session" : "End parking session")
             }
 
-            // Size the chip to its content instead of expanding to fill space.
-            // Removing the Spacer avoids the large gap bug; the view will
-            // naturally size to its contents and the End button stays close.
-            // We keep a tiny gap to separate the content from the End button.
-            HStack { EmptyView() }.frame(width: 6)
-            Button {
-                guard !ending else { return }
-                HapticManager.shared.softImpact()
-                showEndConfirm = true
-            } label: {
-                Text(ending ? "Ending…" : "End")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(Color.red)
-                    .padding(.horizontal, 2)
+            if let line = sessionDeckLine {
+                Text(line)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            } else if let suggested = inferredDeckLabel {
+                HStack(spacing: 8) {
+                    Text("Suggested: \(suggested)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Button("Use") {
+                        Task { await applyDeckSuggestion(label: suggested) }
+                    }
+                    .font(.caption2.bold())
+                    .buttonStyle(.borderless)
+                }
             }
-            .buttonStyle(.plain)
-            .disabled(ending)
-            .accessibilityLabel(ending ? "Ending session" : "End parking session")
         }
         .padding(.vertical, 11)
         .padding(.horizontal, 16)
         .activeSessionGlass()
         .shadow(color: Color.red.opacity(0.22), radius: 12, y: 4)
-        // Make the chip fit its content, but cap the maximum width so very
-        // long lot names still get truncated/scaled rather than overflowing.
         .fixedSize(horizontal: true, vertical: false)
         .frame(maxWidth: 320)
         .padding(.horizontal, 14)
@@ -85,6 +100,29 @@ struct ActiveSessionChip: View {
             Button("Keep Parked", role: .cancel) {}
         } message: {
             Text("This marks you as no longer parked in \(lotTitle).")
+        }
+    }
+
+    private var sessionDeckLine: String? {
+        guard let raw = session.deckLevelLabel?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return nil }
+        return "Level \(raw)"
+    }
+
+    private var inferredDeckLabel: String? {
+        guard let lot = lotRepository.byId(session.lotId), lot.shouldPromptForDeckLevel else { return nil }
+        let existing = session.deckLevelLabel?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard existing.isEmpty else { return nil }
+        return DeckLevelCalibration.suggestedLabel(lotId: session.lotId, location: location.latestLocation)
+    }
+
+    private func applyDeckSuggestion(label: String) async {
+        let key = DeckLevelNormalizer.normalizedKey(from: label)
+        do {
+            try await ParkAPI.patchActiveSession(deckLevelLabel: label, deckLevelKey: key)
+            await NativeSessionStore.shared.refresh()
+            HapticManager.shared.success()
+        } catch {
+            HapticManager.shared.error()
         }
     }
 

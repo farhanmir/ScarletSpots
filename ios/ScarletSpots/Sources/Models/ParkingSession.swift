@@ -5,6 +5,10 @@ struct ParkingSession: Codable, Identifiable {
     let lotId: String
     let latitude: Double?
     let longitude: Double?
+    let deckLevelLabel: String?
+    let deckLevelKey: String?
+    let altitudeMeters: Double?
+    let altitudeAccuracyMeters: Double?
     let startTime: Date
     let endTime: Date?
     let active: Bool
@@ -20,6 +24,10 @@ struct ParkingSession: Codable, Identifiable {
         case lotIdCamel = "lotId"
         case latitude
         case longitude
+        case deckLevelLabel
+        case deckLevelKey
+        case altitudeMeters
+        case altitudeAccuracyMeters
         case startTime = "start_time"
         case startTimeCamel = "startTime"
         case endTime = "end_time"
@@ -44,6 +52,10 @@ struct ParkingSession: Codable, Identifiable {
             ?? ""
         latitude = try c.decodeIfPresent(Double.self, forKey: .latitude)
         longitude = try c.decodeIfPresent(Double.self, forKey: .longitude)
+        deckLevelLabel = try c.decodeIfPresent(String.self, forKey: .deckLevelLabel)
+        deckLevelKey = try c.decodeIfPresent(String.self, forKey: .deckLevelKey)
+        altitudeMeters = try c.decodeIfPresent(Double.self, forKey: .altitudeMeters)
+        altitudeAccuracyMeters = try c.decodeIfPresent(Double.self, forKey: .altitudeAccuracyMeters)
         startTime = try c.decodeIfPresent(Date.self, forKey: .startTimeCamel)
             ?? c.decodeIfPresent(Date.self, forKey: .startTime)
             ?? Date()
@@ -68,6 +80,10 @@ struct ParkingSession: Codable, Identifiable {
         try c.encode(lotId, forKey: .lotId)
         try c.encodeIfPresent(latitude, forKey: .latitude)
         try c.encodeIfPresent(longitude, forKey: .longitude)
+        try c.encodeIfPresent(deckLevelLabel, forKey: .deckLevelLabel)
+        try c.encodeIfPresent(deckLevelKey, forKey: .deckLevelKey)
+        try c.encodeIfPresent(altitudeMeters, forKey: .altitudeMeters)
+        try c.encodeIfPresent(altitudeAccuracyMeters, forKey: .altitudeAccuracyMeters)
         try c.encode(startTime, forKey: .startTime)
         try c.encodeIfPresent(endTime, forKey: .endTime)
         try c.encode(active, forKey: .active)
