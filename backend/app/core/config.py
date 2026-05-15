@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import Any
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -10,6 +11,28 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 # Git SHA baked in by Docker at build time via --build-arg GIT_SHA=<hash>.
 # Falls back to "dev" when running locally without the Docker build arg.
 GIT_SHA: str = os.environ.get("GIT_SHA", "dev")
+
+
+def _coerce_diagnostics_allowed_emails(value: Any) -> list[str]:
+    """Dotenv delivers a string; pydantic-settings can fail JSON coercion for list[str]. Always normalize here."""
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple, set)):
+        raw_values = [str(x) for x in value]
+    elif isinstance(value, str):
+        stripped = value.strip()
+        if len(stripped) >= 2 and stripped[0] == stripped[-1] and stripped[0] in {'"', "'"}:
+            stripped = stripped[1:-1]
+        raw_values = stripped.split(",") if stripped else []
+    else:
+        return []
+
+    normalized: list[str] = []
+    for raw in raw_values:
+        email = str(raw).strip().lower()
+        if email and email not in normalized:
+            normalized.append(email)
+    return normalized
 
 
 class Settings(BaseSettings):
@@ -40,7 +63,8 @@ class Settings(BaseSettings):
     APNS_USE_SANDBOX: bool = Field(default=False)
     CAMPUS_TIMEZONE: str = Field(default="America/New_York")
     DEBUG: bool = Field(default=False)
-    DIAGNOSTICS_ALLOWED_EMAILS: list[str] = Field(default_factory=list)
+    # Env is a single string; list[str] in .env breaks pydantic-settings dotenv parsing.
+    diagnostics_allowed_emails_csv: str = Field(default="", validation_alias="DIAGNOSTICS_ALLOWED_EMAILS")
 
     # Security dashboard key for abuse metrics endpoint
     SECURITY_DASHBOARD_KEY: str = Field(default="")
@@ -93,26 +117,10 @@ class Settings(BaseSettings):
                 return False
         return value
 
-    @field_validator("DIAGNOSTICS_ALLOWED_EMAILS", mode="before")
-    @classmethod
-    def normalize_diagnostics_allowed_emails(cls, value):
-        if value is None:
-            return []
-        if isinstance(value, str):
-            raw_values = value.split(",")
-        elif isinstance(value, (list, tuple, set)):
-            raw_values = list(value)
-        else:
-            return value
-
-        normalized: list[str] = []
-        for raw in raw_values:
-            if raw is None:
-                continue
-            email = str(raw).strip().lower()
-            if email and email not in normalized:
-                normalized.append(email)
-        return normalized
+    @property
+    def DIAGNOSTICS_ALLOWED_EMAILS(self) -> list[str]:
+        """Emails allowed to see in-app diagnostics (comma-separated in env)."""
+        return _coerce_diagnostics_allowed_emails(self.diagnostics_allowed_emails_csv)
 
 
 settings = Settings()

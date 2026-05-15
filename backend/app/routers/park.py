@@ -130,12 +130,11 @@ def _session_response(session: ParkingSession) -> dict:
 
 @asynccontextmanager
 async def _transaction_scope(db: AsyncSession):
-    """Run writes inside a fresh transaction boundary."""
+    """Committed write batch. Idempotency SELECT autobegins a txn; rollback then ``begin()`` so writes commit."""
     if db.in_transaction():
+        await db.rollback()
+    async with db.begin():
         yield
-    else:
-        async with db.begin():
-            yield
 
 
 async def _load_idempotent_response(

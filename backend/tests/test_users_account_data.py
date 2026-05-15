@@ -21,9 +21,7 @@ async def test_read_user_me_returns_can_access_diagnostics_for_allowed_email(
     db_session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
 ):
-    monkeypatch.setattr(
-        settings, "DIAGNOSTICS_ALLOWED_EMAILS", ["farhan@rutgers.edu"], raising=False
-    )
+    monkeypatch.setattr(settings, "diagnostics_allowed_emails_csv", "farhan@rutgers.edu")
     allowed_user = SimpleNamespace(
         id="00000000-0000-0000-0000-000000000123",
         email="  Farhan@Rutgers.edu ",
@@ -50,9 +48,7 @@ async def test_read_user_me_returns_can_access_diagnostics_false_for_other_rutge
 ):
     _ = db_session
     _ = override_current_user
-    monkeypatch.setattr(
-        settings, "DIAGNOSTICS_ALLOWED_EMAILS", ["farhan@rutgers.edu"], raising=False
-    )
+    monkeypatch.setattr(settings, "diagnostics_allowed_emails_csv", "farhan@rutgers.edu")
 
     response = await client.get("/api/v1/users/me")
     assert response.status_code == 200, response.text
