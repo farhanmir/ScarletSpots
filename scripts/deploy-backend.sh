@@ -41,10 +41,13 @@ git pull origin "$BRANCH"
 # 4. Rebuild and restart the container
 echo "🏗️  Rebuilding and restarting the backend container..."
 
-# Capture the exact commit hash we are about to deploy
+# Capture the exact commit hash we are about to deploy (compose build args read from env)
 GIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+export GIT_SHA
+echo "GIT_SHA=$GIT_SHA"
 
-sudo GIT_SHA="$GIT_SHA" docker compose up -d --build --build-arg GIT_SHA="$GIT_SHA" backend
+sudo env "GIT_SHA=$GIT_SHA" docker compose build backend
+sudo docker compose up -d backend
 
 # 5. Housekeeping
 echo "🧹 Cleaning up dangling Docker images to save space..."
