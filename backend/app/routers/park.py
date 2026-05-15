@@ -274,6 +274,7 @@ async def _get_same_lot_friend_user_ids(
 @router.patch("/active")
 @limiter.limit("60/hour")
 async def patch_active_parking_session(
+    request: Request,
     body: ParkSessionActivePatch,
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
